@@ -1,0 +1,12 @@
+{
+  "title": "Misopaprika",
+  "subtitle": "Creator • Filmmaker",
+  "description": "I make short films, tutorials, and behind-the-scenes content focused on storytelling and visual craft. Available for collaborations and sponsored content.",
+  "buttonText": "Let's Collaborate",
+  "image": {
+    "src": "/file.svg",
+    "alt": "Misopaprika",
+    "width": 80,
+    "height": 80
+  }
+}

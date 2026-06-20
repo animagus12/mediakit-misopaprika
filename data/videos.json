@@ -1,0 +1,35 @@
+{
+  "title": "Featured Videos",
+  "description": "Separate Instagram and YouTube sections with 3 videos shown by default.",
+  "sections": [
+    {
+      "platform": "Instagram",
+      "icon": "instagram",
+      "videos": [
+        { "title": "Storytelling in 60 Seconds", "url": "https://www.instagram.com", "duration": "0:59", "likes": 12400, "comments": 340, "shares": 85, "saves": 220, "color": "from-pink-500 to-yellow-400" },
+        { "title": "Brand Visuals Breakdown", "url": "https://www.instagram.com", "duration": "1:24", "likes": 8700, "comments": 220, "shares": 70, "saves": 150, "color": "from-violet-600 to-fuchsia-500" },
+        { "title": "Behind the Scenes Edit", "url": "https://www.instagram.com", "duration": "0:45", "likes": 9100, "comments": 290, "shares": 75, "saves": 185, "color": "from-emerald-500 to-teal-500" },
+        { "title": "Lighting Secrets", "url": "https://www.instagram.com", "duration": "1:02", "likes": 7600, "comments": 200, "shares": 55, "saves": 140, "color": "from-amber-500 to-orange-500" },
+        { "title": "Motion Design Short", "url": "https://www.instagram.com", "duration": "0:33", "likes": 6300, "comments": 170, "shares": 45, "saves": 120, "color": "from-rose-500 to-pink-500" },
+        { "title": "Quick Editing Reel", "url": "https://www.instagram.com", "duration": "0:48", "likes": 11200, "comments": 260, "shares": 95, "saves": 210, "color": "from-fuchsia-500 to-purple-600" },
+        { "title": "Color Story Reel", "url": "https://www.instagram.com", "duration": "0:52", "likes": 10800, "comments": 240, "shares": 88, "saves": 195, "color": "from-blue-500 to-cyan-500" },
+        { "title": "Visual Craft Short", "url": "https://www.instagram.com", "duration": "1:05", "likes": 13900, "comments": 320, "shares": 110, "saves": 260, "color": "from-emerald-500 to-lime-500" },
+        { "title": "Product Film Clip", "url": "https://www.instagram.com", "duration": "0:51", "likes": 7900, "comments": 210, "shares": 60, "saves": 145, "color": "from-orange-500 to-amber-500" }
+      ]
+    },
+    {
+      "platform": "YouTube",
+      "icon": "youtube",
+      "videos": [
+        { "title": "Cinematic Editing Tips", "url": "https://www.youtube.com", "duration": "4:12", "likes": 18900, "comments": 520, "shares": 130, "saves": 310, "color": "from-red-600 to-orange-500" },
+        { "title": "Music Video Workflow", "url": "https://www.youtube.com", "duration": "6:03", "likes": 24300, "comments": 680, "shares": 190, "saves": 420, "color": "from-slate-800 to-slate-600" },
+        { "title": "Sponsored Content Reel", "url": "https://www.youtube.com", "duration": "3:18", "likes": 15800, "comments": 410, "shares": 110, "saves": 250, "color": "from-sky-600 to-indigo-500" },
+        { "title": "Color Grading Reel", "url": "https://www.youtube.com", "duration": "5:22", "likes": 21100, "comments": 560, "shares": 160, "saves": 390, "color": "from-cyan-500 to-blue-600" },
+        { "title": "Director’s Cut Breakdown", "url": "https://www.youtube.com", "duration": "7:15", "likes": 19400, "comments": 470, "shares": 145, "saves": 330, "color": "from-slate-700 to-slate-500" },
+        { "title": "Visual Effects Reel", "url": "https://www.youtube.com", "duration": "8:04", "likes": 22000, "comments": 610, "shares": 170, "saves": 380, "color": "from-fuchsia-700 to-purple-600" },
+        { "title": "Storyboarding Process", "url": "https://www.youtube.com", "duration": "5:40", "likes": 13200, "comments": 340, "shares": 120, "saves": 280, "color": "from-emerald-600 to-teal-500" },
+        { "title": "Short Film Tips", "url": "https://www.youtube.com", "duration": "9:32", "likes": 17500, "comments": 490, "shares": 155, "saves": 360, "color": "from-blue-600 to-indigo-600" }
+      ]
+    }
+  ]
+}
