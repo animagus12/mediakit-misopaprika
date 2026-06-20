@@ -1,6 +1,10 @@
 {
   "title": "Audience",
   "description": "Instagram & YouTube audience overview",
+  "displayName": {
+    "instagram": "Instagram",
+    "youtube": "YouTube"
+  },
   "instagram": {
     "gender": { "male": 42, "female": 56, "other": 2 },
     "age": [

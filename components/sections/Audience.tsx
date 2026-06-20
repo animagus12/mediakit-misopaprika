@@ -55,7 +55,7 @@ export default function Audience() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>{data.instagram.displayName ?? "Instagram"}</CardTitle>
+            <CardTitle>{data.displayName.instagram ?? "Instagram"}</CardTitle>
             <CardDescription>Audience breakdown and top cities</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -107,7 +107,7 @@ export default function Audience() {
 
         <Card>
           <CardHeader>
-            <CardTitle>{data.youtube.displayName ?? "YouTube"}</CardTitle>
+            <CardTitle>{data.displayName.youtube ?? "YouTube"}</CardTitle>
             <CardDescription>Audience breakdown and top cities</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
