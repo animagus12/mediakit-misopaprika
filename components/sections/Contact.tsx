@@ -9,6 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Send } from "lucide-react"
+import { contactRepository } from "@/repositories"
+
+const contactData = contactRepository.get()
+const brandField = contactData.fields.find((f) => f.name === "brandName")!
+const messageField = contactData.fields.find((f) => f.name === "message")!
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -23,65 +28,60 @@ export default function Contact() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.brandName || !formData.message) {
       alert("Please fill in all required fields")
       return
     }
 
-    // Create mailto link with subject and body
     const subject = `Collaboration Inquiry from ${formData.brandName}`
     const body = `Brand: ${formData.brandName}\n\nCampaign Details:\n${formData.message}`
-    const mailtoLink = `mailto:paprikaX1000@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    
-    // Open default email client
+    const mailtoLink = `mailto:${contactData.mailto}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
     window.location.href = mailtoLink
   }
 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-lg font-semibold">Let's Collaborate</h3>
-        <p className="text-sm text-muted-foreground">Tell me about your project and I'll get back to you soon</p>
+        <h3 className="text-lg font-semibold">{contactData.title}</h3>
+        <p className="text-sm text-muted-foreground">{contactData.description}</p>
       </div>
 
       <Card className="rounded-lg">
         <CardContent className="space-y-6 pt-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Brand Name */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Brand Name *</label>
+              <label className="text-sm font-medium">{brandField.label}</label>
               <Input
                 name="brandName"
                 value={formData.brandName}
                 onChange={handleChange}
-                placeholder="Your brand or company name"
+                placeholder={brandField.placeholder}
                 className="rounded-lg"
               />
             </div>
 
-            {/* Campaign Details */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tell me about your campaign *</label>
+              <label className="text-sm font-medium">{messageField.label}</label>
               <textarea
                 name="message"
                 value={formData.message}
                 onChange={handleChange}
-                placeholder="What kind of video or content are you looking for? Share your ideas, budget, style preferences, or any specific requirements..."
+                placeholder={messageField.placeholder}
                 className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground resize-none"
-                rows={5}
+                rows={messageField.rows ?? 5}
               />
             </div>
 
             <Separator />
 
-            {/* Submit Button */}
             <Button
               type="submit"
               className="w-full rounded-lg gap-2 bg-purple-600 hover:bg-purple-700"
             >
               <Send className="size-4" />
-              Send Inquiry
+              {contactData.submitText}
             </Button>
           </form>
         </CardContent>

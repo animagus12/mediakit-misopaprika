@@ -10,7 +10,9 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { CheckCircle2 } from "lucide-react"
-import servicesData from "@/data/services.json"
+import { servicesRepository } from "@/repositories"
+
+const servicesData = servicesRepository.get()
 
 export default function Services() {
   return (

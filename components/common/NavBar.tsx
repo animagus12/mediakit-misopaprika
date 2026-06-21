@@ -16,7 +16,7 @@ const NavBar = () => {
   const { setTheme } = useTheme();
 
   return (
-    <nav className="p-4 flex justify-between items-center">
+    <nav className="sticky top-0 z-50 p-2 flex justify-between items-center bg-background/95 backdrop-blur-xl">
       {/* Left Section */}
       <SidebarTrigger />
 
