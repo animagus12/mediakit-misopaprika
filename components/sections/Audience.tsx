@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import audienceData from "@/data/audience.json"
+import { audienceRepository } from "@/repositories"
+
+const audienceData = audienceRepository.get()
 
 function ProgressRow({ label, value, color }: { label: string; value: number; color: string }) {
   return (

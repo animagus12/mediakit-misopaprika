@@ -7,7 +7,9 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card"
-import heroData from "@/data/hero.json"
+import { heroRepository } from "@/repositories"
+
+const heroData = heroRepository.get()
 
 export default function Hero() {
   return (

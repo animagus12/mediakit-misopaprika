@@ -1,5 +1,9 @@
+"use client";
+
 import Image from "next/image";
-import sectionsData from "@/data/sections.json";
+import { sectionsRepository } from "@/repositories";
+
+const sectionsData = sectionsRepository.get();
 import {
   Sidebar,
   SidebarContent,
@@ -12,13 +16,20 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "../ui/sidebar";
 
 const AppSideBar = () => {
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleNavClick = () => {
+    if (isMobile) setOpenMobile(false);
+  };
+
   return (
     <Sidebar className="rounded-r-3xl border-r border-border bg-background/95 shadow-sm shadow-slate-900/5">
       <SidebarHeader className="space-y-3 border-b border-border/70 px-4 pb-4 pt-6">
-        <a href="#hero" className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-2 transition hover:bg-muted/80">
+        <a href="#hero" onClick={handleNavClick} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-2 transition hover:bg-muted/80">
           <Image src="/logo.png" alt="Logo" width={32} height={32} />
           <div>
             <p className="text-sm font-semibold">Misoparika</p>
@@ -35,7 +46,7 @@ const AppSideBar = () => {
               {sectionsData.items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a href={item.href}>
+                    <a href={item.href} onClick={handleNavClick}>
                       <span>{item.title}</span>
                     </a>
                   </SidebarMenuButton>
