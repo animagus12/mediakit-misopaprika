@@ -1,4 +1,5 @@
 import analyticsJson from "@/data/analytics.json";
+import { getCachedYouTubeAnalytics } from "@/lib/cache";
 
 export interface PlatformAnalytics {
   displayName: string;
@@ -20,12 +21,29 @@ export interface AnalyticsData {
 }
 
 export interface IAnalyticsRepository {
-  get(): AnalyticsData;
+  get(): Promise<AnalyticsData>;
 }
 
 class JsonAnalyticsRepository implements IAnalyticsRepository {
-  get(): AnalyticsData {
-    return analyticsJson;
+  async get(): Promise<AnalyticsData> {
+    const base = analyticsJson as AnalyticsData;
+    const yt = await getCachedYouTubeAnalytics().catch(() => null);
+
+    if (!yt) return base;
+
+    return {
+      ...base,
+      platforms: {
+        ...base.platforms,
+        youtube: {
+          ...base.platforms.youtube,
+          totalViews: yt.totalViews,
+          accountsReached: yt.accountsReached,
+          engagementPct: yt.engagementPct,
+          avgViews: yt.avgViews,
+        },
+      },
+    };
   }
 }
 
