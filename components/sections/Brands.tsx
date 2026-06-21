@@ -8,7 +8,9 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card"
-import brandsData from "@/data/brands.json"
+import { brandsRepository } from "@/repositories"
+
+const brandsData = brandsRepository.get()
 
 export default function Brands() {
   const containerRef = useRef<HTMLDivElement | null>(null)

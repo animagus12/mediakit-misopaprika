@@ -19,7 +19,9 @@ import {
 } from "@/components/ui/card"
 import { ChevronDown } from "lucide-react"
 import { FaInstagram, FaYoutube } from "react-icons/fa"
-import analyticsData from "@/data/analytics.json"
+import { analyticsRepository } from "@/repositories"
+
+const analyticsData = analyticsRepository.get()
 
 function fmt(n: number) {
   return n >= 1_000_000

@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/card"
 import { Heart, MessageCircle, Share2, Bookmark, ChevronRight, ChevronLeft } from "lucide-react"
 import { FaInstagram, FaYoutube } from "react-icons/fa"
-import videosData from "@/data/videos.json"
+import { videosRepository } from "@/repositories"
+
+const videosData = videosRepository.get()
 
 function metric(value: number) {
   return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`
