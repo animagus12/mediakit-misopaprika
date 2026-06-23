@@ -1,23 +1,25 @@
 {
   "title": "Analytics",
   "description": "Instagram & YouTube performance overview",
-  "ranges": [30, 45, 60],
+  "ranges": [14, 30, 60],
   "platforms": {
     "instagram": {
       "displayName": "Instagram",
       "description": "handle: @misopaprika",
-      "totalViews": 120000,
-      "accountsReached": 90000,
-      "engagementPct": 3.4,
-      "avgViews": 4000
+      "byRange": {
+        "14": { "totalViews": 350000, "accountsReached": 237000, "engagementPct": 4.2, "avgViews": 43000 },
+        "30": { "totalViews": 748000, "accountsReached": 377000, "engagementPct": 4.1, "avgViews": 57000 },
+        "60": { "totalViews": 1400000, "accountsReached": 680000, "engagementPct": 4.0, "avgViews": 55000 }
+      }
     },
     "youtube": {
       "displayName": "YouTube",
       "description": "channel: Misopaprika",
-      "totalViews": 85000,
-      "accountsReached": 70000,
-      "engagementPct": 4.1,
-      "avgViews": 3200
+      "byRange": {
+        "14": { "totalViews": 40000, "accountsReached": 70000, "engagementPct": 0.2, "avgViews": 3500 },
+        "30": { "totalViews": 85000, "accountsReached": 70000, "engagementPct": 0.2, "avgViews": 3200 },
+        "60": { "totalViews": 170000, "accountsReached": 70000, "engagementPct": 0.2, "avgViews": 3100 }
+      }
     }
   }
 }

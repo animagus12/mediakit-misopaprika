@@ -11,7 +11,6 @@ import {
   CardContent,
 } from "@/components/ui/card"
 import { Heart, MessageCircle, Share2, Bookmark, ChevronRight, ChevronLeft } from "lucide-react"
-import { FaInstagram, FaYoutube } from "react-icons/fa"
 import { videosRepository } from "@/repositories"
 
 const videosData = videosRepository.get()
@@ -20,24 +19,16 @@ function metric(value: number) {
   return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : `${value}`
 }
 
-const iconMap: Record<string, React.ReactNode> = {
-  instagram: <FaInstagram className="size-4" />,
-  youtube: <FaYoutube className="size-4" />,
-}
-
 function VideoSection({
   title,
-  icon,
   videos,
   expanded,
   onToggle,
 }: {
   title: string
-  icon: React.ReactNode
   videos: Array<{
     title: string
     url: string
-    duration: string
     likes: number
     comments: number
     shares: number
@@ -81,10 +72,6 @@ function VideoSection({
                 <div className="absolute inset-0 bg-black/40" />
                 <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/70 to-transparent" />
 
-                <div className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white">
-                  {icon}
-                </div>
-
                 <div className="absolute left-3 top-3 space-y-2 text-[0.7rem] text-white">
                   <div className="flex items-center gap-2 rounded-full bg-black/50 px-2 py-1">
                     <Heart className="size-3" />
@@ -105,10 +92,6 @@ function VideoSection({
                     <Bookmark className="size-3" />
                     <span>{metric(video.saves)}</span>
                   </div>
-                </div>
-
-                <div className="absolute right-3 bottom-3 rounded-full bg-white/10 px-2 py-1 text-[0.65rem] text-white backdrop-blur-sm">
-                  {video.duration}
                 </div>
               </div>
             </Link>
@@ -138,7 +121,6 @@ export default function Videos() {
         <VideoSection
           key={section.platform}
           title={section.platform}
-          icon={iconMap[section.icon] ?? <FaInstagram className="size-4" />}
           videos={section.videos}
           expanded={section.platform === "Instagram" ? instagramExpanded : youtubeExpanded}
           onToggle={() =>

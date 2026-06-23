@@ -1,13 +1,17 @@
 import analyticsJson from "@/data/analytics.json";
-import { getCachedYouTubeAnalytics } from "@/lib/cache";
+import { getCachedYouTubeAnalytics, getCachedInstagramAnalytics } from "@/lib/cache";
 
-export interface PlatformAnalytics {
-  displayName: string;
-  description: string;
+export interface PlatformRangeMetrics {
   totalViews: number;
   accountsReached: number;
   engagementPct: number;
   avgViews: number;
+}
+
+export interface PlatformAnalytics {
+  displayName: string;
+  description: string;
+  byRange: Record<14 | 30 | 60, PlatformRangeMetrics>;
 }
 
 export interface AnalyticsData {
@@ -24,24 +28,45 @@ export interface IAnalyticsRepository {
   get(): Promise<AnalyticsData>;
 }
 
+function mergeRange(
+  live: PlatformRangeMetrics,
+  fallback: PlatformRangeMetrics
+): PlatformRangeMetrics {
+  return {
+    ...live,
+    engagementPct: live.engagementPct || fallback.engagementPct,
+    avgViews: live.avgViews || fallback.avgViews,
+  };
+}
+
+function mergeByRange(
+  live: PlatformAnalytics["byRange"],
+  fallback: PlatformAnalytics["byRange"]
+): PlatformAnalytics["byRange"] {
+  return {
+    14: mergeRange(live[14], fallback[14]),
+    30: mergeRange(live[30], fallback[30]),
+    60: mergeRange(live[60], fallback[60]),
+  };
+}
+
 class JsonAnalyticsRepository implements IAnalyticsRepository {
   async get(): Promise<AnalyticsData> {
-    const base = analyticsJson as AnalyticsData;
-    const yt = await getCachedYouTubeAnalytics().catch(() => null);
-
-    if (!yt) return base;
+    const base = analyticsJson as unknown as AnalyticsData;
+    const [yt, ig] = await Promise.all([
+      getCachedYouTubeAnalytics().catch(() => null),
+      getCachedInstagramAnalytics().catch(() => null),
+    ]);
 
     return {
       ...base,
       platforms: {
-        ...base.platforms,
-        youtube: {
-          ...base.platforms.youtube,
-          totalViews: yt.totalViews,
-          accountsReached: yt.accountsReached,
-          engagementPct: yt.engagementPct,
-          avgViews: yt.avgViews,
-        },
+        instagram: ig
+          ? { ...base.platforms.instagram, byRange: mergeByRange(ig.byRange, base.platforms.instagram.byRange) }
+          : base.platforms.instagram,
+        youtube: yt
+          ? { ...base.platforms.youtube, byRange: mergeByRange(yt.byRange, base.platforms.youtube.byRange) }
+          : base.platforms.youtube,
       },
     };
   }
