@@ -1,0 +1,50 @@
+{
+  "brandHandle": "@misopaprika",
+  "invoiceNumberSeed": "0007",
+  "dueInDays": 5,
+  "billedToPlaceholder": {
+    "name": "Motoblox DIY",
+    "email": "motoblox.diy@gmail.com"
+  },
+  "defaultItems": [
+    { "desc": "1 Reel + 1 Story", "sub": "", "qty": 1, "price": 4500 }
+  ],
+  "presets": [
+    {
+      "id": "reelstory",
+      "label": "Instagram Reel + Story",
+      "items": [
+        { "desc": "Instagram Reel + Story", "sub": "1 Reel + 1 Story", "qty": 1, "price": 4500 }
+      ]
+    },
+    {
+      "id": "reelstoryad",
+      "label": "Reel + Story + Ad Usage",
+      "items": [
+        { "desc": "Instagram Reel + Story", "sub": "1 Reel + 1 Story", "qty": 1, "price": 4500 },
+        { "desc": "Ad Usage", "sub": "", "qty": 1, "price": 1000 }
+      ]
+    },
+    {
+      "id": "ugc",
+      "label": "UGC Ad Reel (unposted)",
+      "items": [
+        { "desc": "UGC Ad Reel (unposted)", "sub": "1 Reel, raw + edited", "qty": 1, "price": 5000 },
+        { "desc": "Ad Usage", "sub": "", "qty": 1, "price": 1000 }
+      ]
+    }
+  ],
+  "payee": {
+    "name": "Miso Paprika",
+    "email": "paprikax1000@gmail.com",
+    "upi": "ritikarumde-2@oksbi",
+    "footerNote": "GST: Not Applicable (Not GST Registered)",
+    "closingLine": "Thank you for your collaboration.",
+    "defaultQrImage": "/invoice/qr.jpeg"
+  },
+  "barter": {
+    "defaultEnabled": true,
+    "defaultValue": 4500,
+    "defaultStatus": "Received"
+  }
+}
