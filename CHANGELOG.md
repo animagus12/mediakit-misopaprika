@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### Added
+- **Invoice generator** (`/invoice`) — standalone, live-editable A4 invoice with browser print-to-PDF export; no new dependencies
+- `data/invoice.json` + `repositories/invoice.ts` — repository-backed invoice defaults, deliverable presets, payee details, and barter defaults
+- `lib/invoice.ts` — pure formatting/calculation helpers (money, dates, line totals, balance due)
+- `components/invoice/` — `InvoiceGenerator`, `InvoiceControls`, `InvoiceLineItemEditor`, `InvoiceImageUploadField`, `InvoicePreview`, and a scoped `invoice.module.css`
+- `components/ui/label.tsx`, `select.tsx`, `checkbox.tsx` — added via the shadcn CLI to support the invoice form
+- `app/(dashboard)/` route group — carries the sidebar/navbar chrome so `/invoice` renders standalone without it
+- Optional "Name" (contact person) field under Billed to, shown on the invoice above the brand name when filled
+- Optional QR code and stamp/seal image uploads on the invoice, each independently removable; QR defaults to the account's UPI QR (`public/invoice/qr.jpeg`) when not overridden
+
+### Changed
+- `app/layout.tsx` — trimmed to the root shell (fonts + theme provider); sidebar/navbar moved into the new `app/(dashboard)/layout.tsx`
+- `repositories/index.ts` — exports `invoiceRepository` and its types
+- "UGC Ad Reel (unposted)" quick-fill preset now includes an Ad Usage line, matching the other presets
+- Quick-fill presets no longer prefill the line-item sub-line bullet
+
+### Fixed
+- Line-item ids were generated with `Math.random()` during the initial render, causing a React hydration mismatch; switched to deterministic ids for the first render and a counter-based generator for anything added afterward
+- Invoice form fields were missing `htmlFor`/`id` associations between labels and inputs
+- QTY column was center-aligned, which visually drifted between the regular- and bold-weight rows; switched to right-aligned to match the other numeric columns
+- Signature/stamp artwork repositioned to sit flush against the invoice's right edge, matching the source design
+
+### Removed
+- "Copy row for transactions sheet" button and its clipboard handler
+- Unused hint text under the invoice panel's brand bar
+
 ---
 
 ## [1.1.0] - 2026-06-21
