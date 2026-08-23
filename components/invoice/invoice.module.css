@@ -445,8 +445,8 @@
 
 .sq {
   position: absolute;
-  right: -6mm;
-  top: 4mm;
+  right: -26mm;
+  top: 0mm;
   height: 19mm;
   object-fit: contain;
 }
