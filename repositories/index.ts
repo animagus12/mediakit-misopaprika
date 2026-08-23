@@ -21,3 +21,14 @@ export type { VideosData, VideoSection, Video, IVideosRepository } from "./video
 
 export { contactRepository } from "./contact";
 export type { ContactData, ContactField, IContactRepository } from "./contact";
+
+export { invoiceRepository } from "./invoice";
+export type {
+  InvoiceData,
+  InvoiceLineItemInput,
+  InvoicePreset,
+  InvoiceContact,
+  InvoicePayee,
+  InvoiceBarterDefaults,
+  IInvoiceRepository,
+} from "./invoice";
