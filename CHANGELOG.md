@@ -11,6 +11,12 @@
 - `app/(dashboard)/` route group — carries the sidebar/navbar chrome so `/invoice` renders standalone without it
 - Optional "Name" (contact person) field under Billed to, shown on the invoice above the brand name when filled
 - Optional QR code and stamp/seal image uploads on the invoice, each independently removable; QR defaults to the account's UPI QR (`public/invoice/qr.jpeg`) when not overridden
+- **Password-protected `/invoice`** — `proxy.ts` gates the route behind a signed session cookie; unauthenticated visitors are redirected to `/invoice/login`
+- `lib/invoice-auth.ts` — HMAC-signed, expiring session tokens (Web Crypto) and constant-time password verification
+- `app/api/invoice-auth/route.ts` — verifies `INVOICE_PASSWORD` and issues the httpOnly session cookie
+- `components/invoice/InvoiceLoginForm.tsx` + `app/invoice/login/page.tsx` — password entry form
+- `app/robots.ts` — disallows `/invoice`; both `/invoice` and `/invoice/login` set `noindex, nofollow`
+- `.env.example` — documents `INVOICE_PASSWORD` and `INVOICE_SESSION_SECRET`
 
 ### Changed
 - `app/layout.tsx` — trimmed to the root shell (fonts + theme provider); sidebar/navbar moved into the new `app/(dashboard)/layout.tsx`
