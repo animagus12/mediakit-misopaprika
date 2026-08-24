@@ -1,0 +1,514 @@
+:root {
+  --invoice-cream: #fff9e9;
+  --invoice-ink: #141414;
+  --invoice-blue: #0052c4;
+  --invoice-rule: #1a1a1a;
+  --invoice-panel: #0e1b2e;
+  --invoice-panel-2: #16263d;
+  --invoice-panel-line: #2a3b55;
+  --invoice-muted: #93a4bd;
+}
+
+/* ---------- app shell ---------- */
+.app {
+  display: flex;
+  min-height: 100vh;
+  align-items: flex-start;
+  background: var(--invoice-panel);
+  color: #e9eef6;
+  font-family: var(--font-invoice-body, "Poppins", system-ui, sans-serif);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel {
+  width: 400px;
+  flex: 0 0 400px;
+  background: var(--invoice-panel);
+  border-right: 1px solid var(--invoice-panel-line);
+  padding: 22px 22px 60px;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.stage {
+  flex: 1;
+  padding: 28px 20px 60px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.stageInner {
+  transform-origin: top center;
+}
+
+.brandbar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.brandbar h1 {
+  font-family: var(--font-invoice-heading, "Archivo Black", "Poppins", sans-serif);
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  margin: 0;
+  color: #fff;
+}
+
+.brandbar span {
+  font-size: 11px;
+  color: var(--invoice-muted);
+  letter-spacing: 0.08em;
+}
+
+.fieldset {
+  border: 0;
+  border-top: 1px solid var(--invoice-panel-line);
+  margin: 0 0 4px;
+  padding: 16px 0 6px;
+}
+
+.legend {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--invoice-blue);
+  font-weight: 600;
+  padding: 0 8px 0 0;
+  background: transparent;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--invoice-muted);
+  margin: 10px 0 5px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTight {
+  gap: 6px;
+}
+
+.wSm {
+  flex: 0 0 62px;
+}
+
+.wMd {
+  flex: 0 0 96px;
+}
+
+.item {
+  border: 1px solid var(--invoice-panel-line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+  background: #122135;
+}
+
+.itemTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.itemIdx {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--invoice-muted);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.toggleLabel {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-size: 12.5px;
+  color: #cbd7e8;
+}
+
+.uploadPreview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.uploadThumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid var(--invoice-panel-line);
+  object-fit: contain;
+  background: #fff;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--invoice-blue);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.25s;
+  z-index: 50;
+}
+
+.toastShow {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ---------- the invoice page ---------- */
+.page {
+  width: 210mm;
+  height: 297mm;
+  background: var(--invoice-cream);
+  color: var(--invoice-ink);
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-invoice-body, "Poppins", sans-serif);
+}
+
+.band {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  display: block;
+}
+
+.bandTop {
+  top: 0;
+  height: 12.3mm;
+  object-fit: cover;
+}
+
+.bandBottom {
+  bottom: 0;
+  height: 18.3mm;
+  object-fit: cover;
+}
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  padding: 0 26mm 22mm;
+  display: flex;
+  flex-direction: column;
+}
+
+.titlerow {
+  display: flex;
+  align-items: center;
+  gap: 12mm;
+  margin-top: 48mm;
+}
+
+.rule {
+  flex: 1;
+  height: 1px;
+  background: var(--invoice-rule);
+  margin-left: -4mm;
+}
+
+.titlerow h2 {
+  font-family: var(--font-invoice-heading, "Archivo Black", "Poppins", sans-serif);
+  font-weight: 900;
+  color: var(--invoice-blue);
+  font-size: 32pt;
+  letter-spacing: 0.17em;
+  margin: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10mm;
+  margin-top: 18mm;
+}
+
+.metaLeft {
+  max-width: 82mm;
+}
+
+.metaRight {
+  text-align: right;
+}
+
+.lbl {
+  font-size: 9.5pt;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  margin: 0 0 2mm;
+}
+
+.val {
+  font-size: 9.5pt;
+  font-weight: 300;
+  letter-spacing: 0.07em;
+  margin: 0;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.metaRight .val {
+  letter-spacing: 0.09em;
+}
+
+.metaSecond {
+  margin-top: 8mm;
+}
+
+.qr {
+  width: 18mm;
+  height: 18mm;
+  display: block;
+  margin: 2mm 0 0 auto;
+  object-fit: contain;
+}
+
+.items {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 9mm;
+}
+
+.items th {
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-align: right;
+  padding: 0 0 3mm;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--invoice-rule);
+}
+
+.items th:first-child {
+  text-align: left;
+}
+
+.items td {
+  font-size: 9.5pt;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  padding: 3.4mm 0;
+  text-align: right;
+  vertical-align: top;
+}
+
+.items td:first-child {
+  text-align: left;
+}
+
+.items th:nth-child(2),
+.items td:nth-child(2) {
+  text-align: right;
+}
+
+.items tbody tr:last-child td {
+  padding-bottom: 5mm;
+  border-bottom: 1px solid var(--invoice-rule);
+}
+
+.sub {
+  display: block;
+  font-size: 9.5pt;
+  padding-left: 4mm;
+  position: relative;
+  margin-top: 1mm;
+}
+
+.sub::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+}
+
+.colDesc {
+  width: 47%;
+}
+
+.colQty {
+  width: 12.5%;
+}
+
+.colPrice {
+  width: 20.5%;
+}
+
+.colTotal {
+  width: 20%;
+}
+
+.totals {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.totals td {
+  font-size: 9.5pt;
+  padding: 3.2mm 0;
+  text-align: right;
+  letter-spacing: 0.07em;
+}
+
+.totals td:first-child {
+  text-align: left;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.c {
+  text-align: right;
+}
+
+.qtyCell {
+  text-align: right;
+}
+
+.totalsStrong td {
+  font-weight: 700;
+}
+
+.totalsDue td {
+  border-top: 1px solid var(--invoice-rule);
+  font-weight: 700;
+  padding-top: 3.6mm;
+}
+
+.totalsLastline td {
+  padding-bottom: 4mm;
+}
+
+.pagefoot {
+  margin-top: auto;
+  flex: 0 0 auto;
+}
+
+.closing {
+  margin-top: 8mm;
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+}
+
+.signrow {
+  position: relative;
+  height: 23mm;
+  margin-top: 2mm;
+  flex: 0 0 auto;
+}
+
+.sig {
+  position: absolute;
+  left: -2mm;
+  top: 0;
+  height: 23mm;
+}
+
+.sq {
+  position: absolute;
+  right: -26mm;
+  top: 0mm;
+  height: 19mm;
+  object-fit: contain;
+}
+
+.gst {
+  font-size: 8.5pt;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  margin: 0 0 0 -18mm;
+}
+
+/* ---------- print ---------- */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  :global(html),
+  :global(body) {
+    background: #fff;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+  }
+
+  .panel,
+  .toast {
+    display: none !important;
+  }
+
+  .app {
+    display: block;
+  }
+
+  .stage {
+    padding: 0;
+    display: block;
+    overflow: visible;
+  }
+
+  .stageInner {
+    transform: none !important;
+  }
+
+  .page {
+    box-shadow: none;
+    margin: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .panel {
+    width: 100%;
+    flex: none;
+    max-height: none;
+    position: static;
+    border-right: 0;
+    border-bottom: 1px solid var(--invoice-panel-line);
+  }
+}
