@@ -1,6 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+### Changed
+### Fixed
+
+## [1.3.0] - 2026-08-24
 
 ### Added
 - **Invoice generator** (`/invoice`) — standalone, live-editable A4 invoice with browser print-to-PDF export; no new dependencies
