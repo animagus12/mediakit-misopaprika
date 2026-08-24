@@ -1,0 +1,687 @@
+:root {
+  --mediakit-blue: #0052c4;
+  --mediakit-line: #0f62d5;
+  --mediakit-ink: #545454;
+  --mediakit-dark: #1a1a1a;
+  --mediakit-coral: #ff5757;
+  --mediakit-panel: #0e1b2e;
+  --mediakit-panel-2: #16263d;
+  --mediakit-panel-line: #2a3b55;
+  --mediakit-muted: #93a4bd;
+}
+
+/* ---------- app shell ---------- */
+.app {
+  display: flex;
+  min-height: 100vh;
+  align-items: flex-start;
+  background: var(--mediakit-panel);
+  color: #e9eef6;
+  font-family: var(--font-mediakit-body, "Mulish", system-ui, sans-serif);
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+.panel {
+  width: 400px;
+  flex: 0 0 400px;
+  background: var(--mediakit-panel);
+  border-right: 1px solid var(--mediakit-panel-line);
+  padding: 22px 22px 60px;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.stage {
+  flex: 1;
+  padding: 28px 20px 60px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+
+.stageInner {
+  transform-origin: top center;
+}
+
+.brandbar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.brandbar h1 {
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  margin: 0;
+  color: #fff;
+}
+
+.brandbar span {
+  font-size: 11px;
+  color: var(--mediakit-muted);
+  letter-spacing: 0.08em;
+}
+
+.hint {
+  font-size: 11.5px;
+  color: var(--mediakit-muted);
+  line-height: 1.55;
+  margin: 0 0 18px;
+}
+
+.fieldset {
+  border: 0;
+  border-top: 1px solid var(--mediakit-panel-line);
+  margin: 0 0 4px;
+  padding: 16px 0 6px;
+}
+
+.legend {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mediakit-blue);
+  font-weight: 700;
+  padding: 0 8px 0 0;
+  background: transparent;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--mediakit-muted);
+  margin: 10px 0 5px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.wPrice {
+  flex: 0 0 92px;
+}
+
+.grid4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cardS {
+  border: 1px solid var(--mediakit-panel-line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+  background: #122135;
+}
+
+.cardS .idx {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--mediakit-muted);
+}
+
+.swap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.swapImg {
+  width: 38px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #0a1422;
+  flex: 0 0 auto;
+}
+
+.logoGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.logoGrid button {
+  padding: 0;
+  border: 1px solid var(--mediakit-panel-line);
+  background: #0a1422;
+  border-radius: 50%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.logoGrid button:hover {
+  border-color: var(--mediakit-blue);
+}
+
+.logoGrid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--mediakit-blue);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.25s;
+  z-index: 50;
+}
+
+.toastShow {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ================= THE MEDIA KIT ================= */
+.page {
+  width: 210mm;
+  height: 297mm;
+  background: #fff;
+  color: var(--mediakit-ink);
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-mediakit-body, "Mulish", sans-serif);
+}
+
+.wordmark {
+  position: absolute;
+  top: 5.4mm;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: var(--mediakit-blue);
+  font-family: var(--font-mediakit-wordmark, "Oranienbaum", serif);
+  font-weight: 400;
+  font-size: 47pt;
+  line-height: 1;
+  letter-spacing: 0.012em;
+}
+
+.tagline {
+  position: absolute;
+  top: 24.1mm;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: var(--mediakit-ink);
+  font-size: 15.5pt;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.photo {
+  position: absolute;
+  left: 21mm;
+  top: 36.9mm;
+  width: 46.7mm;
+  height: 47.6mm;
+  overflow: hidden;
+}
+
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 52%;
+  display: block;
+}
+
+.crown {
+  position: absolute;
+  left: 33.2mm;
+  top: 31.5mm;
+  width: 19.6mm;
+  z-index: 3;
+}
+
+.about {
+  position: absolute;
+  left: 73.9mm;
+  top: 34.9mm;
+  width: 114.8mm;
+  height: 46mm;
+}
+
+.about h3 {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  color: var(--mediakit-blue);
+  font-size: 16.8pt;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1.2;
+}
+
+.bio {
+  position: absolute;
+  left: 0;
+  top: 8.2mm;
+  width: 100%;
+  margin: 0;
+  font-size: 12.7pt;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--mediakit-ink);
+  text-align: justify;
+}
+
+.facts {
+  position: absolute;
+  left: 0;
+  top: 26.1mm;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+}
+
+.facts div {
+  font-size: 12.3pt;
+  font-weight: 700;
+  color: var(--mediakit-dark);
+  line-height: 1.5;
+}
+
+/* nested under .facts (not a standalone class) so this wins the specificity
+   fight against .facts div above — matches the original's ".facts .r" */
+.facts .factsRight {
+  text-align: right;
+  color: var(--mediakit-blue);
+  text-decoration: underline;
+  text-underline-offset: 1.5px;
+}
+
+.card {
+  position: absolute;
+  border: 1.1px solid var(--mediakit-line);
+  border-radius: 5mm;
+}
+
+.card h4 {
+  position: absolute;
+  left: 0;
+  top: 1.4mm;
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  color: var(--mediakit-blue);
+  font-size: 16.8pt;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1.2;
+}
+
+.stats {
+  left: 21mm;
+  top: 89.7mm;
+  width: 167.7mm;
+  height: 45.2mm;
+}
+
+.statGrid {
+  position: absolute;
+  left: 0;
+  top: 5.2mm;
+  width: 100%;
+  display: flex;
+}
+
+.stat {
+  flex: 1 1 0;
+  text-align: center;
+}
+
+.stat .lbl {
+  font-size: 11pt;
+  font-weight: 600;
+  color: var(--mediakit-ink);
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.pill {
+  display: inline-block;
+  margin-top: 3.6mm;
+  background: var(--mediakit-line);
+  color: #fff;
+  border-radius: 99mm;
+  padding: 1.74mm 3.8mm;
+  font-size: 21pt;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.caption {
+  position: absolute;
+  left: 0;
+  top: 36mm;
+  width: 100%;
+  text-align: center;
+  font-size: 11.3pt;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--mediakit-ink);
+  line-height: 1.2;
+}
+
+.services {
+  left: 21mm;
+  top: 139.3mm;
+  width: 96.8mm;
+  height: 47.5mm;
+}
+
+.addons {
+  left: 119.6mm;
+  top: 139.3mm;
+  width: 69.1mm;
+  height: 47.5mm;
+}
+
+.rate {
+  position: absolute;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3mm;
+  line-height: 1.2;
+}
+
+.rate .nm {
+  font-size: 12.7pt;
+  font-weight: 400;
+  color: var(--mediakit-ink);
+}
+
+.rate .pr {
+  font-size: 14pt;
+  font-weight: 700;
+  color: var(--mediakit-dark);
+  white-space: nowrap;
+}
+
+.services .rate {
+  left: 9.1mm;
+  right: 8.2mm;
+}
+
+.startsAt {
+  position: absolute;
+  right: 8.8mm;
+  top: 10.2mm;
+  color: var(--mediakit-coral);
+  font-family: var(--font-mediakit-script, "Sacramento", cursive);
+  font-size: 15pt;
+  line-height: 1.2;
+  transform: rotate(-4deg);
+}
+
+.addons .rate {
+  left: 5.5mm;
+  right: 5.6mm;
+}
+
+.fine {
+  position: absolute;
+  left: 4mm;
+  right: 4mm;
+  bottom: 3.2mm;
+  text-align: center;
+  font-size: 6.6pt;
+  font-weight: 400;
+  line-height: 1.42;
+  color: var(--mediakit-ink);
+}
+
+.collabs {
+  left: 21mm;
+  top: 190.2mm;
+  width: 167.7mm;
+}
+
+.collabs h4 {
+  top: 0.8mm;
+}
+
+.collabsSub {
+  position: absolute;
+  left: 0;
+  top: 8.2mm;
+  width: 100%;
+  text-align: center;
+  font-size: 8.4pt;
+  font-weight: 400;
+  color: var(--mediakit-ink);
+  line-height: 1.2;
+}
+
+.logos {
+  position: absolute;
+  left: 2.6mm;
+  right: 2.6mm;
+}
+
+.logoRow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.logos img {
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.top {
+  left: 21mm;
+  width: 167.7mm;
+}
+
+.top h4 {
+  top: 1mm;
+  font-size: 15.8pt;
+}
+
+.tiles {
+  position: absolute;
+  left: 0;
+  top: 9mm;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.tile {
+  position: relative;
+  border-radius: 3mm;
+  overflow: hidden;
+  background: #222;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.tile ul {
+  position: absolute;
+  left: calc(3.6mm * var(--ts, 1));
+  top: calc(5.2mm * var(--ts, 1));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile li {
+  display: flex;
+  align-items: center;
+  height: calc(8.4mm * var(--ts, 1));
+  color: #fff;
+  font-size: calc(14.2pt * var(--ts, 1));
+  font-weight: 700;
+}
+
+.tile svg {
+  width: calc(5.2mm * var(--ts, 1));
+  height: calc(5.2mm * var(--ts, 1));
+  margin-right: calc(2.4mm * var(--ts, 1));
+  flex: 0 0 auto;
+  stroke-width: 2.25px;
+}
+
+.doodle {
+  position: absolute;
+  z-index: 2;
+}
+
+.dTeal {
+  right: 28.2mm;
+  top: 11.1mm;
+  width: 20.2mm;
+}
+
+.dRed {
+  right: 15.2mm;
+  top: 83.1mm;
+  width: 12mm;
+}
+
+.dGreen {
+  left: 11mm;
+  top: 112mm;
+  width: 10mm;
+}
+
+.dYellow {
+  right: 16.9mm;
+  top: 136.9mm;
+  width: 15.1mm;
+}
+
+.dHeart {
+  left: 14.6mm;
+  top: 187mm;
+  width: 12.6mm;
+}
+
+.dBow {
+  right: 14.2mm;
+  width: 25.2mm;
+}
+
+/* ---------- print ---------- */
+@media print {
+  :global(html),
+  :global(body) {
+    background: #fff;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+  }
+
+  .panel,
+  .toast {
+    display: none !important;
+  }
+
+  .app {
+    display: block;
+  }
+
+  .stage {
+    padding: 0;
+    display: block;
+    overflow: visible;
+  }
+
+  .stageInner {
+    transform: none !important;
+  }
+
+  .page {
+    box-shadow: none;
+    margin: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .app {
+    flex-direction: column;
+  }
+
+  /* Below this breakpoint the panel would otherwise stretch edge-to-edge
+     while the A4 preview below it caps out at its natural size (the
+     stage's scale-to-fit never scales above 1), leaving the preview
+     visibly narrower and inset compared to the full-width panel above
+     it. Capping both to the same max-width keeps their edges aligned
+     at every viewport size down to that width. */
+  .panel {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    flex: none;
+    max-height: none;
+    position: static;
+    border-right: 0;
+    border-bottom: 1px solid var(--mediakit-panel-line);
+  }
+
+  .stage {
+    /* Desktop's flex:1 means "grow to fill leftover space" — but in a
+       stacked column layout where .panel's content already exceeds
+       100vh, there is no leftover space to distribute, so flex:1's
+       flex-basis:0% collapses .stage instead of sizing to its content.
+       That was throwing off fit()'s clientWidth-based scale
+       calculation entirely (observed transform: scale(0.2) instead of
+       the intended ~0.45). flex:none lets it size naturally. */
+    flex: none;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+}
