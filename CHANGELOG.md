@@ -10,6 +10,16 @@
 - Add/remove past-collab logo slots (up to 20) with auto/1-row/2-row layout modes
 - Click-to-replace image picker for the profile photo, each collab logo, and each reel/tile cover
 - `public/mediakit/` — default logos, doodles, tile photos, and profile photo assets
+- **Save changes** on `/mediakit-generator` persists edits to `data/mediakit.json` via a server action (`saveMediaKit`), so changes survive a reload instead of living only in form state
+- `repositories/mediakit.writer.server.ts` — server-only `fs` write for the media kit JSON, kept out of the client-safe repository barrel
+- `lib/mediakit.ts` — `toMediaKitData()` maps editable form state back to the persisted `MediaKitData` shape
+- `next.config.ts` — raised the server actions body size limit to 20mb to fit the base64-encoded photo/logos/tile covers the save payload can carry
+- **Publish** on `/mediakit-generator` writes a separate published snapshot (`data/mediakit.published.json`) and makes it viewable, read-only, at the new `/mediakit` route — a shareable link with no editing controls
+- `repositories/mediakit.writer.server.ts` — `publishMediaKitData()` / `getPublishedMediaKitData()` for writing and reading the published snapshot (returns `null`/404 until the first publish)
+- `lib/mediakit.ts` — `toFormState()`, the inverse of `toMediaKitData()`, shared by the generator (seeding the editable draft) and the new public page (rendering a published snapshot)
+- `lib/useMediaKitStageFit.ts` — scale-to-fit-viewport hook extracted from the generator so the editor stage and the new public preview share identical sizing behavior
+- `components/mediakit/MediaKitPublicView.tsx` — read-only A4 sheet renderer for `/mediakit`, reusing `MediaKitPreview` with no controls panel
+- `components/mediakit/MediaKitFontsProvider.tsx` — media kit font loading extracted out of `/mediakit-generator`'s layout so it can be shared with `/mediakit`'s layout too
 ### Changed
 - Renamed the invoice generator route from `/invoice` to `/invoice-generator`
 - `/mediakit-generator` now sits behind the same shared password-protected session as `/invoice-generator`

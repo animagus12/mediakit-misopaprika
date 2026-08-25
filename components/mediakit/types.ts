@@ -53,5 +53,7 @@ export interface MediaKitFormActions {
   print: () => void;
   save: () => void;
   isSaving: boolean;
+  publish: () => void;
+  isPublishing: boolean;
   reset: () => void;
 }
