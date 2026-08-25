@@ -83,7 +83,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       showToast(`${MAX_LOGOS} logos is the sensible ceiling`);
       return;
     }
-    setState((prev) => ({ ...prev, logos: [...prev.logos, BLANK_LOGO] }));
+    setState((prev) => ({ ...prev, logos: [...prev.logos, { src: BLANK_LOGO, url: "" }] }));
     showToast("Tap the new circle to pick its logo");
   }, [state.logos.length, showToast]);
 
@@ -94,6 +94,22 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
     }
     setState((prev) => ({ ...prev, logos: prev.logos.slice(0, -1) }));
   }, [state.logos.length, showToast]);
+
+  const setLogoUrl = useCallback((index: number, url: string) => {
+    setState((prev) => {
+      const logos = [...prev.logos];
+      logos[index] = { ...logos[index], url };
+      return { ...prev, logos };
+    });
+  }, []);
+
+  const setTileUrl = useCallback((index: number, url: string) => {
+    setState((prev) => {
+      const tiles = [...prev.tiles];
+      tiles[index] = { ...tiles[index], url };
+      return { ...prev, tiles };
+    });
+  }, []);
 
   const openPicker = useCallback((target: MediaKitPickerTarget) => {
     pendingTargetRef.current = target;
@@ -114,7 +130,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
         if (target.kind === "photo") return { ...prev, photo: dataUrl };
         if (target.kind === "logo") {
           const logos = [...prev.logos];
-          logos[target.index] = dataUrl;
+          logos[target.index] = { ...logos[target.index], src: dataUrl };
           return { ...prev, logos };
         }
         const tiles = [...prev.tiles];
@@ -158,6 +174,8 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       updateTileStat,
       addLogo,
       removeLastLogo,
+      setLogoUrl,
+      setTileUrl,
       openPicker,
       print,
       save,
@@ -173,6 +191,8 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       updateTileStat,
       addLogo,
       removeLastLogo,
+      setLogoUrl,
+      setTileUrl,
       openPicker,
       print,
       save,

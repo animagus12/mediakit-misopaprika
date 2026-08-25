@@ -108,6 +108,7 @@ export function toMediaKitData(state: MediaKitFormState, brandHandle: string): M
       audience: state.audience,
       location: state.location,
       handle: state.handle,
+      instagramUrl: state.instagramUrl,
       phone: state.phone,
       email: state.email,
       photo: state.photo,
@@ -125,11 +126,12 @@ export function toMediaKitData(state: MediaKitFormState, brandHandle: string): M
     bookingTerms: state.bookingTerms,
     collabs: {
       subline: state.collabsSubline,
-      logos: state.logos,
+      logos: state.logos.map((logo) => ({ ...logo })),
     },
     tiles: state.tiles.map((tile) => ({
       img: tile.img,
       pos: tile.pos,
+      url: tile.url,
       stats: { ...tile.stats },
     })) as [MediaKitTileInput, MediaKitTileInput, MediaKitTileInput],
   };
@@ -147,6 +149,7 @@ export function toFormState(data: MediaKitData): MediaKitFormState {
     audience: data.header.audience,
     location: data.header.location,
     handle: data.header.handle,
+    instagramUrl: data.header.instagramUrl,
     phone: data.header.phone,
     email: data.header.email,
     photo: data.header.photo,
@@ -160,7 +163,7 @@ export function toFormState(data: MediaKitData): MediaKitFormState {
     addons: data.addons.map((addon) => ({ ...addon })),
     bookingTerms: data.bookingTerms,
     collabsSubline: data.collabs.subline,
-    logos: [...data.collabs.logos],
+    logos: data.collabs.logos.map((logo) => ({ ...logo })),
     logoRowsMode: "auto",
     tiles: data.tiles.map((tile) => ({ ...tile, stats: { ...tile.stats } })),
   };

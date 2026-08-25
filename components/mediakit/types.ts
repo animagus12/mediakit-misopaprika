@@ -1,9 +1,10 @@
 import type { MediaKitLogoRowsMode } from "@/lib/mediakit";
-import type { MediaKitServiceInput, MediaKitTileStats } from "@/repositories/mediakit";
+import type { MediaKitLogo, MediaKitServiceInput, MediaKitTileStats } from "@/repositories/mediakit";
 
 export interface MediaKitTile {
   img: string;
   pos: string;
+  url: string;
   stats: MediaKitTileStats;
 }
 
@@ -15,6 +16,7 @@ export interface MediaKitFormState {
   audience: string;
   location: string;
   handle: string;
+  instagramUrl: string;
   phone: string;
   email: string;
   photo: string;
@@ -32,7 +34,7 @@ export interface MediaKitFormState {
   addons: MediaKitServiceInput[];
   bookingTerms: string;
   collabsSubline: string;
-  logos: string[];
+  logos: MediaKitLogo[];
   logoRowsMode: MediaKitLogoRowsMode;
   tiles: MediaKitTile[];
 }
@@ -49,6 +51,8 @@ export interface MediaKitFormActions {
   updateTileStat: (tileIndex: number, key: keyof MediaKitTileStats, value: string) => void;
   addLogo: () => void;
   removeLastLogo: () => void;
+  setLogoUrl: (index: number, url: string) => void;
+  setTileUrl: (index: number, url: string) => void;
   openPicker: (target: MediaKitPickerTarget) => void;
   print: () => void;
   save: () => void;

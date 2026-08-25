@@ -28,15 +28,11 @@ export async function proxy(request: NextRequest) {
     return withVisitorCookie(request);
   }
 
-  if (request.nextUrl.pathname.startsWith("/invoice-generator/login")) {
-    return NextResponse.next();
-  }
-
   const token = request.cookies.get(COOKIE_NAME)?.value;
   const isAuthenticated = await verifySessionToken(token);
 
   if (!isAuthenticated) {
-    const loginUrl = new URL("/invoice-generator/login", request.url);
+    const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }

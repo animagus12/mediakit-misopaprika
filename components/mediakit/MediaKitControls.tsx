@@ -117,6 +117,17 @@ export function MediaKitControls({
           onChange={(e) => actions.setField("handle", e.target.value)}
         />
 
+        <Label className={styles.fieldLabel} htmlFor="instagramUrl">
+          Instagram link
+        </Label>
+        <Input
+          id="instagramUrl"
+          type="url"
+          placeholder="https://instagram.com/misopaprika"
+          value={state.instagramUrl}
+          onChange={(e) => actions.setField("instagramUrl", e.target.value)}
+        />
+
         <Label className={styles.fieldLabel} htmlFor="phone">
           Phone
         </Label>
