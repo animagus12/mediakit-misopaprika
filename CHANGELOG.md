@@ -2,7 +2,17 @@
 
 ## [Unreleased]
 ### Added
+- **Media kit generator** (`/mediakit-generator`) — standalone, live-editable one-page media kit (header/stats, services & add-ons, past collabs logo grid, top-performing content tiles) with browser print-to-PDF export; no new dependencies
+- `data/mediakit.json` + `repositories/mediakit.ts` — repository-backed media kit defaults (header, stats, services, add-ons, collabs, tiles)
+- `lib/mediakit.ts` — `computeMediaKitLayout()` fits the logo grid and content tiles onto a single fixed-height A4 page based on logo count and row mode
+- `components/mediakit/` — `MediaKitGenerator`, `MediaKitControls`, `MediaKitLogoGrid`, `MediaKitTileEditor`, `MediaKitImagePickerButton`, `MediaKitPreview`, and a scoped `mediakit.module.css`
+- `components/ui/textarea.tsx` — added via the shadcn CLI to support the media kit form
+- Add/remove past-collab logo slots (up to 20) with auto/1-row/2-row layout modes
+- Click-to-replace image picker for the profile photo, each collab logo, and each reel/tile cover
+- `public/mediakit/` — default logos, doodles, tile photos, and profile photo assets
 ### Changed
+- Renamed the invoice generator route from `/invoice` to `/invoice-generator`
+- `/mediakit-generator` now sits behind the same shared password-protected session as `/invoice-generator`
 ### Fixed
 
 ## [1.3.0] - 2026-08-24

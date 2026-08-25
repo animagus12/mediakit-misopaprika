@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: "/invoice",
+      disallow: ["/invoice-generator", "/mediakit-generator"],
     },
   };
 }
