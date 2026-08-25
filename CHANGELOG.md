@@ -1,15 +1,19 @@
 # Changelog
 
 ## [Unreleased]
+
+## [1.7.0] - 2026-08-25
 ### Added
 - **Vercel Blob** (`@vercel/blob`) — `/mediakit-generator`'s image pickers (profile photo, collab logos, tile covers) now upload files directly from the browser to Blob storage via `app/api/mediakit/upload/route.ts`, instead of inlining them as base64 in the saved data; requires `BLOB_READ_WRITE_TOKEN`
 
 ### Changed
 - `components/mediakit/MediaKitGenerator.tsx` — `handleFileChange` uploads to Blob and stores the resulting URL, instead of reading the file into a base64 data URL with `FileReader`
 - `next.config.ts` — dropped the `serverActions.bodySizeLimit` override; the draft/published payload no longer carries images, so the default limit is plenty
+- `components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css` — the A4 preview's scale-to-fit is now a pure CSS container query (`.stage { container-type: inline-size }` + `.stageInner { zoom: min(1, calc(100cqw / 210mm)) }`) instead of a `useEffect`-measured `transform: scale()`; removed the now-unused `lib/useMediaKitStageFit.ts` and the matching JS fit logic in `InvoiceGenerator.tsx`, and simplified `MediaKitPublicView.tsx` back to a Server Component
 
 ### Fixed
 - Save/Publish crashing when an image had just been changed — inline base64 images could push the request past the Proxy's `proxyClientMaxBodySize` (10MB default), silently truncating the body and corrupting the Server Action payload instead of failing cleanly
+- Media kit/invoice preview flashing full-size (effectively zoomed in) on load, most noticeable on mobile — the JS-computed scale only applied after the first paint/hydration, so the fixed 210mm-wide sheet briefly rendered unscaled and cropped before snapping to size
 
 ## [1.6.0] - 2026-08-25
 ### Changed

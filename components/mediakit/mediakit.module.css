@@ -44,10 +44,18 @@
   justify-content: center;
   align-items: flex-start;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 .stageInner {
   transform-origin: top center;
+  /* Scale the fixed A4 sheet down to whatever width .stage actually has —
+     computed live from the container query size, so it's correct on the
+     very first paint (no JS/useEffect delay causing a flash of the full
+     793px-wide sheet) and re-solves instantly on any resize/rotation.
+     zoom (not transform) is used so the box's layout size shrinks with it,
+     instead of needing a JS-measured height to collapse the reserved space. */
+  zoom: min(1, calc(100cqw / 210mm));
 }
 
 .brandbar {
@@ -675,7 +683,7 @@
   }
 
   .stageInner {
-    transform: none !important;
+    zoom: normal !important;
   }
 
   .page {
