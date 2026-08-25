@@ -1,6 +1,12 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- **Remember me** on the login form (`components/auth/LoginForm.tsx`) — checking it requests a 30-day session (`REMEMBER_ME_DURATION_MS` in `lib/auth.ts`) instead of the default
+
+### Changed
+- Renamed the shared-password auth from `invoice-*` to generic names, since it now gates the whole dashboard rather than just the invoice generator: `lib/invoice-auth.ts` → `lib/auth.ts`, `app/api/invoice-auth/route.ts` → `app/api/auth/route.ts`, `components/invoice/InvoiceLoginForm.tsx` → `components/auth/LoginForm.tsx`, cookie `invoice_session` → `app_session`, env vars `INVOICE_PASSWORD` → `APP_PASSWORD` and `INVOICE_SESSION_SECRET` → `SESSION_SECRET` (updated in `.env.example`/`.env.local`); `proxy.ts`, `app/login/page.tsx`, `app/api/mediakit/upload/route.ts`, and `components/common/NavBar.tsx` updated to match, and the login form's post-login redirect default changed from `/invoice-generator` to `/`
+- `lib/auth.ts` — default session lifetime cut from 1 day to 4 hours (`DEFAULT_SESSION_DURATION_MS`); `createSessionToken()` now takes a `durationMs` argument instead of a hardcoded constant, and `app/api/auth/route.ts` picks 4 hours or 30 days based on the login form's `rememberMe` flag
 
 ## [1.7.0] - 2026-08-25
 ### Added
