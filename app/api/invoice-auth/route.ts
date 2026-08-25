@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/invoice",
+    path: "/",
     maxAge: SESSION_DURATION_MS / 1000,
   });
   return response;
