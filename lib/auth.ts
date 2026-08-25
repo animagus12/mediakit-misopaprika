@@ -1,10 +1,11 @@
-const COOKIE_NAME = "invoice_session";
-const SESSION_DURATION_MS = 1000 * 60 * 60 * 24; // 1 day
+const COOKIE_NAME = "app_session";
+const DEFAULT_SESSION_DURATION_MS = 1000 * 60 * 60 * 4; // 4 hours
+const REMEMBER_ME_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
 function getSessionSecret(): string {
-  const secret = process.env.INVOICE_SESSION_SECRET;
+  const secret = process.env.SESSION_SECRET;
   if (!secret) {
-    throw new Error("INVOICE_SESSION_SECRET environment variable is not set");
+    throw new Error("SESSION_SECRET environment variable is not set");
   }
   return secret;
 }
@@ -46,8 +47,8 @@ async function sign(data: string): Promise<string> {
   return toBase64Url(signature);
 }
 
-export async function createSessionToken(): Promise<string> {
-  const expiry = Date.now() + SESSION_DURATION_MS;
+export async function createSessionToken(durationMs: number = DEFAULT_SESSION_DURATION_MS): Promise<string> {
+  const expiry = Date.now() + durationMs;
   const signature = await sign(String(expiry));
   return `${expiry}.${signature}`;
 }
@@ -66,9 +67,9 @@ export async function verifySessionToken(token: string | undefined): Promise<boo
 }
 
 export function verifyPassword(password: string): boolean {
-  const expected = process.env.INVOICE_PASSWORD;
+  const expected = process.env.APP_PASSWORD;
   if (!expected) return false;
   return timingSafeEqual(password, expected);
 }
 
-export { COOKIE_NAME, SESSION_DURATION_MS };
+export { COOKIE_NAME, DEFAULT_SESSION_DURATION_MS, REMEMBER_ME_DURATION_MS };
