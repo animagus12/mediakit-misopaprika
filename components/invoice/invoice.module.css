@@ -111,10 +111,6 @@
   flex: 0 0 62px;
 }
 
-.wMd {
-  flex: 0 0 96px;
-}
-
 .item {
   border: 1px solid var(--invoice-panel-line);
   border-radius: 8px;
@@ -503,12 +499,34 @@
     flex-direction: column;
   }
 
+  /* Below this breakpoint the panel would otherwise stretch edge-to-edge
+     while the A4 preview below it caps out at its natural size (the
+     stage's scale-to-fit never scales above 1), leaving the preview
+     visibly narrower and inset compared to the full-width panel above
+     it. Capping both to the same max-width keeps their edges aligned
+     at every viewport size down to that width. */
   .panel {
     width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
     flex: none;
     max-height: none;
     position: static;
     border-right: 0;
     border-bottom: 1px solid var(--invoice-panel-line);
+  }
+
+  .stage {
+    /* Desktop's flex:1 means "grow to fill leftover space" — but in a
+       stacked column layout where .panel's content already exceeds
+       100vh, there is no leftover space to distribute, so flex:1's
+       flex-basis:0% collapses .stage instead of sizing to its content.
+       That was throwing off fit()'s clientWidth-based scale
+       calculation entirely (observed transform: scale(0.2) instead of
+       the intended ~0.45). flex:none lets it size naturally. */
+    flex: none;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
   }
 }

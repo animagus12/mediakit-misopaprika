@@ -3,6 +3,7 @@ import NavBar from "@/components/common/NavBar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cookies } from "next/headers";
+import { mediakitRepository } from "@/repositories";
 
 export default async function DashboardLayout({
   children,
@@ -11,11 +12,12 @@ export default async function DashboardLayout({
 }>) {
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
+  const { photo } = mediakitRepository.get().header;
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <TooltipProvider>
-        <AppSideBar />
+        <AppSideBar photo={photo} />
         <div className="w-full">
           <NavBar />
           <div className="px-4">{children}</div>
