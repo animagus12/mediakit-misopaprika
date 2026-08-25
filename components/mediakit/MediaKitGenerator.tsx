@@ -143,8 +143,9 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
           return { ...prev, tiles };
         });
         showToast("Image uploaded");
-      } catch {
-        showToast("Upload failed — try a different image");
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "";
+        showToast(reason ? `Upload failed — ${reason}` : "Upload failed — try a different image");
       }
     },
     [showToast]
