@@ -10,6 +10,7 @@ export async function saveMediaKit(
   try {
     await saveMediaKitData(data);
     revalidatePath("/mediakit-generator");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch {
     return { success: false, error: "Couldn't save — check the server can write to data/mediakit.json" };
@@ -27,6 +28,7 @@ export async function publishMediaKit(
     await publishMediaKitData(data);
     revalidatePath("/mediakit-generator");
     revalidatePath("/mediakit");
+    revalidatePath("/", "layout");
     return { success: true };
   } catch {
     return {

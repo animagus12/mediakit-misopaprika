@@ -41,18 +41,17 @@ export function InvoiceControls({
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Invoice</legend>
+        <Label className={styles.fieldLabel} htmlFor="invoiceNo">
+          Number
+        </Label>
+        <Input
+          id="invoiceNo"
+          inputMode="numeric"
+          value={state.invoiceNo}
+          onChange={(e) => actions.setField("invoiceNo", e.target.value)}
+        />
+
         <div className={`${styles.row} ${styles.rowTight}`}>
-          <div className={styles.wMd}>
-            <Label className={styles.fieldLabel} htmlFor="invoiceNo">
-              Number
-            </Label>
-            <Input
-              id="invoiceNo"
-              inputMode="numeric"
-              value={state.invoiceNo}
-              onChange={(e) => actions.setField("invoiceNo", e.target.value)}
-            />
-          </div>
           <div>
             <Label className={styles.fieldLabel} htmlFor="invoiceDate">
               Date
