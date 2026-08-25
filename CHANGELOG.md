@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 ### Added
+### Changed
+### Fixed
+
+## [1.4.0] - 2026-08-25
+
+### Added
 - **Media kit generator** (`/mediakit-generator`) — standalone, live-editable one-page media kit (header/stats, services & add-ons, past collabs logo grid, top-performing content tiles) with browser print-to-PDF export; no new dependencies
 - `data/mediakit.json` + `repositories/mediakit.ts` — repository-backed media kit defaults (header, stats, services, add-ons, collabs, tiles)
 - `lib/mediakit.ts` — `computeMediaKitLayout()` fits the logo grid and content tiles onto a single fixed-height A4 page based on logo count and row mode
@@ -20,10 +26,24 @@
 - `lib/useMediaKitStageFit.ts` — scale-to-fit-viewport hook extracted from the generator so the editor stage and the new public preview share identical sizing behavior
 - `components/mediakit/MediaKitPublicView.tsx` — read-only A4 sheet renderer for `/mediakit`, reusing `MediaKitPreview` with no controls panel
 - `components/mediakit/MediaKitFontsProvider.tsx` — media kit font loading extracted out of `/mediakit-generator`'s layout so it can be shared with `/mediakit`'s layout too
+- `lib/navigation.ts` — shared list of dashboard link entries (href, title, description, icon, access) consumed by both the dashboard home page and the sidebar
+
 ### Changed
 - Renamed the invoice generator route from `/invoice` to `/invoice-generator`
 - `/mediakit-generator` now sits behind the same shared password-protected session as `/invoice-generator`
-### Fixed
+- Dashboard home page (`/`) replaced the old scroll-anchored landing sections with a grid of link cards to `/mediakit`, `/mediakit-generator`, and `/invoice-generator`
+- `components/common/AppSideBar.tsx` — sidebar links now point at real routes instead of anchor-scroll links (`#hero`, `#analytics`, ...), and its header photo now comes from `mediakitRepository` instead of a static logo
+- `proxy.ts` — matcher now includes `/`, so the dashboard home page requires the same invoice-generator session as `/invoice-generator`
+- `app/mediakit-generator/actions.ts` — `saveMediaKit`/`publishMediaKit` now also revalidate the root layout so the sidebar photo picks up edits immediately
+- `components/invoice/InvoiceControls.tsx` — invoice number field now spans the full row width instead of sharing it with the date field
+- `components/invoice/invoice.module.css` — panel width consolidated into a `--invoice-panel-width` custom property shared by the desktop and stacked mobile layouts
+- `lib/invoice-auth.ts` — the HMAC signing key is now imported once and cached instead of being re-imported on every `sign()` call
+
+### Removed
+- `components/sections/` (`Hero`, `Analytics`, `AnalyticsClient`, `Audience`, `Brands`, `Services`, `Videos`, `Contact`) and their backing repositories and data files (`repositories/{hero,analytics,audience,brands,services,videos,contact,sections}.ts`, `data/{hero,analytics,audience,brands,services,videos,contact,sections}.json`) — superseded by the dashboard link grid
+- `lib/cache.ts` — `getCachedYouTubeAnalytics()`, unused once the analytics repository was removed
+
+---
 
 ## [1.3.0] - 2026-08-24
 

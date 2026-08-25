@@ -7,6 +7,7 @@
   --invoice-panel-2: #16263d;
   --invoice-panel-line: #2a3b55;
   --invoice-muted: #93a4bd;
+  --invoice-panel-width: 400px;
 }
 
 /* ---------- app shell ---------- */
@@ -22,8 +23,8 @@
 }
 
 .panel {
-  width: 400px;
-  flex: 0 0 400px;
+  width: var(--invoice-panel-width);
+  flex: 0 0 var(--invoice-panel-width);
   background: var(--invoice-panel);
   border-right: 1px solid var(--invoice-panel-line);
   padding: 22px 22px 60px;
@@ -507,7 +508,7 @@
      at every viewport size down to that width. */
   .panel {
     width: 100%;
-    max-width: 400px;
+    max-width: var(--invoice-panel-width);
     margin: 0 auto;
     flex: none;
     max-height: none;
@@ -526,7 +527,7 @@
        the intended ~0.45). flex:none lets it size naturally. */
     flex: none;
     width: 100%;
-    max-width: 400px;
+    max-width: var(--invoice-panel-width);
     margin: 0 auto;
   }
 }

@@ -15,12 +15,11 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "../ui/sidebar";
+import { navEntries } from "@/lib/navigation";
 
 const navItems = [
   { title: "Dashboard", href: "/" },
-  { title: "Media kit", href: "/mediakit" },
-  { title: "Media kit generator", href: "/mediakit-generator" },
-  { title: "Invoice generator", href: "/invoice-generator" },
+  ...navEntries.map(({ title, href }) => ({ title, href })),
 ];
 
 interface AppSideBarProps {

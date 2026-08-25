@@ -25,14 +25,23 @@ function timingSafeEqual(a: string, b: string): boolean {
   return result === 0;
 }
 
+let cachedKeyPromise: Promise<CryptoKey> | null = null;
+
+function getSigningKey(): Promise<CryptoKey> {
+  if (!cachedKeyPromise) {
+    cachedKeyPromise = crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(getSessionSecret()),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+  }
+  return cachedKeyPromise;
+}
+
 async function sign(data: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(getSessionSecret()),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
+  const key = await getSigningKey();
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
   return toBase64Url(signature);
 }

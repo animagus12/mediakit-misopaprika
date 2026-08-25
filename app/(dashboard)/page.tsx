@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, FileText, Sparkles, UserRound } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -9,38 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-interface EndpointEntry {
-  href: string;
-  title: string;
-  description: string;
-  Icon: LucideIcon;
-  access: "public" | "protected";
-}
-
-const endpoints: EndpointEntry[] = [
-  {
-    href: "/mediakit",
-    title: "Media kit",
-    description: "Public, shareable view of your published media kit.",
-    Icon: UserRound,
-    access: "public",
-  },
-  {
-    href: "/mediakit-generator",
-    title: "Media kit generator",
-    description: "Edit and publish the content shown on your media kit.",
-    Icon: Sparkles,
-    access: "protected",
-  },
-  {
-    href: "/invoice-generator",
-    title: "Invoice generator",
-    description: "Create and export invoices for brand collaborations.",
-    Icon: FileText,
-    access: "protected",
-  },
-];
+import { navEntries } from "@/lib/navigation";
 
 export default function HomePage() {
   return (
@@ -53,7 +21,7 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {endpoints.map(({ href, title, description, Icon, access }) => (
+        {navEntries.map(({ href, title, description, Icon, access }) => (
           <Link key={href} href={href} className="group">
             <Card className="h-full transition hover:ring-foreground/20">
               <CardHeader>
@@ -67,9 +35,11 @@ export default function HomePage() {
                 <CardDescription>{description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Badge variant={access === "public" ? "outline" : "secondary"}>
-                  {access === "public" ? "Public" : "Password protected"}
-                </Badge>
+                {access === "public" ? (
+                  <Badge variant="outline">Public</Badge>
+                ) : (
+                  <Badge variant="secondary">Password protected</Badge>
+                )}
               </CardContent>
             </Card>
           </Link>
