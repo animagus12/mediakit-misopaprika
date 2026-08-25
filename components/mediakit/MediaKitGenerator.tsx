@@ -1,5 +1,6 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { publishMediaKit, saveMediaKit } from "@/app/mediakit-generator/actions";
 import { BLANK_LOGO, toFormState, toMediaKitData } from "@/lib/mediakit";
@@ -116,30 +117,38 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    const target = pendingTargetRef.current;
-    pendingTargetRef.current = null;
-    event.target.value = "";
-    if (!file || !target) return;
+  const handleFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      const target = pendingTargetRef.current;
+      pendingTargetRef.current = null;
+      event.target.value = "";
+      if (!file || !target) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setState((prev) => {
-        if (target.kind === "photo") return { ...prev, photo: dataUrl };
-        if (target.kind === "logo") {
-          const logos = [...prev.logos];
-          logos[target.index] = { ...logos[target.index], src: dataUrl };
-          return { ...prev, logos };
-        }
-        const tiles = [...prev.tiles];
-        tiles[target.index] = { ...tiles[target.index], img: dataUrl, pos: "50% 50%" };
-        return { ...prev, tiles };
-      });
-    };
-    reader.readAsDataURL(file);
-  }, []);
+      showToast("Uploading…");
+      try {
+        const blob = await upload(file.name, file, {
+          access: "public",
+          handleUploadUrl: "/api/mediakit/upload",
+        });
+        setState((prev) => {
+          if (target.kind === "photo") return { ...prev, photo: blob.url };
+          if (target.kind === "logo") {
+            const logos = [...prev.logos];
+            logos[target.index] = { ...logos[target.index], src: blob.url };
+            return { ...prev, logos };
+          }
+          const tiles = [...prev.tiles];
+          tiles[target.index] = { ...tiles[target.index], img: blob.url, pos: "50% 50%" };
+          return { ...prev, tiles };
+        });
+        showToast("Image uploaded");
+      } catch {
+        showToast("Upload failed — try a different image");
+      }
+    },
+    [showToast]
+  );
 
   const reset = useCallback(() => {
     setState(toFormState(data));
