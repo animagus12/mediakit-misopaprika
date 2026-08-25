@@ -5,7 +5,7 @@ import { toFormState } from "@/lib/mediakit";
 import { getPublishedMediaKitData } from "@/repositories/mediakit.writer.server";
 
 export const metadata: Metadata = {
-  title: "Media kit — @misopaprika",
+  title: "Media kit - @misopaprika",
 };
 
 export default async function MediaKitPage() {
