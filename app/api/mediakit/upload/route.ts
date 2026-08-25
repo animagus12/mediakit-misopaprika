@@ -21,7 +21,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml"],
+        allowedContentTypes: [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+          "image/svg+xml",
+          "image/heic",
+          "image/heif",
+        ],
         addRandomSuffix: true,
       }),
       onUploadCompleted: async () => {},
