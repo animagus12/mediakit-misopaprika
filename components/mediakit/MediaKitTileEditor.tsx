@@ -62,6 +62,17 @@ export function MediaKitTileEditor({ tile, index, actions }: MediaKitTileEditorP
         label="Change cover"
         onClick={() => actions.openPicker({ kind: "tile", index })}
       />
+
+      <Label className={styles.fieldLabel} htmlFor={`${idPrefix}-url`}>
+        Link (optional)
+      </Label>
+      <Input
+        id={`${idPrefix}-url`}
+        type="url"
+        placeholder="https://instagram.com/reel/..."
+        value={tile.url}
+        onChange={(e) => actions.setTileUrl(index, e.target.value)}
+      />
     </div>
   );
 }

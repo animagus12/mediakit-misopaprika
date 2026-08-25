@@ -3,10 +3,13 @@
   --invoice-ink: #141414;
   --invoice-blue: #0052c4;
   --invoice-rule: #1a1a1a;
-  --invoice-panel: #0e1b2e;
-  --invoice-panel-2: #16263d;
-  --invoice-panel-line: #2a3b55;
-  --invoice-muted: #93a4bd;
+  /* Chrome colors follow the app's light/dark theme tokens (globals.css) —
+     only the printed A4 sheet below keeps its own fixed brand colors. */
+  --invoice-panel: var(--background);
+  --invoice-panel-2: var(--card);
+  --invoice-panel-line: var(--border);
+  --invoice-muted: var(--muted-foreground);
+  --invoice-accent: var(--foreground);
   --invoice-panel-width: 400px;
 }
 
@@ -16,7 +19,7 @@
   min-height: 100vh;
   align-items: flex-start;
   background: var(--invoice-panel);
-  color: #e9eef6;
+  color: var(--foreground);
   font-family: var(--font-invoice-body, "Poppins", system-ui, sans-serif);
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
@@ -59,7 +62,7 @@
   font-size: 15px;
   letter-spacing: 0.14em;
   margin: 0;
-  color: #fff;
+  color: var(--foreground);
 }
 
 .brandbar span {
@@ -79,7 +82,7 @@
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--invoice-blue);
+  color: var(--invoice-accent);
   font-weight: 600;
   padding: 0 8px 0 0;
   background: transparent;
@@ -117,7 +120,7 @@
   border-radius: 8px;
   padding: 10px;
   margin-top: 10px;
-  background: #122135;
+  background: var(--invoice-panel-2);
 }
 
 .itemTop {
@@ -145,7 +148,7 @@
   text-transform: none;
   letter-spacing: 0.03em;
   font-size: 12.5px;
-  color: #cbd7e8;
+  color: var(--foreground);
 }
 
 .uploadPreview {
@@ -169,8 +172,8 @@
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%) translateY(20px);
-  background: var(--invoice-blue);
-  color: #fff;
+  background: var(--invoice-accent);
+  color: var(--background);
   padding: 10px 18px;
   border-radius: 999px;
   font-size: 12.5px;

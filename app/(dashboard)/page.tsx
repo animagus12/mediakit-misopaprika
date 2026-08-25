@@ -12,7 +12,7 @@ import { navEntries } from "@/lib/navigation";
 
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-screen-lg py-10">
+    <div className="mx-auto max-w-screen-lg px-4 py-10">
       <div className="mb-6 space-y-1">
         <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
         <p className="text-xs text-muted-foreground">

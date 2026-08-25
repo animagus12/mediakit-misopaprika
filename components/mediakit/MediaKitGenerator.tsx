@@ -15,9 +15,11 @@ const MIN_LOGOS = 1;
 
 interface MediaKitGeneratorProps {
   data: MediaKitData;
+  viewCount: number;
+  uniqueVisitors: number;
 }
 
-export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
+export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitGeneratorProps) {
   const [state, setState] = useState<MediaKitFormState>(() => toFormState(data));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
@@ -81,7 +83,7 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
       showToast(`${MAX_LOGOS} logos is the sensible ceiling`);
       return;
     }
-    setState((prev) => ({ ...prev, logos: [...prev.logos, BLANK_LOGO] }));
+    setState((prev) => ({ ...prev, logos: [...prev.logos, { src: BLANK_LOGO, url: "" }] }));
     showToast("Tap the new circle to pick its logo");
   }, [state.logos.length, showToast]);
 
@@ -92,6 +94,22 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
     }
     setState((prev) => ({ ...prev, logos: prev.logos.slice(0, -1) }));
   }, [state.logos.length, showToast]);
+
+  const setLogoUrl = useCallback((index: number, url: string) => {
+    setState((prev) => {
+      const logos = [...prev.logos];
+      logos[index] = { ...logos[index], url };
+      return { ...prev, logos };
+    });
+  }, []);
+
+  const setTileUrl = useCallback((index: number, url: string) => {
+    setState((prev) => {
+      const tiles = [...prev.tiles];
+      tiles[index] = { ...tiles[index], url };
+      return { ...prev, tiles };
+    });
+  }, []);
 
   const openPicker = useCallback((target: MediaKitPickerTarget) => {
     pendingTargetRef.current = target;
@@ -112,7 +130,7 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
         if (target.kind === "photo") return { ...prev, photo: dataUrl };
         if (target.kind === "logo") {
           const logos = [...prev.logos];
-          logos[target.index] = dataUrl;
+          logos[target.index] = { ...logos[target.index], src: dataUrl };
           return { ...prev, logos };
         }
         const tiles = [...prev.tiles];
@@ -156,6 +174,8 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
       updateTileStat,
       addLogo,
       removeLastLogo,
+      setLogoUrl,
+      setTileUrl,
       openPicker,
       print,
       save,
@@ -171,6 +191,8 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
       updateTileStat,
       addLogo,
       removeLastLogo,
+      setLogoUrl,
+      setTileUrl,
       openPicker,
       print,
       save,
@@ -183,7 +205,13 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
 
   return (
     <div className={styles.app}>
-      <MediaKitControls state={state} actions={actions} brandHandle={data.brandHandle} />
+      <MediaKitControls
+        state={state}
+        actions={actions}
+        brandHandle={data.brandHandle}
+        viewCount={viewCount}
+        uniqueVisitors={uniqueVisitors}
+      />
 
       <main className={styles.stage} ref={stageRef}>
         <div

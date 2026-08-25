@@ -8,6 +8,7 @@
     "audience": "IND(18-34)",
     "location": "Pune, India",
     "handle": "@misopaprika",
+    "instagramUrl": "https://www.instagram.com/misopaprika/",
     "phone": "+91 63716 63500",
     "email": "paprikax1000@gmail.com",
     "photo": "/mediakit/photo-default.jpg"
@@ -48,24 +49,61 @@
   "collabs": {
     "subline": "12+ brands · 3 repeat Partnerships",
     "logos": [
-      "/mediakit/logos/logo-01.jpg",
-      "/mediakit/logos/logo-02.jpg",
-      "/mediakit/logos/logo-03.jpg",
-      "/mediakit/logos/logo-04.jpg",
-      "/mediakit/logos/logo-05.jpg",
-      "/mediakit/logos/logo-06.jpg",
-      "/mediakit/logos/logo-07.jpg",
-      "/mediakit/logos/logo-08.jpg",
-      "/mediakit/logos/logo-09.jpg",
-      "/mediakit/logos/logo-10.jpg",
-      "/mediakit/logos/logo-11.jpg",
-      "/mediakit/logos/logo-12.jpg"
+      {
+        "src": "/mediakit/logos/logo-01.jpg",
+        "url": "https://www.instagram.com/p/DYZkzoIuyLX/"
+      },
+      {
+        "src": "/mediakit/logos/logo-02.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-03.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-04.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-05.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-06.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-07.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-08.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-09.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-10.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-11.jpg",
+        "url": ""
+      },
+      {
+        "src": "/mediakit/logos/logo-12.jpg",
+        "url": ""
+      }
     ]
   },
   "tiles": [
     {
       "img": "/mediakit/tiles/tile-1.jpg",
       "pos": "50% 0%",
+      "url": "",
       "stats": {
         "views": "257K",
         "likes": "16K",
@@ -77,6 +115,7 @@
     {
       "img": "/mediakit/tiles/tile-2.jpg",
       "pos": "50% 49%",
+      "url": "",
       "stats": {
         "views": "181K",
         "likes": "8K",
@@ -88,6 +127,7 @@
     {
       "img": "/mediakit/tiles/tile-3.jpg",
       "pos": "50% 21%",
+      "url": "https://www.instagram.com/p/DYZkzoIuyLX/",
       "stats": {
         "views": "137K",
         "likes": "8K",

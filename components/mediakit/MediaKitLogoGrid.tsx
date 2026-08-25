@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -29,18 +30,28 @@ export function MediaKitLogoGrid({ state, actions }: MediaKitLogoGridProps) {
 
   return (
     <>
-      <Label className={styles.fieldLabel}>Logos — tap any to replace</Label>
+      <Label className={styles.fieldLabel}>
+        Logos — tap image to replace, add a link to make it clickable
+      </Label>
       <div className={styles.logoGrid}>
-        {state.logos.map((src, index) => (
-          <button
-            key={index}
-            type="button"
-            title={`Replace logo ${index + 1}`}
-            onClick={() => actions.openPicker({ kind: "logo", index })}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={src} alt="" />
-          </button>
+        {state.logos.map((logo, index) => (
+          <div key={index} className={styles.logoItem}>
+            <button
+              type="button"
+              title={`Replace logo ${index + 1}`}
+              onClick={() => actions.openPicker({ kind: "logo", index })}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logo.src} alt="" />
+            </button>
+            <Input
+              type="url"
+              placeholder="Brand link"
+              value={logo.url}
+              onChange={(e) => actions.setLogoUrl(index, e.target.value)}
+              className={styles.logoLinkInput}
+            />
+          </div>
         ))}
       </div>
 

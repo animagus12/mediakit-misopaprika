@@ -2,8 +2,25 @@
 
 ## [Unreleased]
 ### Added
+
 ### Changed
+
 ### Fixed
+
+## [1.5.0] - 2026-08-25
+### Added
+- Optional Instagram link on the media kit header — the handle becomes clickable on the published kit when set; the email now links out as a `mailto:` too
+- Optional per-logo and per-tile links on `/mediakit-generator` — each collab logo and top-performing content tile can point to a URL (e.g. an Instagram post) and becomes clickable on the published kit
+- **Vercel Analytics** — `<Analytics />` from `@vercel/analytics/next` wired into the root layout to track page views across the app
+
+### Changed
+- Renamed the invoice-generator login route from `/invoice-generator/login` to `/login`
+- `repositories/mediakit.ts` — `MediaKitCollabs.logos` is now `MediaKitLogo[]` (`{ src, url }`) instead of `string[]`; `MediaKitTileInput` gained a `url` field — `data/mediakit.json` and `data/mediakit.published.json` migrated to the new shape
+- `components/mediakit/MediaKitLogoGrid.tsx` — logo grid now lays out 4 per row (was 6) to make room for each logo's link input
+
+### Fixed
+
+---
 
 ## [1.4.0] - 2026-08-25
 

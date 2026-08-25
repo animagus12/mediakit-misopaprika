@@ -1,5 +1,7 @@
 "use client";
 
+import { Eye, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,18 +16,34 @@ interface MediaKitControlsProps {
   state: MediaKitFormState;
   actions: MediaKitFormActions;
   brandHandle: string;
+  viewCount: number;
+  uniqueVisitors: number;
 }
 
-export function MediaKitControls({ state, actions, brandHandle }: MediaKitControlsProps) {
+export function MediaKitControls({
+  state,
+  actions,
+  brandHandle,
+  viewCount,
+  uniqueVisitors,
+}: MediaKitControlsProps) {
   return (
     <aside className={styles.panel}>
       <div className={styles.brandbar}>
         <h1>MEDIA KIT</h1>
         <span>{brandHandle}</span>
       </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge variant="secondary" className="gap-1">
+          <Eye className="size-3" />
+          {viewCount.toLocaleString()} views on /mediakit
+        </Badge>
+        <Badge variant="secondary" className="gap-1">
+          <Users className="size-3" />
+          {uniqueVisitors.toLocaleString()} unique visitors
+        </Badge>
+      </div>
       <p className={styles.hint}>
-        Update the numbers, swap the images, then <strong>Save as PDF</strong> — it
-        prints the sheet only, at exact A4.
       </p>
 
       <fieldset className={styles.fieldset}>
@@ -97,6 +115,17 @@ export function MediaKitControls({ state, actions, brandHandle }: MediaKitContro
           id="handle"
           value={state.handle}
           onChange={(e) => actions.setField("handle", e.target.value)}
+        />
+
+        <Label className={styles.fieldLabel} htmlFor="instagramUrl">
+          Instagram link
+        </Label>
+        <Input
+          id="instagramUrl"
+          type="url"
+          placeholder="https://instagram.com/misopaprika"
+          value={state.instagramUrl}
+          onChange={(e) => actions.setField("instagramUrl", e.target.value)}
         />
 
         <Label className={styles.fieldLabel} htmlFor="phone">

@@ -8,6 +8,7 @@ export interface MediaKitHeader {
   audience: string;
   location: string;
   handle: string;
+  instagramUrl: string;
   phone: string;
   email: string;
   photo: string;
@@ -26,9 +27,14 @@ export interface MediaKitServiceInput {
   price: string;
 }
 
+export interface MediaKitLogo {
+  src: string;
+  url: string;
+}
+
 export interface MediaKitCollabs {
   subline: string;
-  logos: string[];
+  logos: MediaKitLogo[];
 }
 
 export interface MediaKitTileStats {
@@ -42,6 +48,7 @@ export interface MediaKitTileStats {
 export interface MediaKitTileInput {
   img: string;
   pos: string;
+  url: string;
   stats: MediaKitTileStats;
 }
 

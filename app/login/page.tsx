@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { InvoiceLoginForm } from "@/components/invoice/InvoiceLoginForm";
 
 export const metadata: Metadata = {
-  title: "Sign in — @misopaprika",
+  title: "Sign in - @misopaprika",
   robots: { index: false, follow: false },
 };
 

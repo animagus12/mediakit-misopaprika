@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { Bookmark, Eye, Heart, MessageCircle, Send, type LucideIcon } from "lucide-react";
 import { computeMediaKitLayout } from "@/lib/mediakit";
-import type { MediaKitTileStats } from "@/repositories/mediakit";
+import type { MediaKitLogo, MediaKitTileStats } from "@/repositories/mediakit";
 import type { MediaKitFormState } from "./types";
 import styles from "./mediakit.module.css";
 
@@ -24,7 +24,7 @@ export const MediaKitPreview = forwardRef<HTMLDivElement, MediaKitPreviewProps>(
   function MediaKitPreview({ state }, ref) {
     const layout = computeMediaKitLayout(state.logos.length, state.logoRowsMode);
 
-    const logoRows: string[][] = [];
+    const logoRows: MediaKitLogo[][] = [];
     for (let r = 0; r < layout.rows; r++) {
       logoRows.push(state.logos.slice(r * layout.perRow, (r + 1) * layout.perRow));
     }
@@ -71,11 +71,24 @@ export const MediaKitPreview = forwardRef<HTMLDivElement, MediaKitPreviewProps>(
               Location: <span>{state.location}</span>
             </div>
             <div className={styles.factsRight}>
-              <span>{state.handle}</span>
+              {state.instagramUrl ? (
+                <a
+                  href={state.instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.inlineLink}
+                >
+                  {state.handle}
+                </a>
+              ) : (
+                <span>{state.handle}</span>
+              )}
               <br />
               <span>{state.phone}</span>
               <br />
-              <span>{state.email}</span>
+              <a href={`mailto:${state.email}`} className={styles.inlineLink}>
+                {state.email}
+              </a>
             </div>
           </div>
         </div>
@@ -153,19 +166,31 @@ export const MediaKitPreview = forwardRef<HTMLDivElement, MediaKitPreviewProps>(
                 className={styles.logoRow}
                 style={r < logoRows.length - 1 ? { marginBottom: `${layout.rowGapMm}mm` } : undefined}
               >
-                {row.map((src, i) => (
+                {row.map((logo, i) => {
+                  const logoStyle = {
+                    width: `${layout.logoSizeMm}mm`,
+                    height: `${layout.logoSizeMm}mm`,
+                    marginRight: i < row.length - 1 ? `${layout.logoGapMm}mm` : undefined,
+                  };
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={i}
-                    src={src}
-                    alt=""
-                    style={{
-                      width: `${layout.logoSizeMm}mm`,
-                      height: `${layout.logoSizeMm}mm`,
-                      marginRight: i < row.length - 1 ? `${layout.logoGapMm}mm` : undefined,
-                    }}
-                  />
-                ))}
+                  const img = <img src={logo.src} alt="" />;
+                  return logo.url ? (
+                    <a
+                      key={i}
+                      href={logo.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.logoLink}
+                      style={logoStyle}
+                    >
+                      {img}
+                    </a>
+                  ) : (
+                    <div key={i} className={styles.logoLink} style={logoStyle}>
+                      {img}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -177,32 +202,45 @@ export const MediaKitPreview = forwardRef<HTMLDivElement, MediaKitPreviewProps>(
         >
           <h4>TOP PERFORMING CONTENT</h4>
           <div className={styles.tiles}>
-            {state.tiles.map((tile, ti) => (
-              <div
-                key={ti}
-                className={styles.tile}
-                style={
-                  {
-                    width: `${layout.tileWidthMm}mm`,
-                    height: `${layout.tileHeightMm}mm`,
-                    marginRight: ti < state.tiles.length - 1 ? `${layout.tileGapMm}mm` : undefined,
-                    "--ts": layout.tileScale,
-                  } as React.CSSProperties
-                }
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={tile.img} alt="" style={{ objectPosition: tile.pos }} />
-                <div className={styles.scrim} />
-                <ul>
-                  {TILE_STAT_ORDER.map(({ key, Icon }) => (
-                    <li key={key}>
-                      <Icon />
-                      <span>{tile.stats[key]}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {state.tiles.map((tile, ti) => {
+              const tileStyle = {
+                width: `${layout.tileWidthMm}mm`,
+                height: `${layout.tileHeightMm}mm`,
+                marginRight: ti < state.tiles.length - 1 ? `${layout.tileGapMm}mm` : undefined,
+                "--ts": layout.tileScale,
+              } as React.CSSProperties;
+              const tileContent = (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={tile.img} alt="" style={{ objectPosition: tile.pos }} />
+                  <div className={styles.scrim} />
+                  <ul>
+                    {TILE_STAT_ORDER.map(({ key, Icon }) => (
+                      <li key={key}>
+                        <Icon />
+                        <span>{tile.stats[key]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              );
+              return tile.url ? (
+                <a
+                  key={ti}
+                  href={tile.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.tile}
+                  style={tileStyle}
+                >
+                  {tileContent}
+                </a>
+              ) : (
+                <div key={ti} className={styles.tile} style={tileStyle}>
+                  {tileContent}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
