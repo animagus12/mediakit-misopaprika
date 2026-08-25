@@ -1,6 +1,6 @@
 import { MediaKitFontsProvider } from "@/components/mediakit/MediaKitFontsProvider";
 
-export default function MediaKitGeneratorLayout({
+export default function MediaKitLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

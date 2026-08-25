@@ -134,3 +134,34 @@ export function toMediaKitData(state: MediaKitFormState, brandHandle: string): M
     })) as [MediaKitTileInput, MediaKitTileInput, MediaKitTileInput],
   };
 }
+
+// Inverse of toMediaKitData — seeds editable form state from a persisted
+// record. Shared by the generator (editing a draft) and the public preview
+// (rendering a published snapshot with no editing affordances).
+export function toFormState(data: MediaKitData): MediaKitFormState {
+  return {
+    wordmark: data.header.wordmark,
+    tagline: data.header.tagline,
+    bio: data.header.bio,
+    followers: data.header.followers,
+    audience: data.header.audience,
+    location: data.header.location,
+    handle: data.header.handle,
+    phone: data.header.phone,
+    email: data.header.email,
+    photo: data.header.photo,
+    monthlyViews: data.stats.monthlyViews,
+    accountsReached: data.stats.accountsReached,
+    engagementRate: data.stats.engagementRate,
+    avgReelViews: data.stats.avgReelViews,
+    caption: data.stats.caption,
+    services: data.services.map((service) => ({ ...service })),
+    startsAtNote: data.startsAtNote,
+    addons: data.addons.map((addon) => ({ ...addon })),
+    bookingTerms: data.bookingTerms,
+    collabsSubline: data.collabs.subline,
+    logos: [...data.collabs.logos],
+    logoRowsMode: "auto",
+    tiles: data.tiles.map((tile) => ({ ...tile, stats: { ...tile.stats } })),
+  };
+}

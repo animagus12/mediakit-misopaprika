@@ -282,6 +282,15 @@ export function MediaKitControls({ state, actions, brandHandle }: MediaKitContro
       >
         {actions.isSaving ? "Saving…" : "Save changes"}
       </Button>
+      <Button
+        type="button"
+        className="mt-2.5 w-full"
+        onClick={actions.publish}
+        disabled={actions.isPublishing}
+      >
+        {actions.isPublishing ? "Publishing…" : "Publish"}
+      </Button>
+      <p className={styles.hint}>Publish saves and makes this the version shown at /mediakit.</p>
       <Button type="button" variant="outline" className="mt-2.5 w-full" onClick={actions.reset}>
         Reset fields
       </Button>

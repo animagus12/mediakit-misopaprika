@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { saveMediaKit } from "@/app/mediakit-generator/actions";
-import { BLANK_LOGO, toMediaKitData } from "@/lib/mediakit";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { publishMediaKit, saveMediaKit } from "@/app/mediakit-generator/actions";
+import { BLANK_LOGO, toFormState, toMediaKitData } from "@/lib/mediakit";
+import { useMediaKitStageFit } from "@/lib/useMediaKitStageFit";
 import type { MediaKitData, MediaKitTileStats } from "@/repositories/mediakit";
 import { MediaKitControls } from "./MediaKitControls";
 import { MediaKitPreview } from "./MediaKitPreview";
@@ -12,47 +13,21 @@ import styles from "./mediakit.module.css";
 const MAX_LOGOS = 20;
 const MIN_LOGOS = 1;
 
-function buildInitialState(data: MediaKitData): MediaKitFormState {
-  return {
-    wordmark: data.header.wordmark,
-    tagline: data.header.tagline,
-    bio: data.header.bio,
-    followers: data.header.followers,
-    audience: data.header.audience,
-    location: data.header.location,
-    handle: data.header.handle,
-    phone: data.header.phone,
-    email: data.header.email,
-    photo: data.header.photo,
-    monthlyViews: data.stats.monthlyViews,
-    accountsReached: data.stats.accountsReached,
-    engagementRate: data.stats.engagementRate,
-    avgReelViews: data.stats.avgReelViews,
-    caption: data.stats.caption,
-    services: data.services.map((service) => ({ ...service })),
-    startsAtNote: data.startsAtNote,
-    addons: data.addons.map((addon) => ({ ...addon })),
-    bookingTerms: data.bookingTerms,
-    collabsSubline: data.collabs.subline,
-    logos: [...data.collabs.logos],
-    logoRowsMode: "auto",
-    tiles: data.tiles.map((tile) => ({ ...tile, stats: { ...tile.stats } })),
-  };
-}
-
 interface MediaKitGeneratorProps {
   data: MediaKitData;
 }
 
 export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
-  const [state, setState] = useState<MediaKitFormState>(() => buildInitialState(data));
-  const [scale, setScale] = useState(1);
-  const [stageInnerHeight, setStageInnerHeight] = useState<number | null>(null);
+  const [state, setState] = useState<MediaKitFormState>(() => toFormState(data));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
+  const [isPublishing, startPublishTransition] = useTransition();
 
-  const stageRef = useRef<HTMLElement>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
+  // Re-fit whenever the row-mode/logo count changes the page's natural height.
+  const { stageRef, pageRef, scale, stageInnerHeight } = useMediaKitStageFit([
+    state.logos.length,
+    state.logoRowsMode,
+  ]);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,33 +38,6 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToastMsg(null), 1800);
   }, []);
-
-  const fit = useCallback(() => {
-    const stage = stageRef.current;
-    const page = pageRef.current;
-    if (!stage || !page) return;
-    const avail = stage.clientWidth - 40;
-    // offsetWidth is the page's natural (untransformed) layout width — unlike
-    // getBoundingClientRect(), it ignores the CSS transform:scale() already
-    // applied below, so there's no need to "undo" a previous scale (and no
-    // risk of that undo using a stale value across the two mount effects).
-    const pageWidth = page.offsetWidth;
-    const nextScale = Math.min(1, avail / pageWidth);
-    setScale(nextScale);
-    setStageInnerHeight(page.offsetHeight * nextScale);
-  }, []);
-
-  useEffect(() => {
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, [fit]);
-
-  useEffect(() => {
-    fit();
-    // Re-fit whenever the row-mode/logo/tile count changes the page's natural height.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.logos.length, state.logoRowsMode]);
 
   const setField = useCallback(
     <K extends keyof MediaKitFormState>(field: K, value: MediaKitFormState[K]) => {
@@ -176,7 +124,7 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
   }, []);
 
   const reset = useCallback(() => {
-    setState(buildInitialState(data));
+    setState(toFormState(data));
     showToast("Fields reset");
   }, [data, showToast]);
 
@@ -192,6 +140,14 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
     });
   }, [state, data.brandHandle, showToast]);
 
+  const publish = useCallback(() => {
+    const payload = toMediaKitData(state, data.brandHandle);
+    startPublishTransition(async () => {
+      const result = await publishMediaKit(payload);
+      showToast(result.success ? "Published — live at /mediakit" : result.error);
+    });
+  }, [state, data.brandHandle, showToast]);
+
   const actions = useMemo<MediaKitFormActions>(
     () => ({
       setField,
@@ -204,6 +160,8 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
       print,
       save,
       isSaving,
+      publish,
+      isPublishing,
       reset,
     }),
     [
@@ -217,6 +175,8 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
       print,
       save,
       isSaving,
+      publish,
+      isPublishing,
       reset,
     ]
   );
