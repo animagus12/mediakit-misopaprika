@@ -7,7 +7,7 @@ const TTL_SECONDS = 60 * 60 * 26; // 26 h — covers daily refresh + buffer
 const MEDIAKIT_VIEWS_KEY = "mediakit_views";
 const MEDIAKIT_UNIQUE_VISITORS_KEY = "mediakit_unique_visitors";
 
-function getRedis(): Redis | null {
+export function getRedis(): Redis | null {
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
