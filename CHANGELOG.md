@@ -2,8 +2,25 @@
 
 ## [Unreleased]
 ### Added
+- **Unique visitor count** on `/mediakit-generator`, shown alongside the existing total-views badge
+- `lib/visitor.ts` — anonymous first-party visitor cookie name/max-age, shared between `proxy.ts` and the `/mediakit` page
+- `lib/cache.ts` — `recordMediaKitVisitor()` / `getMediaKitUniqueVisitors()`, backed by a Redis `SADD`/`SCARD` set (`mediakit_unique_visitors`), separate from the existing total-views counter
+- `proxy.ts` — now also matches `/mediakit` (public, no auth added) purely to assign a first-time visitor an `mk_visitor_id` cookie, making the request+response cookie visible to the same render via `NextResponse.next({ request })`
+- `components/common/AppShell.tsx` — sidebar+navbar shell (`SidebarProvider` + `TooltipProvider` + `AppSideBar` + `NavBar`) extracted from the dashboard layout so it can be reused elsewhere
+- `/mediakit-generator` and `/invoice-generator` now render inside `AppShell`, giving both screens the same sidebar navigation and top navbar (theme toggle, Home, logout) as the rest of the dashboard — previously they had no navigation chrome at all
+- `components/mediakit/MediaKitControls.tsx` — second `Badge` ("N unique visitors", `Users` icon) next to the views badge
+
 ### Changed
+- `app/globals.css` — `--primary` / `--sidebar-primary` (light and dark) switched from the indigo/violet accent to a neutral black/white palette, matching the dashboard's black theme
+- `app/(dashboard)/layout.tsx` — now just delegates to `AppShell`
+- `app/(dashboard)/page.tsx` — carries its own `px-4` gutter now that the shared shell no longer applies one globally (previously inherited from the old dashboard-only layout)
+- `components/mediakit/mediakit.module.css` / `components/invoice/invoice.module.css` — chrome colors (panel background, borders, muted text, legend/toast/hover accents) switched from fixed navy-blue hex values to the app's neutral black/gray theme tokens; the printed A4 sheet itself keeps its own fixed brand colors, unaffected
+- `app/mediakit/page.tsx` / `app/mediakit-generator/page.tsx` / `components/mediakit/MediaKitGenerator.tsx` — thread the new `uniqueVisitors` count and visitor cookie through to the controls panel
+
 ### Fixed
+- `/mediakit-generator` and `/invoice-generator` control panels ignored the app's light/dark theme toggle — their chrome colors were hardcoded hex values instead of referencing `globals.css` tokens, so switching themes had no visible effect there; now they follow the toggle like the rest of the app
+
+### Removed
 
 ## [1.4.0] - 2026-08-25
 
