@@ -1,5 +1,5 @@
 const COOKIE_NAME = "invoice_session";
-const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+const SESSION_DURATION_MS = 1000 * 60 * 60 * 24; // 1 day
 
 function getSessionSecret(): string {
   const secret = process.env.INVOICE_SESSION_SECRET;

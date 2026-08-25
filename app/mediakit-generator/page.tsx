@@ -3,7 +3,7 @@ import { MediaKitGenerator } from "@/components/mediakit/MediaKitGenerator";
 import { mediakitRepository } from "@/repositories/mediakit";
 
 export const metadata: Metadata = {
-  title: "Media kit generator — @misopaprika",
+  title: "Media kit generator - @misopaprika",
   robots: { index: false, follow: false },
 };
 

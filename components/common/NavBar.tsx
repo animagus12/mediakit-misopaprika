@@ -1,19 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "../ui/button";
 import { SidebarTrigger } from "../ui/sidebar";
 
 const NavBar = () => {
   const { setTheme } = useTheme();
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    await fetch("/api/invoice-auth", { method: "DELETE" });
+    router.replace("/invoice-generator/login");
+    router.refresh();
+  }
 
   return (
     <nav className="sticky top-0 z-50 p-2 flex justify-between items-center bg-background/95 backdrop-blur-xl">
@@ -45,6 +56,15 @@ const NavBar = () => {
         </DropdownMenu>
         {/* User Menu */}
         <Link href="/">Home</Link>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+        >
+          <LogOut className="h-[1.2rem] w-[1.2rem]" />
+          <span className="sr-only">Log out</span>
+        </Button>
       </div>
     </nav>
   );
