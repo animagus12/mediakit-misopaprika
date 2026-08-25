@@ -4,10 +4,13 @@
   --mediakit-ink: #545454;
   --mediakit-dark: #1a1a1a;
   --mediakit-coral: #ff5757;
-  --mediakit-panel: #0e1b2e;
-  --mediakit-panel-2: #16263d;
-  --mediakit-panel-line: #2a3b55;
-  --mediakit-muted: #93a4bd;
+  /* Chrome colors follow the app's light/dark theme tokens (globals.css) —
+     only the printed A4 sheet below keeps its own fixed brand colors. */
+  --mediakit-panel: var(--background);
+  --mediakit-panel-2: var(--card);
+  --mediakit-panel-line: var(--border);
+  --mediakit-muted: var(--muted-foreground);
+  --mediakit-accent: var(--foreground);
 }
 
 /* ---------- app shell ---------- */
@@ -16,7 +19,7 @@
   min-height: 100vh;
   align-items: flex-start;
   background: var(--mediakit-panel);
-  color: #e9eef6;
+  color: var(--foreground);
   font-family: var(--font-mediakit-body, "Mulish", system-ui, sans-serif);
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
@@ -59,7 +62,7 @@
   font-size: 14px;
   letter-spacing: 0.14em;
   margin: 0;
-  color: #fff;
+  color: var(--foreground);
 }
 
 .brandbar span {
@@ -86,7 +89,7 @@
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--mediakit-blue);
+  color: var(--mediakit-accent);
   font-weight: 700;
   padding: 0 8px 0 0;
   background: transparent;
@@ -126,7 +129,7 @@
   border-radius: 8px;
   padding: 10px;
   margin-top: 10px;
-  background: #122135;
+  background: var(--mediakit-panel-2);
 }
 
 .cardS .idx {
@@ -147,7 +150,7 @@
   height: 52px;
   object-fit: cover;
   border-radius: 4px;
-  background: #0a1422;
+  background: var(--muted);
   flex: 0 0 auto;
 }
 
@@ -161,7 +164,7 @@
 .logoGrid button {
   padding: 0;
   border: 1px solid var(--mediakit-panel-line);
-  background: #0a1422;
+  background: var(--muted);
   border-radius: 50%;
   aspect-ratio: 1;
   overflow: hidden;
@@ -169,7 +172,7 @@
 }
 
 .logoGrid button:hover {
-  border-color: var(--mediakit-blue);
+  border-color: var(--mediakit-accent);
 }
 
 .logoGrid img {
@@ -184,8 +187,8 @@
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%) translateY(20px);
-  background: var(--mediakit-blue);
-  color: #fff;
+  background: var(--mediakit-accent);
+  color: var(--background);
   padding: 10px 18px;
   border-radius: 999px;
   font-size: 12.5px;

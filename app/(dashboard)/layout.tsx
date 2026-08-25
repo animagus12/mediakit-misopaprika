@@ -1,28 +1,9 @@
-import AppSideBar from "@/components/common/AppSideBar";
-import NavBar from "@/components/common/NavBar";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { cookies } from "next/headers";
-import { mediakitRepository } from "@/repositories";
+import AppShell from "@/components/common/AppShell";
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
-  const { photo } = mediakitRepository.get().header;
-
-  return (
-    <SidebarProvider defaultOpen={defaultOpen}>
-      <TooltipProvider>
-        <AppSideBar photo={photo} />
-        <div className="w-full">
-          <NavBar />
-          <div className="px-4">{children}</div>
-        </div>
-      </TooltipProvider>
-    </SidebarProvider>
-  );
+  return <AppShell>{children}</AppShell>;
 }

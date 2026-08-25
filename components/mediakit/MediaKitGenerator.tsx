@@ -16,9 +16,10 @@ const MIN_LOGOS = 1;
 interface MediaKitGeneratorProps {
   data: MediaKitData;
   viewCount: number;
+  uniqueVisitors: number;
 }
 
-export function MediaKitGenerator({ data, viewCount }: MediaKitGeneratorProps) {
+export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitGeneratorProps) {
   const [state, setState] = useState<MediaKitFormState>(() => toFormState(data));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
@@ -189,6 +190,7 @@ export function MediaKitGenerator({ data, viewCount }: MediaKitGeneratorProps) {
         actions={actions}
         brandHandle={data.brandHandle}
         viewCount={viewCount}
+        uniqueVisitors={uniqueVisitors}
       />
 
       <main className={styles.stage} ref={stageRef}>

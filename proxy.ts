@@ -1,7 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/invoice-auth";
+import { VISITOR_COOKIE, VISITOR_COOKIE_MAX_AGE } from "@/lib/visitor";
+
+// Public: just tags first-time visitors with an anonymous id so the
+// generator screen can show a unique-visitor count alongside total views.
+function withVisitorCookie(request: NextRequest) {
+  if (request.cookies.get(VISITOR_COOKIE)) {
+    return NextResponse.next();
+  }
+
+  const visitorId = crypto.randomUUID();
+  // Set on the request too so this same render can already read it back.
+  request.cookies.set(VISITOR_COOKIE, visitorId);
+
+  const response = NextResponse.next({ request });
+  response.cookies.set(VISITOR_COOKIE, visitorId, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: VISITOR_COOKIE_MAX_AGE,
+  });
+  return response;
+}
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/mediakit") {
+    return withVisitorCookie(request);
+  }
+
   if (request.nextUrl.pathname.startsWith("/invoice-generator/login")) {
     return NextResponse.next();
   }
@@ -19,5 +45,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/invoice-generator/:path*", "/mediakit-generator/:path*"],
+  matcher: ["/", "/invoice-generator/:path*", "/mediakit-generator/:path*", "/mediakit"],
 };
