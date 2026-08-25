@@ -1,3 +1,6 @@
+import type { MediaKitFormState } from "@/components/mediakit/types";
+import type { MediaKitData, MediaKitServiceInput, MediaKitTileInput } from "@/repositories/mediakit";
+
 export type MediaKitLogoRowsMode = "auto" | "1" | "2";
 
 export interface MediaKitLayout {
@@ -89,3 +92,45 @@ const BLANK_LOGO_SVG =
   '<text x="50" y="58" font-family="sans-serif" font-size="34" fill="#A9B6C8" text-anchor="middle">+</text></svg>';
 
 export const BLANK_LOGO = `data:image/svg+xml;utf8,${encodeURIComponent(BLANK_LOGO_SVG)}`;
+
+// Services/addons/tiles are fixed-count tuples in MediaKitData; the form
+// keeps them as plain arrays (see MediaKitFormState), so the tuple count is
+// guaranteed by buildInitialState seeding from the repository default, not
+// by the type system here.
+export function toMediaKitData(state: MediaKitFormState, brandHandle: string): MediaKitData {
+  return {
+    brandHandle,
+    header: {
+      wordmark: state.wordmark,
+      tagline: state.tagline,
+      bio: state.bio,
+      followers: state.followers,
+      audience: state.audience,
+      location: state.location,
+      handle: state.handle,
+      phone: state.phone,
+      email: state.email,
+      photo: state.photo,
+    },
+    stats: {
+      monthlyViews: state.monthlyViews,
+      accountsReached: state.accountsReached,
+      engagementRate: state.engagementRate,
+      avgReelViews: state.avgReelViews,
+      caption: state.caption,
+    },
+    services: state.services as [MediaKitServiceInput, MediaKitServiceInput, MediaKitServiceInput],
+    startsAtNote: state.startsAtNote,
+    addons: state.addons as [MediaKitServiceInput, MediaKitServiceInput],
+    bookingTerms: state.bookingTerms,
+    collabs: {
+      subline: state.collabsSubline,
+      logos: state.logos,
+    },
+    tiles: state.tiles.map((tile) => ({
+      img: tile.img,
+      pos: tile.pos,
+      stats: { ...tile.stats },
+    })) as [MediaKitTileInput, MediaKitTileInput, MediaKitTileInput],
+  };
+}
