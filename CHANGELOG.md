@@ -7,6 +7,15 @@
 
 ### Fixed
 
+## [1.6.0] - 2026-08-25
+### Changed
+- `repositories/mediakit.writer.server.ts` — media kit draft/published data now reads and writes through Upstash Redis (KV) instead of `fs`, falling back to the bundled `data/mediakit.json` as the seed default; `lib/cache.ts` exports `getRedis()` for reuse
+- `app/mediakit-generator/page.tsx` and `components/common/AppShell.tsx` — load the media kit draft via the new async `getMediaKitData()` instead of the old sync, build-time-bundled JSON import
+- `.env.example` — notes that `KV_REST_API_URL`/`KV_REST_API_TOKEN` now also gate Save/Publish, not just the view counter
+
+### Fixed
+- Save/Publish on `/mediakit-generator` failing in production — Vercel's serverless filesystem is read-only, so the previous `fs.writeFile` to `data/mediakit.json`/`data/mediakit.published.json` could only ever succeed in `next dev`
+
 ## [1.5.0] - 2026-08-25
 ### Added
 - Optional Instagram link on the media kit header — the handle becomes clickable on the published kit when set; the email now links out as a `mailto:` too

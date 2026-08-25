@@ -3,7 +3,7 @@ import AppSideBar from "@/components/common/AppSideBar";
 import NavBar from "@/components/common/NavBar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { mediakitRepository } from "@/repositories";
+import { getMediaKitData } from "@/repositories/mediakit.writer.server";
 
 export default async function AppShell({
   children,
@@ -12,7 +12,7 @@ export default async function AppShell({
 }>) {
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
-  const { photo } = mediakitRepository.get().header;
+  const { photo } = (await getMediaKitData()).header;
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
