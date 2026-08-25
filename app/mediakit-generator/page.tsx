@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import AppShell from "@/components/common/AppShell";
 import { MediaKitGenerator } from "@/components/mediakit/MediaKitGenerator";
-import { getMediaKitViews } from "@/lib/cache";
+import { getMediaKitUniqueVisitors, getMediaKitViews } from "@/lib/cache";
 import { mediakitRepository } from "@/repositories/mediakit";
 
 export const metadata: Metadata = {
@@ -10,6 +11,13 @@ export const metadata: Metadata = {
 
 export default async function MediaKitGeneratorPage() {
   const data = mediakitRepository.get();
-  const viewCount = await getMediaKitViews();
-  return <MediaKitGenerator data={data} viewCount={viewCount} />;
+  const [viewCount, uniqueVisitors] = await Promise.all([
+    getMediaKitViews(),
+    getMediaKitUniqueVisitors(),
+  ]);
+  return (
+    <AppShell>
+      <MediaKitGenerator data={data} viewCount={viewCount} uniqueVisitors={uniqueVisitors} />
+    </AppShell>
+  );
 }

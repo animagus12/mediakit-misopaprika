@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { Eye, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ interface MediaKitControlsProps {
   actions: MediaKitFormActions;
   brandHandle: string;
   viewCount: number;
+  uniqueVisitors: number;
 }
 
 export function MediaKitControls({
@@ -24,6 +25,7 @@ export function MediaKitControls({
   actions,
   brandHandle,
   viewCount,
+  uniqueVisitors,
 }: MediaKitControlsProps) {
   return (
     <aside className={styles.panel}>
@@ -31,13 +33,17 @@ export function MediaKitControls({
         <h1>MEDIA KIT</h1>
         <span>{brandHandle}</span>
       </div>
-      <Badge variant="secondary" className="mt-2 gap-1">
-        <Eye className="size-3" />
-        {viewCount.toLocaleString()} views on /mediakit
-      </Badge>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <Badge variant="secondary" className="gap-1">
+          <Eye className="size-3" />
+          {viewCount.toLocaleString()} views on /mediakit
+        </Badge>
+        <Badge variant="secondary" className="gap-1">
+          <Users className="size-3" />
+          {uniqueVisitors.toLocaleString()} unique visitors
+        </Badge>
+      </div>
       <p className={styles.hint}>
-        Update the numbers, swap the images, then <strong>Save as PDF</strong> — it
-        prints the sheet only, at exact A4.
       </p>
 
       <fieldset className={styles.fieldset}>
