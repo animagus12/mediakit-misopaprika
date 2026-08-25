@@ -2,10 +2,14 @@
 
 ## [Unreleased]
 ### Added
+- **Vercel Blob** (`@vercel/blob`) — `/mediakit-generator`'s image pickers (profile photo, collab logos, tile covers) now upload files directly from the browser to Blob storage via `app/api/mediakit/upload/route.ts`, instead of inlining them as base64 in the saved data; requires `BLOB_READ_WRITE_TOKEN`
 
 ### Changed
+- `components/mediakit/MediaKitGenerator.tsx` — `handleFileChange` uploads to Blob and stores the resulting URL, instead of reading the file into a base64 data URL with `FileReader`
+- `next.config.ts` — dropped the `serverActions.bodySizeLimit` override; the draft/published payload no longer carries images, so the default limit is plenty
 
 ### Fixed
+- Save/Publish crashing when an image had just been changed — inline base64 images could push the request past the Proxy's `proxyClientMaxBodySize` (10MB default), silently truncating the body and corrupting the Server Action payload instead of failing cleanly
 
 ## [1.6.0] - 2026-08-25
 ### Changed
