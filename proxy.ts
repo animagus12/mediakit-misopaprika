@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/invoice-auth";
 
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/invoice/login")) {
+  if (request.nextUrl.pathname.startsWith("/invoice-generator/login")) {
     return NextResponse.next();
   }
 
@@ -10,7 +10,7 @@ export async function proxy(request: NextRequest) {
   const isAuthenticated = await verifySessionToken(token);
 
   if (!isAuthenticated) {
-    const loginUrl = new URL("/invoice/login", request.url);
+    const loginUrl = new URL("/invoice-generator/login", request.url);
     loginUrl.searchParams.set("from", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -19,5 +19,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/invoice/:path*"],
+  matcher: ["/", "/invoice-generator/:path*", "/mediakit-generator/:path*"],
 };

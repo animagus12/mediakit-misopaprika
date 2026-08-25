@@ -32,7 +32,7 @@ export function InvoiceLoginForm() {
       return;
     }
 
-    const from = searchParams.get("from") ?? "/invoice";
+    const from = searchParams.get("from") ?? "/invoice-generator";
     router.replace(from);
     router.refresh();
   }

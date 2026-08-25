@@ -11,12 +11,6 @@ function getRedis(): Redis | null {
   return new Redis({ url, token });
 }
 
-export async function getCachedYouTubeAnalytics(): Promise<YouTubeAnalyticsCache | null> {
-  const redis = getRedis();
-  if (!redis) return null;
-  return redis.get<YouTubeAnalyticsCache>(YOUTUBE_KEY);
-}
-
 export async function setCachedYouTubeAnalytics(data: YouTubeAnalyticsCache): Promise<void> {
   const redis = getRedis();
   if (!redis) throw new Error("Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN");

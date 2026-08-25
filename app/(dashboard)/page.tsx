@@ -1,43 +1,50 @@
-import Analytics from "@/components/sections/Analytics";
-import Audience from "@/components/sections/Audience";
-import Brands from "@/components/sections/Brands";
-import Hero from "@/components/sections/Hero";
-import Videos from "@/components/sections/Videos";
-import Services from "@/components/sections/Services";
-import Contact from "@/components/sections/Contact";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { navEntries } from "@/lib/navigation";
 
 export default function HomePage() {
   return (
-    <div className="max-w-screen-2xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section id="hero" className="scroll-mt-16">
-          <Hero />
-        </section>
+    <div className="mx-auto max-w-screen-lg py-10">
+      <div className="mb-6 space-y-1">
+        <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
+        <p className="text-xs text-muted-foreground">
+          Everything you can get to from here.
+        </p>
+      </div>
 
-        <section id="analytics" className="scroll-mt-16">
-          <Analytics />
-        </section>
-
-        <section id="audience" className="scroll-mt-16">
-          <Audience />
-        </section>
-
-        <section id="brands" className="scroll-mt-16">
-          <Brands />
-        </section>
-
-        <section id="services" className="scroll-mt-16">
-          <Services />
-        </section>
-
-        <section id="videos" className="scroll-mt-16">
-          <Videos />
-        </section>
-
-        <section id="contact" className="scroll-mt-16">
-          <Contact />
-        </section>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {navEntries.map(({ href, title, description, Icon, access }) => (
+          <Link key={href} href={href} className="group">
+            <Card className="h-full transition hover:ring-foreground/20">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Icon className="size-4 text-muted-foreground" />
+                    <CardTitle>{title}</CardTitle>
+                  </div>
+                  <ArrowUpRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </div>
+                <CardDescription>{description}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {access === "public" ? (
+                  <Badge variant="outline">Public</Badge>
+                ) : (
+                  <Badge variant="secondary">Password protected</Badge>
+                )}
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
-  )
+  );
 }
