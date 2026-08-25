@@ -273,6 +273,15 @@ export function MediaKitControls({ state, actions, brandHandle }: MediaKitContro
       <Button type="button" className="mt-2.5 w-full" onClick={actions.print}>
         Save as PDF
       </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        className="mt-2.5 w-full"
+        onClick={actions.save}
+        disabled={actions.isSaving}
+      >
+        {actions.isSaving ? "Saving…" : "Save changes"}
+      </Button>
       <Button type="button" variant="outline" className="mt-2.5 w-full" onClick={actions.reset}>
         Reset fields
       </Button>

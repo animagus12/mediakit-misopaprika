@@ -51,5 +51,7 @@ export interface MediaKitFormActions {
   removeLastLogo: () => void;
   openPicker: (target: MediaKitPickerTarget) => void;
   print: () => void;
+  save: () => void;
+  isSaving: boolean;
   reset: () => void;
 }

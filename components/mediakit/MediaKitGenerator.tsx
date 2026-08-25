@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BLANK_LOGO } from "@/lib/mediakit";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { saveMediaKit } from "@/app/mediakit-generator/actions";
+import { BLANK_LOGO, toMediaKitData } from "@/lib/mediakit";
 import type { MediaKitData, MediaKitTileStats } from "@/repositories/mediakit";
 import { MediaKitControls } from "./MediaKitControls";
 import { MediaKitPreview } from "./MediaKitPreview";
@@ -48,6 +49,7 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
   const [scale, setScale] = useState(1);
   const [stageInnerHeight, setStageInnerHeight] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isSaving, startSaveTransition] = useTransition();
 
   const stageRef = useRef<HTMLElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -182,6 +184,14 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
     window.print();
   }, []);
 
+  const save = useCallback(() => {
+    const payload = toMediaKitData(state, data.brandHandle);
+    startSaveTransition(async () => {
+      const result = await saveMediaKit(payload);
+      showToast(result.success ? "Saved — values updated permanently" : result.error);
+    });
+  }, [state, data.brandHandle, showToast]);
+
   const actions = useMemo<MediaKitFormActions>(
     () => ({
       setField,
@@ -192,9 +202,23 @@ export function MediaKitGenerator({ data }: MediaKitGeneratorProps) {
       removeLastLogo,
       openPicker,
       print,
+      save,
+      isSaving,
       reset,
     }),
-    [setField, updateService, updateAddon, updateTileStat, addLogo, removeLastLogo, openPicker, print, reset]
+    [
+      setField,
+      updateService,
+      updateAddon,
+      updateTileStat,
+      addLogo,
+      removeLastLogo,
+      openPicker,
+      print,
+      save,
+      isSaving,
+      reset,
+    ]
   );
 
   return (

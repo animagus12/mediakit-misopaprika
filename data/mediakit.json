@@ -20,14 +20,29 @@
     "caption": "LAST 30 DAYS"
   },
   "services": [
-    { "name": "Instagram Reel + Story", "price": "₹4,500" },
-    { "name": "Reel + Story + Ad Usage", "price": "₹5,500" },
-    { "name": "UGC Ad Reel (unposted)", "price": "₹6,000" }
+    {
+      "name": "Instagram Reel + Story",
+      "price": "₹4,500"
+    },
+    {
+      "name": "Reel + Story + Ad Usage",
+      "price": "₹5,500"
+    },
+    {
+      "name": "UGC Ad Reel (unposted)",
+      "price": "₹6,000"
+    }
   ],
   "startsAtNote": "Starts at",
   "addons": [
-    { "name": "Ad Usage (30D)", "price": "₹1,000" },
-    { "name": "Rush Delivery", "price": "+20%" }
+    {
+      "name": "Ad Usage (30D)",
+      "price": "₹1,000"
+    },
+    {
+      "name": "Rush Delivery",
+      "price": "+20%"
+    }
   ],
   "bookingTerms": "50% advance to confirm booking · UGC deliverables released on full payment",
   "collabs": {
@@ -51,17 +66,35 @@
     {
       "img": "/mediakit/tiles/tile-1.jpg",
       "pos": "50% 0%",
-      "stats": { "views": "257K", "likes": "16K", "comments": "260", "saves": "6K", "shares": "9K" }
+      "stats": {
+        "views": "257K",
+        "likes": "16K",
+        "comments": "260",
+        "saves": "6K",
+        "shares": "9K"
+      }
     },
     {
       "img": "/mediakit/tiles/tile-2.jpg",
       "pos": "50% 49%",
-      "stats": { "views": "181K", "likes": "8K", "comments": "99", "saves": "10K", "shares": "8K" }
+      "stats": {
+        "views": "181K",
+        "likes": "8K",
+        "comments": "99",
+        "saves": "10K",
+        "shares": "8K"
+      }
     },
     {
       "img": "/mediakit/tiles/tile-3.jpg",
       "pos": "50% 21%",
-      "stats": { "views": "137K", "likes": "8K", "comments": "104", "saves": "3K", "shares": "3K" }
+      "stats": {
+        "views": "137K",
+        "likes": "8K",
+        "comments": "104",
+        "saves": "3K",
+        "shares": "3K"
+      }
     }
   ]
 }
