@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { MediaKitGenerator } from "@/components/mediakit/MediaKitGenerator";
+import { getMediaKitViews } from "@/lib/cache";
 import { mediakitRepository } from "@/repositories/mediakit";
 
 export const metadata: Metadata = {
@@ -7,7 +8,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function MediaKitGeneratorPage() {
+export default async function MediaKitGeneratorPage() {
   const data = mediakitRepository.get();
-  return <MediaKitGenerator data={data} />;
+  const viewCount = await getMediaKitViews();
+  return <MediaKitGenerator data={data} viewCount={viewCount} />;
 }
