@@ -1,4 +1,5 @@
 import type { InvoiceLineItem } from "@/lib/invoice";
+import type { InvoicePaymentMode } from "@/repositories/invoice";
 
 export interface InvoiceFormState {
   invoiceNo: string;
@@ -14,7 +15,12 @@ export interface InvoiceFormState {
   barterStatus: string;
   payName: string;
   payEmail: string;
+  paymentMode: InvoicePaymentMode;
   upi: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankIfsc: string;
+  bankName: string;
   gstNote: string;
   closing: string;
   qrImage: string | null;

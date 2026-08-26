@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { InvoiceContact, InvoicePreset } from "@/repositories/invoice";
+import type { InvoiceContact, InvoicePaymentMode, InvoicePreset } from "@/repositories/invoice";
 import { InvoiceImageUploadField } from "./InvoiceImageUploadField";
 import { InvoiceLineItemEditor } from "./InvoiceLineItemEditor";
 import type { InvoiceFormActions, InvoiceFormState } from "./types";
@@ -23,6 +23,7 @@ interface InvoiceControlsProps {
   brandHandle: string;
   presets: InvoicePreset[];
   billedToPlaceholder: InvoiceContact;
+  onImageUploadError: (message: string) => void;
 }
 
 export function InvoiceControls({
@@ -31,6 +32,7 @@ export function InvoiceControls({
   brandHandle,
   presets,
   billedToPlaceholder,
+  onImageUploadError,
 }: InvoiceControlsProps) {
   return (
     <aside className={styles.panel}>
@@ -198,16 +200,20 @@ export function InvoiceControls({
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Branding</legend>
-        <InvoiceImageUploadField
-          label="UPI QR code"
-          value={state.qrImage}
-          onChange={actions.setQrImage}
-        />
+        {state.paymentMode !== "bank" && (
+          <InvoiceImageUploadField
+            label="UPI QR code"
+            value={state.qrImage}
+            onChange={actions.setQrImage}
+            onError={onImageUploadError}
+          />
+        )}
         <div className="mt-2.5">
           <InvoiceImageUploadField
             label="Stamp / seal"
             value={state.stampImage}
             onChange={actions.setStampImage}
+            onError={onImageUploadError}
           />
         </div>
       </fieldset>
@@ -230,14 +236,80 @@ export function InvoiceControls({
           value={state.payEmail}
           onChange={(e) => actions.setField("payEmail", e.target.value)}
         />
-        <Label className={styles.fieldLabel} htmlFor="upi">
-          UPI ID
+
+        <Label className={styles.fieldLabel} htmlFor="paymentMode">
+          Payment method shown
         </Label>
-        <Input
-          id="upi"
-          value={state.upi}
-          onChange={(e) => actions.setField("upi", e.target.value)}
-        />
+        <Select
+          value={state.paymentMode}
+          onValueChange={(value) => actions.setField("paymentMode", value as InvoicePaymentMode)}
+        >
+          <SelectTrigger id="paymentMode" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="upi">UPI ID + QR</SelectItem>
+            <SelectItem value="bank">Bank details</SelectItem>
+            <SelectItem value="both">Both</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {state.paymentMode !== "bank" && (
+          <>
+            <Label className={styles.fieldLabel} htmlFor="upi">
+              UPI ID
+            </Label>
+            <Input
+              id="upi"
+              value={state.upi}
+              onChange={(e) => actions.setField("upi", e.target.value)}
+            />
+          </>
+        )}
+
+        {state.paymentMode !== "upi" && (
+          <>
+            <Label className={styles.fieldLabel} htmlFor="bankAccountName">
+              Account holder name
+            </Label>
+            <Input
+              id="bankAccountName"
+              value={state.bankAccountName}
+              onChange={(e) => actions.setField("bankAccountName", e.target.value)}
+            />
+            <Label className={styles.fieldLabel} htmlFor="bankAccountNumber">
+              Account number
+            </Label>
+            <Input
+              id="bankAccountNumber"
+              value={state.bankAccountNumber}
+              onChange={(e) => actions.setField("bankAccountNumber", e.target.value)}
+            />
+            <div className={`${styles.row} ${styles.rowTight}`}>
+              <div>
+                <Label className={styles.fieldLabel} htmlFor="bankIfsc">
+                  IFSC code
+                </Label>
+                <Input
+                  id="bankIfsc"
+                  value={state.bankIfsc}
+                  onChange={(e) => actions.setField("bankIfsc", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className={styles.fieldLabel} htmlFor="bankName">
+                  Bank & branch
+                </Label>
+                <Input
+                  id="bankName"
+                  value={state.bankName}
+                  onChange={(e) => actions.setField("bankName", e.target.value)}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
         <Label className={styles.fieldLabel} htmlFor="gstNote">
           Footer note
         </Label>

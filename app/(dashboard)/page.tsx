@@ -8,19 +8,37 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EarningsOverview } from "@/components/dashboard/EarningsOverview";
+import { CollaborationsSection } from "@/components/dashboard/CollaborationsSection";
 import { navEntries } from "@/lib/navigation";
+import { earningsRepository } from "@/repositories/earnings";
+import { collaborationRepository } from "@/repositories/collaborations";
+import { splitCollaborations } from "@/lib/collaborations";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const earnings = await earningsRepository.getSummary().catch(() => null);
+
+  let active: ReturnType<typeof splitCollaborations>["active"] = [];
+  let past: ReturnType<typeof splitCollaborations>["past"] = [];
+  let collaborationsError: string | null = null;
+  try {
+    const collaborations = await collaborationRepository.getAll();
+    ({ active, past } = splitCollaborations(collaborations));
+  } catch (err) {
+    collaborationsError = err instanceof Error ? err.message : "Something went wrong";
+  }
+
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-10">
       <div className="mb-6 space-y-1">
         <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
-        <p className="text-xs text-muted-foreground">
-          Everything you can get to from here.
-        </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {earnings && <EarningsOverview summary={earnings} />}
+
+      <CollaborationsSection active={active} past={past} error={collaborationsError} />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {navEntries.map(({ href, title, description, Icon, access }) => (
           <Link key={href} href={href} className="group">
             <Card className="h-full transition hover:ring-foreground/20">

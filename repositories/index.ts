@@ -1,3 +1,15 @@
+export { earningsRepository } from "./earnings";
+export type { EarningsSummary, MonthlyEarnings, MonthlyDeal, IEarningsRepository } from "./earnings";
+
+export { collaborationRepository } from "./collaborations";
+export type {
+  Collaboration,
+  CollaborationStage,
+  CollaborationType,
+  NewCollaboration,
+  ICollaborationRepository,
+} from "./collaborations";
+
 export { invoiceRepository } from "./invoice";
 export type {
   InvoiceData,
