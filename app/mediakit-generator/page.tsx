@@ -5,7 +5,7 @@ import { getMediaKitUniqueVisitors, getMediaKitViews } from "@/lib/cache";
 import { getMediaKitData } from "@/repositories/mediakit.writer.server";
 
 export const metadata: Metadata = {
-  title: "Media kit generator - @misopaprika",
+  title: "Edit Media kit - @misopaprika",
   robots: { index: false, follow: false },
 };
 
