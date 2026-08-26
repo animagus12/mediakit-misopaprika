@@ -38,9 +38,17 @@
     "name": "Miso Paprika",
     "email": "paprikax1000@gmail.com",
     "upi": "ritikarumde-2@oksbi",
+    "bank": {
+      "accountName": "Ritika Rumde",
+      "accountNumber": "123456789012",
+      "ifsc": "SBIN0001234",
+      "bankName": "State Bank of India, Mumbai"
+    },
+    "paymentMode": "upi",
     "footerNote": "GST: Not Applicable (Not GST Registered)",
     "closingLine": "Thank you for your collaboration.",
-    "defaultQrImage": "/invoice/qr.jpeg"
+    "defaultQrImage": "/invoice/qr.jpeg",
+    "defaultStampImage": null
   },
   "barter": {
     "defaultEnabled": true,

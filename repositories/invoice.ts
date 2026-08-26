@@ -18,13 +18,25 @@ export interface InvoiceContact {
   email: string;
 }
 
+export type InvoicePaymentMode = "upi" | "bank" | "both";
+
+export interface InvoiceBankDetails {
+  accountName: string;
+  accountNumber: string;
+  ifsc: string;
+  bankName: string;
+}
+
 export interface InvoicePayee {
   name: string;
   email: string;
   upi: string;
+  bank: InvoiceBankDetails;
+  paymentMode: InvoicePaymentMode;
   footerNote: string;
   closingLine: string;
   defaultQrImage: string;
+  defaultStampImage: string | null;
 }
 
 export interface InvoiceBarterDefaults {

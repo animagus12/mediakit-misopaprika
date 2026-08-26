@@ -62,12 +62,32 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
             </div>
             <div className={styles.metaRight}>
               <p className={styles.lbl}>PAYMENT METHOD</p>
-              <p className={styles.val}>
-                <strong>UPI ID:</strong> {state.upi}
-              </p>
-              {state.qrImage && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className={styles.qr} src={state.qrImage} alt="UPI QR code" />
+              {state.paymentMode !== "bank" && (
+                <>
+                  <p className={styles.val}>
+                    <strong>UPI ID:</strong> {state.upi}
+                  </p>
+                  {state.qrImage && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className={styles.qr} src={state.qrImage} alt="UPI QR code" />
+                  )}
+                </>
+              )}
+              {state.paymentMode !== "upi" && (
+                <>
+                  <p className={styles.val}>
+                    <strong>Account name:</strong> {state.bankAccountName}
+                  </p>
+                  <p className={styles.val}>
+                    <strong>Account no:</strong> {state.bankAccountNumber}
+                  </p>
+                  <p className={styles.val}>
+                    <strong>IFSC:</strong> {state.bankIfsc}
+                  </p>
+                  <p className={styles.val}>
+                    <strong>Bank:</strong> {state.bankName}
+                  </p>
+                </>
               )}
             </div>
           </div>
