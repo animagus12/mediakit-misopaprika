@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import { todayISO, type InvoiceLineItem } from "@/lib/invoice";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { saveInvoiceDefaults } from "@/app/invoice-generator/actions";
+import { todayISO, toInvoiceDefaults, type InvoiceLineItem } from "@/lib/invoice";
 import type { InvoiceData } from "@/repositories/invoice";
 import { InvoiceControls } from "./InvoiceControls";
 import { InvoicePreview } from "./InvoicePreview";
@@ -30,11 +31,16 @@ function buildInitialState(data: InvoiceData): InvoiceFormState {
     barterStatus: data.barter.defaultStatus,
     payName: data.payee.name,
     payEmail: data.payee.email,
+    paymentMode: data.payee.paymentMode,
     upi: data.payee.upi,
+    bankAccountName: data.payee.bank.accountName,
+    bankAccountNumber: data.payee.bank.accountNumber,
+    bankIfsc: data.payee.bank.ifsc,
+    bankName: data.payee.bank.bankName,
     gstNote: data.payee.footerNote,
     closing: data.payee.closingLine,
     qrImage: data.payee.defaultQrImage,
-    stampImage: null,
+    stampImage: data.payee.defaultStampImage,
   };
 }
 
@@ -45,6 +51,7 @@ interface InvoiceGeneratorProps {
 export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
   const [state, setState] = useState<InvoiceFormState>(() => buildInitialState(data));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [, startSaveDefaultsTransition] = useTransition();
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -129,9 +136,18 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
     showToast("Fields reset");
   }, [data.defaultItems, data.dueInDays, showToast, withFreshIds]);
 
+  // window.print() fires first so the dialog appears with no added latency;
+  // saving the new defaults happens in the background and only surfaces a
+  // toast on failure, so it doesn't compete with the print dialog for
+  // attention.
   const print = useCallback(() => {
     window.print();
-  }, []);
+    const payload = toInvoiceDefaults(state, data);
+    startSaveDefaultsTransition(async () => {
+      const result = await saveInvoiceDefaults(payload);
+      if (!result.success) showToast(result.error);
+    });
+  }, [state, data, showToast]);
 
   const setQrImage = useCallback((dataUrl: string | null) => {
     setState((prev) => ({ ...prev, qrImage: dataUrl }));
@@ -174,6 +190,7 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
         brandHandle={data.brandHandle}
         presets={data.presets}
         billedToPlaceholder={data.billedToPlaceholder}
+        onImageUploadError={showToast}
       />
 
       <main className={styles.stage}>

@@ -1,6 +1,9 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+- `/invoice-generator` now persists whatever's in the form when you click **Save as PDF** as the new defaults for the next invoice (invoice number, billed-to placeholder, line items, payee details, barter settings, QR code, stamp/seal) — mirrors the media kit's Redis-backed draft (`repositories/invoice.writer.server.ts`, `app/invoice-generator/actions.ts`'s `saveInvoiceDefaults`, `lib/invoice.ts`'s `toInvoiceDefaults`/`daysBetween`); `app/invoice-generator/page.tsx` now reads via the new async `getInvoiceData()` instead of the static, build-time `invoiceRepository.get()`. The invoice number persists literally as typed (no auto-increment)
+- QR code / stamp uploads on `/invoice-generator` (`InvoiceImageUploadField.tsx`) now upload to Vercel Blob via a new `app/api/invoice/upload/route.ts` instead of inlining as base64 `data:` URLs — needed so those images can safely be included in the persisted defaults above without risking the Redis payload-size failure already fixed for the media kit once (1.7.0). Added `InvoicePayee.defaultStampImage` (`repositories/invoice.ts`, `data/invoice.json`) since there was previously no persisted slot for the stamp at all
 
 ## [1.9.0] - 2026-08-26
 ### Fixed

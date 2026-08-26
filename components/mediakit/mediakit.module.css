@@ -278,6 +278,13 @@
   flex: 0 0 auto;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   font-family: var(--font-mediakit-body, "Mulish", sans-serif);
+  /* Without this, Chrome/Safari drop background colors when printing
+     unless the user manually enables "Background graphics" in the print
+     dialog — since Save as PDF goes through window.print(), colored
+     elements like .pill and .scrim would silently print without their
+     background. Inherited, so it also covers nested elements. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .wordmark {
