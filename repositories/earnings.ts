@@ -1,12 +1,19 @@
 import "server-only";
 import { fetchSheetRows } from "@/services/googleSheets";
 
+export interface MonthlyDeal {
+  brand: string;
+  amount: number; // the deal's Total (Amount + Barter Value)
+  deliverables: string; // e.g. "1 Reel, 1 Story"
+}
+
 export interface MonthlyEarnings {
   month: string; // "YYYY-MM"
   total: number;
   paid: number;
   barter: number;
   pending: number;
+  deals: MonthlyDeal[];
 }
 
 export interface EarningsSummary {
@@ -14,7 +21,7 @@ export interface EarningsSummary {
   paid: number;
   barter: number;
   pending: number;
-  monthly: MonthlyEarnings[]; // ascending by month
+  monthly: MonthlyEarnings[]; // descending by month — most recent first
 }
 
 export interface IEarningsRepository {
@@ -71,6 +78,9 @@ class SheetsEarningsRepository implements IEarningsRepository {
     const columnIndex = (name: string) => header.findIndex((h) => h.trim() === name);
     const uploadDateCol = columnIndex("Upload Dt");
     const dateCol = columnIndex("Date");
+    const brandCol = columnIndex("Brand");
+    const reelsCol = columnIndex("Reels");
+    const storyCol = columnIndex("Story");
     const amountCol = columnIndex("Amount");
     const barterCol = columnIndex("Barter Value");
     const totalCol = columnIndex("Total");
@@ -78,6 +88,15 @@ class SheetsEarningsRepository implements IEarningsRepository {
     const statusCol = columnIndex("Status");
 
     const monthlyMap = new Map<string, MonthlyEarnings>();
+    const getBucket = (key: string) => {
+      let bucket = monthlyMap.get(key);
+      if (!bucket) {
+        bucket = { month: key, total: 0, paid: 0, barter: 0, pending: 0, deals: [] };
+        monthlyMap.set(key, bucket);
+      }
+      return bucket;
+    };
+
     let total = 0;
     let paid = 0;
     let barter = 0;
@@ -88,13 +107,18 @@ class SheetsEarningsRepository implements IEarningsRepository {
 
       const rowTotal = parseAmount(row[totalCol]);
       const key = monthKey(row[uploadDateCol]) ?? monthKey(row[dateCol]);
+      const deal: MonthlyDeal = {
+        brand: row[brandCol] ?? "",
+        amount: rowTotal,
+        deliverables: [row[reelsCol], row[storyCol]].filter(Boolean).join(", "),
+      };
 
       if (isPending(row[paymentCol])) {
         pending += rowTotal;
         if (key) {
-          const bucket = monthlyMap.get(key) ?? { month: key, total: 0, paid: 0, barter: 0, pending: 0 };
+          const bucket = getBucket(key);
           bucket.pending += rowTotal;
-          monthlyMap.set(key, bucket);
+          bucket.deals.push(deal);
         }
         continue;
       }
@@ -108,15 +132,15 @@ class SheetsEarningsRepository implements IEarningsRepository {
       barter += rowBarter;
 
       if (key) {
-        const bucket = monthlyMap.get(key) ?? { month: key, total: 0, paid: 0, barter: 0, pending: 0 };
+        const bucket = getBucket(key);
         bucket.total += rowTotal;
         bucket.paid += rowAmount;
         bucket.barter += rowBarter;
-        monthlyMap.set(key, bucket);
+        bucket.deals.push(deal);
       }
     }
 
-    const monthly = [...monthlyMap.values()].sort((a, b) => a.month.localeCompare(b.month));
+    const monthly = [...monthlyMap.values()].sort((a, b) => b.month.localeCompare(a.month));
     return { total, paid, barter, pending, monthly };
   }
 }
