@@ -1,0 +1,47 @@
+[
+  {
+    "id": "1",
+    "video": "Mitsuri Cosplay",
+    "videoDate": "05/08/2026",
+    "deliveryDate": "06/08/2026",
+    "amount": 350,
+    "editor": "Reshob Dev",
+    "status": "Paid"
+  },
+  {
+    "id": "2",
+    "video": "Black Suit Cosplay",
+    "videoDate": "13/08/2026",
+    "deliveryDate": "14/08/2026",
+    "amount": 400,
+    "editor": "Divyanshu Raj",
+    "status": "Paid"
+  },
+  {
+    "id": "3",
+    "video": "Vagabond",
+    "videoDate": "13/08/2026",
+    "deliveryDate": "14/08/2026",
+    "amount": 400,
+    "editor": "Harsh Sikarwar",
+    "status": "Paid"
+  },
+  {
+    "id": "4",
+    "video": "EP04 - DC",
+    "videoDate": "15/08/2026",
+    "deliveryDate": "15/08/2026",
+    "amount": 400,
+    "editor": "Divyanshu Raj",
+    "status": "Paid"
+  },
+  {
+    "id": "5",
+    "video": "5 Cities HW",
+    "videoDate": "13/08/2026",
+    "deliveryDate": "17/08/2026",
+    "amount": null,
+    "editor": "Sayantan",
+    "status": "Paid"
+  }
+]
