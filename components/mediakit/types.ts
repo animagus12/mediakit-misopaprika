@@ -52,6 +52,7 @@ export interface MediaKitFormActions {
   addLogo: () => void;
   removeLastLogo: () => void;
   setLogoUrl: (index: number, url: string) => void;
+  addBrandLogos: (logos: MediaKitLogo[]) => void;
   reorderLogos: (fromIndex: number, toIndex: number) => void;
   setTileUrl: (index: number, url: string) => void;
   openPicker: (target: MediaKitPickerTarget) => void;

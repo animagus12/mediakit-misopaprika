@@ -10,6 +10,7 @@ import { MediaKitImagePickerButton } from "./MediaKitImagePickerButton";
 import { MediaKitLogoGrid } from "./MediaKitLogoGrid";
 import { MediaKitTileEditor } from "./MediaKitTileEditor";
 import type { MediaKitFormActions, MediaKitFormState } from "./types";
+import type { MediaKitLogo } from "@/repositories/mediakit";
 import styles from "./mediakit.module.css";
 
 interface MediaKitControlsProps {
@@ -18,6 +19,7 @@ interface MediaKitControlsProps {
   brandHandle: string;
   viewCount: number;
   uniqueVisitors: number;
+  brandLogos: MediaKitLogo[];
 }
 
 export function MediaKitControls({
@@ -26,6 +28,7 @@ export function MediaKitControls({
   brandHandle,
   viewCount,
   uniqueVisitors,
+  brandLogos,
 }: MediaKitControlsProps) {
   return (
     <aside className={styles.panel}>
@@ -289,7 +292,7 @@ export function MediaKitControls({
           value={state.collabsSubline}
           onChange={(e) => actions.setField("collabsSubline", e.target.value)}
         />
-        <MediaKitLogoGrid state={state} actions={actions} />
+        <MediaKitLogoGrid state={state} actions={actions} brandLogos={brandLogos} />
       </fieldset>
 
       <fieldset className={styles.fieldset}>

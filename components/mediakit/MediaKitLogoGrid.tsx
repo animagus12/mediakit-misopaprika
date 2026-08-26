@@ -35,6 +35,7 @@ import styles from "./mediakit.module.css";
 interface MediaKitLogoGridProps {
   state: MediaKitFormState;
   actions: MediaKitFormActions;
+  brandLogos: MediaKitLogo[];
 }
 
 const ROW_MODE_OPTIONS: { value: MediaKitLogoRowsMode; label: string }[] = [
@@ -92,7 +93,7 @@ function SortableLogoItem({ id, index, logo, actions }: SortableLogoItemProps) {
   );
 }
 
-export function MediaKitLogoGrid({ state, actions }: MediaKitLogoGridProps) {
+export function MediaKitLogoGrid({ state, actions, brandLogos }: MediaKitLogoGridProps) {
   const layout = computeMediaKitLayout(state.logos.length, state.logoRowsMode);
 
   const sensors = useSensors(
@@ -145,6 +146,18 @@ export function MediaKitLogoGrid({ state, actions }: MediaKitLogoGridProps) {
           − Remove last
         </Button>
       </div>
+
+      {brandLogos.length > 0 && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          style={{ marginTop: "8px" }}
+          onClick={() => actions.addBrandLogos(brandLogos)}
+        >
+          Sync from brands ({brandLogos.length})
+        </Button>
+      )}
 
       <Label className={styles.fieldLabel} htmlFor="logoRowsMode">
         Logo layout
