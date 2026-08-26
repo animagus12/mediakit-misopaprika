@@ -18,7 +18,7 @@ const TONE_STYLES: Record<StatTone, { card: string; value: string }> = {
 };
 
 const RECENT_MONTHS = 6;
-const MONTH_GRID = "grid grid-cols-[auto_1fr_6rem_6rem_6rem_6rem] items-center gap-4";
+const MONTH_GRID = "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[30rem]";
 
 function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: boolean }) {
   const summaryRow = (
@@ -138,7 +138,7 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
               <CardDescription>Monthly breakdown</CardDescription>
             </div>
             <EarningsChart monthly={recent} />
-            <div className="text-xs">
+            <div className="-mx-4 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
               <div className={`${MONTH_GRID} border-b border-foreground/10 px-3 pb-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground/70 uppercase`}>
                 <span />
                 <span>Month</span>
@@ -162,10 +162,12 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
                   Previous months ({older.length})
                   <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 space-y-0.5 text-xs">
-                  {older.map((m) => (
-                    <MonthRow key={m.month} month={m} />
-                  ))}
+                <CollapsibleContent className="-mx-4 mt-2 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
+                  <div className="space-y-0.5">
+                    {older.map((m) => (
+                      <MonthRow key={m.month} month={m} />
+                    ))}
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
             </CardContent>
