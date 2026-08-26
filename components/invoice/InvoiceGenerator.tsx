@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { todayISO, type InvoiceLineItem } from "@/lib/invoice";
 import type { InvoiceData } from "@/repositories/invoice";
 import { InvoiceControls } from "./InvoiceControls";
@@ -44,13 +44,8 @@ interface InvoiceGeneratorProps {
 
 export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
   const [state, setState] = useState<InvoiceFormState>(() => buildInitialState(data));
-  const [scale, setScale] = useState(1);
-  const [stageInnerHeight, setStageInnerHeight] = useState<number | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const stageRef = useRef<HTMLElement>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
-  const scaleRef = useRef(1);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Only ever called from client-triggered handlers (add line, apply
@@ -70,30 +65,6 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
     toastTimeout.current = setTimeout(() => setToastMsg(null), 1800);
   }, []);
-
-  const fit = useCallback(() => {
-    const stage = stageRef.current;
-    const page = pageRef.current;
-    if (!stage || !page) return;
-    const avail = stage.clientWidth - 40;
-    const pageWidth = page.getBoundingClientRect().width / (scaleRef.current || 1);
-    const nextScale = Math.min(1, avail / pageWidth);
-    scaleRef.current = nextScale;
-    setScale(nextScale);
-    setStageInnerHeight(page.offsetHeight * nextScale);
-  }, []);
-
-  useEffect(() => {
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, [fit]);
-
-  useEffect(() => {
-    fit();
-    // Re-fit whenever the line item count changes the page's natural height.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.items.length, state.barterOn]);
 
   const setField = useCallback(
     <K extends keyof InvoiceFormState>(field: K, value: InvoiceFormState[K]) => {
@@ -205,19 +176,9 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
         billedToPlaceholder={data.billedToPlaceholder}
       />
 
-      <main className={styles.stage} ref={stageRef}>
-        <div
-          className={styles.stageInner}
-          style={{
-            transform: `scale(${scale})`,
-            height: stageInnerHeight ? `${stageInnerHeight}px` : undefined,
-          }}
-        >
-          <InvoicePreview
-            ref={pageRef}
-            state={state}
-            billedToPlaceholder={data.billedToPlaceholder}
-          />
+      <main className={styles.stage}>
+        <div className={styles.stageInner}>
+          <InvoicePreview state={state} billedToPlaceholder={data.billedToPlaceholder} />
         </div>
       </main>
 

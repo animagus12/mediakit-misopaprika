@@ -21,7 +21,7 @@ const NavBar = () => {
 
   async function handleLogout() {
     setIsLoggingOut(true);
-    await fetch("/api/invoice-auth", { method: "DELETE" });
+    await fetch("/api/auth", { method: "DELETE" });
     router.replace("/login");
     router.refresh();
   }

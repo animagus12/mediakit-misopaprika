@@ -1,15 +1,28 @@
 # Changelog
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-08-26
+### Added
+- **Remember me** on the login form (`components/auth/LoginForm.tsx`) — checking it requests a 30-day session (`REMEMBER_ME_DURATION_MS` in `lib/auth.ts`) instead of the default
+- **Drag-and-drop reordering** for past-collab logos on `/mediakit-generator` (`components/mediakit/MediaKitLogoGrid.tsx`) — each logo has a grip handle for touch/mouse/keyboard reordering, backed by a new `reorderLogos()` action (`components/mediakit/types.ts`, `components/mediakit/MediaKitGenerator.tsx`); uses `@dnd-kit/core` + `@dnd-kit/sortable` (new dependency) instead of native HTML5 drag-and-drop, since the latter has no touch support
+
+### Changed
+- Renamed the shared-password auth from `invoice-*` to generic names, since it now gates the whole dashboard rather than just the invoice generator: `lib/invoice-auth.ts` → `lib/auth.ts`, `app/api/invoice-auth/route.ts` → `app/api/auth/route.ts`, `components/invoice/InvoiceLoginForm.tsx` → `components/auth/LoginForm.tsx`, cookie `invoice_session` → `app_session`, env vars `INVOICE_PASSWORD` → `APP_PASSWORD` and `INVOICE_SESSION_SECRET` → `SESSION_SECRET` (updated in `.env.example`/`.env.local`); `proxy.ts`, `app/login/page.tsx`, `app/api/mediakit/upload/route.ts`, and `components/common/NavBar.tsx` updated to match, and the login form's post-login redirect default changed from `/invoice-generator` to `/`
+- `lib/auth.ts` — default session lifetime cut from 1 day to 4 hours (`DEFAULT_SESSION_DURATION_MS`); `createSessionToken()` now takes a `durationMs` argument instead of a hardcoded constant, and `app/api/auth/route.ts` picks 4 hours or 30 days based on the login form's `rememberMe` flag
+
+## [1.7.0] - 2026-08-25
 ### Added
 - **Vercel Blob** (`@vercel/blob`) — `/mediakit-generator`'s image pickers (profile photo, collab logos, tile covers) now upload files directly from the browser to Blob storage via `app/api/mediakit/upload/route.ts`, instead of inlining them as base64 in the saved data; requires `BLOB_READ_WRITE_TOKEN`
 
 ### Changed
 - `components/mediakit/MediaKitGenerator.tsx` — `handleFileChange` uploads to Blob and stores the resulting URL, instead of reading the file into a base64 data URL with `FileReader`
 - `next.config.ts` — dropped the `serverActions.bodySizeLimit` override; the draft/published payload no longer carries images, so the default limit is plenty
+- `components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css` — the A4 preview's scale-to-fit is now a pure CSS container query (`.stage { container-type: inline-size }` + `.stageInner { zoom: min(1, calc(100cqw / 210mm)) }`) instead of a `useEffect`-measured `transform: scale()`; removed the now-unused `lib/useMediaKitStageFit.ts` and the matching JS fit logic in `InvoiceGenerator.tsx`, and simplified `MediaKitPublicView.tsx` back to a Server Component
 
 ### Fixed
 - Save/Publish crashing when an image had just been changed — inline base64 images could push the request past the Proxy's `proxyClientMaxBodySize` (10MB default), silently truncating the body and corrupting the Server Action payload instead of failing cleanly
+- Media kit/invoice preview flashing full-size (effectively zoomed in) on load, most noticeable on mobile — the JS-computed scale only applied after the first paint/hydration, so the fixed 210mm-wide sheet briefly rendered unscaled and cropped before snapping to size
 
 ## [1.6.0] - 2026-08-25
 ### Changed

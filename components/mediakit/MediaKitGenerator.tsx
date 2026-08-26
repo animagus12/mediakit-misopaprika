@@ -4,7 +4,6 @@ import { upload } from "@vercel/blob/client";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { publishMediaKit, saveMediaKit } from "@/app/mediakit-generator/actions";
 import { BLANK_LOGO, toFormState, toMediaKitData } from "@/lib/mediakit";
-import { useMediaKitStageFit } from "@/lib/useMediaKitStageFit";
 import type { MediaKitData, MediaKitTileStats } from "@/repositories/mediakit";
 import { MediaKitControls } from "./MediaKitControls";
 import { MediaKitPreview } from "./MediaKitPreview";
@@ -26,11 +25,6 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
   const [isSaving, startSaveTransition] = useTransition();
   const [isPublishing, startPublishTransition] = useTransition();
 
-  // Re-fit whenever the row-mode/logo count changes the page's natural height.
-  const { stageRef, pageRef, scale, stageInnerHeight } = useMediaKitStageFit([
-    state.logos.length,
-    state.logoRowsMode,
-  ]);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -100,6 +94,16 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
     setState((prev) => {
       const logos = [...prev.logos];
       logos[index] = { ...logos[index], url };
+      return { ...prev, logos };
+    });
+  }, []);
+
+  const reorderLogos = useCallback((fromIndex: number, toIndex: number) => {
+    setState((prev) => {
+      if (fromIndex === toIndex) return prev;
+      const logos = [...prev.logos];
+      const [moved] = logos.splice(fromIndex, 1);
+      logos.splice(toIndex, 0, moved);
       return { ...prev, logos };
     });
   }, []);
@@ -185,6 +189,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       addLogo,
       removeLastLogo,
       setLogoUrl,
+      reorderLogos,
       setTileUrl,
       openPicker,
       print,
@@ -202,6 +207,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       addLogo,
       removeLastLogo,
       setLogoUrl,
+      reorderLogos,
       setTileUrl,
       openPicker,
       print,
@@ -223,15 +229,9 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
         uniqueVisitors={uniqueVisitors}
       />
 
-      <main className={styles.stage} ref={stageRef}>
-        <div
-          className={styles.stageInner}
-          style={{
-            transform: `scale(${scale})`,
-            height: stageInnerHeight ? `${stageInnerHeight}px` : undefined,
-          }}
-        >
-          <MediaKitPreview ref={pageRef} state={state} />
+      <main className={styles.stage}>
+        <div className={styles.stageInner}>
+          <MediaKitPreview state={state} />
         </div>
       </main>
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { COOKIE_NAME, verifySessionToken } from "@/lib/invoice-auth";
+import { COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 import { VISITOR_COOKIE, VISITOR_COOKIE_MAX_AGE } from "@/lib/visitor";
 
 // Public: just tags first-time visitors with an anonymous id so the

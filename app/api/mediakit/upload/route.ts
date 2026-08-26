@@ -1,7 +1,7 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { COOKIE_NAME, verifySessionToken } from "@/lib/invoice-auth";
+import { COOKIE_NAME, verifySessionToken } from "@/lib/auth";
 
 // Issues client upload tokens for the media kit's image pickers (photo, logos,
 // tile covers) so files go straight from the browser to Vercel Blob instead of
