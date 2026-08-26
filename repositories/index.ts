@@ -32,6 +32,24 @@ export type {
   IEditorTransactionRepository,
 } from "./editorTransactions";
 
+export { agencyRepository } from "./agencies";
+export type { Agency, NewAgency, AgencyUpdate, IAgencyRepository } from "./agencies";
+
+export { brandRepository } from "./brands";
+export type { Brand, BrandStatus, NewBrand, BrandUpdate, IBrandRepository } from "./brands";
+
+export { contactRepository } from "./contacts";
+export type { Contact, NewContact, ContactUpdate, IContactRepository } from "./contacts";
+
+export { brandNoteRepository } from "./brandNotes";
+export type { BrandNote, NewBrandNote, IBrandNoteRepository } from "./brandNotes";
+
+export { brandActivityRepository } from "./brandActivity";
+export type { BrandActivity, BrandActivityType, NewBrandActivity, IBrandActivityRepository } from "./brandActivity";
+
+export { campaignContactRepository } from "./campaignContacts";
+export type { CampaignContact, ICampaignContactRepository } from "./campaignContacts";
+
 export { mediakitRepository } from "./mediakit";
 export type {
   MediaKitData,

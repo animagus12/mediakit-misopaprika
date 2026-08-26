@@ -4,7 +4,7 @@ import { upload } from "@vercel/blob/client";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { publishMediaKit, saveMediaKit } from "@/app/mediakit-generator/actions";
 import { BLANK_LOGO, toFormState, toMediaKitData } from "@/lib/mediakit";
-import type { MediaKitData, MediaKitTileStats } from "@/repositories/mediakit";
+import type { MediaKitData, MediaKitLogo, MediaKitTileStats } from "@/repositories/mediakit";
 import { MediaKitControls } from "./MediaKitControls";
 import { MediaKitPreview } from "./MediaKitPreview";
 import type { MediaKitFormActions, MediaKitFormState, MediaKitPickerTarget } from "./types";
@@ -17,9 +17,10 @@ interface MediaKitGeneratorProps {
   data: MediaKitData;
   viewCount: number;
   uniqueVisitors: number;
+  brandLogos: MediaKitLogo[];
 }
 
-export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitGeneratorProps) {
+export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos }: MediaKitGeneratorProps) {
   const [state, setState] = useState<MediaKitFormState>(() => toFormState(data));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
@@ -89,6 +90,33 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
     }
     setState((prev) => ({ ...prev, logos: prev.logos.slice(0, -1) }));
   }, [state.logos.length, showToast]);
+
+  // Additive — skips any brand logo already in the grid (matched by image
+  // URL) so re-running the sync after adding more brands doesn't duplicate
+  // ones already here. Never auto-saves: synced logos land in the same
+  // editable form state as everything else, for the creator to reorder/trim
+  // before Save/Publish.
+  const addBrandLogos = useCallback(
+    (newLogos: MediaKitLogo[]) => {
+      setState((prev) => {
+        const existingSrcs = new Set(prev.logos.map((logo) => logo.src));
+        const toAdd = newLogos.filter((logo) => !existingSrcs.has(logo.src));
+        if (toAdd.length === 0) {
+          showToast("No new brand logos to add");
+          return prev;
+        }
+        const room = MAX_LOGOS - prev.logos.length;
+        const added = toAdd.slice(0, room);
+        showToast(
+          added.length < toAdd.length
+            ? `Added ${added.length} — ${MAX_LOGOS} logos is the sensible ceiling`
+            : `Added ${added.length} brand logo${added.length === 1 ? "" : "s"}`
+        );
+        return { ...prev, logos: [...prev.logos, ...added] };
+      });
+    },
+    [showToast]
+  );
 
   const setLogoUrl = useCallback((index: number, url: string) => {
     setState((prev) => {
@@ -189,6 +217,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       addLogo,
       removeLastLogo,
       setLogoUrl,
+      addBrandLogos,
       reorderLogos,
       setTileUrl,
       openPicker,
@@ -207,6 +236,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       addLogo,
       removeLastLogo,
       setLogoUrl,
+      addBrandLogos,
       reorderLogos,
       setTileUrl,
       openPicker,
@@ -227,6 +257,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
         brandHandle={data.brandHandle}
         viewCount={viewCount}
         uniqueVisitors={uniqueVisitors}
+        brandLogos={brandLogos}
       />
 
       <main className={styles.stage}>

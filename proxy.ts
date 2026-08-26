@@ -41,5 +41,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/invoice-generator/:path*", "/mediakit-generator/:path*", "/mediakit", "/workspace/:path*"],
+  matcher: [
+    "/",
+    "/invoice-generator/:path*",
+    "/mediakit-generator/:path*",
+    "/mediakit",
+    "/workspace/:path*",
+    "/brands/:path*",
+  ],
 };
