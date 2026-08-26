@@ -1,8 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-08-26
 ### Added
 - **Remember me** on the login form (`components/auth/LoginForm.tsx`) — checking it requests a 30-day session (`REMEMBER_ME_DURATION_MS` in `lib/auth.ts`) instead of the default
+- **Drag-and-drop reordering** for past-collab logos on `/mediakit-generator` (`components/mediakit/MediaKitLogoGrid.tsx`) — each logo has a grip handle for touch/mouse/keyboard reordering, backed by a new `reorderLogos()` action (`components/mediakit/types.ts`, `components/mediakit/MediaKitGenerator.tsx`); uses `@dnd-kit/core` + `@dnd-kit/sortable` (new dependency) instead of native HTML5 drag-and-drop, since the latter has no touch support
 
 ### Changed
 - Renamed the shared-password auth from `invoice-*` to generic names, since it now gates the whole dashboard rather than just the invoice generator: `lib/invoice-auth.ts` → `lib/auth.ts`, `app/api/invoice-auth/route.ts` → `app/api/auth/route.ts`, `components/invoice/InvoiceLoginForm.tsx` → `components/auth/LoginForm.tsx`, cookie `invoice_session` → `app_session`, env vars `INVOICE_PASSWORD` → `APP_PASSWORD` and `INVOICE_SESSION_SECRET` → `SESSION_SECRET` (updated in `.env.example`/`.env.local`); `proxy.ts`, `app/login/page.tsx`, `app/api/mediakit/upload/route.ts`, and `components/common/NavBar.tsx` updated to match, and the login form's post-login redirect default changed from `/invoice-generator` to `/`

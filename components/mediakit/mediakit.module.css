@@ -176,6 +176,11 @@
   gap: 4px;
 }
 
+.logoImageWrap {
+  position: relative;
+  width: 100%;
+}
+
 .logoGrid button {
   padding: 0;
   border: 1px solid var(--mediakit-panel-line);
@@ -196,6 +201,32 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.logoDragHandle {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--mediakit-panel-line);
+  background: var(--background);
+  color: var(--muted-foreground);
+  cursor: grab;
+  touch-action: none;
+}
+
+.logoDragHandle:active {
+  cursor: grabbing;
+}
+
+.logoDragHandle:hover {
+  border-color: var(--mediakit-accent);
+  color: var(--mediakit-accent);
 }
 
 .logoLinkInput {

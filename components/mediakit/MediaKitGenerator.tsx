@@ -98,6 +98,16 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
     });
   }, []);
 
+  const reorderLogos = useCallback((fromIndex: number, toIndex: number) => {
+    setState((prev) => {
+      if (fromIndex === toIndex) return prev;
+      const logos = [...prev.logos];
+      const [moved] = logos.splice(fromIndex, 1);
+      logos.splice(toIndex, 0, moved);
+      return { ...prev, logos };
+    });
+  }, []);
+
   const setTileUrl = useCallback((index: number, url: string) => {
     setState((prev) => {
       const tiles = [...prev.tiles];
@@ -179,6 +189,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       addLogo,
       removeLastLogo,
       setLogoUrl,
+      reorderLogos,
       setTileUrl,
       openPicker,
       print,
@@ -196,6 +207,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors }: MediaKitG
       addLogo,
       removeLastLogo,
       setLogoUrl,
+      reorderLogos,
       setTileUrl,
       openPicker,
       print,
