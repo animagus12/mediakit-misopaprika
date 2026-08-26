@@ -21,6 +21,17 @@ export type {
   IInvoiceRepository,
 } from "./invoice";
 
+export { editorRepository } from "./editors";
+export type { Editor, NewEditor, IEditorRepository } from "./editors";
+
+export { editorTransactionRepository } from "./editorTransactions";
+export type {
+  EditorTransaction,
+  EditorTransactionRecord,
+  NewEditorTransaction,
+  IEditorTransactionRepository,
+} from "./editorTransactions";
+
 export { mediakitRepository } from "./mediakit";
 export type {
   MediaKitData,

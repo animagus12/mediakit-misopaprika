@@ -1,4 +1,4 @@
-import { FileText, Sparkles, UserRound } from "lucide-react";
+import { Clapperboard, FileText, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface NavEntry {
@@ -19,7 +19,7 @@ export const navEntries: NavEntry[] = [
   },
   {
     href: "/mediakit-generator",
-    title: "Media kit generator",
+    title: "Edit Media kit",
     description: "Edit and publish the content shown on your media kit.",
     Icon: Sparkles,
     access: "protected",
@@ -29,6 +29,13 @@ export const navEntries: NavEntry[] = [
     title: "Invoice generator",
     description: "Create and export invoices for brand collaborations.",
     Icon: FileText,
+    access: "protected",
+  },
+  {
+    href: "/workspace",
+    title: "Editor workspace",
+    description: "Track video editing transactions and editor payouts.",
+    Icon: Clapperboard,
     access: "protected",
   },
 ];
