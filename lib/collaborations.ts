@@ -30,6 +30,24 @@ function parseSheetDate(date: string): number {
   return new Date(Number(year), Number(month) - 1, Number(day)).getTime();
 }
 
+// The sheet's dates are DD/MM/YYYY; <input type="date"> gives/needs yyyy-mm-dd.
+export function toSheetDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-");
+  if (!year || !month || !day) return isoDate;
+  return `${day}/${month}/${year}`;
+}
+
+// Inverse of toSheetDate, for prefilling an edit form's <input type="date">
+// from a value read back out of the sheet. Returns "" when unparsable so
+// callers can fall back to a sensible default instead of feeding the <input>
+// a value it will silently reject.
+export function toIsoDate(sheetDate: string): string {
+  const match = sheetDate.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return "";
+  const [, day, month, year] = match;
+  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+}
+
 export interface SplitCollaborations {
   active: Collaboration[];
   past: Collaboration[];
@@ -49,20 +67,26 @@ export interface CollaborationStats {
   total: number;
   paid: number;
   barter: number;
+  cancelled: number;
   highestValue: Collaboration | null;
 }
 
 export function computeCollaborationStats(items: Collaboration[]): CollaborationStats {
   let paid = 0;
   let barter = 0;
+  let cancelled = 0;
   let highestValue: Collaboration | null = null;
 
   for (const item of items) {
+    if (item.status.trim().toLowerCase() === "cancelled") {
+      cancelled += 1;
+      continue;
+    }
     const type = item.type.trim().toLowerCase();
     if (type.includes("paid")) paid += 1;
     if (type.includes("barter")) barter += 1;
     if (!highestValue || item.total > highestValue.total) highestValue = item;
   }
 
-  return { total: items.length, paid, barter, highestValue };
+  return { total: items.length - cancelled, paid, barter, cancelled, highestValue };
 }

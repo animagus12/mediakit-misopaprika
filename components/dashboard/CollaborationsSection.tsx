@@ -19,18 +19,48 @@ import type { Collaboration } from "@/repositories/collaborations";
 import { computeCollaborationStats } from "@/lib/collaborations";
 import { formatMoney } from "@/lib/invoice";
 import { NewCollaborationButton } from "./NewCollaborationButton";
+import { EditCollaborationSheet } from "./EditCollaborationSheet";
 
-function statusVariant(status: string): VariantProps<typeof badgeVariants>["variant"] {
+interface StatusStyle {
+  variant: VariantProps<typeof badgeVariants>["variant"];
+  className?: string;
+}
+
+// Each pipeline stage gets its own hue so the status is readable at a glance
+// instead of everything collapsing into "outline" or "secondary".
+function statusStyle(status: string): StatusStyle {
   switch (status.toLowerCase()) {
     case "completed":
-      return "default";
+      return {
+        variant: "outline",
+        className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+      };
     case "cancelled":
-      return "destructive";
+      return { variant: "destructive" };
     case "todo":
+      return {
+        variant: "outline",
+        className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+      };
     case "brainstorming":
-      return "outline";
+      return {
+        variant: "outline",
+        className: "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
+      };
+    case "ready to upload":
+      return {
+        variant: "outline",
+        className: "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-400",
+      };
+    case "in route":
+      return {
+        variant: "outline",
+        className: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
+      };
+    case "redacted":
+      return { variant: "outline", className: "border-dashed text-muted-foreground/70" };
     default:
-      return "secondary";
+      return { variant: "secondary" };
   }
 }
 
@@ -66,6 +96,9 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
             <CardHeader>
               <CardDescription>Total collaborations</CardDescription>
               <CardTitle className="text-lg">{stats.total}</CardTitle>
+              {stats.cancelled > 0 && (
+                <p className="text-xs text-muted-foreground">{stats.cancelled} cancelled</p>
+              )}
             </CardHeader>
           </Card>
           <Card>
@@ -104,23 +137,39 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {active.map((collab) => (
-            <Card key={collab.id} size="sm">
-              <CardContent className="space-y-0.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-heading text-sm font-medium">
-                    {collab.brand}
-                  </span>
-                  <Badge variant={statusVariant(collab.status)}>{collab.status}</Badge>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="truncate">{collab.reels || "No reels"}</span>
-                  <span className="truncate">{collab.story || "No story"}</span>
-                  {collab.date && <span className="ml-auto shrink-0 whitespace-nowrap">{collab.date}</span>}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {active.map((collab) => {
+            const status = statusStyle(collab.status);
+            return (
+              <EditCollaborationSheet
+                key={collab.id}
+                collaboration={collab}
+                trigger={
+                  <button
+                    type="button"
+                    className="w-full rounded-lg border-0 bg-transparent p-0 text-left transition hover:ring-2 hover:ring-primary/20 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none"
+                  >
+                    <Card size="sm">
+                      <CardContent className="space-y-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-heading text-sm font-medium">
+                            {collab.brand}
+                          </span>
+                          <Badge variant={status.variant} className={status.className}>
+                            {collab.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="truncate">{collab.reels || "No reels"}</span>
+                          <span className="truncate">{collab.story || "No story"}</span>
+                          {collab.date && <span className="ml-auto shrink-0 whitespace-nowrap">{collab.date}</span>}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </button>
+                }
+              />
+            );
+          })}
         </div>
       )}
 
@@ -142,17 +191,22 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {past.map((collab) => (
+                {past.map((collab) => {
+                  const status = statusStyle(collab.status);
+                  return (
                   <TableRow key={collab.id}>
                     <TableCell className="max-w-40 truncate font-medium">{collab.brand}</TableCell>
                     <TableCell className="text-muted-foreground">{collab.reels || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{collab.story || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{collab.date || "—"}</TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(collab.status)}>{collab.status}</Badge>
+                      <Badge variant={status.variant} className={status.className}>
+                        {collab.status}
+                      </Badge>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CollapsibleContent>

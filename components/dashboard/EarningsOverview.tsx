@@ -1,29 +1,24 @@
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EarningsChart } from "@/components/dashboard/EarningsChart";
+import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/invoice";
+import { monthLabel, currentMonthKey, monthsAgoKey, computeMonthTrend } from "@/lib/earnings";
 import type { EarningsSummary, MonthlyEarnings } from "@/repositories/earnings";
+
+type StatTone = "neutral" | "cash" | "barter" | "pending";
+
+const TONE_STYLES: Record<StatTone, { card: string; value: string }> = {
+  neutral: { card: "", value: "" },
+  cash: { card: "bg-emerald-500/5 ring-emerald-500/15", value: "text-emerald-600 dark:text-emerald-400" },
+  barter: { card: "bg-sky-500/5 ring-sky-500/15", value: "text-sky-600 dark:text-sky-400" },
+  pending: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },
+};
 
 const RECENT_MONTHS = 6;
 const MONTH_GRID = "grid grid-cols-[auto_1fr_6rem_6rem_6rem_6rem] items-center gap-4";
-
-function monthLabel(month: string): string {
-  const [year, monthNum] = month.split("-");
-  const date = new Date(Number(year), Number(monthNum) - 1, 1);
-  return date.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
-}
-
-function currentMonthKey(): string {
-  return new Date().toISOString().slice(0, 7);
-}
-
-// "YYYY-MM" strings compare chronologically as plain strings.
-function monthsAgoKey(count: number): string {
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - count, 1);
-  return `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, "0")}`;
-}
 
 function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: boolean }) {
   const summaryRow = (
@@ -95,12 +90,14 @@ function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: bo
 }
 
 export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
-  const stats = [
-    { label: "Lifetime earnings", value: summary.total },
-    { label: "Cash received", value: summary.paid },
-    { label: "Barter value received", value: summary.barter },
-    { label: "Pending payments", value: summary.pending },
+  const stats: Array<{ label: string; value: number; tone: StatTone }> = [
+    { label: "Lifetime earnings", value: summary.total, tone: "neutral" },
+    { label: "Cash received", value: summary.paid, tone: "cash" },
+    { label: "Barter value received", value: summary.barter, tone: "barter" },
+    { label: "Pending payments", value: summary.pending, tone: "pending" },
   ];
+
+  const trend = computeMonthTrend(summary.monthly);
 
   const cutoff = monthsAgoKey(RECENT_MONTHS);
   const recent = summary.monthly.filter((m) => m.month >= cutoff);
@@ -111,11 +108,24 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
     <section className="mb-8 space-y-3">
       <h2 className="font-heading text-sm font-semibold">Earnings overview</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(({ label, value }) => (
-          <Card key={label}>
+        {stats.map(({ label, value, tone }) => (
+          <Card key={label} className={TONE_STYLES[tone].card}>
             <CardHeader>
               <CardDescription>{label}</CardDescription>
-              <CardTitle className="text-lg tabular-nums">{formatMoney(value)}</CardTitle>
+              <CardTitle className={cn("text-lg tabular-nums", TONE_STYLES[tone].value)}>
+                {formatMoney(value)}
+              </CardTitle>
+              {label === "Lifetime earnings" && trend !== null && (
+                <p
+                  className={cn(
+                    "flex items-center gap-1 text-[0.65rem] font-medium",
+                    trend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                  )}
+                >
+                  {trend >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                  {Math.abs(trend).toFixed(0)}% vs last month
+                </p>
+              )}
             </CardHeader>
           </Card>
         ))}
@@ -127,6 +137,7 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
             <div className="flex items-baseline justify-between">
               <CardDescription>Monthly breakdown</CardDescription>
             </div>
+            <EarningsChart monthly={recent} />
             <div className="text-xs">
               <div className={`${MONTH_GRID} border-b border-foreground/10 px-3 pb-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground/70 uppercase`}>
                 <span />

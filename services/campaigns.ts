@@ -25,6 +25,8 @@ export interface CampaignRow {
   story: string;
   status: string;
   date: string;
+  amount: number;
+  barterValue: number;
   total: number;
 }
 
@@ -38,6 +40,10 @@ export interface NewCampaignInput {
   status: string;
   amount: number;
   barterValue: number;
+}
+
+export interface CampaignUpdate extends NewCampaignInput {
+  campaignId: string;
 }
 
 function parseAmount(raw: string | undefined): number {
@@ -95,6 +101,8 @@ export async function fetchCampaigns(): Promise<CampaignRow[]> {
   const reelsCol = columnIndex("Reels");
   const storyCol = columnIndex("Story");
   const statusCol = columnIndex("Status");
+  const amountCol = columnIndex("Amount");
+  const barterCol = columnIndex("Barter Value");
   const totalCol = columnIndex("Total");
 
   return body
@@ -108,6 +116,8 @@ export async function fetchCampaigns(): Promise<CampaignRow[]> {
       story: row[storyCol] ?? "",
       status: row[statusCol] ?? "",
       date: row[dateCol] ?? "",
+      amount: parseAmount(row[amountCol]),
+      barterValue: parseAmount(row[barterCol]),
       total: parseAmount(row[totalCol]),
     }));
 }
@@ -199,4 +209,56 @@ export async function appendCampaign(input: NewCampaignInput): Promise<void> {
     ].filter((rule): rule is { range: ReturnType<typeof cellRange>; values: string[] } => Boolean(rule));
     if (rules.length > 0) await setOneOfListValidation(sheetId, rules);
   }
+}
+
+// Overwrites the row matching campaignId in a single range write, so columns
+// this form doesn't collect (Upload Dt, Invoice ID, Payment, Payment Method,
+// Notes, …) — and the cell-level dropdown validation already attached to an
+// existing row — are left exactly as they were.
+export async function updateCampaign(input: CampaignUpdate): Promise<void> {
+  const { sheetId, tab } = getSheetConfig();
+
+  const rows = await fetchSheetRows(sheetId, tab);
+  const [header, ...body] = rows;
+  if (!header) throw new Error("Sheet has no header row");
+
+  const columnIndex = (name: string) => header.findIndex((h) => h.trim() === name);
+  const campaignIdCol = columnIndex("Campaign ID");
+  if (campaignIdCol < 0) throw new Error('"Campaign ID" column not found');
+
+  const rowIndex0 = body.findIndex((r) => r[campaignIdCol] === input.campaignId);
+  if (rowIndex0 < 0) throw new Error(`Campaign "${input.campaignId}" not found in the sheet`);
+  const rowNumber = rowIndex0 + 2; // +1 for the header row, +1 to go 0-based -> 1-based
+
+  const row = [...body[rowIndex0]];
+  while (row.length < header.length) row.push("");
+
+  const setColumn = (name: string, value: string) => {
+    const index = columnIndex(name);
+    if (index >= 0) row[index] = value;
+  };
+
+  setColumn("Date", input.date);
+  setColumn("Brand", input.brand);
+  setColumn("Campaign", input.campaign);
+  setColumn("Type", input.type);
+  setColumn("Reels", input.reels);
+  setColumn("Story", input.story);
+  setColumn("Status", input.status);
+  setColumn("Amount", input.amount > 0 ? String(input.amount) : "");
+  setColumn("Barter Value", input.barterValue > 0 ? String(input.barterValue) : "");
+
+  // Same live-formula convention as appendCampaign, recomputed here since
+  // editing may turn a barter-only deal into a paid one (or vice versa).
+  const amountCol = columnIndex("Amount");
+  const barterCol = columnIndex("Barter Value");
+  const totalCol = columnIndex("Total");
+  if (totalCol >= 0 && amountCol >= 0 && barterCol >= 0) {
+    row[totalCol] =
+      input.amount > 0 || input.barterValue > 0
+        ? `=SUM(${columnLetter(amountCol)}${rowNumber}, ${columnLetter(barterCol)}${rowNumber})`
+        : "";
+  }
+
+  await updateSheetRange(sheetId, `${tab}!A${rowNumber}:${columnLetter(header.length - 1)}${rowNumber}`, [row]);
 }
