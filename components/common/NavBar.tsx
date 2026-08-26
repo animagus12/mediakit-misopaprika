@@ -27,7 +27,10 @@ const NavBar = () => {
   }
 
   return (
-    <nav className="sticky top-0 z-50 p-2 flex justify-between items-center bg-background/95 backdrop-blur-xl">
+    <nav
+      data-app-navbar
+      className="sticky top-0 z-50 p-2 flex justify-between items-center bg-background/95 backdrop-blur-xl"
+    >
       {/* Left Section */}
       <SidebarTrigger />
 

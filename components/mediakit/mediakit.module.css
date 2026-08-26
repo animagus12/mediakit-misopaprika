@@ -49,13 +49,22 @@
 
 .stageInner {
   transform-origin: top center;
-  /* Scale the fixed A4 sheet down to whatever width .stage actually has —
-     computed live from the container query size, so it's correct on the
-     very first paint (no JS/useEffect delay causing a flash of the full
-     793px-wide sheet) and re-solves instantly on any resize/rotation.
-     zoom (not transform) is used so the box's layout size shrinks with it,
-     instead of needing a JS-measured height to collapse the reserved space. */
-  zoom: min(1, calc(100cqw / 210mm));
+}
+
+/* Scale the fixed A4 sheet down to whatever width .stage actually has —
+   computed live from the container query size, so it's correct on the
+   very first paint (no JS/useEffect delay causing a flash of the full
+   793px-wide sheet) and re-solves instantly on any resize/rotation. zoom
+   (not transform) is used so the box's layout size shrinks with it, instead
+   of needing a JS-measured height to collapse the reserved space. Scoped to
+   screen only — some print pipelines (e.g. printing through an OS printer
+   driver like "Microsoft Print to PDF" rather than the browser's own PDF
+   export) don't reliably honor a `zoom: normal !important` override in
+   @media print, so instead the rule is simply never declared for print. */
+@media screen {
+  .stageInner {
+    zoom: min(1, calc(100cqw / 210mm));
+  }
 }
 
 .brandbar {
@@ -689,6 +698,11 @@
 }
 
 /* ---------- print ---------- */
+@page {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
   :global(html),
   :global(body) {
@@ -713,17 +727,13 @@
     overflow: visible;
   }
 
-  .stageInner {
-    zoom: normal !important;
-  }
-
   .page {
     box-shadow: none;
     margin: 0;
   }
 }
 
-@media (max-width: 900px) {
+@media screen and (max-width: 900px) {
   .app {
     flex-direction: column;
   }

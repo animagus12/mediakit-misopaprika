@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-26
+### Fixed
+- "Save as PDF" on `/mediakit-generator` and `/invoice-generator` printing the surrounding dashboard sidebar/navbar along with the media kit/invoice sheet — each generator's own `@media print` rules (`components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css`) only hid their own form panel, never the `AppShell` chrome wrapping the page; added a global print rule (`app/globals.css`) hiding `[data-slot="sidebar"]` and a new `data-app-navbar` marker (`components/common/NavBar.tsx`)
+- `/mediakit-generator`'s PDF export printing with wide blank borders around the sheet — `components/mediakit/mediakit.module.css` was missing the `@page { size: A4; margin: 0; }` rule that `invoice.module.css` already had, so the browser fell back to its default page size/margins instead of the fixed 210mm×297mm sheet
+- Printed/PDF output on both generators still showing the sheet shrunk to a fixed 400px width and centered with wide blank margins on either side — the mobile-layout breakpoint `@media (max-width: 900px)` (`components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css`) had no `screen` qualifier, so it also matched during print/PDF (the A4 page's ~793px CSS-pixel width is itself under 900px) and, coming after the `@media print` block without `!important`, silently overrode `.stage`'s print reset with `max-width: 400px; margin: 0 auto;`; scoped both breakpoints to `@media screen and (max-width: 900px)`. Also scoped the on-screen scale-to-fit (`.stageInner { zoom: min(1, calc(100cqw / 210mm)) }`) to `@media screen` so it's never declared for print at all, instead of being declared and then reset with `zoom: normal !important`
+
 ## [1.8.0] - 2026-08-26
 ### Added
 - **Remember me** on the login form (`components/auth/LoginForm.tsx`) — checking it requests a 30-day session (`REMEMBER_ME_DURATION_MS` in `lib/auth.ts`) instead of the default
