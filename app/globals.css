@@ -128,3 +128,14 @@
     @apply font-sans;
   }
 }
+
+/* AppShell chrome (sidebar + navbar) must never appear in a printed/PDF
+   page — pages that print a specific area (media kit, invoice) already
+   hide their own panel via their module CSS, but only this rule strips
+   the surrounding dashboard shell for all of them. */
+@media print {
+  [data-slot="sidebar"],
+  [data-app-navbar] {
+    display: none !important;
+  }
+}
