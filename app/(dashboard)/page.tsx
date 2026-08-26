@@ -8,9 +8,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EarningsOverview } from "@/components/dashboard/EarningsOverview";
 import { navEntries } from "@/lib/navigation";
+import { earningsRepository } from "@/repositories/earnings";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const earnings = await earningsRepository.getSummary().catch(() => null);
+
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-10">
       <div className="mb-6 space-y-1">
@@ -19,6 +23,8 @@ export default function HomePage() {
           Everything you can get to from here.
         </p>
       </div>
+
+      {earnings && <EarningsOverview summary={earnings} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {navEntries.map(({ href, title, description, Icon, access }) => (

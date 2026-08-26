@@ -1,3 +1,6 @@
+export { earningsRepository } from "./earnings";
+export type { EarningsSummary, MonthlyEarnings, IEarningsRepository } from "./earnings";
+
 export { invoiceRepository } from "./invoice";
 export type {
   InvoiceData,
