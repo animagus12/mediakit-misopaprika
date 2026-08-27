@@ -266,12 +266,23 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        <span
-                          className="block max-w-40 truncate text-foreground"
-                          title={invoice.client.name || undefined}
-                        >
-                          {invoice.client.name || "—"}
-                        </span>
+                        {invoice.brandId ? (
+                          <Link
+                            href={`/brands/${invoice.brandId}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="block max-w-40 truncate text-foreground rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            title={invoice.client.name || undefined}
+                          >
+                            {invoice.client.name || "—"}
+                          </Link>
+                        ) : (
+                          <span
+                            className="block max-w-40 truncate text-foreground"
+                            title={invoice.client.name || undefined}
+                          >
+                            {invoice.client.name || "—"}
+                          </span>
+                        )}
                         {invoice.client.contactName && (
                           <span
                             className="block max-w-40 truncate text-xs"
@@ -343,7 +354,13 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                         </Badge>
                       </div>
                       <p className="truncate">
-                        <span className="text-foreground">{invoice.client.name || "—"}</span>
+                        {invoice.brandId ? (
+                          <Link href={`/brands/${invoice.brandId}`} className="text-foreground hover:underline">
+                            {invoice.client.name || "—"}
+                          </Link>
+                        ) : (
+                          <span className="text-foreground">{invoice.client.name || "—"}</span>
+                        )}
                         {invoice.client.contactName && (
                           <span className="text-muted-foreground"> · {invoice.client.contactName}</span>
                         )}

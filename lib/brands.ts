@@ -160,11 +160,16 @@ const MEDIA_KIT_ELIGIBLE_STATUSES = new Set<BrandStatus>(["Worked With", "Active
 
 // Feeds the media kit generator's "Sync from brands" button (MediaKitLogoGrid.tsx)
 // — brand logo becomes the media kit collab logo image, brand website becomes
-// its click-through link.
-export function brandLogosForMediaKit(brands: Brand[]): MediaKitLogo[] {
+// its click-through link. A brand qualifies on pipeline status, or on having
+// at least one paid invoice (`paidBrandIds`) — a paid invoice is proof of a
+// real collaboration regardless of how the status was last set by hand.
+export function brandLogosForMediaKit(
+  brands: Brand[],
+  paidBrandIds: ReadonlySet<string> = new Set()
+): MediaKitLogo[] {
   return brands
     .filter((brand): brand is Brand & { logoUrl: string } =>
-      MEDIA_KIT_ELIGIBLE_STATUSES.has(brand.status) && Boolean(brand.logoUrl)
+      (MEDIA_KIT_ELIGIBLE_STATUSES.has(brand.status) || paidBrandIds.has(brand.id)) && Boolean(brand.logoUrl)
     )
     .map((brand) => ({ src: brand.logoUrl, url: brand.website }));
 }

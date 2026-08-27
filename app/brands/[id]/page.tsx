@@ -10,9 +10,13 @@ import { getBrand } from "@/repositories/brands.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { getBrandNotes } from "@/repositories/brandNotes.writer.server";
 import { getCampaignContacts } from "@/repositories/campaignContacts.writer.server";
+import { getInvoices } from "@/repositories/invoices.writer.server";
+import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
 import { fetchBrandCampaignRecords, type BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { computeBrandStats, recordsForBrand } from "@/lib/brandCampaignStats";
+import { buildInvoiceEditorJobOptions, invoicesForBrand, type InvoiceEditorJobOption } from "@/lib/invoice";
 import { contactsForBrand } from "@/lib/contacts";
+import type { Invoice } from "@/repositories/invoices";
 
 export const metadata: Metadata = {
   title: "Brand - @misopaprika",
@@ -49,6 +53,18 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
     sheetError = err instanceof Error ? err.message : "Something went wrong";
   }
 
+  // Best-effort — a Redis hiccup on invoices/editor jobs shouldn't take down
+  // the whole brand page; the Invoices tab just shows empty.
+  let brandInvoices: Invoice[] = [];
+  let editorJobs: InvoiceEditorJobOption[] = [];
+  try {
+    const [allInvoices, editorTransactions] = await Promise.all([getInvoices(), getEditorTransactions()]);
+    brandInvoices = invoicesForBrand(brand, allInvoices);
+    editorJobs = buildInvoiceEditorJobOptions(editorTransactions);
+  } catch {
+    // keep the fallbacks
+  }
+
   const agency = brand.agencyId ? (agencies.find((a) => a.id === brand.agencyId) ?? null) : null;
   const brandContacts = contactsForBrand(brand, contacts);
   const brandNotes = notes.filter((note) => note.brandId === brand.id);
@@ -78,6 +94,8 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
           campaignContacts={brandCampaignContacts}
           stats={stats}
           notes={brandNotes}
+          invoices={brandInvoices}
+          editorJobs={editorJobs}
         />
       </div>
     </AppShell>

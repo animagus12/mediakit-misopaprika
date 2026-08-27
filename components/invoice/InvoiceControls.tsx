@@ -13,13 +13,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildInvoiceNumber, formatInvoiceStatus, INVOICE_STATUS_OPTIONS } from "@/lib/invoice";
+import {
+  buildInvoiceNumber,
+  formatInvoiceStatus,
+  formatMoney,
+  INVOICE_STATUS_OPTIONS,
+  type InvoiceBrandOption,
+  type InvoiceEditorJobOption,
+} from "@/lib/invoice";
 import type { InvoiceContact, InvoicePaymentMode, InvoicePreset } from "@/repositories/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
 import { InvoiceImageUploadField } from "./InvoiceImageUploadField";
 import { InvoiceLineItemEditor } from "./InvoiceLineItemEditor";
 import type { InvoiceFormActions, InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
+
+// shadcn <Select> can't carry an empty-string item value, so "not linked" needs a sentinel.
+const NO_LINK = "__none__";
 
 interface InvoiceControlsProps {
   state: InvoiceFormState;
@@ -28,6 +38,8 @@ interface InvoiceControlsProps {
   presets: InvoicePreset[];
   billedToPlaceholder: InvoiceContact;
   takenInvoiceNumbers: string[];
+  brandOptions: InvoiceBrandOption[];
+  editorJobOptions: InvoiceEditorJobOption[];
   isSaving: boolean;
   isExisting: boolean;
   onImageUploadError: (message: string) => void;
@@ -40,11 +52,16 @@ export function InvoiceControls({
   presets,
   billedToPlaceholder,
   takenInvoiceNumbers,
+  brandOptions,
+  editorJobOptions,
   isSaving,
   isExisting,
   onImageUploadError,
 }: InvoiceControlsProps) {
   const numberClash = Boolean(state.invoiceNo.trim()) && takenInvoiceNumbers.includes(state.invoiceNo.trim());
+  const linkedBrand = state.brandId ? brandOptions.find((option) => option.id === state.brandId) : undefined;
+  const editorJobLabel = (job: InvoiceEditorJobOption) =>
+    `${job.video || "Untitled"} — ${job.editor || "?"}${job.amount != null ? ` · ${formatMoney(job.amount)}` : ""}`;
 
   return (
     <aside className={styles.panel}>
@@ -135,6 +152,36 @@ export function InvoiceControls({
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Billed to</legend>
+
+        {brandOptions.length > 0 && (
+          <>
+            <Label className={styles.fieldLabel} htmlFor="brandLink">
+              Link to brand
+            </Label>
+            <Select
+              value={state.brandId ?? NO_LINK}
+              onValueChange={(value) => actions.selectBrand(value === NO_LINK ? null : value)}
+            >
+              <SelectTrigger id="brandLink" className="w-full">
+                <SelectValue placeholder="No brand — one-off" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_LINK}>No brand — one-off</SelectItem>
+                {brandOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {state.brandId && !linkedBrand && (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                Linked brand no longer exists — pick another or set it to one-off.
+              </p>
+            )}
+          </>
+        )}
+
         <Label className={styles.fieldLabel} htmlFor="clientContactName">
           Name (optional)
         </Label>
@@ -249,6 +296,35 @@ export function InvoiceControls({
               />
             </div>
           </div>
+        )}
+
+        {editorJobOptions.length > 0 && (
+          <>
+            <Label className={styles.fieldLabel} htmlFor="editorJob">
+              Editor job (for margin)
+            </Label>
+            <Select
+              value={state.editorTransactionId ?? NO_LINK}
+              onValueChange={(value) => actions.selectEditorJob(value === NO_LINK ? null : value)}
+            >
+              <SelectTrigger id="editorJob" className="w-full">
+                <SelectValue placeholder="Not linked" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_LINK}>Not linked</SelectItem>
+                {editorJobOptions.map((job) => (
+                  <SelectItem key={job.id} value={job.id}>
+                    {editorJobLabel(job)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {state.editorTransactionId && !editorJobOptions.some((job) => job.id === state.editorTransactionId) && (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                Linked editor job no longer exists.
+              </p>
+            )}
+          </>
         )}
       </fieldset>
 
