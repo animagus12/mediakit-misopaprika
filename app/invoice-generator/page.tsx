@@ -1,18 +1,28 @@
 import type { Metadata } from "next";
 import AppShell from "@/components/common/AppShell";
-import { InvoiceGenerator } from "@/components/invoice/InvoiceGenerator";
-import { getInvoiceData } from "@/repositories/invoice.writer.server";
+import { InvoiceListSection } from "@/components/invoice/InvoiceListSection";
+import { getInvoices } from "@/repositories/invoices.writer.server";
+import type { Invoice } from "@/repositories/invoices";
 
 export const metadata: Metadata = {
-  title: "Invoice generator - @misopaprika",
+  title: "Invoices - @misopaprika",
   robots: { index: false, follow: false },
 };
 
-export default async function InvoicePage() {
-  const data = await getInvoiceData();
+export default async function InvoicesPage() {
+  let invoices: Invoice[] = [];
+  let error: string | null = null;
+  try {
+    invoices = await getInvoices();
+  } catch (err) {
+    error = err instanceof Error ? err.message : "Something went wrong";
+  }
+
   return (
     <AppShell>
-      <InvoiceGenerator data={data} />
+      <div className="mx-auto max-w-screen-lg space-y-8 px-4 py-10">
+        <InvoiceListSection invoices={invoices} error={error} />
+      </div>
     </AppShell>
   );
 }
