@@ -17,6 +17,16 @@ function needsInvoice(invoiceId: string): boolean {
   return id === "" || id === "-";
 }
 
+// Prefill the invoice editor with this deal's brand + campaign so the saved
+// invoice lines up with the sheet row.
+function newInvoiceHref(brand: string, campaign: string): string {
+  const params = new URLSearchParams();
+  if (brand.trim()) params.set("client", brand.trim());
+  if (campaign.trim()) params.set("campaign", campaign.trim());
+  const query = params.toString();
+  return query ? `/invoices/new?${query}` : "/invoices/new";
+}
+
 interface PaymentsDueCardProps {
   due: DuePayment[];
   className?: string;
@@ -90,7 +100,7 @@ export function PaymentsDueCard({ due, className }: PaymentsDueCardProps) {
                 )}
                 {needsInvoice(record.invoiceId) && (
                   <Button asChild size="sm" variant="ghost">
-                    <Link href="/invoices/new">
+                    <Link href={newInvoiceHref(record.brand, record.campaign)}>
                       <FileText />
                       Invoice
                     </Link>

@@ -28,19 +28,31 @@ function buildInitialState(
   data: InvoiceData,
   invoice: Invoice | undefined,
   brandOptions: InvoiceBrandOption[],
-  initialBrandId?: string
+  initialBrandId?: string,
+  initialCampaignName?: string,
+  initialClientName?: string
 ): InvoiceFormState {
   if (invoice) return invoiceRecordToFormState(invoice);
   const base = invoiceDefaultsToFormState(data);
   // Deep-linked from a brand ("New invoice" on /brands/[id]) — pre-select it
   // and seed the shown client name from the brand.
   const brand = initialBrandId ? brandOptions.find((option) => option.id === initialBrandId) : undefined;
-  if (!brand) return base;
   return {
     ...base,
-    brandId: brand.id,
-    clientName: brand.name,
-    clientContactName: brand.contactNames.length === 1 ? brand.contactNames[0] : base.clientContactName,
+    // Prefilled from the dashboard's "Needs attention" / "Payments due" links
+    // so the saved invoice names the same brand + campaign the sheet row does
+    // — that's the pair those cards match on to stop re-flagging the deal.
+    ...(initialCampaignName ? { campaignName: initialCampaignName } : {}),
+    ...(brand
+      ? {
+          brandId: brand.id,
+          clientName: brand.name,
+          clientContactName:
+            brand.contactNames.length === 1 ? brand.contactNames[0] : base.clientContactName,
+        }
+      : initialClientName
+        ? { clientName: initialClientName }
+        : {}),
   };
 }
 
@@ -51,6 +63,8 @@ interface InvoiceGeneratorProps {
   brandOptions?: InvoiceBrandOption[];
   editorJobOptions?: InvoiceEditorJobOption[];
   initialBrandId?: string;
+  initialCampaignName?: string;
+  initialClientName?: string;
 }
 
 export function InvoiceGenerator({
@@ -60,10 +74,12 @@ export function InvoiceGenerator({
   brandOptions = [],
   editorJobOptions = [],
   initialBrandId,
+  initialCampaignName,
+  initialClientName,
 }: InvoiceGeneratorProps) {
   const router = useRouter();
   const [state, setState] = useState<InvoiceFormState>(() =>
-    buildInitialState(data, invoice, brandOptions, initialBrandId)
+    buildInitialState(data, invoice, brandOptions, initialBrandId, initialCampaignName, initialClientName)
   );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();

@@ -32,6 +32,9 @@ export async function createInvoice(
   try {
     const record = await addInvoice(input);
     revalidatePath("/invoices");
+    // The dashboard's "Needs attention" card clears a "no invoice raised" row
+    // once a matching invoice exists, so it has to re-read the invoices store.
+    revalidatePath("/");
     return { success: true, id: record.id };
   } catch (err) {
     return toActionError(err, "Couldn't save the invoice");
@@ -43,6 +46,9 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
     await updateInvoiceRecord(input);
     revalidatePath("/invoices");
     revalidatePath(`/invoices/${input.id}`);
+    // Keep the dashboard's "Needs attention" card in sync — an edit can change
+    // the brand/campaign an invoice is matched on, or void it.
+    revalidatePath("/");
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the invoice");
@@ -53,6 +59,7 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
   try {
     await deleteInvoice(id);
     revalidatePath("/invoices");
+    revalidatePath("/");
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't remove the invoice");
