@@ -49,7 +49,7 @@ export function InvoiceControls({
   return (
     <aside className={styles.panel}>
       <Link
-        href="/invoice-generator"
+        href="/invoices"
         className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft className="size-3.5" />
@@ -96,6 +96,16 @@ export function InvoiceControls({
             ))}
           </SelectContent>
         </Select>
+
+        <Label className={styles.fieldLabel} htmlFor="campaignName">
+          Campaign
+        </Label>
+        <Input
+          id="campaignName"
+          placeholder="e.g. Diwali Reel collab"
+          value={state.campaignName}
+          onChange={(e) => actions.setField("campaignName", e.target.value)}
+        />
 
         <div className={`${styles.row} ${styles.rowTight}`}>
           <div>
@@ -378,9 +388,17 @@ export function InvoiceControls({
         onClick={actions.save}
         disabled={isSaving}
       >
-        {isSaving ? "Saving…" : isExisting ? "Save changes & download PDF" : "Save & download PDF"}
+        {isSaving ? "Saving…" : isExisting ? "Save changes" : "Save invoice"}
       </Button>
-      <Button type="button" variant="outline" className="mt-2.5 w-full" onClick={actions.reset}>
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-2.5 w-full"
+        onClick={actions.download}
+      >
+        Download PDF
+      </Button>
+      <Button type="button" variant="ghost" className="mt-2.5 w-full" onClick={actions.reset}>
         Reset fields
       </Button>
     </aside>

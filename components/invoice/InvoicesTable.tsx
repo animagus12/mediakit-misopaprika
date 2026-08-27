@@ -68,6 +68,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
         if (!needle) return true;
         return (
           buildInvoiceNumber(invoice.invoiceNo).toLowerCase().includes(needle) ||
+          invoice.campaignName.toLowerCase().includes(needle) ||
           invoice.client.name.toLowerCase().includes(needle) ||
           invoice.client.contactName.toLowerCase().includes(needle) ||
           invoice.client.email.toLowerCase().includes(needle)
@@ -98,7 +99,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search number, client, email..."
+            placeholder="Search number, campaign, client, email..."
             className="pl-7"
           />
         </div>
@@ -116,6 +117,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
             <TableHeader>
               <TableRow className="bg-muted/30 hover:bg-muted/30">
                 <TableHead>Number</TableHead>
+                <TableHead>Campaign</TableHead>
                 <TableHead>Client</TableHead>
                 <TableHead>Issued</TableHead>
                 <TableHead>Due</TableHead>
@@ -134,7 +136,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                   <TableRow
                     key={invoice.id}
                     className="cursor-pointer"
-                    onClick={() => router.push(`/invoice-generator/${invoice.id}`)}
+                    onClick={() => router.push(`/invoices/${invoice.id}`)}
                   >
                     <TableCell className="font-medium">
                       {buildInvoiceNumber(invoice.invoiceNo)}
@@ -143,6 +145,9 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                           · duplicate #
                         </span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <span className="block max-w-40 truncate">{invoice.campaignName || "—"}</span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       <span className="block max-w-40 truncate text-foreground">

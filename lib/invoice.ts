@@ -65,6 +65,7 @@ export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData)
   return {
     ...current,
     invoiceNumberSeed: state.invoiceNo,
+    campaignNameSeed: state.campaignName,
     dueInDays: Math.max(daysBetween(state.date, state.due), 0),
     billedToPlaceholder: {
       name: state.clientName || current.billedToPlaceholder.name,
@@ -174,6 +175,7 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
   return {
     status: "draft",
     invoiceNo: data.invoiceNumberSeed,
+    campaignName: data.campaignNameSeed,
     date: todayISO(),
     due: todayISO(data.dueInDays),
     clientName: "",
@@ -204,6 +206,7 @@ export function invoiceRecordToFormState(record: InvoiceRecord): InvoiceFormStat
   return {
     status: record.status,
     invoiceNo: record.invoiceNo,
+    campaignName: record.campaignName ?? "",
     date: record.issueDate,
     due: record.dueDate,
     clientName: record.client.name,
@@ -235,6 +238,7 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
   return {
     status: state.status,
     invoiceNo: state.invoiceNo,
+    campaignName: state.campaignName,
     issueDate: state.date,
     dueDate: state.due,
     client: {

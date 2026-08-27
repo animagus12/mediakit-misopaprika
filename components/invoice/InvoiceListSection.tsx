@@ -34,7 +34,7 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
           </p>
         </div>
         <Button asChild size="sm" variant="outline">
-          <Link href="/invoice-generator/new">
+          <Link href="/invoices/new">
             <Plus className="size-3.5" />
             New invoice
           </Link>
@@ -52,7 +52,7 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
           <CardContent className="flex flex-col items-start gap-3 py-6 text-xs text-muted-foreground">
             No invoices yet.
             <Button asChild size="sm">
-              <Link href="/invoice-generator/new">
+              <Link href="/invoices/new">
                 <Plus className="size-3.5" />
                 Create your first invoice
               </Link>

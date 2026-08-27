@@ -39,6 +39,7 @@ export interface InvoiceRecord {
   id: string;
   status: InvoiceStatus;
   invoiceNo: string; // stored literally as typed, e.g. "0007" — see lib/invoice.ts's buildInvoiceNumber
+  campaignName: string; // the brand campaign this invoice bills for
   issueDate: string; // yyyy-mm-dd, as produced by <input type="date">
   dueDate: string; // yyyy-mm-dd
   client: InvoiceClient;
@@ -58,6 +59,7 @@ export interface Invoice extends InvoiceRecord {
 export interface NewInvoice {
   status: InvoiceStatus;
   invoiceNo: string;
+  campaignName: string;
   issueDate: string;
   dueDate: string;
   client: InvoiceClient;

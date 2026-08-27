@@ -19,7 +19,7 @@ function toActionError(err: unknown, fallback: string): { success: false; error:
 export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResult> {
   try {
     await saveInvoiceData(data);
-    revalidatePath("/invoice-generator/new");
+    revalidatePath("/invoices/new");
     return { success: true };
   } catch {
     return { success: false, error: "Couldn't save — check KV_REST_API_URL and KV_REST_API_TOKEN are set" };
@@ -31,7 +31,7 @@ export async function createInvoice(
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
   try {
     const record = await addInvoice(input);
-    revalidatePath("/invoice-generator");
+    revalidatePath("/invoices");
     return { success: true, id: record.id };
   } catch (err) {
     return toActionError(err, "Couldn't save the invoice");
@@ -41,8 +41,8 @@ export async function createInvoice(
 export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult> {
   try {
     await updateInvoiceRecord(input);
-    revalidatePath("/invoice-generator");
-    revalidatePath(`/invoice-generator/${input.id}`);
+    revalidatePath("/invoices");
+    revalidatePath(`/invoices/${input.id}`);
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the invoice");
@@ -52,7 +52,7 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
 export async function removeInvoice(id: string): Promise<ActionResult> {
   try {
     await deleteInvoice(id);
-    revalidatePath("/invoice-generator");
+    revalidatePath("/invoices");
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't remove the invoice");
