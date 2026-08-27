@@ -1,57 +1,42 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
-import { saveInvoiceDefaults } from "@/app/invoice-generator/actions";
-import { todayISO, toInvoiceDefaults, type InvoiceLineItem } from "@/lib/invoice";
+import { useRouter } from "next/navigation";
+import {
+  createInvoice as createInvoiceAction,
+  saveInvoiceDefaults,
+  updateInvoice as updateInvoiceAction,
+} from "@/app/invoice-generator/actions";
+import {
+  formStateToInvoiceInput,
+  invoiceDefaultsToFormState,
+  invoiceRecordToFormState,
+  todayISO,
+  toInvoiceDefaults,
+  type InvoiceLineItem,
+} from "@/lib/invoice";
 import type { InvoiceData } from "@/repositories/invoice";
+import type { Invoice } from "@/repositories/invoices";
 import { InvoiceControls } from "./InvoiceControls";
 import { InvoicePreview } from "./InvoicePreview";
 import type { InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
 
-// Deterministic (index-based) ids for state computed during the initial
-// render, so SSR output and the first client render match exactly —
-// Math.random()/crypto here would cause a hydration mismatch.
-function withStableIds(items: InvoiceData["defaultItems"]): InvoiceLineItem[] {
-  return items.map((item, index) => ({ ...item, id: `initial-${index}` }));
-}
-
-function buildInitialState(data: InvoiceData): InvoiceFormState {
-  return {
-    invoiceNo: data.invoiceNumberSeed,
-    date: todayISO(),
-    due: todayISO(data.dueInDays),
-    clientName: "",
-    clientContactName: "",
-    clientEmail: "",
-    items: withStableIds(data.defaultItems),
-    advance: 0,
-    barterOn: data.barter.defaultEnabled,
-    barterVal: data.barter.defaultValue,
-    barterStatus: data.barter.defaultStatus,
-    payName: data.payee.name,
-    payEmail: data.payee.email,
-    paymentMode: data.payee.paymentMode,
-    upi: data.payee.upi,
-    bankAccountName: data.payee.bank.accountName,
-    bankAccountNumber: data.payee.bank.accountNumber,
-    bankIfsc: data.payee.bank.ifsc,
-    bankName: data.payee.bank.bankName,
-    gstNote: data.payee.footerNote,
-    closing: data.payee.closingLine,
-    qrImage: data.payee.defaultQrImage,
-    stampImage: data.payee.defaultStampImage,
-  };
+function buildInitialState(data: InvoiceData, invoice?: Invoice): InvoiceFormState {
+  return invoice ? invoiceRecordToFormState(invoice) : invoiceDefaultsToFormState(data);
 }
 
 interface InvoiceGeneratorProps {
   data: InvoiceData;
+  invoice?: Invoice;
+  takenInvoiceNumbers?: string[];
 }
 
-export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
-  const [state, setState] = useState<InvoiceFormState>(() => buildInitialState(data));
+export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: InvoiceGeneratorProps) {
+  const router = useRouter();
+  const [state, setState] = useState<InvoiceFormState>(() => buildInitialState(data, invoice));
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [, startSaveDefaultsTransition] = useTransition();
+  const [isSaving, startSaveTransition] = useTransition();
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -137,17 +122,30 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
   }, [data.defaultItems, data.dueInDays, showToast, withFreshIds]);
 
   // window.print() fires first so the dialog appears with no added latency;
-  // saving the new defaults happens in the background and only surfaces a
-  // toast on failure, so it doesn't compete with the print dialog for
-  // attention.
-  const print = useCallback(() => {
+  // persisting the invoice happens in the background and only surfaces a
+  // toast, so it doesn't compete with the print dialog for attention. For a
+  // brand-new invoice the current form is also carried forward as the
+  // defaults for the next one (the pre-list behaviour of "Save as PDF"),
+  // then the URL swaps to the saved record so a second Save updates it
+  // rather than creating a duplicate.
+  const save = useCallback(() => {
     window.print();
-    const payload = toInvoiceDefaults(state, data);
-    startSaveDefaultsTransition(async () => {
-      const result = await saveInvoiceDefaults(payload);
-      if (!result.success) showToast(result.error);
+    const input = formStateToInvoiceInput(state);
+    startSaveTransition(async () => {
+      if (invoice) {
+        const result = await updateInvoiceAction({ id: invoice.id, ...input });
+        showToast(result.success ? "Invoice saved" : result.error);
+        return;
+      }
+      const result = await createInvoiceAction(input);
+      if (!result.success) {
+        showToast(result.error);
+        return;
+      }
+      await saveInvoiceDefaults(toInvoiceDefaults(state, data));
+      router.replace(`/invoice-generator/${result.id}`);
     });
-  }, [state, data, showToast]);
+  }, [state, data, invoice, router, showToast]);
 
   const setQrImage = useCallback((dataUrl: string | null) => {
     setState((prev) => ({ ...prev, qrImage: dataUrl }));
@@ -165,7 +163,7 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
       addItem,
       applyPreset,
       reset,
-      print,
+      save,
       setQrImage,
       setStampImage,
     }),
@@ -176,7 +174,7 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
       addItem,
       applyPreset,
       reset,
-      print,
+      save,
       setQrImage,
       setStampImage,
     ]
@@ -190,6 +188,9 @@ export function InvoiceGenerator({ data }: InvoiceGeneratorProps) {
         brandHandle={data.brandHandle}
         presets={data.presets}
         billedToPlaceholder={data.billedToPlaceholder}
+        takenInvoiceNumbers={takenInvoiceNumbers}
+        isSaving={isSaving}
+        isExisting={invoice != null}
         onImageUploadError={showToast}
       />
 

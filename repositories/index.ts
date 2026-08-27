@@ -21,6 +21,19 @@ export type {
   IInvoiceRepository,
 } from "./invoice";
 
+export { invoiceRecordRepository } from "./invoices";
+export type {
+  Invoice,
+  InvoiceRecord,
+  InvoiceStatus,
+  InvoiceClient,
+  InvoiceBarter,
+  InvoicePaymentSnapshot,
+  NewInvoice,
+  InvoiceUpdate,
+  IInvoiceRecordRepository,
+} from "./invoices";
+
 export { editorRepository } from "./editors";
 export type { Editor, NewEditor, IEditorRepository } from "./editors";
 

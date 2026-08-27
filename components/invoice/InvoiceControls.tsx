@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -11,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { buildInvoiceNumber, formatInvoiceStatus, INVOICE_STATUS_OPTIONS } from "@/lib/invoice";
 import type { InvoiceContact, InvoicePaymentMode, InvoicePreset } from "@/repositories/invoice";
+import type { InvoiceStatus } from "@/repositories/invoices";
 import { InvoiceImageUploadField } from "./InvoiceImageUploadField";
 import { InvoiceLineItemEditor } from "./InvoiceLineItemEditor";
 import type { InvoiceFormActions, InvoiceFormState } from "./types";
@@ -23,6 +27,9 @@ interface InvoiceControlsProps {
   brandHandle: string;
   presets: InvoicePreset[];
   billedToPlaceholder: InvoiceContact;
+  takenInvoiceNumbers: string[];
+  isSaving: boolean;
+  isExisting: boolean;
   onImageUploadError: (message: string) => void;
 }
 
@@ -32,10 +39,23 @@ export function InvoiceControls({
   brandHandle,
   presets,
   billedToPlaceholder,
+  takenInvoiceNumbers,
+  isSaving,
+  isExisting,
   onImageUploadError,
 }: InvoiceControlsProps) {
+  const numberClash = Boolean(state.invoiceNo.trim()) && takenInvoiceNumbers.includes(state.invoiceNo.trim());
+
   return (
     <aside className={styles.panel}>
+      <Link
+        href="/invoice-generator"
+        className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ChevronLeft className="size-3.5" />
+        All invoices
+      </Link>
+
       <div className={styles.brandbar}>
         <h1>INVOICE</h1>
         <span>{brandHandle}</span>
@@ -52,6 +72,30 @@ export function InvoiceControls({
           value={state.invoiceNo}
           onChange={(e) => actions.setField("invoiceNo", e.target.value)}
         />
+        {numberClash && (
+          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+            {buildInvoiceNumber(state.invoiceNo)} is already used by another invoice.
+          </p>
+        )}
+
+        <Label className={styles.fieldLabel} htmlFor="invoiceStatus">
+          Status
+        </Label>
+        <Select
+          value={state.status}
+          onValueChange={(value) => actions.setField("status", value as InvoiceStatus)}
+        >
+          <SelectTrigger id="invoiceStatus" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {INVOICE_STATUS_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {formatInvoiceStatus(option)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className={`${styles.row} ${styles.rowTight}`}>
           <div>
@@ -328,8 +372,13 @@ export function InvoiceControls({
         />
       </fieldset>
 
-      <Button type="button" className="mt-2.5 w-full" onClick={actions.print}>
-        Save as PDF
+      <Button
+        type="button"
+        className="mt-2.5 w-full"
+        onClick={actions.save}
+        disabled={isSaving}
+      >
+        {isSaving ? "Saving…" : isExisting ? "Save changes & download PDF" : "Save & download PDF"}
       </Button>
       <Button type="button" variant="outline" className="mt-2.5 w-full" onClick={actions.reset}>
         Reset fields
