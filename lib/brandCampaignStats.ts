@@ -66,3 +66,51 @@ export function computeStatsByBrand(brandNames: string[], records: BrandCampaign
   }
   return map;
 }
+
+const DAY_MS = 86_400_000;
+
+export interface DuePayment {
+  record: BrandCampaignRecord;
+  dueDate: string; // DD/MM/YYYY, as carried on the sheet row
+  daysUntilDue: number; // whole days from today; negative once overdue, 0 = today
+  overdue: boolean;
+  label: string; // reverse-timer text: "Overdue by 2 days" / "Due today" / "Due in 5 days"
+}
+
+function dueLabel(days: number): string {
+  if (days < 0) {
+    const n = Math.abs(days);
+    return `Overdue by ${n} day${n === 1 ? "" : "s"}`;
+  }
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  return `Due in ${days} days`;
+}
+
+// The dashboard's payment-reminder feed: brand-campaign rows still marked
+// pending on the Payment column that also carry a Payment Due date, as
+// reverse timers, most-overdue first. Cancelled deals and rows with no
+// parseable due date are dropped. `now` is injectable so server render and
+// tests aren't at the mercy of the wall clock.
+export function selectDuePayments(records: BrandCampaignRecord[], now: Date = new Date()): DuePayment[] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  return records
+    .filter(
+      (record) =>
+        record.paymentStatus === "pending" && record.status.trim().toLowerCase() !== "cancelled"
+    )
+    .map((record) => ({ record, dueTime: parseSheetDate(record.paymentDue) }))
+    .filter((entry) => Number.isFinite(entry.dueTime))
+    .map(({ record, dueTime }) => {
+      const daysUntilDue = Math.round((dueTime - today) / DAY_MS);
+      return {
+        record,
+        dueDate: record.paymentDue,
+        daysUntilDue,
+        overdue: daysUntilDue < 0,
+        label: dueLabel(daysUntilDue),
+      };
+    })
+    .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+}
