@@ -1,7 +1,9 @@
 import type { InvoiceLineItem } from "@/lib/invoice";
 import type { InvoicePaymentMode } from "@/repositories/invoice";
+import type { InvoiceStatus } from "@/repositories/invoices";
 
 export interface InvoiceFormState {
+  status: InvoiceStatus;
   invoiceNo: string;
   date: string;
   due: string;
@@ -34,7 +36,7 @@ export interface InvoiceFormActions {
   addItem: () => void;
   applyPreset: (presetId: string) => void;
   reset: () => void;
-  print: () => void;
+  save: () => void;
   setQrImage: (dataUrl: string | null) => void;
   setStampImage: (dataUrl: string | null) => void;
 }
