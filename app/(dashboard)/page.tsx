@@ -9,14 +9,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EarningsOverview } from "@/components/dashboard/EarningsOverview";
+import { PaymentsDueCard } from "@/components/dashboard/PaymentsDueCard";
 import { CollaborationsSection } from "@/components/dashboard/CollaborationsSection";
 import { navEntries } from "@/lib/navigation";
 import { earningsRepository } from "@/repositories/earnings";
 import { collaborationRepository } from "@/repositories/collaborations";
+import { fetchBrandCampaignRecords } from "@/repositories/brandCampaigns";
 import { splitCollaborations } from "@/lib/collaborations";
+import { selectDuePayments } from "@/lib/brandCampaignStats";
 
 export default async function HomePage() {
   const earnings = await earningsRepository.getSummary().catch(() => null);
+  const duePayments = await fetchBrandCampaignRecords()
+    .then((records) => selectDuePayments(records))
+    .catch(() => []);
 
   let active: ReturnType<typeof splitCollaborations>["active"] = [];
   let past: ReturnType<typeof splitCollaborations>["past"] = [];
@@ -33,6 +39,8 @@ export default async function HomePage() {
       <div className="mb-6 space-y-1">
         <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
       </div>
+
+      <PaymentsDueCard due={duePayments} className="mb-8" />
 
       {earnings && <EarningsOverview summary={earnings} />}
 

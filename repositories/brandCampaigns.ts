@@ -20,6 +20,7 @@ export interface BrandCampaignRecord {
   total: number;
   invoiceId: string;
   paymentStatus: BrandCampaignPaymentStatus;
+  paymentDue: string; // DD/MM/YYYY the payment is expected by, or "" when unset
   paymentMethod: string;
   notes: string;
 }
@@ -38,6 +39,14 @@ function isReceived(raw: string | undefined): boolean {
 
 function isPending(raw: string | undefined): boolean {
   return raw?.trim().toLowerCase() === "no";
+}
+
+// The Payment Due column mostly holds a DD/MM/YYYY date, but some rows use it
+// as a free-text "chase this?" flag ("Yes"/"No"/"-"). Only a real date is
+// useful downstream (reminders, sorting), so anything else normalizes to "".
+function parseDueDate(raw: string | undefined): string {
+  const trimmed = raw?.trim() ?? "";
+  return /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed) ? trimmed : "";
 }
 
 export async function fetchBrandCampaignRecords(): Promise<BrandCampaignRecord[]> {
@@ -64,6 +73,7 @@ export async function fetchBrandCampaignRecords(): Promise<BrandCampaignRecord[]
   const totalCol = columnIndex("Total");
   const uploadDateCol = columnIndex("Upload Dt");
   const invoiceIdCol = columnIndex("Invoice ID");
+  const paymentDueCol = columnIndex("Payment Due");
   const paymentCol = columnIndex("Payment");
   const paymentMethodCol = columnIndex("Payment Method");
   const notesCol = columnIndex("Notes");
@@ -83,6 +93,7 @@ export async function fetchBrandCampaignRecords(): Promise<BrandCampaignRecord[]
       total: parseAmount(row[totalCol]),
       invoiceId: row[invoiceIdCol] ?? "",
       paymentStatus: isPending(row[paymentCol]) ? "pending" : isReceived(row[paymentCol]) ? "received" : "unknown",
+      paymentDue: parseDueDate(row[paymentDueCol]),
       paymentMethod: row[paymentMethodCol] ?? "",
       notes: row[notesCol] ?? "",
     }));
