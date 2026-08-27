@@ -157,11 +157,116 @@ export function computeInvoiceStats(invoices: Invoice[], now: Date = new Date())
   for (const invoice of invoices) {
     if (invoice.status === "void") continue;
     count += 1;
-    totalBilled += invoice.subtotal;
-    if (invoice.status !== "paid") totalOutstanding += invoice.balanceDue;
+    // A draft hasn't been issued to the client yet — it's part of the
+    // pipeline (count, overdue nudge) but no money has been billed or is owed.
+    if (invoice.status !== "draft") {
+      totalBilled += invoice.subtotal;
+      if (invoice.status !== "paid") totalOutstanding += invoice.balanceDue;
+    }
     if (isInvoiceOverdue(invoice, now)) overdueCount += 1;
   }
   return { count, totalBilled, totalOutstanding, overdueCount };
+}
+
+// --- List view: filtering, sorting, duplicate detection ---------------------
+// Kept here (not in the client table component) so the list's business rules
+// stay testable and out of the UI, per the project's architecture guide.
+
+export type InvoiceFilter = "all" | "unpaid" | "draft" | "sent" | "paid" | "overdue";
+
+export const INVOICE_FILTER_TABS: { value: InvoiceFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "draft", label: "Draft" },
+  { value: "sent", label: "Sent" },
+  { value: "paid", label: "Paid" },
+  { value: "overdue", label: "Overdue" },
+];
+
+export function isInvoiceFilter(value: string | null | undefined): value is InvoiceFilter {
+  return INVOICE_FILTER_TABS.some((tab) => tab.value === value);
+}
+
+// Every invoice number typed on more than one record — flag every copy so a
+// clash is visible from the list without opening each one.
+export function findDuplicateInvoiceNumbers(invoices: Pick<Invoice, "invoiceNo">[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const invoice of invoices) {
+    const key = invoice.invoiceNo.trim();
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key));
+}
+
+function matchesInvoiceFilter(invoice: Invoice, filter: InvoiceFilter, now: Date): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "unpaid":
+      return invoice.status !== "paid" && invoice.status !== "void";
+    case "overdue":
+      return isInvoiceOverdue(invoice, now);
+    default:
+      return invoice.status === filter;
+  }
+}
+
+function matchesInvoiceQuery(invoice: Invoice, needle: string): boolean {
+  if (!needle) return true;
+  return (
+    buildInvoiceNumber(invoice.invoiceNo).toLowerCase().includes(needle) ||
+    invoice.campaignName.toLowerCase().includes(needle) ||
+    invoice.client.name.toLowerCase().includes(needle) ||
+    invoice.client.contactName.toLowerCase().includes(needle) ||
+    invoice.client.email.toLowerCase().includes(needle)
+  );
+}
+
+export function filterInvoices(
+  invoices: Invoice[],
+  { filter, query }: { filter: InvoiceFilter; query: string },
+  now: Date = new Date()
+): Invoice[] {
+  const needle = query.trim().toLowerCase();
+  return invoices.filter(
+    (invoice) => matchesInvoiceFilter(invoice, filter, now) && matchesInvoiceQuery(invoice, needle)
+  );
+}
+
+export type InvoiceSortColumn = "issueDate" | "dueDate" | "subtotal" | "balanceDue" | "status";
+export type SortDirection = "asc" | "desc";
+
+// Draft → Sent → Paid → Void: pipeline order, so ascending reads left-to-right.
+const INVOICE_STATUS_ORDER: Record<InvoiceStatus, number> = { draft: 0, sent: 1, paid: 2, void: 3 };
+
+export function sortInvoices(
+  invoices: Invoice[],
+  column: InvoiceSortColumn,
+  direction: SortDirection
+): Invoice[] {
+  const factor = direction === "asc" ? 1 : -1;
+  return [...invoices].sort((a, b) => {
+    let delta: number;
+    switch (column) {
+      case "subtotal":
+        delta = a.subtotal - b.subtotal;
+        break;
+      case "balanceDue":
+        delta = a.balanceDue - b.balanceDue;
+        break;
+      case "status":
+        delta = INVOICE_STATUS_ORDER[a.status] - INVOICE_STATUS_ORDER[b.status];
+        break;
+      case "dueDate":
+        delta = a.dueDate.localeCompare(b.dueDate);
+        break;
+      default:
+        delta = a.issueDate.localeCompare(b.issueDate);
+    }
+    // Stable tie-break so re-sorts don't reshuffle equal rows.
+    if (delta === 0) delta = a.createdAt.localeCompare(b.createdAt);
+    return factor * delta;
+  });
 }
 
 // Deterministic (index-based) ids so an SSR render and the first client

@@ -1,8 +1,9 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { computeInvoiceStats, formatMoney } from "@/lib/invoice";
+import { computeInvoiceStats, formatMoney, type InvoiceFilter } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { Invoice } from "@/repositories/invoices";
 import { InvoicesTable } from "./InvoicesTable";
@@ -13,7 +14,7 @@ const STAT_TONES = {
   neutral: { card: "", value: "" },
   cash: { card: "bg-emerald-500/5 ring-emerald-500/15", value: "text-emerald-600 dark:text-emerald-400" },
   warn: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },
-  info: { card: "bg-sky-500/5 ring-sky-500/15", value: "text-sky-600 dark:text-sky-400" },
+  danger: { card: "bg-red-500/5 ring-red-500/15", value: "text-red-600 dark:text-red-400" },
 } as const;
 
 interface InvoiceListSectionProps {
@@ -23,6 +24,24 @@ interface InvoiceListSectionProps {
 
 export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps) {
   const stats = computeInvoiceStats(invoices);
+
+  // Each tile is a shortcut into the matching table view (?tab=…).
+  const statCards: {
+    label: string;
+    value: string | number;
+    tone: (typeof STAT_TONES)[keyof typeof STAT_TONES];
+    tab: InvoiceFilter;
+  }[] = [
+    { label: "Invoices", value: stats.count, tone: STAT_TONES.neutral, tab: "all" },
+    { label: "Total billed", value: formatMoney(stats.totalBilled), tone: STAT_TONES.cash, tab: "all" },
+    { label: "Outstanding", value: formatMoney(stats.totalOutstanding), tone: STAT_TONES.warn, tab: "unpaid" },
+    {
+      label: "Overdue",
+      value: stats.overdueCount,
+      tone: stats.overdueCount > 0 ? STAT_TONES.danger : STAT_TONES.neutral,
+      tab: "overdue",
+    },
+  ];
 
   return (
     <section className="space-y-4">
@@ -62,41 +81,27 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Card className={STAT_TONES.neutral.card}>
-              <CardHeader>
-                <CardDescription>Invoices</CardDescription>
-                <CardTitle className={cn("text-lg tabular-nums", STAT_TONES.neutral.value)}>
-                  {stats.count}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className={STAT_TONES.cash.card}>
-              <CardHeader>
-                <CardDescription>Total billed</CardDescription>
-                <CardTitle className={cn("text-lg tabular-nums", STAT_TONES.cash.value)}>
-                  {formatMoney(stats.totalBilled)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className={STAT_TONES.warn.card}>
-              <CardHeader>
-                <CardDescription>Outstanding</CardDescription>
-                <CardTitle className={cn("text-lg tabular-nums", STAT_TONES.warn.value)}>
-                  {formatMoney(stats.totalOutstanding)}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card className={STAT_TONES.info.card}>
-              <CardHeader>
-                <CardDescription>Overdue</CardDescription>
-                <CardTitle className={cn("text-lg tabular-nums", STAT_TONES.info.value)}>
-                  {stats.overdueCount}
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            {statCards.map((card) => (
+              <Link
+                key={card.label}
+                href={card.tab === "all" ? "/invoices" : `/invoices?tab=${card.tab}`}
+                className="rounded-lg outline-offset-2 transition hover:ring-2 hover:ring-ring/30 focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <Card className={cn("h-full", card.tone.card)}>
+                  <CardHeader>
+                    <CardDescription>{card.label}</CardDescription>
+                    <CardTitle className={cn("text-lg tabular-nums", card.tone.value)}>
+                      {card.value}
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+              </Link>
+            ))}
           </div>
 
-          <InvoicesTable invoices={invoices} />
+          <Suspense fallback={<div className="h-64 rounded-md border border-border" />}>
+            <InvoicesTable invoices={invoices} />
+          </Suspense>
         </>
       )}
     </section>
