@@ -51,6 +51,9 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
               </p>
               <p className={styles.val}>DATE: {formatInvoiceDate(state.date)}</p>
               <p className={styles.val}>DUE DATE: {formatInvoiceDate(state.due)}</p>
+              {state.campaignName && (
+                <p className={styles.val}>CAMPAIGN: {state.campaignName}</p>
+              )}
             </div>
           </div>
 

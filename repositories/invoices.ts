@@ -39,6 +39,9 @@ export interface InvoiceRecord {
   id: string;
   status: InvoiceStatus;
   invoiceNo: string; // stored literally as typed, e.g. "0007" — see lib/invoice.ts's buildInvoiceNumber
+  brandId: string | null; // → Brand (repositories/brands.ts); null for a one-off not tied to a CRM brand. client.name stays the snapshot shown on the invoice.
+  editorTransactionId: string | null; // → EditorTransaction (repositories/editorTransactions.ts); null when no editing job is linked. Used to show billed-vs-editor-cost margin.
+  campaignName: string; // the brand campaign this invoice bills for
   issueDate: string; // yyyy-mm-dd, as produced by <input type="date">
   dueDate: string; // yyyy-mm-dd
   client: InvoiceClient;
@@ -58,6 +61,9 @@ export interface Invoice extends InvoiceRecord {
 export interface NewInvoice {
   status: InvoiceStatus;
   invoiceNo: string;
+  brandId: string | null;
+  editorTransactionId: string | null;
+  campaignName: string;
   issueDate: string;
   dueDate: string;
   client: InvoiceClient;

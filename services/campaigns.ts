@@ -262,3 +262,28 @@ export async function updateCampaign(input: CampaignUpdate): Promise<void> {
 
   await updateSheetRange(sheetId, `${tab}!A${rowNumber}:${columnLetter(header.length - 1)}${rowNumber}`, [row]);
 }
+
+// Writes just the "Payment" column for the row matching campaignId, leaving
+// every other cell (and its dropdown validation) untouched. Powers the
+// dashboard's one-click "Mark received" action on the payments-due list;
+// readers (repositories/earnings.ts, repositories/brandCampaigns.ts) match
+// this column case-insensitively, so "Received" / "No" round-trip cleanly.
+export async function setCampaignPayment(campaignId: string, value: string): Promise<void> {
+  const { sheetId, tab } = getSheetConfig();
+
+  const rows = await fetchSheetRows(sheetId, tab);
+  const [header, ...body] = rows;
+  if (!header) throw new Error("Sheet has no header row");
+
+  const columnIndex = (name: string) => header.findIndex((h) => h.trim() === name);
+  const campaignIdCol = columnIndex("Campaign ID");
+  if (campaignIdCol < 0) throw new Error('"Campaign ID" column not found');
+  const paymentCol = columnIndex("Payment");
+  if (paymentCol < 0) throw new Error('"Payment" column not found');
+
+  const rowIndex0 = body.findIndex((r) => r[campaignIdCol] === campaignId);
+  if (rowIndex0 < 0) throw new Error(`Campaign "${campaignId}" not found in the sheet`);
+  const rowNumber = rowIndex0 + 2; // +1 for the header row, +1 to go 0-based -> 1-based
+
+  await updateSheetRange(sheetId, `${tab}!${columnLetter(paymentCol)}${rowNumber}`, [[value]]);
+}

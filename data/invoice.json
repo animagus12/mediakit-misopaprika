@@ -1,6 +1,7 @@
 {
   "brandHandle": "@misopaprika",
   "invoiceNumberSeed": "0007",
+  "campaignNameSeed": "",
   "dueInDays": 5,
   "billedToPlaceholder": {
     "name": "Motoblox DIY",

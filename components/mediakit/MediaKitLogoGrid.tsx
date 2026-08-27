@@ -16,7 +16,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,6 +73,15 @@ function SortableLogoItem({ id, index, logo, actions }: SortableLogoItemProps) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logo.src} alt="" />
         </button>
+        <button
+          type="button"
+          className={styles.logoRemove}
+          title={`Remove logo ${index + 1}`}
+          aria-label={`Remove logo ${index + 1}`}
+          onClick={() => actions.removeLogo(index)}
+        >
+          <X size={12} />
+        </button>
         <span
           className={styles.logoDragHandle}
           title="Drag to reorder"
@@ -115,7 +124,7 @@ export function MediaKitLogoGrid({ state, actions, brandLogos }: MediaKitLogoGri
   return (
     <>
       <Label className={styles.fieldLabel}>
-        Logos — tap image to replace, drag the handle to reorder
+        Logos — tap image to replace, drag the handle to reorder, × to remove
       </Label>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={itemIds} strategy={rectSortingStrategy}>
@@ -133,19 +142,15 @@ export function MediaKitLogoGrid({ state, actions, brandLogos }: MediaKitLogoGri
         </SortableContext>
       </DndContext>
 
-      <div className={styles.row} style={{ marginTop: "10px" }}>
-        <Button type="button" variant="outline" className="w-full" onClick={actions.addLogo}>
-          + Add brand
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={actions.removeLastLogo}
-        >
-          − Remove last
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        style={{ marginTop: "10px" }}
+        onClick={actions.addLogo}
+      >
+        + Add brand
+      </Button>
 
       {brandLogos.length > 0 && (
         <Button

@@ -25,7 +25,7 @@ export const navEntries: NavEntry[] = [
     access: "protected",
   },
   {
-    href: "/invoice-generator",
+    href: "/invoices",
     title: "Invoices",
     description: "Create, revisit, and edit invoices for brand collaborations.",
     Icon: FileText,

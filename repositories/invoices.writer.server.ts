@@ -38,6 +38,9 @@ function normalize(input: NewInvoice): NewInvoice {
   return {
     status: input.status,
     invoiceNo: input.invoiceNo.trim(),
+    brandId: input.brandId?.trim() || null,
+    editorTransactionId: input.editorTransactionId?.trim() || null,
+    campaignName: input.campaignName.trim(),
     issueDate: input.issueDate,
     dueDate: input.dueDate,
     client: {

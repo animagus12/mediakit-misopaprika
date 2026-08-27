@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,69 +9,160 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { EarningsOverview } from "@/components/dashboard/EarningsOverview";
 import { PaymentsDueCard } from "@/components/dashboard/PaymentsDueCard";
+import { NeedsAttentionCard } from "@/components/dashboard/NeedsAttentionCard";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { SyncStatus } from "@/components/dashboard/SyncStatus";
 import { CollaborationsSection } from "@/components/dashboard/CollaborationsSection";
 import { navEntries } from "@/lib/navigation";
 import { earningsRepository } from "@/repositories/earnings";
 import { collaborationRepository } from "@/repositories/collaborations";
 import { fetchBrandCampaignRecords } from "@/repositories/brandCampaigns";
+import { getAgencies } from "@/repositories/agencies.writer.server";
+import { getEditors } from "@/repositories/editors.writer.server";
+import { getBrands } from "@/repositories/brands.writer.server";
+import { getContacts } from "@/repositories/contacts.writer.server";
+import { getInvoices } from "@/repositories/invoices.writer.server";
+import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
 import { splitCollaborations } from "@/lib/collaborations";
 import { selectDuePayments } from "@/lib/brandCampaignStats";
+import { selectAttentionItems } from "@/lib/dashboardAttention";
+import { buildDashboardNavBadges } from "@/lib/dashboardNav";
 
-export default async function HomePage() {
-  const earnings = await earningsRepository.getSummary().catch(() => null);
-  const duePayments = await fetchBrandCampaignRecords()
-    .then((records) => selectDuePayments(records))
-    .catch(() => []);
-
-  let active: ReturnType<typeof splitCollaborations>["active"] = [];
-  let past: ReturnType<typeof splitCollaborations>["past"] = [];
-  let collaborationsError: string | null = null;
-  try {
-    const collaborations = await collaborationRepository.getAll();
-    ({ active, past } = splitCollaborations(collaborations));
-  } catch (err) {
-    collaborationsError = err instanceof Error ? err.message : "Something went wrong";
-  }
-
+// The shell (title, sync status, quick actions) paints immediately; each
+// data-backed section streams in behind its own <Suspense> so the slowest
+// fetch (the campaigns sheet) never holds up the rest of the page.
+export default function HomePage() {
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-10">
-      <div className="mb-6 space-y-1">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
+        <SyncStatus syncedAtISO={new Date().toISOString()} />
       </div>
 
-      <PaymentsDueCard due={duePayments} className="mb-8" />
+      <Suspense fallback={<QuickActionsSkeleton />}>
+        <QuickActionsSection />
+      </Suspense>
 
-      {earnings && <EarningsOverview summary={earnings} />}
+      <Suspense fallback={<Skeleton className="mb-8 h-36 w-full rounded-lg" />}>
+        <PaymentsAttentionSection />
+      </Suspense>
 
-      <CollaborationsSection active={active} past={past} error={collaborationsError} />
+      <Suspense fallback={<Skeleton className="mb-8 h-72 w-full rounded-lg" />}>
+        <EarningsSection />
+      </Suspense>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {navEntries.map(({ href, title, description, Icon, access }) => (
-          <Link key={href} href={href} className="group">
-            <Card className="h-full transition hover:ring-foreground/20">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Icon className="size-4 text-muted-foreground" />
-                    <CardTitle>{title}</CardTitle>
-                  </div>
-                  <ArrowUpRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+      <Suspense fallback={<Skeleton className="mb-8 h-48 w-full rounded-lg" />}>
+        <CollaborationsContainer />
+      </Suspense>
+
+      <Suspense fallback={<NavCardsSkeleton />}>
+        <NavCardsSection />
+      </Suspense>
+    </div>
+  );
+}
+
+async function QuickActionsSection() {
+  const [agencies, editors] = await Promise.all([
+    getAgencies().catch(() => []),
+    getEditors().catch(() => []),
+  ]);
+  return <QuickActions agencies={agencies} editors={editors} className="mb-8" />;
+}
+
+async function PaymentsAttentionSection() {
+  const records = await fetchBrandCampaignRecords().catch(() => []);
+  return (
+    <>
+      <PaymentsDueCard due={selectDuePayments(records)} className="mb-8" />
+      <NeedsAttentionCard items={selectAttentionItems(records)} className="mb-8" />
+    </>
+  );
+}
+
+async function EarningsSection() {
+  const earnings = await earningsRepository.getSummary().catch(() => null);
+  if (!earnings) return null;
+  return <EarningsOverview summary={earnings} />;
+}
+
+async function CollaborationsContainer() {
+  let active: ReturnType<typeof splitCollaborations>["active"] = [];
+  let past: ReturnType<typeof splitCollaborations>["past"] = [];
+  let error: string | null = null;
+  try {
+    ({ active, past } = splitCollaborations(await collaborationRepository.getAll()));
+  } catch (err) {
+    error = err instanceof Error ? err.message : "Something went wrong";
+  }
+  return <CollaborationsSection active={active} past={past} error={error} />;
+}
+
+async function NavCardsSection() {
+  const [brands, contacts, invoices, editorTransactions] = await Promise.all([
+    getBrands().catch(() => []),
+    getContacts().catch(() => []),
+    getInvoices().catch(() => []),
+    getEditorTransactions().catch(() => []),
+  ]);
+  const navBadges = buildDashboardNavBadges({ invoices, brands, contacts, editorTransactions });
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {navEntries.map(({ href, title, description, Icon, access }) => (
+        <Link key={href} href={href} className="group">
+          <Card className="h-full transition hover:ring-foreground/20">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Icon className="size-4 text-muted-foreground" />
+                  <CardTitle>{title}</CardTitle>
                 </div>
-                <CardDescription>{description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {access === "public" ? (
-                  <Badge variant="outline">Public</Badge>
-                ) : (
-                  <Badge variant="secondary">Password protected</Badge>
-                )}
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+                <ArrowUpRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </div>
+              <CardDescription>{description}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-2">
+              {access === "public" ? (
+                <Badge variant="outline">Public</Badge>
+              ) : (
+                <Badge variant="secondary">Password protected</Badge>
+              )}
+              {navBadges[href] && (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+                >
+                  {navBadges[href]}
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function QuickActionsSkeleton() {
+  return (
+    <div className="mb-8 flex flex-wrap gap-2">
+      {Array.from({ length: 4 }).map((_, index) => (
+        <Skeleton key={index} className="h-6 w-32 rounded-md" />
+      ))}
+    </div>
+  );
+}
+
+function NavCardsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: navEntries.length }).map((_, index) => (
+        <Skeleton key={index} className="h-28 rounded-lg" />
+      ))}
     </div>
   );
 }

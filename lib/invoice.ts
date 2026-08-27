@@ -3,6 +3,12 @@ import type { badgeVariants } from "@/components/ui/badge";
 import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
 import type { Invoice, InvoiceRecord, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
+import type { Brand } from "@/repositories/brands";
+import type { Contact } from "@/repositories/contacts";
+import type { EditorTransaction } from "@/repositories/editorTransactions";
+import { contactsForBrand } from "./contacts";
+import { parseSheetDate } from "./editorTransactions";
+import { normalizeBrandName } from "./brandCampaignStats";
 
 export interface InvoiceLineItem extends InvoiceLineItemInput {
   id: string;
@@ -65,6 +71,7 @@ export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData)
   return {
     ...current,
     invoiceNumberSeed: state.invoiceNo,
+    campaignNameSeed: state.campaignName,
     dueInDays: Math.max(daysBetween(state.date, state.due), 0),
     billedToPlaceholder: {
       name: state.clientName || current.billedToPlaceholder.name,
@@ -156,11 +163,116 @@ export function computeInvoiceStats(invoices: Invoice[], now: Date = new Date())
   for (const invoice of invoices) {
     if (invoice.status === "void") continue;
     count += 1;
-    totalBilled += invoice.subtotal;
-    if (invoice.status !== "paid") totalOutstanding += invoice.balanceDue;
+    // A draft hasn't been issued to the client yet — it's part of the
+    // pipeline (count, overdue nudge) but no money has been billed or is owed.
+    if (invoice.status !== "draft") {
+      totalBilled += invoice.subtotal;
+      if (invoice.status !== "paid") totalOutstanding += invoice.balanceDue;
+    }
     if (isInvoiceOverdue(invoice, now)) overdueCount += 1;
   }
   return { count, totalBilled, totalOutstanding, overdueCount };
+}
+
+// --- List view: filtering, sorting, duplicate detection ---------------------
+// Kept here (not in the client table component) so the list's business rules
+// stay testable and out of the UI, per the project's architecture guide.
+
+export type InvoiceFilter = "all" | "unpaid" | "draft" | "sent" | "paid" | "overdue";
+
+export const INVOICE_FILTER_TABS: { value: InvoiceFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "draft", label: "Draft" },
+  { value: "sent", label: "Sent" },
+  { value: "paid", label: "Paid" },
+  { value: "overdue", label: "Overdue" },
+];
+
+export function isInvoiceFilter(value: string | null | undefined): value is InvoiceFilter {
+  return INVOICE_FILTER_TABS.some((tab) => tab.value === value);
+}
+
+// Every invoice number typed on more than one record — flag every copy so a
+// clash is visible from the list without opening each one.
+export function findDuplicateInvoiceNumbers(invoices: Pick<Invoice, "invoiceNo">[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const invoice of invoices) {
+    const key = invoice.invoiceNo.trim();
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key));
+}
+
+function matchesInvoiceFilter(invoice: Invoice, filter: InvoiceFilter, now: Date): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "unpaid":
+      return invoice.status !== "paid" && invoice.status !== "void";
+    case "overdue":
+      return isInvoiceOverdue(invoice, now);
+    default:
+      return invoice.status === filter;
+  }
+}
+
+function matchesInvoiceQuery(invoice: Invoice, needle: string): boolean {
+  if (!needle) return true;
+  return (
+    buildInvoiceNumber(invoice.invoiceNo).toLowerCase().includes(needle) ||
+    invoice.campaignName.toLowerCase().includes(needle) ||
+    invoice.client.name.toLowerCase().includes(needle) ||
+    invoice.client.contactName.toLowerCase().includes(needle) ||
+    invoice.client.email.toLowerCase().includes(needle)
+  );
+}
+
+export function filterInvoices(
+  invoices: Invoice[],
+  { filter, query }: { filter: InvoiceFilter; query: string },
+  now: Date = new Date()
+): Invoice[] {
+  const needle = query.trim().toLowerCase();
+  return invoices.filter(
+    (invoice) => matchesInvoiceFilter(invoice, filter, now) && matchesInvoiceQuery(invoice, needle)
+  );
+}
+
+export type InvoiceSortColumn = "issueDate" | "dueDate" | "subtotal" | "balanceDue" | "status";
+export type SortDirection = "asc" | "desc";
+
+// Draft → Sent → Paid → Void: pipeline order, so ascending reads left-to-right.
+const INVOICE_STATUS_ORDER: Record<InvoiceStatus, number> = { draft: 0, sent: 1, paid: 2, void: 3 };
+
+export function sortInvoices(
+  invoices: Invoice[],
+  column: InvoiceSortColumn,
+  direction: SortDirection
+): Invoice[] {
+  const factor = direction === "asc" ? 1 : -1;
+  return [...invoices].sort((a, b) => {
+    let delta: number;
+    switch (column) {
+      case "subtotal":
+        delta = a.subtotal - b.subtotal;
+        break;
+      case "balanceDue":
+        delta = a.balanceDue - b.balanceDue;
+        break;
+      case "status":
+        delta = INVOICE_STATUS_ORDER[a.status] - INVOICE_STATUS_ORDER[b.status];
+        break;
+      case "dueDate":
+        delta = a.dueDate.localeCompare(b.dueDate);
+        break;
+      default:
+        delta = a.issueDate.localeCompare(b.issueDate);
+    }
+    // Stable tie-break so re-sorts don't reshuffle equal rows.
+    if (delta === 0) delta = a.createdAt.localeCompare(b.createdAt);
+    return factor * delta;
+  });
 }
 
 // Deterministic (index-based) ids so an SSR render and the first client
@@ -174,6 +286,9 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
   return {
     status: "draft",
     invoiceNo: data.invoiceNumberSeed,
+    brandId: null,
+    editorTransactionId: null,
+    campaignName: data.campaignNameSeed,
     date: todayISO(),
     due: todayISO(data.dueInDays),
     clientName: "",
@@ -204,6 +319,9 @@ export function invoiceRecordToFormState(record: InvoiceRecord): InvoiceFormStat
   return {
     status: record.status,
     invoiceNo: record.invoiceNo,
+    brandId: record.brandId ?? null,
+    editorTransactionId: record.editorTransactionId ?? null,
+    campaignName: record.campaignName ?? "",
     date: record.issueDate,
     due: record.dueDate,
     clientName: record.client.name,
@@ -235,6 +353,9 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
   return {
     status: state.status,
     invoiceNo: state.invoiceNo,
+    brandId: state.brandId,
+    editorTransactionId: state.editorTransactionId,
+    campaignName: state.campaignName,
     issueDate: state.date,
     dueDate: state.due,
     client: {
@@ -271,4 +392,119 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
       stampImage: state.stampImage,
     },
   };
+}
+
+// --- CRM / workspace links -------------------------------------------------
+// View-models for the editor's "link this invoice to …" pickers. Built on
+// the server so the client editor only ever sees flat option lists, never
+// the full Brand/Contact/EditorTransaction domain objects.
+
+export interface InvoiceBrandOption {
+  id: string;
+  name: string;
+  contactNames: string[]; // this brand's contacts (direct + agency), for prefilling "Billed to → Name"
+}
+
+export function buildInvoiceBrandOptions(brands: Brand[], contacts: Contact[]): InvoiceBrandOption[] {
+  return [...brands]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((brand) => ({
+      id: brand.id,
+      name: brand.name,
+      contactNames: contactsForBrand(brand, contacts).map((contact) => contact.name),
+    }));
+}
+
+export interface InvoiceEditorJobOption {
+  id: string;
+  video: string;
+  editor: string;
+  amount: number | null;
+  status: string;
+}
+
+// Most recent (by assigned date) first — the job a fresh invoice is most
+// likely to bill for. Cancelled jobs are dropped: nothing to bill against.
+export function buildInvoiceEditorJobOptions(transactions: EditorTransaction[]): InvoiceEditorJobOption[] {
+  return transactions
+    .filter((txn) => txn.status.trim().toLowerCase() !== "cancelled")
+    .slice()
+    .sort((a, b) => {
+      const delta = parseSheetDate(b.videoDate) - parseSheetDate(a.videoDate);
+      return Number.isNaN(delta) ? 0 : delta;
+    })
+    .map((txn) => ({
+      id: txn.id,
+      video: txn.video,
+      editor: txn.editor,
+      amount: txn.amount,
+      status: txn.status,
+    }));
+}
+
+export interface InvoiceMargin {
+  editorCost: number;
+  margin: number; // invoice subtotal − editor cost
+}
+
+// Billed-vs-editor-cost for an invoice with a linked editing job. Returns
+// null when nothing is linked so callers can render a dash instead of ₹0.
+export function computeInvoiceMargin(
+  invoice: Pick<Invoice, "subtotal" | "editorTransactionId">,
+  jobs: InvoiceEditorJobOption[]
+): InvoiceMargin | null {
+  if (!invoice.editorTransactionId) return null;
+  const job = jobs.find((entry) => entry.id === invoice.editorTransactionId);
+  if (!job) return null;
+  const editorCost = job.amount ?? 0;
+  return { editorCost, margin: invoice.subtotal - editorCost };
+}
+
+// Invoices belonging to a brand: an explicit brandId link, or — for invoices
+// saved before the link existed / one-offs typed by hand — a case-insensitive
+// match on the snapshotted client name.
+export function invoicesForBrand(
+  brand: Pick<Brand, "id" | "name">,
+  invoices: Invoice[]
+): Invoice[] {
+  const key = normalizeBrandName(brand.name);
+  return invoices.filter(
+    (invoice) =>
+      invoice.brandId === brand.id ||
+      (!invoice.brandId && key.length > 0 && normalizeBrandName(invoice.client.name) === key)
+  );
+}
+
+// Resolves the Campaigns sheet's free-text "Invoice ID" column to a saved
+// invoice record. The sheet value is entered by hand and inconsistent —
+// "MSP-INV-0007", "0007", "7" all mean the same invoice — so match on the
+// full label, the raw number, and the zero-stripped number.
+export function findInvoiceBySheetId(sheetId: string, invoices: Invoice[]): Invoice | undefined {
+  const needle = sheetId.trim().toLowerCase();
+  if (!needle) return undefined;
+  return invoices.find((invoice) => {
+    const no = invoice.invoiceNo.trim().toLowerCase();
+    if (!no) return false;
+    return (
+      needle === no ||
+      needle === no.replace(/^0+/, "") ||
+      needle === buildInvoiceNumber(invoice.invoiceNo).toLowerCase()
+    );
+  });
+}
+
+// A one-line note when the sheet's Payment column and the saved invoice's
+// status disagree, so the mismatch is visible without opening both. null
+// when they're consistent (or too loosely related to compare).
+export function invoicePaymentMismatch(
+  sheetStatus: "received" | "pending" | "unknown",
+  invoiceStatus: InvoiceStatus
+): string | null {
+  if (sheetStatus === "received" && invoiceStatus !== "paid" && invoiceStatus !== "void") {
+    return "Sheet says received — invoice isn't marked paid";
+  }
+  if (sheetStatus === "pending" && invoiceStatus === "paid") {
+    return "Invoice marked paid — sheet still says pending";
+  }
+  return null;
 }

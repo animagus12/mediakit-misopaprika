@@ -1,5 +1,11 @@
 import "server-only";
-import { appendCampaign, fetchCampaigns, updateCampaign, type CampaignRow } from "@/services/campaigns";
+import {
+  appendCampaign,
+  fetchCampaigns,
+  setCampaignPayment,
+  updateCampaign,
+  type CampaignRow,
+} from "@/services/campaigns";
 import { toSheetDate, type CollaborationType } from "@/lib/collaborations";
 
 export type { CollaborationType };
@@ -64,6 +70,12 @@ export interface ICollaborationRepository {
   getAll(): Promise<Collaboration[]>;
   create(input: NewCollaboration): Promise<void>;
   update(input: CollaborationUpdate): Promise<void>;
+  // Marks the deal's payment as collected without touching any other column —
+  // the dashboard's quick action on a payments-due row.
+  setPaymentReceived(campaignId: string): Promise<void>;
+  // Reverts that — puts the Payment column back to the sheet's "pending"
+  // value. Backs the Undo on the "Mark received" toast.
+  setPaymentPending(campaignId: string): Promise<void>;
 }
 
 class SheetsCollaborationRepository implements ICollaborationRepository {
@@ -99,6 +111,16 @@ class SheetsCollaborationRepository implements ICollaborationRepository {
       amount: input.amount,
       barterValue: input.barterValue,
     });
+  }
+
+  async setPaymentReceived(campaignId: string): Promise<void> {
+    await setCampaignPayment(campaignId, "Received");
+  }
+
+  async setPaymentPending(campaignId: string): Promise<void> {
+    // "No" is the sheet's canonical pending marker — see isPending() in
+    // repositories/earnings.ts and repositories/brandCampaigns.ts.
+    await setCampaignPayment(campaignId, "No");
   }
 }
 
