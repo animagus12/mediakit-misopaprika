@@ -70,8 +70,10 @@ const AppSideBar = ({ photo }: AppSideBarProps) => {
       <SidebarSeparator />
       <SidebarFooter className="px-4 pb-6 pt-4 text-xs text-muted-foreground">
         <div className="rounded-2xl border border-border/70 bg-muted px-3 py-3">
-          <p className="font-medium">Quick links</p>
-          <p className="mt-1 text-[0.82rem] leading-tight">Jump to any part of the dashboard.</p>
+          <p className="font-medium">Deployed version</p>
+          <p className="mt-1 font-mono text-[0.82rem] leading-tight">
+            {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
+          </p>
         </div>
       </SidebarFooter>
     </Sidebar>
