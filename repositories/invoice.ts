@@ -48,6 +48,7 @@ export interface InvoiceBarterDefaults {
 export interface InvoiceData {
   brandHandle: string;
   invoiceNumberSeed: string;
+  campaignNameSeed: string; // carried forward from the last invoice, like invoiceNumberSeed
   dueInDays: number;
   billedToPlaceholder: InvoiceContact;
   defaultItems: InvoiceLineItemInput[];

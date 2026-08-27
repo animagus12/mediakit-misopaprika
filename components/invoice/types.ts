@@ -5,6 +5,7 @@ import type { InvoiceStatus } from "@/repositories/invoices";
 export interface InvoiceFormState {
   status: InvoiceStatus;
   invoiceNo: string;
+  campaignName: string;
   date: string;
   due: string;
   clientName: string;
@@ -37,6 +38,7 @@ export interface InvoiceFormActions {
   applyPreset: (presetId: string) => void;
   reset: () => void;
   save: () => void;
+  download: () => void;
   setQrImage: (dataUrl: string | null) => void;
   setStampImage: (dataUrl: string | null) => void;
 }

@@ -6,7 +6,7 @@ import {
   createInvoice as createInvoiceAction,
   saveInvoiceDefaults,
   updateInvoice as updateInvoiceAction,
-} from "@/app/invoice-generator/actions";
+} from "@/app/invoices/actions";
 import {
   formStateToInvoiceInput,
   invoiceDefaultsToFormState,
@@ -121,15 +121,12 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
     showToast("Fields reset");
   }, [data.defaultItems, data.dueInDays, showToast, withFreshIds]);
 
-  // window.print() fires first so the dialog appears with no added latency;
-  // persisting the invoice happens in the background and only surfaces a
-  // toast, so it doesn't compete with the print dialog for attention. For a
-  // brand-new invoice the current form is also carried forward as the
-  // defaults for the next one (the pre-list behaviour of "Save as PDF"),
-  // then the URL swaps to the saved record so a second Save updates it
-  // rather than creating a duplicate.
+  // Persists the invoice without touching the print dialog — "Save" and
+  // "Download PDF" are separate actions. For a brand-new invoice the current
+  // form is also carried forward as the defaults for the next one (invoice
+  // number, campaign name, payee details, line items, …), then the URL swaps
+  // to the saved record so a second Save updates it rather than duplicating.
   const save = useCallback(() => {
-    window.print();
     const input = formStateToInvoiceInput(state);
     startSaveTransition(async () => {
       if (invoice) {
@@ -143,9 +140,17 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
         return;
       }
       await saveInvoiceDefaults(toInvoiceDefaults(state, data));
-      router.replace(`/invoice-generator/${result.id}`);
+      showToast("Invoice saved");
+      router.replace(`/invoices/${result.id}`);
     });
   }, [state, data, invoice, router, showToast]);
+
+  // Opens the browser's print/Save-as-PDF dialog for the live preview. The
+  // invoice.module.css @media print rules hide the controls panel, so only
+  // the A4 sheet prints. Independent of Save — the record isn't touched.
+  const download = useCallback(() => {
+    window.print();
+  }, []);
 
   const setQrImage = useCallback((dataUrl: string | null) => {
     setState((prev) => ({ ...prev, qrImage: dataUrl }));
@@ -164,6 +169,7 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
       applyPreset,
       reset,
       save,
+      download,
       setQrImage,
       setStampImage,
     }),
@@ -175,6 +181,7 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
       applyPreset,
       reset,
       save,
+      download,
       setQrImage,
       setStampImage,
     ]
