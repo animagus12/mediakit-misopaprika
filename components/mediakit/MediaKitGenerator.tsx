@@ -83,13 +83,16 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
     showToast("Tap the new circle to pick its logo");
   }, [state.logos.length, showToast]);
 
-  const removeLastLogo = useCallback(() => {
-    if (state.logos.length <= MIN_LOGOS) {
-      showToast("Keep at least one");
-      return;
-    }
-    setState((prev) => ({ ...prev, logos: prev.logos.slice(0, -1) }));
-  }, [state.logos.length, showToast]);
+  const removeLogo = useCallback(
+    (index: number) => {
+      if (state.logos.length <= MIN_LOGOS) {
+        showToast("Keep at least one");
+        return;
+      }
+      setState((prev) => ({ ...prev, logos: prev.logos.filter((_, i) => i !== index) }));
+    },
+    [state.logos.length, showToast]
+  );
 
   // Additive — skips any brand logo already in the grid (matched by image
   // URL) so re-running the sync after adding more brands doesn't duplicate
@@ -215,7 +218,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
       updateAddon,
       updateTileStat,
       addLogo,
-      removeLastLogo,
+      removeLogo,
       setLogoUrl,
       addBrandLogos,
       reorderLogos,
@@ -234,7 +237,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
       updateAddon,
       updateTileStat,
       addLogo,
-      removeLastLogo,
+      removeLogo,
       setLogoUrl,
       addBrandLogos,
       reorderLogos,

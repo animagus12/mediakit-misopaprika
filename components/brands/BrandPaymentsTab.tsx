@@ -9,10 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatMoney } from "@/lib/invoice";
+import Link from "next/link";
+import { findInvoiceBySheetId, formatMoney, invoicePaymentMismatch } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { BrandCampaignPaymentStatus, BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { BrandStats } from "@/lib/brandCampaignStats";
+import type { Invoice } from "@/repositories/invoices";
 
 const STAT_TONES = {
   neutral: { card: "", value: "" },
@@ -45,9 +47,10 @@ function paymentStatusStyle(status: BrandCampaignPaymentStatus): StatusStyle {
 interface BrandPaymentsTabProps {
   stats: BrandStats;
   records: BrandCampaignRecord[];
+  invoices: Invoice[]; // this brand's saved invoices, for reconciling the sheet's Invoice ID column
 }
 
-export function BrandPaymentsTab({ stats, records }: BrandPaymentsTabProps) {
+export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -96,10 +99,25 @@ export function BrandPaymentsTab({ stats, records }: BrandPaymentsTabProps) {
             <TableBody>
               {records.map((record) => {
                 const status = paymentStatusStyle(record.paymentStatus);
+                const matchedInvoice = findInvoiceBySheetId(record.invoiceId, invoices);
+                const mismatch = matchedInvoice
+                  ? invoicePaymentMismatch(record.paymentStatus, matchedInvoice.status)
+                  : null;
                 return (
                   <TableRow key={record.campaignId || `${record.campaign}-${record.date}`}>
                     <TableCell className="max-w-40 truncate font-medium">{record.campaign || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{record.invoiceId || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {matchedInvoice ? (
+                        <Link href={`/invoices/${matchedInvoice.id}`} className="text-foreground hover:underline">
+                          {record.invoiceId}
+                        </Link>
+                      ) : (
+                        record.invoiceId || "—"
+                      )}
+                      {mismatch && (
+                        <span className="block text-[11px] text-amber-600 dark:text-amber-400">{mismatch}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{formatMoney(record.total)}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant} className={status.className}>

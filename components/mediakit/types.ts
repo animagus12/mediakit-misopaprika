@@ -50,7 +50,7 @@ export interface MediaKitFormActions {
   updateAddon: (index: number, field: "name" | "price", value: string) => void;
   updateTileStat: (tileIndex: number, key: keyof MediaKitTileStats, value: string) => void;
   addLogo: () => void;
-  removeLastLogo: () => void;
+  removeLogo: (index: number) => void;
   setLogoUrl: (index: number, url: string) => void;
   addBrandLogos: (logos: MediaKitLogo[]) => void;
   reorderLogos: (fromIndex: number, toIndex: number) => void;

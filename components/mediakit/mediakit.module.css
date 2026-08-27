@@ -238,6 +238,31 @@
   color: var(--mediakit-accent);
 }
 
+/* Two-class selector so it beats the generic `.logoGrid button` rule above,
+   which would otherwise stretch this to a full-width circle. */
+.logoGrid .logoRemove {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  aspect-ratio: auto;
+  border-radius: 50%;
+  border: 1px solid var(--mediakit-panel-line);
+  background: var(--background);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.logoGrid .logoRemove:hover {
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+
 .logoLinkInput {
   width: 100%;
   height: 24px;

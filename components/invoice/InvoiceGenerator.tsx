@@ -13,6 +13,8 @@ import {
   invoiceRecordToFormState,
   todayISO,
   toInvoiceDefaults,
+  type InvoiceBrandOption,
+  type InvoiceEditorJobOption,
   type InvoiceLineItem,
 } from "@/lib/invoice";
 import type { InvoiceData } from "@/repositories/invoice";
@@ -22,19 +24,47 @@ import { InvoicePreview } from "./InvoicePreview";
 import type { InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
 
-function buildInitialState(data: InvoiceData, invoice?: Invoice): InvoiceFormState {
-  return invoice ? invoiceRecordToFormState(invoice) : invoiceDefaultsToFormState(data);
+function buildInitialState(
+  data: InvoiceData,
+  invoice: Invoice | undefined,
+  brandOptions: InvoiceBrandOption[],
+  initialBrandId?: string
+): InvoiceFormState {
+  if (invoice) return invoiceRecordToFormState(invoice);
+  const base = invoiceDefaultsToFormState(data);
+  // Deep-linked from a brand ("New invoice" on /brands/[id]) — pre-select it
+  // and seed the shown client name from the brand.
+  const brand = initialBrandId ? brandOptions.find((option) => option.id === initialBrandId) : undefined;
+  if (!brand) return base;
+  return {
+    ...base,
+    brandId: brand.id,
+    clientName: brand.name,
+    clientContactName: brand.contactNames.length === 1 ? brand.contactNames[0] : base.clientContactName,
+  };
 }
 
 interface InvoiceGeneratorProps {
   data: InvoiceData;
   invoice?: Invoice;
   takenInvoiceNumbers?: string[];
+  brandOptions?: InvoiceBrandOption[];
+  editorJobOptions?: InvoiceEditorJobOption[];
+  initialBrandId?: string;
 }
 
-export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: InvoiceGeneratorProps) {
+export function InvoiceGenerator({
+  data,
+  invoice,
+  takenInvoiceNumbers = [],
+  brandOptions = [],
+  editorJobOptions = [],
+  initialBrandId,
+}: InvoiceGeneratorProps) {
   const router = useRouter();
-  const [state, setState] = useState<InvoiceFormState>(() => buildInitialState(data, invoice));
+  const [state, setState] = useState<InvoiceFormState>(() =>
+    buildInitialState(data, invoice, brandOptions, initialBrandId)
+  );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
 
@@ -64,6 +94,33 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
     },
     []
   );
+
+  // Links the invoice to a CRM brand and pulls the brand name onto the sheet
+  // (and its sole contact, when there's exactly one and no name typed yet).
+  // The snapshot fields stay editable — this is a convenience, not a lock.
+  const selectBrand = useCallback(
+    (brandId: string | null) => {
+      setState((prev) => {
+        if (!brandId) return { ...prev, brandId: null };
+        const brand = brandOptions.find((option) => option.id === brandId);
+        if (!brand) return { ...prev, brandId };
+        return {
+          ...prev,
+          brandId,
+          clientName: brand.name,
+          clientContactName:
+            !prev.clientContactName.trim() && brand.contactNames.length === 1
+              ? brand.contactNames[0]
+              : prev.clientContactName,
+        };
+      });
+    },
+    [brandOptions]
+  );
+
+  const selectEditorJob = useCallback((editorTransactionId: string | null) => {
+    setState((prev) => ({ ...prev, editorTransactionId }));
+  }, []);
 
   const updateItem = useCallback(
     (id: string, field: "desc" | "sub" | "qty" | "price", value: string) => {
@@ -111,6 +168,8 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
     setState((prev) => ({
       ...prev,
       items: withFreshIds(data.defaultItems),
+      brandId: null,
+      editorTransactionId: null,
       clientName: "",
       clientContactName: "",
       clientEmail: "",
@@ -163,6 +222,8 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
   const actions = useMemo(
     () => ({
       setField,
+      selectBrand,
+      selectEditorJob,
       updateItem,
       removeItem,
       addItem,
@@ -175,6 +236,8 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
     }),
     [
       setField,
+      selectBrand,
+      selectEditorJob,
       updateItem,
       removeItem,
       addItem,
@@ -196,6 +259,8 @@ export function InvoiceGenerator({ data, invoice, takenInvoiceNumbers = [] }: In
         presets={data.presets}
         billedToPlaceholder={data.billedToPlaceholder}
         takenInvoiceNumbers={takenInvoiceNumbers}
+        brandOptions={brandOptions}
+        editorJobOptions={editorJobOptions}
         isSaving={isSaving}
         isExisting={invoice != null}
         onImageUploadError={showToast}

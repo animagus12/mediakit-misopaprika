@@ -5,6 +5,8 @@ import type { InvoiceStatus } from "@/repositories/invoices";
 export interface InvoiceFormState {
   status: InvoiceStatus;
   invoiceNo: string;
+  brandId: string | null;
+  editorTransactionId: string | null;
   campaignName: string;
   date: string;
   due: string;
@@ -32,6 +34,8 @@ export interface InvoiceFormState {
 
 export interface InvoiceFormActions {
   setField: <K extends keyof InvoiceFormState>(field: K, value: InvoiceFormState[K]) => void;
+  selectBrand: (brandId: string | null) => void;
+  selectEditorJob: (editorTransactionId: string | null) => void;
   updateItem: (id: string, field: "desc" | "sub" | "qty" | "price", value: string) => void;
   removeItem: (id: string) => void;
   addItem: () => void;
