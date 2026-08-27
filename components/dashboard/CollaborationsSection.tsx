@@ -19,7 +19,7 @@ import type { Collaboration } from "@/repositories/collaborations";
 import { computeCollaborationStats } from "@/lib/collaborations";
 import { formatMoney } from "@/lib/invoice";
 import { NewCollaborationButton } from "./NewCollaborationButton";
-import { EditCollaborationSheet } from "./EditCollaborationSheet";
+import { ActiveCollaborationCard } from "./ActiveCollaborationCard";
 
 interface StatusStyle {
   variant: VariantProps<typeof badgeVariants>["variant"];
@@ -137,39 +137,9 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {active.map((collab) => {
-            const status = statusStyle(collab.status);
-            return (
-              <EditCollaborationSheet
-                key={collab.id}
-                collaboration={collab}
-                trigger={
-                  <button
-                    type="button"
-                    className="w-full rounded-lg border-0 bg-transparent p-0 text-left transition hover:ring-2 hover:ring-primary/20 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none"
-                  >
-                    <Card size="sm">
-                      <CardContent className="space-y-0.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate font-heading text-sm font-medium">
-                            {collab.brand}
-                          </span>
-                          <Badge variant={status.variant} className={status.className}>
-                            {collab.status}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="truncate">{collab.reels || "No reels"}</span>
-                          <span className="truncate">{collab.story || "No story"}</span>
-                          {collab.date && <span className="ml-auto shrink-0 whitespace-nowrap">{collab.date}</span>}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </button>
-                }
-              />
-            );
-          })}
+          {active.map((collab) => (
+            <ActiveCollaborationCard key={collab.id} collaboration={collab} />
+          ))}
         </div>
       )}
 
