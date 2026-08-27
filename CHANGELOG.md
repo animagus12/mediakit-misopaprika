@@ -11,7 +11,7 @@
   - Known limit: the match needs both a brand and a campaign name; a sheet row with a blank Campaign cell, or an invoice whose Campaign field was edited to something else, still falls back to the sheet's "Invoice ID" cell.
 ### Changed
 - **Sidebar footer shows the deployed version instead of a static "Quick links" blurb.** The footnote never carried real information; it now surfaces which build is live so a deploy can be confirmed at a glance.
-  - `next.config.ts` — new `resolveDeployedVersion()` runs once at build time and is inlined via `env.NEXT_PUBLIC_APP_VERSION`. Resolves the GitHub release tag: explicit `NEXT_PUBLIC_APP_VERSION` if set, else `git describe --tags --abbrev=0` (nearest reachable tag, exact on a tagged commit), else the highest `vX.Y.Z` tag in the repo, else `VERCEL_GIT_COMMIT_REF`, else `"dev"`. (Vercel builds must fetch tags — set the Deploy Hook / build to run `git fetch --tags` or the `git tag` fallback covers it once tags are present.)
+  - `next.config.ts` — new `resolveDeployedVersion()` runs once at build time and is inlined via `env.NEXT_PUBLIC_APP_VERSION`. `CHANGELOG.md`'s top `## [X.Y.Z]` heading is the source of truth (`changelogVersion()` → `vX.Y.Z`), so it works on Vercel's tag-less shallow clone. Precedence: explicit `NEXT_PUBLIC_APP_VERSION`, else an exact reachable git tag (`git describe --tags --exact-match`), else the changelog version, else the highest `vX.Y.Z` git tag, else `VERCEL_GIT_COMMIT_REF`, else `"dev"`.
   - `components/common/AppSideBar.tsx` — `SidebarFooter` renders "Deployed version" + `process.env.NEXT_PUBLIC_APP_VERSION` in a mono font, replacing the "Quick links" / "Jump to any part of the dashboard." text.
 
 ## [1.15.0] - 2026-08-27

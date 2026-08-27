@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import type { NextConfig } from "next";
 
 function git(command: string): string | null {
@@ -13,16 +14,30 @@ function git(command: string): string | null {
   }
 }
 
+/** Latest released version from the top of CHANGELOG.md, e.g. "v1.15.2". */
+function changelogVersion(): string | null {
+  try {
+    const match = readFileSync("CHANGELOG.md", "utf8").match(
+      /^##\s+\[(\d+\.\d+\.\d+)\]/m,
+    );
+    return match ? `v${match[1]}` : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolve the GitHub release tag for the running deployment, evaluated once at
- * build time. Prefers the nearest reachable tag (`git describe`), falls back to
- * the highest `vX.Y.Z` tag in the repo, then Vercel's git ref, then "dev".
+ * build time. CHANGELOG.md is the source of truth (always in the tree, no git
+ * history needed); a reachable git tag on a tagged commit wins over it, and
+ * Vercel's git ref is the last resort before "dev".
  */
 function resolveDeployedVersion(): string {
   return (
     process.env.NEXT_PUBLIC_APP_VERSION ||
-    git("git describe --tags --abbrev=0") ||
-    git("git tag -l v* --sort=-v:refname") ?.split("\n")[0] ||
+    git("git describe --tags --exact-match") ||
+    changelogVersion() ||
+    git("git tag -l v* --sort=-v:refname")?.split("\n")[0] ||
     process.env.VERCEL_GIT_COMMIT_REF ||
     "dev"
   );
