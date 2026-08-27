@@ -17,6 +17,17 @@ interface NeedsAttentionCardProps {
 
 const MAX_ROWS = 6;
 
+// Carry the brand + campaign into the invoice editor so the saved invoice
+// names the same pair the sheet row does — that's what lets this card stop
+// re-flagging the deal (selectAttentionItems matches on brand + campaign).
+function newInvoiceHref(brand: string, campaign: string): string {
+  const params = new URLSearchParams();
+  if (brand.trim()) params.set("client", brand.trim());
+  if (campaign.trim()) params.set("campaign", campaign.trim());
+  const query = params.toString();
+  return query ? `/invoices/new?${query}` : "/invoices/new";
+}
+
 // Operational open loops — delivered work with no invoice, completed deals
 // with untracked payment — each with the one action that closes it. Sits
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
@@ -59,7 +70,7 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
             <div className="mt-1.5 flex items-center gap-1.5">
               {item.kind === "uninvoiced" ? (
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/invoices/new">
+                  <Link href={newInvoiceHref(item.brand, item.campaign)}>
                     <FileText />
                     Create invoice
                   </Link>

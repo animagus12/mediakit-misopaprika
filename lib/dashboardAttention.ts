@@ -1,4 +1,6 @@
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
+import type { Invoice } from "@/repositories/invoices";
+import { normalizeBrandName } from "@/lib/brandCampaignStats";
 
 // Client-safe pass over BrandCampaignRecord[] that surfaces deals with an
 // open loop the creator still has to close — the operational counterpart to
@@ -24,14 +26,35 @@ function isDelivered(record: BrandCampaignRecord): boolean {
   return normalized(record.status) === "completed" || record.uploadDate.trim() !== "";
 }
 
-// A paid deal gets an Invoice ID auto-assigned when it's added through the
-// app; "" or "-" means nothing was ever raised for it.
-function hasInvoice(record: BrandCampaignRecord): boolean {
-  const id = record.invoiceId.trim();
-  return id !== "" && id !== "-";
+// Whether an invoice exists for this deal — either the Campaigns sheet's
+// "Invoice ID" cell points at one (it's auto-filled for paid deals added
+// through the app), or a saved invoice in the invoices store names the same
+// brand + campaign. The second check is what makes the "Delivered, no invoice
+// raised" item clear itself once the creator saves an invoice from the link,
+// since that save never writes back to the sheet cell. Void invoices don't
+// count — a voided invoice means the deal is still uninvoiced.
+function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
+  const sheetId = record.invoiceId.trim();
+  if (sheetId !== "" && sheetId !== "-") {
+    return true;
+  }
+
+  const brandKey = normalizeBrandName(record.brand);
+  const campaignKey = normalized(record.campaign);
+  if (brandKey === "" || campaignKey === "") return false;
+
+  return invoices.some(
+    (invoice) =>
+      invoice.status !== "void" &&
+      normalizeBrandName(invoice.client.name) === brandKey &&
+      normalized(invoice.campaignName) === campaignKey
+  );
 }
 
-export function selectAttentionItems(records: BrandCampaignRecord[]): AttentionItem[] {
+export function selectAttentionItems(
+  records: BrandCampaignRecord[],
+  invoices: Invoice[] = []
+): AttentionItem[] {
   const items: AttentionItem[] = [];
 
   for (const record of records) {
@@ -39,7 +62,7 @@ export function selectAttentionItems(records: BrandCampaignRecord[]): AttentionI
     // Barter-only deals aren't invoiced or chased for cash here.
     if (record.amount <= 0) continue;
 
-    if (isDelivered(record) && !hasInvoice(record)) {
+    if (isDelivered(record) && !isInvoiced(record, invoices)) {
       items.push({
         kind: "uninvoiced",
         campaignId: record.campaignId,

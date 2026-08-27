@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-08-27
+### Fixed
+- **Dashboard "Needs attention" kept flagging "Delivered, no invoice raised" after an invoice was saved from its own link.** `selectAttentionItems` decided this purely from the Campaigns sheet's "Invoice ID" cell, which a `/invoices/new` save never writes to (it goes to the separate Redis/JSON invoices store); the "Create invoice" link carried no brand/campaign context; and `createInvoice`/`updateInvoice` only revalidated `/invoices`, never `/`.
+  - `lib/dashboardAttention.ts` — `selectAttentionItems(records, invoices?)` now also treats a deal as invoiced when a saved, non-`void` invoice names the same brand + campaign (`normalizeBrandName(invoice.client.name)` + case-insensitive `campaignName`), not just when the sheet cell is filled. `app/(dashboard)/page.tsx`'s `PaymentsAttentionSection` fetches `getInvoices()` and passes it in.
+  - The "Create invoice" (`NeedsAttentionCard.tsx`) and "Invoice" (`PaymentsDueCard.tsx`) links now carry `?client=<brand>&campaign=<campaign>`; `app/invoices/new/page.tsx` reads them and `InvoiceGenerator`'s `buildInitialState` seeds `campaignName` / `clientName` (brand deep-link still wins for the client name), so the saved invoice matches with no extra typing.
+  - `app/invoices/actions.ts` — `createInvoice` / `updateInvoice` / `removeInvoice` now also `revalidatePath("/")` so the dashboard reflects the change on save.
+  - Known limit: the match needs both a brand and a campaign name; a sheet row with a blank Campaign cell, or an invoice whose Campaign field was edited to something else, still falls back to the sheet's "Invoice ID" cell.
+
 ## [1.15.0] - 2026-08-27
 ### Added
 - **Dashboard payments/attention cards are now act-on-able, not just read-outs.** The two top-of-page cards showed money owed and open loops but every next step lived on another page.

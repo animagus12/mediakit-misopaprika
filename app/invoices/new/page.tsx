@@ -15,11 +15,11 @@ export const metadata: Metadata = {
 };
 
 interface NewInvoicePageProps {
-  searchParams: Promise<{ brandId?: string }>;
+  searchParams: Promise<{ brandId?: string; campaign?: string; client?: string }>;
 }
 
 export default async function NewInvoicePage({ searchParams }: NewInvoicePageProps) {
-  const { brandId } = await searchParams;
+  const { brandId, campaign, client } = await searchParams;
   const data = await getInvoiceData();
 
   // The handle shown on the invoice header is the media kit's handle, so the
@@ -58,6 +58,8 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
         brandOptions={brandOptions}
         editorJobOptions={editorJobOptions}
         initialBrandId={brandId}
+        initialCampaignName={campaign}
+        initialClientName={client}
       />
     </AppShell>
   );

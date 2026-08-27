@@ -74,11 +74,14 @@ async function QuickActionsSection() {
 }
 
 async function PaymentsAttentionSection() {
-  const records = await fetchBrandCampaignRecords().catch(() => []);
+  const [records, invoices] = await Promise.all([
+    fetchBrandCampaignRecords().catch(() => []),
+    getInvoices().catch(() => []),
+  ]);
   return (
     <>
       <PaymentsDueCard due={selectDuePayments(records)} className="mb-8" />
-      <NeedsAttentionCard items={selectAttentionItems(records)} className="mb-8" />
+      <NeedsAttentionCard items={selectAttentionItems(records, invoices)} className="mb-8" />
     </>
   );
 }
