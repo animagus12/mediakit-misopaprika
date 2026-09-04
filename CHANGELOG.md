@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.16.1] - 2026-09-05
+### Changed
+- **Dashboard decluttered of data already shown elsewhere, and two blind spots closed.** An audit of every dashboard card found the Campaigns section duplicating `/campaigns`, and two real signals — overdue invoices, outgoing editor payouts — that only ever showed up as a bare nav-badge count.
+  - `components/dashboard/DashboardCampaignsSection.tsx` — dropped the "Past campaigns" collapsible table (redundant with the dedicated `/campaigns` page, which already lists every campaign with more detail) and the Paid/Barter count cards (redundant with `EarningsOverview`'s cash/barter dollar figures directly above); kept Total campaigns + Highest-value campaign, still computed over full history (`active` + `past`) even though past campaigns are no longer listed here.
+  - `lib/dashboardAttention.ts` — `selectAttentionItems(records, invoices, now?)` gained a third `AttentionKind`, `"overdue-invoice"`, built from the invoices list it already receives (`isInvoiceOverdue` + `balanceDue > 0`); `AttentionItem.campaignId` doubles as the Invoice id for this kind. `components/dashboard/NeedsAttentionCard.tsx` renders it with a **View invoice** link to `/invoices/[id]`.
+  - `lib/dashboardNav.ts` — the `/workspace` nav-card badge now shows the pending payout dollar total (`formatMoney`) instead of just a payout count, since it was the only place on the dashboard showing money owed *by* the creator (vs. `PaymentsDueCard`'s money owed *to* them).
+- **"New campaign" had two identical buttons on the dashboard (`QuickActions` and the Campaigns section header) — consolidated into one, promoted to the top.** Campaign creation is the site's most important add-action, so it now leads `components/dashboard/QuickActions.tsx`'s button row instead of sitting only inside `DashboardCampaignsSection.tsx`'s header (which now shows just "View all"). `QuickActionsSection` in `app/(dashboard)/page.tsx` fetches `getBrands()` alongside its existing agencies/contacts/editors calls to feed the campaign form's brand picker (`campaignBrandOptions` prop, `buildCampaignBrandOptions`).
+
 ## [1.16.0] - 2026-09-05
 ### Added
 - **A new campaign auto-links (or auto-creates) its brand, and incomplete brand profiles are now surfaced instead of sitting silently unfinished.** Previously the "Link to brand" picker only helped if you remembered to use it — typing a brand name and saving left `brandId` null. Now every save resolves it: an exact case-insensitive name match links to that brand; no match creates one on the spot (`status: "Worked With"`, same convention as `importBrandsFromCampaigns`) and links to it. A freshly auto-created brand has no photo or contact, which previously had no visible signal anywhere.

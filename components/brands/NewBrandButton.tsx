@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import type { VariantProps } from "class-variance-authority";
 import {
   Sheet,
   SheetClose,
@@ -21,9 +22,13 @@ import type { Contact } from "@/repositories/contacts";
 interface NewBrandButtonProps {
   agencies: Agency[];
   contacts: Contact[];
+  // Defaults to the primary solid button — /brands' own "Add brand" CTA.
+  // Dashboard QuickActions passes "outline" so New campaign stays the one
+  // prominent action in that row.
+  variant?: VariantProps<typeof buttonVariants>["variant"];
 }
 
-export function NewBrandButton({ agencies, contacts }: NewBrandButtonProps) {
+export function NewBrandButton({ agencies, contacts, variant = "default" }: NewBrandButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(brandInitialForm);
@@ -62,7 +67,7 @@ export function NewBrandButton({ agencies, contacts }: NewBrandButtonProps) {
       }}
     >
       <SheetTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" variant={variant}>
           <Plus className="size-3.5" />
           Add brand
         </Button>

@@ -1,17 +1,19 @@
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { Invoice } from "@/repositories/invoices";
+import { isInvoiceOverdue } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 
-// Client-safe pass over BrandCampaignRecord[] that surfaces deals with an
-// open loop the creator still has to close — the operational counterpart to
-// selectDuePayments (money that's owed on a schedule). Kept out of the
-// "server-only" repository so the dashboard card can import the type freely.
+// Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
+// with an open loop the creator still has to close — the operational
+// counterpart to selectDuePayments (money that's owed on a schedule). Kept
+// out of the "server-only" repository so the dashboard card can import the
+// type freely.
 
-export type AttentionKind = "uninvoiced" | "untracked-payment";
+export type AttentionKind = "uninvoiced" | "untracked-payment" | "overdue-invoice";
 
 export interface AttentionItem {
   kind: AttentionKind;
-  campaignId: string;
+  campaignId: string; // for "overdue-invoice", this is the Invoice id instead — never collides with a real campaign id, and it's all NeedsAttentionCard needs to link to it
   brand: string;
   campaign: string;
   amount: number; // the deal's Total, for ranking + display
@@ -53,7 +55,8 @@ function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
 
 export function selectAttentionItems(
   records: BrandCampaignRecord[],
-  invoices: Invoice[] = []
+  invoices: Invoice[] = [],
+  now: Date = new Date()
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -91,6 +94,22 @@ export function selectAttentionItems(
         label: "Completed, payment not tracked",
       });
     }
+  }
+
+  // Already-raised invoices past their due date — the sharpest follow-up
+  // item there is, and previously only visible as a count badge on the
+  // /invoices nav card.
+  for (const invoice of invoices) {
+    if (invoice.balanceDue <= 0) continue;
+    if (!isInvoiceOverdue(invoice, now)) continue;
+    items.push({
+      kind: "overdue-invoice",
+      campaignId: invoice.id,
+      brand: invoice.client.name,
+      campaign: invoice.campaignName,
+      amount: invoice.balanceDue,
+      label: "Invoice overdue",
+    });
   }
 
   return items.sort((a, b) => b.amount - a.amount);

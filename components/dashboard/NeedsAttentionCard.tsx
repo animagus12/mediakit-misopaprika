@@ -75,6 +75,13 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
                     Create invoice
                   </Link>
                 </Button>
+              ) : item.kind === "overdue-invoice" ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/invoices/${item.campaignId}`}>
+                    <FileText />
+                    View invoice
+                  </Link>
+                </Button>
               ) : item.campaignId ? (
                 <MarkReceivedButton
                   pending={isPending}
