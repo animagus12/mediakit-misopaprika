@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { Badge, type badgeVariants } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Collapsible,
@@ -15,11 +17,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { VariantProps } from "class-variance-authority";
-import type { Collaboration } from "@/repositories/collaborations";
-import { computeCollaborationStats } from "@/lib/collaborations";
+import type { Campaign } from "@/repositories/campaigns";
+import { computeCampaignStats, type CampaignBrandOption } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
-import { NewCollaborationButton } from "./NewCollaborationButton";
-import { ActiveCollaborationCard } from "./ActiveCollaborationCard";
+import { NewCampaignButton } from "@/components/campaigns/NewCampaignButton";
+import { ActiveCampaignCard } from "./ActiveCampaignCard";
 
 interface StatusStyle {
   variant: VariantProps<typeof badgeVariants>["variant"];
@@ -64,37 +66,38 @@ function statusStyle(status: string): StatusStyle {
   }
 }
 
-interface CollaborationsSectionProps {
-  active: Collaboration[];
-  past: Collaboration[];
+interface DashboardCampaignsSectionProps {
+  active: Campaign[];
+  past: Campaign[];
   error?: string | null;
+  brandOptions?: CampaignBrandOption[];
 }
 
-export function CollaborationsSection({ active, past, error }: CollaborationsSectionProps) {
+export function DashboardCampaignsSection({ active, past, error, brandOptions = [] }: DashboardCampaignsSectionProps) {
   if (error) {
     return (
       <section className="mb-8">
-        <SectionHeader />
+        <SectionHeader brandOptions={brandOptions} />
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            Couldn&apos;t load collaborations from Google Sheets — {error}
+            Couldn&apos;t load campaigns — {error}
           </CardContent>
         </Card>
       </section>
     );
   }
 
-  const stats = computeCollaborationStats([...active, ...past]);
+  const stats = computeCampaignStats([...active, ...past]);
 
   return (
     <section className="mb-8 space-y-4">
-      <SectionHeader />
+      <SectionHeader brandOptions={brandOptions} />
 
       {stats.total > 0 && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Card>
             <CardHeader>
-              <CardDescription>Total collaborations</CardDescription>
+              <CardDescription>Total campaigns</CardDescription>
               <CardTitle className="text-lg">{stats.total}</CardTitle>
               {stats.cancelled > 0 && (
                 <p className="text-xs text-muted-foreground">{stats.cancelled} cancelled</p>
@@ -103,19 +106,19 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
           </Card>
           <Card>
             <CardHeader>
-              <CardDescription>Paid collaborations</CardDescription>
+              <CardDescription>Paid campaigns</CardDescription>
               <CardTitle className="text-lg">{stats.paid}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader>
-              <CardDescription>Barter collaborations</CardDescription>
+              <CardDescription>Barter campaigns</CardDescription>
               <CardTitle className="text-lg">{stats.barter}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader>
-              <CardDescription>Highest-value collaboration</CardDescription>
+              <CardDescription>Highest-value campaign</CardDescription>
               <CardTitle className="text-lg">
                 {stats.highestValue ? formatMoney(stats.highestValue.total) : "—"}
               </CardTitle>
@@ -132,13 +135,13 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
       {active.length === 0 ? (
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            No active or upcoming collaborations right now.
+            No active or upcoming campaigns right now.
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {active.map((collab) => (
-            <ActiveCollaborationCard key={collab.id} collaboration={collab} />
+          {active.map((campaign) => (
+            <ActiveCampaignCard key={campaign.id} campaign={campaign} brandOptions={brandOptions} />
           ))}
         </div>
       )}
@@ -146,7 +149,7 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
       {past.length > 0 && (
         <Collapsible>
           <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between rounded-md border border-border px-4 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-            Past collaborations ({past.length})
+            Past campaigns ({past.length})
             <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 overflow-hidden rounded-md border border-border">
@@ -161,17 +164,17 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {past.map((collab) => {
-                  const status = statusStyle(collab.status);
+                {past.map((campaign) => {
+                  const status = statusStyle(campaign.status);
                   return (
-                  <TableRow key={collab.id}>
-                    <TableCell className="max-w-40 truncate font-medium">{collab.brand}</TableCell>
-                    <TableCell className="text-muted-foreground">{collab.reels || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{collab.story || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{collab.date || "—"}</TableCell>
+                  <TableRow key={campaign.id}>
+                    <TableCell className="max-w-40 truncate font-medium">{campaign.brand}</TableCell>
+                    <TableCell className="text-muted-foreground">{campaign.reels || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{campaign.story || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{campaign.date || "—"}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant} className={status.className}>
-                        {collab.status}
+                        {campaign.status}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -186,13 +189,18 @@ export function CollaborationsSection({ active, past, error }: CollaborationsSec
   );
 }
 
-function SectionHeader() {
+function SectionHeader({ brandOptions }: { brandOptions: CampaignBrandOption[] }) {
   return (
     <div className="flex items-start justify-between gap-2">
       <div className="space-y-1">
-        <h2 className="font-heading text-sm font-semibold">Collaborations</h2>
+        <h2 className="font-heading text-sm font-semibold">Campaigns</h2>
       </div>
-      <NewCollaborationButton />
+      <div className="flex items-center gap-2">
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/campaigns">View all</Link>
+        </Button>
+        <NewCampaignButton brandOptions={brandOptions} />
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import brandsJson from "@/data/brands.json";
 
-// Pipeline stage, not a payment/delivery state — mirrors the sheet's own
-// Status column being a separate axis in repositories/collaborations.ts.
+// Pipeline stage, not a payment/delivery state — mirrors Campaign's own
+// status field being a separate axis in repositories/campaigns.ts.
 export type BrandStatus =
   | "Lead"
   | "Contacted"
@@ -14,11 +14,12 @@ export type BrandStatus =
 
 export interface Brand {
   id: string;
-  name: string; // matched (case-insensitively) against the Campaigns sheet's Brand column — see lib/brandCampaignStats.ts
+  name: string; // linked from a Campaign via Campaign.brandId when set; case-insensitively matched as a fallback for older/unlinked campaigns — see lib/brandCampaignStats.ts
   logoUrl: string | null; // Vercel Blob URL
   website: string;
   instagram: string;
   agencyId: string | null; // → Agency; null when the brand deals directly, no agency in between
+  primaryContactId: string | null; // → Contact; which of contactsForBrand() to surface on the brands table when there's more than one — null defers to the first on file
   status: BrandStatus;
   createdAt: string; // ISO datetime
   updatedAt: string;
@@ -30,6 +31,7 @@ export interface NewBrand {
   website: string;
   instagram: string;
   agencyId: string | null;
+  primaryContactId: string | null;
   status: BrandStatus;
 }
 

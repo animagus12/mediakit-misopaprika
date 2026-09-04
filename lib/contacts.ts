@@ -11,9 +11,19 @@ export function contactsForBrand(brand: Pick<Brand, "id" | "agencyId">, contacts
   );
 }
 
-// No "primary" flag on Contact — just the first one on file for this brand.
-export function primaryContactForBrand(brand: Pick<Brand, "id" | "agencyId">, contacts: Contact[]): Contact | null {
-  return contactsForBrand(brand, contacts)[0] ?? null;
+// Defers to the brand's chosen primaryContactId (set on the brand form when
+// there's more than one eligible contact) when it's still among this brand's
+// contacts, falling back to the first one on file otherwise.
+export function primaryContactForBrand(
+  brand: Pick<Brand, "id" | "agencyId" | "primaryContactId">,
+  contacts: Contact[]
+): Contact | null {
+  const eligible = contactsForBrand(brand, contacts);
+  if (brand.primaryContactId) {
+    const chosen = eligible.find((contact) => contact.id === brand.primaryContactId);
+    if (chosen) return chosen;
+  }
+  return eligible[0] ?? null;
 }
 
 export function contactsForAgency(agencyId: string, contacts: Contact[]): Contact[] {

@@ -1,4 +1,4 @@
-import { Building2, Clapperboard, FileText, Sparkles, UserRound } from "lucide-react";
+import { Building2, Clapperboard, FileText, Handshake, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface NavEntry {
@@ -22,6 +22,13 @@ export const navEntries: NavEntry[] = [
     title: "Edit Media kit",
     description: "Edit and publish the content shown on your media kit.",
     Icon: Sparkles,
+    access: "protected",
+  },
+  {
+    href: "/campaigns",
+    title: "Campaigns",
+    description: "Every brand collaboration on record, in one table.",
+    Icon: Handshake,
     access: "protected",
   },
   {

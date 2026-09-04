@@ -126,7 +126,12 @@ export function MediaKitLogoGrid({ state, actions, brandLogos }: MediaKitLogoGri
       <Label className={styles.fieldLabel}>
         Logos — tap image to replace, drag the handle to reorder, × to remove
       </Label>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        id="mediakit-logo-grid"
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
         <SortableContext items={itemIds} strategy={rectSortingStrategy}>
           <div className={styles.logoGrid}>
             {state.logos.map((logo, index) => (

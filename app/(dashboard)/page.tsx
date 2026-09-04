@@ -14,11 +14,11 @@ import { EarningsOverview } from "@/components/dashboard/EarningsOverview";
 import { PaymentsDueCard } from "@/components/dashboard/PaymentsDueCard";
 import { NeedsAttentionCard } from "@/components/dashboard/NeedsAttentionCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { SyncStatus } from "@/components/dashboard/SyncStatus";
-import { CollaborationsSection } from "@/components/dashboard/CollaborationsSection";
+import { LastRefreshed } from "@/components/dashboard/LastRefreshed";
+import { DashboardCampaignsSection } from "@/components/dashboard/DashboardCampaignsSection";
 import { navEntries } from "@/lib/navigation";
 import { earningsRepository } from "@/repositories/earnings";
-import { collaborationRepository } from "@/repositories/collaborations";
+import { campaignRepository } from "@/repositories/campaignRepository";
 import { fetchBrandCampaignRecords } from "@/repositories/brandCampaigns";
 import { getAgencies } from "@/repositories/agencies.writer.server";
 import { getEditors } from "@/repositories/editors.writer.server";
@@ -26,20 +26,20 @@ import { getBrands } from "@/repositories/brands.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
-import { splitCollaborations } from "@/lib/collaborations";
+import { splitCampaigns, buildCampaignBrandOptions } from "@/lib/campaigns";
 import { selectDuePayments } from "@/lib/brandCampaignStats";
 import { selectAttentionItems } from "@/lib/dashboardAttention";
 import { buildDashboardNavBadges } from "@/lib/dashboardNav";
 
 // The shell (title, sync status, quick actions) paints immediately; each
 // data-backed section streams in behind its own <Suspense> so the slowest
-// fetch (the campaigns sheet) never holds up the rest of the page.
+// fetch (the campaign records) never holds up the rest of the page.
 export default function HomePage() {
   return (
     <div className="mx-auto max-w-screen-lg px-4 py-10">
       <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
-        <SyncStatus syncedAtISO={new Date().toISOString()} />
+        <LastRefreshed loadedAtISO={new Date().toISOString()} />
       </div>
 
       <Suspense fallback={<QuickActionsSkeleton />}>
@@ -55,7 +55,7 @@ export default function HomePage() {
       </Suspense>
 
       <Suspense fallback={<Skeleton className="mb-8 h-48 w-full rounded-lg" />}>
-        <CollaborationsContainer />
+        <DashboardCampaignsContainer />
       </Suspense>
 
       <Suspense fallback={<NavCardsSkeleton />}>
@@ -66,11 +66,12 @@ export default function HomePage() {
 }
 
 async function QuickActionsSection() {
-  const [agencies, editors] = await Promise.all([
+  const [agencies, contacts, editors] = await Promise.all([
     getAgencies().catch(() => []),
+    getContacts().catch(() => []),
     getEditors().catch(() => []),
   ]);
-  return <QuickActions agencies={agencies} editors={editors} className="mb-8" />;
+  return <QuickActions agencies={agencies} contacts={contacts} editors={editors} className="mb-8" />;
 }
 
 async function PaymentsAttentionSection() {
@@ -92,16 +93,17 @@ async function EarningsSection() {
   return <EarningsOverview summary={earnings} />;
 }
 
-async function CollaborationsContainer() {
-  let active: ReturnType<typeof splitCollaborations>["active"] = [];
-  let past: ReturnType<typeof splitCollaborations>["past"] = [];
+async function DashboardCampaignsContainer() {
+  let active: ReturnType<typeof splitCampaigns>["active"] = [];
+  let past: ReturnType<typeof splitCampaigns>["past"] = [];
   let error: string | null = null;
   try {
-    ({ active, past } = splitCollaborations(await collaborationRepository.getAll()));
+    ({ active, past } = splitCampaigns(await campaignRepository.getAll()));
   } catch (err) {
     error = err instanceof Error ? err.message : "Something went wrong";
   }
-  return <CollaborationsSection active={active} past={past} error={error} />;
+  const brandOptions = buildCampaignBrandOptions(await getBrands().catch(() => []));
+  return <DashboardCampaignsSection active={active} past={past} error={error} brandOptions={brandOptions} />;
 }
 
 async function NavCardsSection() {

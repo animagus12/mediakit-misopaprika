@@ -26,16 +26,16 @@ function isDelivered(record: BrandCampaignRecord): boolean {
   return normalized(record.status) === "completed" || record.uploadDate.trim() !== "";
 }
 
-// Whether an invoice exists for this deal — either the Campaigns sheet's
-// "Invoice ID" cell points at one (it's auto-filled for paid deals added
+// Whether an invoice exists for this deal — either the campaign record's
+// "Invoice ID" field points at one (it's auto-filled for paid deals added
 // through the app), or a saved invoice in the invoices store names the same
 // brand + campaign. The second check is what makes the "Delivered, no invoice
 // raised" item clear itself once the creator saves an invoice from the link,
-// since that save never writes back to the sheet cell. Void invoices don't
-// count — a voided invoice means the deal is still uninvoiced.
+// since that save never writes back to the campaign record's field. Void
+// invoices don't count — a voided invoice means the deal is still uninvoiced.
 function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
-  const sheetId = record.invoiceId.trim();
-  if (sheetId !== "" && sheetId !== "-") {
+  const recordInvoiceId = record.invoiceId.trim();
+  if (recordInvoiceId !== "" && recordInvoiceId !== "-") {
     return true;
   }
 

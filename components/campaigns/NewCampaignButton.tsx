@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +14,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { createCollaboration } from "@/app/(dashboard)/actions";
-import { CollaborationFormFields, collaborationInitialForm } from "./CollaborationFormFields";
+import { createCampaign } from "@/app/(dashboard)/actions";
+import type { CampaignBrandOption } from "@/lib/campaigns";
+import { CampaignFormFields, campaignInitialForm } from "./CampaignFormFields";
+import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
-export function NewCollaborationButton() {
+export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: CampaignBrandOption[] }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(collaborationInitialForm);
+  const [form, setForm] = useState(campaignInitialForm);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -26,8 +30,9 @@ export function NewCollaborationButton() {
     event.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await createCollaboration({
+      const result = await createCampaign({
         brand: form.brand.trim(),
+        brandId: form.brandId,
         campaign: form.campaign.trim(),
         type: form.type,
         reels: form.reels,
@@ -35,13 +40,20 @@ export function NewCollaborationButton() {
         status: form.status,
         amount: Number(form.amount) || 0,
         barterValue: Number(form.barterValue) || 0,
+        paymentStatus: form.paymentStatus,
         date: form.date,
+        uploadDate: form.uploadDate,
+        invoiceId: form.invoiceId.trim(),
+        paymentDue: form.paymentDue,
+        paymentMethod: form.paymentMethod.trim(),
+        notes: form.notes.trim(),
       });
       if (!result.success) {
         setError(result.error);
         return;
       }
-      setForm(collaborationInitialForm());
+      notifyCreatedBrand(result.createdBrand, router);
+      setForm(campaignInitialForm());
       setOpen(false);
     });
   }
@@ -57,24 +69,24 @@ export function NewCollaborationButton() {
       <SheetTrigger asChild>
         <Button size="sm" variant="outline">
           <Plus className="size-3.5" />
-          New collaboration
+          New campaign
         </Button>
       </SheetTrigger>
       <SheetContent className="flex flex-col gap-0">
         <SheetHeader>
-          <SheetTitle>New collaboration</SheetTitle>
+          <SheetTitle>New campaign</SheetTitle>
           <SheetDescription>
-            Adds a row to the campaigns sheet. Payment status and method are
-            left blank — fill those in once the deal is actually paid out.
+            Records a new campaign. Payment status defaults to
+            unmarked — fill in payment details once the deal is paid out.
           </SheetDescription>
         </SheetHeader>
 
         <form
-          id="new-collaboration-form"
+          id="new-campaign-form"
           onSubmit={handleSubmit}
           className="flex-1 space-y-4 overflow-y-auto px-6"
         >
-          <CollaborationFormFields idPrefix="new-collab" form={form} setForm={setForm} />
+          <CampaignFormFields idPrefix="new-campaign" form={form} setForm={setForm} brandOptions={brandOptions} />
           {error && <p className="text-xs text-destructive">{error}</p>}
         </form>
 
@@ -86,11 +98,11 @@ export function NewCollaborationButton() {
           </SheetClose>
           <Button
             type="submit"
-            form="new-collaboration-form"
+            form="new-campaign-form"
             className="flex-1"
             disabled={isPending || !form.brand.trim()}
           >
-            {isPending ? "Adding…" : "Add collaboration"}
+            {isPending ? "Adding…" : "Add campaign"}
           </Button>
         </SheetFooter>
       </SheetContent>

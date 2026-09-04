@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
-import { findInvoiceBySheetId, formatMoney, invoicePaymentMismatch } from "@/lib/invoice";
+import { findInvoiceByCampaignInvoiceId, formatMoney, invoicePaymentMismatch } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { BrandCampaignPaymentStatus, BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { BrandStats } from "@/lib/brandCampaignStats";
@@ -47,7 +47,7 @@ function paymentStatusStyle(status: BrandCampaignPaymentStatus): StatusStyle {
 interface BrandPaymentsTabProps {
   stats: BrandStats;
   records: BrandCampaignRecord[];
-  invoices: Invoice[]; // this brand's saved invoices, for reconciling the sheet's Invoice ID column
+  invoices: Invoice[]; // this brand's saved invoices, for reconciling each record's Invoice ID field
 }
 
 export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabProps) {
@@ -99,7 +99,7 @@ export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabP
             <TableBody>
               {records.map((record) => {
                 const status = paymentStatusStyle(record.paymentStatus);
-                const matchedInvoice = findInvoiceBySheetId(record.invoiceId, invoices);
+                const matchedInvoice = findInvoiceByCampaignInvoiceId(record.invoiceId, invoices);
                 const mismatch = matchedInvoice
                   ? invoicePaymentMismatch(record.paymentStatus, matchedInvoice.status)
                   : null;

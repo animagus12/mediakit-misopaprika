@@ -6,9 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { refreshDashboard } from "@/app/(dashboard)/actions";
 
-// Sheet reads are cached for 5 minutes, so a number can be stale with no
-// visible sign. This shows how long ago the page's data was loaded and lets
-// the creator force a re-fetch instead of waiting the window out.
+// This shows how long ago the page's data was loaded and lets the creator
+// force a re-render on demand, e.g. right after editing data in another tab.
 function relativeTime(fromMs: number, nowMs: number): string {
   const seconds = Math.round((nowMs - fromMs) / 1000);
   if (seconds < 45) return "just now";
@@ -19,22 +18,22 @@ function relativeTime(fromMs: number, nowMs: number): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
-export function SyncStatus({ syncedAtISO }: { syncedAtISO: string }) {
-  const syncedAt = new Date(syncedAtISO).getTime();
-  // Start equal to syncedAt so the server render and first client render both
-  // read "just now" — no hydration mismatch. syncedAtISO is the page's render
+export function LastRefreshed({ loadedAtISO }: { loadedAtISO: string }) {
+  const loadedAt = new Date(loadedAtISO).getTime();
+  // Start equal to loadedAt so the server render and first client render both
+  // read "just now" — no hydration mismatch. loadedAtISO is the page's render
   // time, so it genuinely is ~now on load; the interval advances it from there.
-  const [now, setNow] = useState(syncedAt);
+  const [now, setNow] = useState(loadedAt);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
-  }, [syncedAtISO]);
+  }, [loadedAtISO]);
 
   return (
     <div className="flex items-center gap-1 text-xs text-muted-foreground">
-      <span suppressHydrationWarning>Synced {relativeTime(syncedAt, now)}</span>
+      <span suppressHydrationWarning>Loaded {relativeTime(loadedAt, now)}</span>
       <Button
         type="button"
         size="sm"

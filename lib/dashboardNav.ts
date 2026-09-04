@@ -4,6 +4,7 @@ import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
 import { isInvoiceOverdue } from "@/lib/invoice";
 import { contactsForBrand } from "@/lib/contacts";
+import { missingBrandDetails } from "@/lib/brands";
 
 // Live one-liners for the dashboard's nav-card grid — turns each link from a
 // static menu entry into a "here's what's waiting for you there" pointer.
@@ -33,12 +34,13 @@ export function buildDashboardNavBadges(
     badges["/invoices"] = `${awaitingPayment} unpaid`;
   }
 
-  // Brands with no reachable contact (their own or their agency's).
-  const missingContact = brands.filter(
-    (brand) => contactsForBrand(brand, contacts).length === 0
+  // Brands with no photo and/or no reachable contact (their own or their
+  // agency's) — most commonly ones just auto-created from a new campaign.
+  const needsDetails = brands.filter(
+    (brand) => missingBrandDetails(brand, contactsForBrand(brand, contacts).length > 0) !== null
   ).length;
-  if (missingContact > 0) {
-    badges["/brands"] = `${missingContact} missing contact`;
+  if (needsDetails > 0) {
+    badges["/brands"] = `${needsDetails} need${needsDetails === 1 ? "s" : ""} details`;
   }
 
   // Editor payouts still owed.

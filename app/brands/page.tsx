@@ -29,14 +29,14 @@ export default async function BrandsPage() {
   ]);
 
   let records: BrandCampaignRecord[] = [];
-  let sheetError: string | null = null;
+  let campaignError: string | null = null;
   try {
     records = await fetchBrandCampaignRecords();
   } catch (err) {
-    sheetError = err instanceof Error ? err.message : "Something went wrong";
+    campaignError = err instanceof Error ? err.message : "Something went wrong";
   }
 
-  const statsByBrand = computeStatsByBrand(brands.map((brand) => brand.name), records);
+  const statsByBrand = computeStatsByBrand(brands, records);
   const pipelineStats = computePipelineStats(brands, statsByBrand);
   const rows = buildBrandRows(brands, agencies, contacts, statsByBrand, records);
   const unassignedLogos = unassignedMediaKitLogos(mediaKitData.collabs.logos, brands);
@@ -54,14 +54,14 @@ export default async function BrandsPage() {
           </div>
           <div className="flex items-start gap-2">
             <ImportBrandsButton />
-            <NewBrandButton agencies={agencies} />
+            <NewBrandButton agencies={agencies} contacts={contacts} />
           </div>
         </div>
 
-        {sheetError && (
+        {campaignError && (
           <Card>
             <CardContent className="py-3 text-xs text-muted-foreground">
-              Campaign history and revenue couldn&apos;t be pulled from the sheet — {sheetError}. Brand records
+              Campaign history and revenue couldn&apos;t be loaded — {campaignError}. Brand records
               below are still up to date.
             </CardContent>
           </Card>

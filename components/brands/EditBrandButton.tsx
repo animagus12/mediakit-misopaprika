@@ -16,6 +16,7 @@ import { updateBrand } from "@/app/brands/actions";
 import { BrandFormFields, type BrandFormState } from "./BrandFormFields";
 import type { Agency } from "@/repositories/agencies";
 import type { Brand } from "@/repositories/brands";
+import type { Contact } from "@/repositories/contacts";
 
 function formFromBrand(brand: Brand): BrandFormState {
   return {
@@ -24,6 +25,7 @@ function formFromBrand(brand: Brand): BrandFormState {
     website: brand.website,
     instagram: brand.instagram,
     agencyId: brand.agencyId,
+    primaryContactId: brand.primaryContactId,
     status: brand.status,
   };
 }
@@ -31,9 +33,10 @@ function formFromBrand(brand: Brand): BrandFormState {
 interface EditBrandButtonProps {
   brand: Brand;
   agencies: Agency[];
+  contacts: Contact[];
 }
 
-export function EditBrandButton({ brand, agencies }: EditBrandButtonProps) {
+export function EditBrandButton({ brand, agencies, contacts }: EditBrandButtonProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<BrandFormState>(() => formFromBrand(brand));
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +63,7 @@ export function EditBrandButton({ brand, agencies }: EditBrandButtonProps) {
         website: form.website.trim(),
         instagram: form.instagram.trim(),
         agencyId: form.agencyId,
+        primaryContactId: form.primaryContactId,
         status: form.status,
       });
       if (!result.success) {
@@ -86,9 +90,11 @@ export function EditBrandButton({ brand, agencies }: EditBrandButtonProps) {
         <form id={formId} onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-6">
           <BrandFormFields
             idPrefix={formId}
+            brandId={brand.id}
             form={form}
             setForm={setForm}
             agencies={agencies}
+            contacts={contacts}
             onUploadError={setError}
           />
           {error && <p className="text-xs text-destructive">{error}</p>}

@@ -18,7 +18,7 @@ interface NeedsAttentionCardProps {
 const MAX_ROWS = 6;
 
 // Carry the brand + campaign into the invoice editor so the saved invoice
-// names the same pair the sheet row does — that's what lets this card stop
+// names the same pair the record does — that's what lets this card stop
 // re-flagging the deal (selectAttentionItems matches on brand + campaign).
 function newInvoiceHref(brand: string, campaign: string): string {
   const params = new URLSearchParams();

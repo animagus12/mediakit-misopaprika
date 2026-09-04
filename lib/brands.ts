@@ -27,7 +27,7 @@ interface StatusStyle {
   className?: string;
 }
 
-// Centralized (unlike the Collaboration/EditorTransaction statusStyle
+// Centralized (unlike the Campaign/EditorTransaction statusStyle
 // helpers, each duplicated per-feature) since BrandStatus is one fixed
 // 7-value vocabulary reused verbatim across the list table, the detail
 // header, and the create/edit forms — not coincidentally similar strings
@@ -66,6 +66,35 @@ export function brandStatusStyle(status: BrandStatus): StatusStyle {
 }
 
 const LEAD_STATUSES = new Set<BrandStatus>(["Lead", "Contacted", "Negotiating"]);
+
+// Statuses where an incomplete profile isn't worth nagging about: a Lead
+// hasn't been worked with yet (no contact is normal), and Cancelled/Do Not
+// Contact are dead ends — nothing left to fill in for either.
+const STATUSES_EXEMPT_FROM_DETAILS_NUDGE = new Set<BrandStatus>(["Lead", "Cancelled", "Do Not Contact"]);
+
+export interface MissingBrandDetails {
+  photo: boolean;
+  contact: boolean;
+}
+
+// A brand worth having a real profile for (see STATUSES_EXEMPT_FROM_DETAILS_NUDGE)
+// that's still missing a photo or a reachable contact — most commonly one
+// just auto-created from a new campaign whose brand name didn't match
+// anything on file (see resolveOrCreateBrandId in app/(dashboard)/actions.ts),
+// which starts with neither. null when the brand is exempt or complete.
+export function missingBrandDetails(brand: Brand, hasContact: boolean): MissingBrandDetails | null {
+  if (STATUSES_EXEMPT_FROM_DETAILS_NUDGE.has(brand.status)) return null;
+  const photo = !brand.logoUrl;
+  const contact = !hasContact;
+  return photo || contact ? { photo, contact } : null;
+}
+
+// "Missing photo & contact" / "Missing photo" / "Missing contact" — for the
+// dot's hover title and the brand detail page's banner.
+export function missingBrandDetailsLabel(missing: MissingBrandDetails): string {
+  const parts = [missing.photo && "photo", missing.contact && "contact"].filter(Boolean);
+  return `Missing ${parts.join(" & ")}`;
+}
 
 export interface BrandPipelineStats {
   totalBrands: number;
@@ -109,6 +138,7 @@ export interface BrandRow {
   campaignCount: number;
   revenue: number;
   lastCollabDate: string | null;
+  missingDetails: MissingBrandDetails | null;
   searchText: string; // lowercase, pre-joined — what the search bar filters against
 }
 
@@ -134,7 +164,7 @@ export function buildBrandRows(
     const agency = brand.agencyId ? (agencyById.get(brand.agencyId) ?? null) : null;
     const contact = primaryContactForBrand(brand, contacts);
     const stats = statsByBrand.get(brand.name) ?? EMPTY_STATS;
-    const status: BrandStatus = isCancelledOnly(recordsForBrand(brand.name, records)) ? "Cancelled" : brand.status;
+    const status: BrandStatus = isCancelledOnly(recordsForBrand(brand, records)) ? "Cancelled" : brand.status;
     const searchText = [brand.name, agency?.name, contact?.name, contact?.phone]
       .filter((part): part is string => Boolean(part))
       .join(" ")
@@ -149,6 +179,7 @@ export function buildBrandRows(
       campaignCount: stats.campaignCount,
       revenue: stats.totalBilled,
       lastCollabDate: stats.lastCollabDate,
+      missingDetails: missingBrandDetails(brand, Boolean(contact)),
       searchText,
     };
   });

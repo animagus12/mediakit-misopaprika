@@ -40,8 +40,8 @@ function buildInitialState(
   return {
     ...base,
     // Prefilled from the dashboard's "Needs attention" / "Payments due" links
-    // so the saved invoice names the same brand + campaign the sheet row does
-    // — that's the pair those cards match on to stop re-flagging the deal.
+    // so the saved invoice names the same brand + campaign the record does —
+    // that's the pair those cards match on to stop re-flagging the deal.
     ...(initialCampaignName ? { campaignName: initialCampaignName } : {}),
     ...(brand
       ? {
@@ -111,7 +111,7 @@ export function InvoiceGenerator({
     []
   );
 
-  // Links the invoice to a CRM brand and pulls the brand name onto the sheet
+  // Links the invoice to a CRM brand and pulls the brand name onto the invoice
   // (and its sole contact, when there's exactly one and no name typed yet).
   // The snapshot fields stay editable — this is a convenience, not a lock.
   const selectBrand = useCallback(
