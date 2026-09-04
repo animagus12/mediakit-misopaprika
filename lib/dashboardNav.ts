@@ -2,7 +2,7 @@ import type { Invoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
-import { isInvoiceOverdue } from "@/lib/invoice";
+import { isInvoiceOverdue, formatMoney } from "@/lib/invoice";
 import { contactsForBrand } from "@/lib/contacts";
 import { missingBrandDetails } from "@/lib/brands";
 
@@ -43,12 +43,14 @@ export function buildDashboardNavBadges(
     badges["/brands"] = `${needsDetails} need${needsDetails === 1 ? "s" : ""} details`;
   }
 
-  // Editor payouts still owed.
-  const payoutPending = editorTransactions.filter(
+  // Editor payouts still owed — the amount, not just the count, since this is
+  // the only place the dashboard surfaces outgoing money at all.
+  const pendingPayouts = editorTransactions.filter(
     (txn) => txn.status.trim().toLowerCase() === "pending"
-  ).length;
-  if (payoutPending > 0) {
-    badges["/workspace"] = `${payoutPending} payout${payoutPending === 1 ? "" : "s"} pending`;
+  );
+  if (pendingPayouts.length > 0) {
+    const amount = pendingPayouts.reduce((sum, txn) => sum + (txn.amount ?? 0), 0);
+    badges["/workspace"] = `${formatMoney(amount)} pending`;
   }
 
   return badges;

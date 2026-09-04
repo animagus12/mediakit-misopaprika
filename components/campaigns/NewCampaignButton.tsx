@@ -67,7 +67,7 @@ export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: Campai
       }}
     >
       <SheetTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm">
           <Plus className="size-3.5" />
           New campaign
         </Button>

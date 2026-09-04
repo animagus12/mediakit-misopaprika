@@ -66,12 +66,21 @@ export default function HomePage() {
 }
 
 async function QuickActionsSection() {
-  const [agencies, contacts, editors] = await Promise.all([
+  const [agencies, contacts, editors, brands] = await Promise.all([
     getAgencies().catch(() => []),
     getContacts().catch(() => []),
     getEditors().catch(() => []),
+    getBrands().catch(() => []),
   ]);
-  return <QuickActions agencies={agencies} contacts={contacts} editors={editors} className="mb-8" />;
+  return (
+    <QuickActions
+      agencies={agencies}
+      contacts={contacts}
+      editors={editors}
+      campaignBrandOptions={buildCampaignBrandOptions(brands)}
+      className="mb-8"
+    />
+  );
 }
 
 async function PaymentsAttentionSection() {
