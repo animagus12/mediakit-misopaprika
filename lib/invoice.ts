@@ -60,6 +60,17 @@ export function daysBetween(startISO: string, endISO: string): number {
   return Math.round((end - start) / 86_400_000);
 }
 
+// The number just saved is already taken, so seeding the next invoice with
+// it verbatim would immediately collide — bump it by one instead, keeping
+// the zero-padded width (e.g. "0007" -> "0008"). Falls back to the literal
+// value when it isn't numeric.
+function nextInvoiceNumberSeed(invoiceNo: string): string {
+  const trimmed = invoiceNo.trim();
+  const numeric = Number(trimmed);
+  if (!trimmed || !Number.isFinite(numeric)) return trimmed;
+  return String(numeric + 1).padStart(trimmed.length, "0");
+}
+
 // Builds the record to persist as the new defaults for the *next* invoice —
 // spreads `current` and overrides only the fields the form actually edits.
 // qrImage/stampImage are safe to include here because InvoiceImageUploadField
@@ -70,7 +81,7 @@ export function daysBetween(startISO: string, endISO: string): number {
 export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData): InvoiceData {
   return {
     ...current,
-    invoiceNumberSeed: state.invoiceNo,
+    invoiceNumberSeed: nextInvoiceNumberSeed(state.invoiceNo),
     campaignNameSeed: state.campaignName,
     dueInDays: Math.max(daysBetween(state.date, state.due), 0),
     billedToPlaceholder: {
@@ -475,12 +486,12 @@ export function invoicesForBrand(
   );
 }
 
-// Resolves the Campaigns sheet's free-text "Invoice ID" column to a saved
-// invoice record. The sheet value is entered by hand and inconsistent —
+// Resolves a campaign record's free-text "Invoice ID" field to a saved
+// invoice record. The field is entered by hand and inconsistent —
 // "MSP-INV-0007", "0007", "7" all mean the same invoice — so match on the
 // full label, the raw number, and the zero-stripped number.
-export function findInvoiceBySheetId(sheetId: string, invoices: Invoice[]): Invoice | undefined {
-  const needle = sheetId.trim().toLowerCase();
+export function findInvoiceByCampaignInvoiceId(campaignInvoiceId: string, invoices: Invoice[]): Invoice | undefined {
+  const needle = campaignInvoiceId.trim().toLowerCase();
   if (!needle) return undefined;
   return invoices.find((invoice) => {
     const no = invoice.invoiceNo.trim().toLowerCase();
@@ -493,18 +504,18 @@ export function findInvoiceBySheetId(sheetId: string, invoices: Invoice[]): Invo
   });
 }
 
-// A one-line note when the sheet's Payment column and the saved invoice's
-// status disagree, so the mismatch is visible without opening both. null
-// when they're consistent (or too loosely related to compare).
+// A one-line note when the campaign record's payment status and the saved
+// invoice's status disagree, so the mismatch is visible without opening
+// both. null when they're consistent (or too loosely related to compare).
 export function invoicePaymentMismatch(
-  sheetStatus: "received" | "pending" | "unknown",
+  campaignPaymentStatus: "received" | "pending" | "unknown",
   invoiceStatus: InvoiceStatus
 ): string | null {
-  if (sheetStatus === "received" && invoiceStatus !== "paid" && invoiceStatus !== "void") {
-    return "Sheet says received — invoice isn't marked paid";
+  if (campaignPaymentStatus === "received" && invoiceStatus !== "paid" && invoiceStatus !== "void") {
+    return "Campaign says received — invoice isn't marked paid";
   }
-  if (sheetStatus === "pending" && invoiceStatus === "paid") {
-    return "Invoice marked paid — sheet still says pending";
+  if (campaignPaymentStatus === "pending" && invoiceStatus === "paid") {
+    return "Invoice marked paid — campaign still says pending";
   }
   return null;
 }

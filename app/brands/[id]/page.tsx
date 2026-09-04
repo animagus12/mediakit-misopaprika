@@ -16,6 +16,7 @@ import { fetchBrandCampaignRecords, type BrandCampaignRecord } from "@/repositor
 import { computeBrandStats, recordsForBrand } from "@/lib/brandCampaignStats";
 import { buildInvoiceEditorJobOptions, invoicesForBrand, type InvoiceEditorJobOption } from "@/lib/invoice";
 import { contactsForBrand } from "@/lib/contacts";
+import { missingBrandDetails } from "@/lib/brands";
 import type { Invoice } from "@/repositories/invoices";
 
 export const metadata: Metadata = {
@@ -46,7 +47,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
     // A cancelled deal never happened commercially — same convention as
     // lib/brandCampaignStats.ts's computeBrandStats, but applied here too
     // so cancelled rows don't show up in the Campaigns/Payments tabs either.
-    records = recordsForBrand(brand.name, await fetchBrandCampaignRecords()).filter(
+    records = recordsForBrand(brand, await fetchBrandCampaignRecords()).filter(
       (record) => record.status.trim().toLowerCase() !== "cancelled"
     );
   } catch (err) {
@@ -70,16 +71,23 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
   const brandNotes = notes.filter((note) => note.brandId === brand.id);
   const brandCampaignContacts = campaignContacts.filter((cc) => cc.brandId === brand.id);
   const stats = computeBrandStats(records);
+  const missingDetails = missingBrandDetails(brand, brandContacts.length > 0);
 
   return (
     <AppShell>
       <div className="mx-auto max-w-screen-lg space-y-6 px-4 py-10">
-        <BrandDetailHeader brand={brand} agencyName={agency?.name ?? null} agencies={agencies} />
+        <BrandDetailHeader
+          brand={brand}
+          agencyName={agency?.name ?? null}
+          agencies={agencies}
+          contacts={contacts}
+          missingDetails={missingDetails}
+        />
 
         {sheetError && (
           <Card>
             <CardContent className="py-3 text-xs text-muted-foreground">
-              Campaign history and revenue couldn&apos;t be pulled from the sheet — {sheetError}.
+              Campaign history and revenue couldn&apos;t be loaded — {sheetError}.
             </CardContent>
           </Card>
         )}

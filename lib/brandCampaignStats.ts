@@ -2,16 +2,24 @@ import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 
 // Client-safe aggregation over BrandCampaignRecord[] — kept out of
 // repositories/brandCampaigns.ts (which is "server-only", since it fetches
-// the sheet directly) so both the /brands list page and a brand's detail
-// page can reuse this without pulling in the sheet-fetching code.
+// from Redis) so both the /brands list page and a brand's detail page can
+// reuse this without pulling in the fetching code.
 
 export function normalizeBrandName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-export function recordsForBrand(brandName: string, records: BrandCampaignRecord[]): BrandCampaignRecord[] {
-  const key = normalizeBrandName(brandName);
-  return records.filter((record) => normalizeBrandName(record.brand) === key);
+// Matches by brandId when a record carries one — the correct, rename-proof
+// link. Falls back to a case-insensitive name match only for older/unlinked
+// records that predate Campaign.brandId (repositories/campaigns.ts).
+export function recordsForBrand(
+  brand: { id: string; name: string },
+  records: BrandCampaignRecord[]
+): BrandCampaignRecord[] {
+  const key = normalizeBrandName(brand.name);
+  return records.filter((record) =>
+    record.brandId ? record.brandId === brand.id : normalizeBrandName(record.brand) === key
+  );
 }
 
 // Sheet dates are DD/MM/YYYY; unparsable/blank dates sort as "never happened".
@@ -58,11 +66,15 @@ export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
 }
 
 // Bulk variant for the /brands list page — one pass per brand rather than
-// scanning the full record set redundantly for each row's stat cells.
-export function computeStatsByBrand(brandNames: string[], records: BrandCampaignRecord[]): Map<string, BrandStats> {
+// scanning the full record set redundantly for each row's stat cells. Keyed
+// by name (not id) since that's what callers already look the result up by.
+export function computeStatsByBrand(
+  brands: { id: string; name: string }[],
+  records: BrandCampaignRecord[]
+): Map<string, BrandStats> {
   const map = new Map<string, BrandStats>();
-  for (const name of brandNames) {
-    map.set(name, computeBrandStats(recordsForBrand(name, records)));
+  for (const brand of brands) {
+    map.set(brand.name, computeBrandStats(recordsForBrand(brand, records)));
   }
   return map;
 }

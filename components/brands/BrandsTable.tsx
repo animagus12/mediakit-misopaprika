@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { brandStatusStyle, type BrandRow } from "@/lib/brands";
+import { brandStatusStyle, missingBrandDetailsLabel, type BrandRow } from "@/lib/brands";
 import { formatMoney } from "@/lib/invoice";
 
 type SortColumn = "name" | "revenue" | "lastCollabDate";
@@ -148,10 +148,18 @@ export function BrandsTable({ rows }: BrandsTableProps) {
                   >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <Avatar size="sm">
-                          <AvatarImage src={row.logoUrl ?? undefined} alt="" />
-                          <AvatarFallback>{row.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
+                        <div className="relative shrink-0">
+                          <Avatar size="sm">
+                            <AvatarImage src={row.logoUrl ?? undefined} alt="" />
+                            <AvatarFallback>{row.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          {row.missingDetails && (
+                            <span
+                              title={missingBrandDetailsLabel(row.missingDetails)}
+                              className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-background"
+                            />
+                          )}
+                        </div>
                         <span className="max-w-40 truncate">{row.name}</span>
                       </div>
                     </TableCell>

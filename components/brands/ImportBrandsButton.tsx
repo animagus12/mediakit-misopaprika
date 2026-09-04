@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Import } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { importBrandsFromSheet } from "@/app/brands/actions";
+import { importBrandsFromCampaigns } from "@/app/brands/actions";
 
 export function ImportBrandsButton() {
   const [isPending, startTransition] = useTransition();
@@ -12,7 +12,7 @@ export function ImportBrandsButton() {
   function handleImport() {
     setMessage(null);
     startTransition(async () => {
-      const result = await importBrandsFromSheet();
+      const result = await importBrandsFromCampaigns();
       if (!result.success) {
         setMessage(result.error);
         return;
@@ -29,7 +29,7 @@ export function ImportBrandsButton() {
     <div className="flex flex-col items-end gap-1">
       <Button size="sm" variant="outline" onClick={handleImport} disabled={isPending}>
         <Import className="size-3.5" />
-        {isPending ? "Importing…" : "Import from sheet"}
+        {isPending ? "Importing…" : "Import from campaigns"}
       </Button>
       {message && <p className="text-xs text-muted-foreground">{message}</p>}
     </div>

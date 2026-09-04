@@ -18,7 +18,7 @@ function needsInvoice(invoiceId: string): boolean {
 }
 
 // Prefill the invoice editor with this deal's brand + campaign so the saved
-// invoice lines up with the sheet row.
+// invoice lines up with the record.
 function newInvoiceHref(brand: string, campaign: string): string {
   const params = new URLSearchParams();
   if (brand.trim()) params.set("client", brand.trim());

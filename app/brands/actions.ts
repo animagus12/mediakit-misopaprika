@@ -120,9 +120,10 @@ export async function removeBrand(id: string): Promise<ActionResult> {
   }
 }
 
-// One contact per campaign — this brand's sheet-linked deals are read-only,
-// so which agent/contact handled a given deal is tracked separately here
-// rather than on the sheet row itself. contactId: null clears it.
+// One contact per campaign — this brand's campaign records are read-only on
+// the brand detail page, so which agent/contact handled a given deal is
+// tracked separately here rather than on the campaign record itself.
+// contactId: null clears it.
 export async function assignCampaignContact(
   campaignId: string,
   brandId: string,
@@ -137,33 +138,34 @@ export async function assignCampaignContact(
   }
 }
 
-// Additive only — creates a Brand for every distinct name in the Campaigns
-// sheet that isn't already in the CRM (matched case-insensitively, same as
-// the uniqueness guard in brands.writer.server.ts), skips the rest. Safe to
-// re-run whenever the sheet gets new brands. Everything beyond the name
-// (agency, contacts, logo, real status) isn't in the sheet, so imported
-// brands land as "Worked With" — there's a real deal on record, but no
-// signal for finer-grained status — for the creator to refine by hand.
-export async function importBrandsFromSheet(): Promise<
+// Additive only — creates a Brand for every distinct name across all
+// campaign records that isn't already in the CRM (matched case-insensitively,
+// same as the uniqueness guard in brands.writer.server.ts), skips the rest.
+// Safe to re-run whenever a new brand shows up in a campaign. Everything
+// beyond the name (agency, contacts, logo, real status) isn't tracked on a
+// campaign record, so imported brands land as "Worked With" — there's a real
+// deal on record, but no signal for finer-grained status — for the creator
+// to refine by hand.
+export async function importBrandsFromCampaigns(): Promise<
   { success: true; imported: number; skipped: number } | { success: false; error: string }
 > {
   try {
     const [records, existingBrands] = await Promise.all([fetchBrandCampaignRecords(), getBrands()]);
     const existingNames = new Set(existingBrands.map((brand) => brand.name.trim().toLowerCase()));
 
-    const sheetBrands = new Map<string, string>(); // lowercase -> first-seen casing
+    const campaignBrands = new Map<string, string>(); // lowercase -> first-seen casing
     for (const record of records) {
       const name = record.brand.trim();
       if (!name) continue;
       const key = name.toLowerCase();
-      if (!sheetBrands.has(key)) sheetBrands.set(key, name);
+      if (!campaignBrands.has(key)) campaignBrands.set(key, name);
     }
 
     let imported = 0;
     let skipped = 0;
     // Sequential — each addBrand() read-modify-writes the whole brands list,
     // so running these concurrently would drop all but the last write.
-    for (const [key, name] of sheetBrands) {
+    for (const [key, name] of campaignBrands) {
       if (existingNames.has(key)) {
         skipped += 1;
         continue;
@@ -174,6 +176,7 @@ export async function importBrandsFromSheet(): Promise<
         website: "",
         instagram: "",
         agencyId: null,
+        primaryContactId: null,
         status: "Worked With",
       });
       imported += 1;
@@ -182,7 +185,7 @@ export async function importBrandsFromSheet(): Promise<
     revalidatePath("/brands");
     return { success: true, imported, skipped };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Couldn't import brands from the sheet" };
+    return { success: false, error: err instanceof Error ? err.message : "Couldn't import brands from campaigns" };
   }
 }
 

@@ -9,30 +9,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { updateCollaboration } from "@/app/(dashboard)/actions";
-import { STATUS_OPTIONS, COLLABORATION_TYPES, toIsoDate } from "@/lib/collaborations";
+import { updateCampaign } from "@/app/(dashboard)/actions";
+import { STATUS_OPTIONS, CAMPAIGN_TYPES, toIsoDate } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
-import type { Collaboration } from "@/repositories/collaborations";
+import type { Campaign } from "@/repositories/campaigns";
 
-interface CollaborationStatusSelectProps {
-  collaboration: Collaboration;
+interface CampaignStatusSelectProps {
+  campaign: Campaign;
   className?: string;
 }
 
 // Advance a deal through the pipeline straight from its dashboard card,
 // without opening the full edit sheet. The Select reflects the new stage
-// instantly (optimistic) while the sheet write runs; the success toast
-// carries an Undo that moves it back. Writes the same CollaborationUpdate the
-// sheet does (every other field carried through unchanged), so the two stay
+// instantly (optimistic) while the update runs; the success toast carries an
+// Undo that moves it back. Writes the same CampaignFormUpdate the sheet does
+// (every other field carried through unchanged), so the two stay
 // interchangeable. Type is coerced to a valid option the same way
-// EditCollaborationSheet does it; an off-list status is kept selectable so
-// the control never shows blank.
-export function CollaborationStatusSelect({
-  collaboration,
+// EditCampaignSheet does it; an off-list status is kept selectable so the
+// control never shows blank.
+export function CampaignStatusSelect({
+  campaign,
   className,
-}: CollaborationStatusSelectProps) {
+}: CampaignStatusSelectProps) {
   const [isPending, startTransition] = useTransition();
-  const [status, setOptimisticStatus] = useOptimistic(collaboration.status);
+  const [status, setOptimisticStatus] = useOptimistic(campaign.status);
 
   const options = STATUS_OPTIONS.includes(status)
     ? STATUS_OPTIONS
@@ -42,23 +42,30 @@ export function CollaborationStatusSelect({
     startTransition(async () => {
       setOptimisticStatus(nextStatus);
 
-      const type = COLLABORATION_TYPES.includes(
-        collaboration.type as (typeof COLLABORATION_TYPES)[number]
+      const type = CAMPAIGN_TYPES.includes(
+        campaign.type as (typeof CAMPAIGN_TYPES)[number]
       )
-        ? (collaboration.type as (typeof COLLABORATION_TYPES)[number])
+        ? (campaign.type as (typeof CAMPAIGN_TYPES)[number])
         : "Barter";
 
-      const result = await updateCollaboration({
-        id: collaboration.id,
-        brand: collaboration.brand,
-        campaign: collaboration.campaign,
+      const result = await updateCampaign({
+        id: campaign.id,
+        brand: campaign.brand,
+        brandId: campaign.brandId,
+        campaign: campaign.campaign,
         type,
-        reels: collaboration.reels,
-        story: collaboration.story,
+        reels: campaign.reels,
+        story: campaign.story,
         status: nextStatus,
-        amount: collaboration.amount,
-        barterValue: collaboration.barterValue,
-        date: toIsoDate(collaboration.date) || new Date().toISOString().slice(0, 10),
+        amount: campaign.amount,
+        barterValue: campaign.barterValue,
+        paymentStatus: campaign.paymentStatus,
+        date: toIsoDate(campaign.date) || new Date().toISOString().slice(0, 10),
+        uploadDate: toIsoDate(campaign.uploadDate),
+        invoiceId: campaign.invoiceId,
+        paymentDue: toIsoDate(campaign.paymentDue),
+        paymentMethod: campaign.paymentMethod,
+        notes: campaign.notes,
       });
 
       if (!result.success) {
@@ -66,7 +73,7 @@ export function CollaborationStatusSelect({
         return;
       }
       if (!isUndo) {
-        toast.success(`${collaboration.brand} → ${nextStatus}`, {
+        toast.success(`${campaign.brand} → ${nextStatus}`, {
           action: {
             label: "Undo",
             onClick: () => move(previousStatus, nextStatus, true),

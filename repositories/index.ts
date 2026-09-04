@@ -1,14 +1,14 @@
 export { earningsRepository } from "./earnings";
 export type { EarningsSummary, MonthlyEarnings, MonthlyDeal, IEarningsRepository } from "./earnings";
 
-export { collaborationRepository } from "./collaborations";
+export { campaignRepository } from "./campaignRepository";
 export type {
-  Collaboration,
-  CollaborationStage,
-  CollaborationType,
-  NewCollaboration,
-  ICollaborationRepository,
-} from "./collaborations";
+  Campaign,
+  CampaignFormValues,
+  CampaignFormUpdate,
+  ICampaignRepository,
+} from "./campaignRepository";
+export type { CampaignStage, CampaignType } from "./campaigns";
 
 export { invoiceRepository } from "./invoice";
 export type {

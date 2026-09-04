@@ -16,12 +16,14 @@ import {
 import { createBrand } from "@/app/brands/actions";
 import { BrandFormFields, brandInitialForm } from "./BrandFormFields";
 import type { Agency } from "@/repositories/agencies";
+import type { Contact } from "@/repositories/contacts";
 
 interface NewBrandButtonProps {
   agencies: Agency[];
+  contacts: Contact[];
 }
 
-export function NewBrandButton({ agencies }: NewBrandButtonProps) {
+export function NewBrandButton({ agencies, contacts }: NewBrandButtonProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(brandInitialForm);
@@ -38,6 +40,7 @@ export function NewBrandButton({ agencies }: NewBrandButtonProps) {
         website: form.website.trim(),
         instagram: form.instagram.trim(),
         agencyId: form.agencyId,
+        primaryContactId: form.primaryContactId,
         status: form.status,
       });
       if (!result.success) {
@@ -75,6 +78,7 @@ export function NewBrandButton({ agencies }: NewBrandButtonProps) {
             form={form}
             setForm={setForm}
             agencies={agencies}
+            contacts={contacts}
             onUploadError={setError}
           />
           {error && <p className="text-xs text-destructive">{error}</p>}

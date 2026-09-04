@@ -52,6 +52,7 @@ export async function addBrand(input: NewBrand): Promise<Brand> {
     website: input.website.trim(),
     instagram: input.instagram.trim(),
     agencyId: input.agencyId,
+    primaryContactId: input.primaryContactId,
     status: input.status,
     createdAt: now,
     updatedAt: now,
@@ -75,6 +76,7 @@ export async function updateBrand(input: BrandUpdate): Promise<void> {
           website: input.website.trim(),
           instagram: input.instagram.trim(),
           agencyId: input.agencyId,
+          primaryContactId: input.primaryContactId,
           status: input.status,
           updatedAt: new Date().toISOString(),
         }

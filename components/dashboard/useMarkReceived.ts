@@ -9,8 +9,8 @@ import {
 
 // Shared "mark a payment received" behaviour for PaymentsDueCard and
 // NeedsAttentionCard: the row vanishes the instant it's clicked (optimistic),
-// the sheet write happens in the background, and the success toast carries an
-// Undo that puts the Payment cell back to pending. On failure the optimistic
+// the write happens in the background, and the success toast carries an
+// Undo that puts payment status back to pending. On failure the optimistic
 // hide reverts itself when the transition ends, so the row simply reappears.
 export function useMarkReceived() {
   const [isPending, startTransition] = useTransition();

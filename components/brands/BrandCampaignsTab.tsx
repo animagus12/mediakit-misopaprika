@@ -20,7 +20,7 @@ interface StatusStyle {
   className?: string;
 }
 
-// Same pipeline vocabulary as components/dashboard/CollaborationsSection.tsx
+// Same pipeline vocabulary as components/dashboard/DashboardCampaignsSection.tsx
 // — duplicated rather than imported cross-feature, matching how that status
 // styling is already duplicated per-surface elsewhere in the app.
 function statusStyle(status: string): StatusStyle {
@@ -54,7 +54,7 @@ export function BrandCampaignsTab({ brandId, records, contacts, campaignContacts
     return (
       <Card>
         <CardContent className="py-6 text-xs text-muted-foreground">
-          No campaigns from the sheet matched this brand&apos;s name yet.
+          No campaigns matched this brand&apos;s name yet.
         </CardContent>
       </Card>
     );
