@@ -47,23 +47,47 @@
   container-type: inline-size;
 }
 
-.stageInner {
-  transform-origin: top center;
-}
-
 /* Scale the fixed A4 sheet down to whatever width .stage actually has —
-   computed live from the container query size, so it's correct on the
-   very first paint (no JS/useEffect delay causing a flash of the full
-   793px-wide sheet) and re-solves instantly on any resize/rotation. zoom
-   (not transform) is used so the box's layout size shrinks with it, instead
-   of needing a JS-measured height to collapse the reserved space. Scoped to
-   screen only — some print pipelines (e.g. printing through an OS printer
-   driver like "Microsoft Print to PDF" rather than the browser's own PDF
-   export) don't reliably honor a `zoom: normal !important` override in
-   @media print, so instead the rule is simply never declared for print. */
+   computed live from the container query size, so it's correct on the very
+   first paint (no JS/useEffect delay causing a flash of the full 793px-wide
+   sheet) and re-solves instantly on any resize/rotation.
+
+   `transform`, NOT `zoom`: zoom multiplies the *used* font sizes, so at a
+   phone's ~0.44 factor this sheet's type (6.6pt fine print through 47pt
+   wordmark) computes down to ~3.9px at the small end. Mobile WebKit/Blink
+   then boost that unreadably-small text back up toward a minimum — text
+   only, independently of the mm-positioned boxes around it — so the type
+   hierarchy collapses and every string overflows its box and gets clipped
+   by .page's `overflow: hidden`. transform scales the finished rendering
+   instead: computed font sizes stay at their authored pt values, so there
+   is nothing for the autosizer to boost. .stageInner carries the scaled
+   size explicitly because, unlike zoom, a transform doesn't shrink the
+   layout box it reserves (the original reason zoom was used here).
+
+   Scoped to screen only — some print pipelines (e.g. printing through an OS
+   printer driver like "Microsoft Print to PDF" rather than the browser's own
+   PDF export) don't reliably honor an override in @media print, so instead
+   the rule is simply never declared for print. */
 @media screen {
   .stageInner {
-    zoom: min(1, calc(100cqw / 210mm));
+    /* vw baseline (minus .stage's 20px side padding) so engines without
+       container query support still scale; overridden just below where cqw
+       is available, which is what the editor needs — its .stage is narrower
+       than the viewport by the 400px controls panel. */
+    --mk-scale: min(1, calc((100vw - 40px) / 210mm));
+    width: calc(210mm * var(--mk-scale));
+    height: calc(297mm * var(--mk-scale));
+  }
+
+  @supports (width: 1cqw) {
+    .stageInner {
+      --mk-scale: min(1, calc(100cqw / 210mm));
+    }
+  }
+
+  .stageInner > * {
+    transform: scale(var(--mk-scale));
+    transform-origin: top left;
   }
 }
 
@@ -310,6 +334,12 @@
      background. Inherited, so it also covers nested elements. */
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  /* This sheet is a fixed-metric A4 render — every box is positioned in mm
+     and every string sized in pt — so any automatic text inflation breaks
+     it rather than helping. Opted out here only; the rest of the app keeps
+     Tailwind preflight's `text-size-adjust: 100%`. */
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
 }
 
 .wordmark {

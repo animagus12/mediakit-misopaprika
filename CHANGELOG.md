@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.16.3] - 2026-09-06
+### Fixed
+- **The real cause of the shattered `/mediakit` sheet on phones: mobile text autosizing, not the fonts.** 1.16.2's `font-display: block` fix shipped and the sheet still broke on the same device. The tell in the screenshot was that box geometry was perfect — cards, logo row, and tiles all correctly placed and scaled — while only *text* was oversized, and the smallest type was inflated the most (tile stat labels and the booking fine print were enormous; the 47pt wordmark barely changed). That collapse of the type hierarchy toward a readable floor is the signature of WebKit/Blink font boosting, not font substitution, which would have preserved the size ratios.
+  - `components/mediakit/mediakit.module.css` — `.stageInner`'s scale-to-fit moved from `zoom` to `transform: scale()`. `zoom` multiplies the *used* font sizes, so at a phone's ~0.44 factor this sheet's 6.6pt fine print computed down to ~3.9px; the browser then boosted that unreadable text back up, independently of the mm-positioned boxes around it, so every string overflowed and got clipped by `.page`'s `overflow: hidden`. A transform scales the finished rendering instead, leaving computed font sizes at their authored pt values with nothing to boost. `.stageInner` now carries `width`/`height: calc(210mm|297mm * var(--mk-scale))` explicitly, since a transform — unlike `zoom` — doesn't shrink the layout box it reserves (the original reason `zoom` was chosen here).
+  - The scale factor gained a `100vw`-based baseline with the container-query version applied via `@supports (width: 1cqw)`, so engines without container query support still scale the sheet instead of dropping the declaration entirely.
+  - `.page` also opts out of text inflation directly (`text-size-adjust: none`) — appropriate for a fixed-metric A4 render, and scoped to the sheet so the rest of the app keeps Tailwind preflight's `100%`.
+  - `components/mediakit/MediaKitPublicView.tsx` — comment updated to stop pointing at the removed `zoom`.
+
 ## [1.16.2] - 2026-09-06
 ### Fixed
 - **On slow connections (in-app browsers like WhatsApp's), `/mediakit` painted with fallback fonts and the whole A4 sheet shattered — text overflowing every box and clipped at the sheet edge.** The sheet is a fixed-metric layout (absolute mm positions, pt font sizes, `white-space: nowrap`, `.page`'s `overflow: hidden`), so a substitute font's metrics don't degrade gracefully; next/font's default `display: "swap"` paints exactly that state until the woff2s arrive. The scale-to-fit `zoom` was not at fault — box geometry stayed correct, only text overflowed.
