@@ -7,8 +7,24 @@ import { toFormState } from "@/lib/mediakit";
 import { VISITOR_COOKIE } from "@/lib/visitor";
 import { getPublishedMediaKitData } from "@/repositories/mediakit.writer.server";
 
+const TITLE = "Media kit - @misopaprika";
+const DESCRIPTION =
+  "Anime, cosplay, and collectibles content creator — audience stats, rates, and past brand collabs.";
+
 export const metadata: Metadata = {
-  title: "Media kit - @misopaprika",
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "/mediakit",
+    type: "profile",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default async function MediaKitPage() {

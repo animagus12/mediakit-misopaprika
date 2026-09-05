@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.16.2] - 2026-09-06
+### Fixed
+- **On slow connections (in-app browsers like WhatsApp's), `/mediakit` painted with fallback fonts and the whole A4 sheet shattered — text overflowing every box and clipped at the sheet edge.** The sheet is a fixed-metric layout (absolute mm positions, pt font sizes, `white-space: nowrap`, `.page`'s `overflow: hidden`), so a substitute font's metrics don't degrade gracefully; next/font's default `display: "swap"` paints exactly that state until the woff2s arrive. The scale-to-fit `zoom` was not at fault — box geometry stayed correct, only text overflowed.
+  - `components/mediakit/MediaKitFontsProvider.tsx` — Mulish/Oranienbaum/Sacramento now use `display: "block"`, so text stays invisible for the ~3s block period (preloaded fonts almost always land inside it) instead of painting broken. Deliberately no `fallback` option: passing one makes next/font drop the metric-adjusted fallback faces (`Mulish Fallback` = `local(Arial)` + `size-adjust: 104.08%`, etc.).
+  - `components/mediakit/mediakit.module.css` — the generic families moved out of the `var()` fallback slot (only used when the variable is *undefined*) to after it, e.g. `var(--font-mediakit-wordmark, "Oranienbaum"), "Times New Roman", Georgia, serif`. next/font's variable ends at `"Oranienbaum", "Oranienbaum Fallback"`, and that adjusted fallback is `local(Times New Roman)` — absent on Android — so a total miss previously landed on the browser default sans for a serif display face.
+- **Sharing the `/mediakit` link in Discord/Slack/iMessage rendered a blurry, stretched decorative doodle instead of a real preview image.** The route had no Open Graph metadata at all, so link-preview crawlers fell back to scraping the page's first `<img>` — a small teal squiggle behind the wordmark (`components/mediakit/MediaKitPreview.tsx`) — and stretching it up to embed size.
+  - New `app/mediakit/opengraph-image.tsx` — a proper 1200×630 branded card (crown badge, wordmark, tagline, handle) generated server-side via `next/og`'s `ImageResponse`, static by design so it renders reliably even when Redis/the published draft is unavailable.
+  - `app/mediakit/page.tsx` — `metadata` now also sets `description`, `openGraph` (title/description/url/type), and `twitter` (`summary_large_image`) instead of just `title`.
+  - `app/layout.tsx` — added `metadataBase` (`https://misopaprika.vercel.app`) so the new image/URL metadata resolves to absolute URLs, which crawlers require.
+
 ## [1.16.1] - 2026-09-05
 ### Changed
 - **Dashboard decluttered of data already shown elsewhere, and two blind spots closed.** An audit of every dashboard card found the Campaigns section duplicating `/campaigns`, and two real signals — overdue invoices, outgoing editor payouts — that only ever showed up as a bare nav-badge count.
