@@ -7,7 +7,7 @@ interface MediaKitPublicViewProps {
 }
 
 // Read-only counterpart to MediaKitGenerator's stage — same scale-to-fit
-// A4 sheet (see .stageInner's `zoom` in mediakit.module.css), no controls
+// A4 sheet (see .stageInner's transform in mediakit.module.css), no controls
 // panel, no editing.
 export function MediaKitPublicView({ state }: MediaKitPublicViewProps) {
   return (
