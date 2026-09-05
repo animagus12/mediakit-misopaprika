@@ -20,7 +20,7 @@
   align-items: flex-start;
   background: var(--mediakit-panel);
   color: var(--foreground);
-  font-family: var(--font-mediakit-body, "Mulish", system-ui, sans-serif);
+  font-family: var(--font-mediakit-body, "Mulish"), system-ui, sans-serif;
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
 }
@@ -302,7 +302,7 @@
   overflow: hidden;
   flex: 0 0 auto;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  font-family: var(--font-mediakit-body, "Mulish", sans-serif);
+  font-family: var(--font-mediakit-body, "Mulish"), sans-serif;
   /* Without this, Chrome/Safari drop background colors when printing
      unless the user manually enables "Background graphics" in the print
      dialog — since Save as PDF goes through window.print(), colored
@@ -319,7 +319,7 @@
   width: 100%;
   text-align: center;
   color: var(--mediakit-blue);
-  font-family: var(--font-mediakit-wordmark, "Oranienbaum", serif);
+  font-family: var(--font-mediakit-wordmark, "Oranienbaum"), "Times New Roman", Georgia, serif;
   font-weight: 400;
   font-size: 47pt;
   line-height: 1;
@@ -544,7 +544,7 @@
   right: 8.8mm;
   top: 10.2mm;
   color: var(--mediakit-coral);
-  font-family: var(--font-mediakit-script, "Sacramento", cursive);
+  font-family: var(--font-mediakit-script, "Sacramento"), cursive;
   font-size: 15pt;
   line-height: 1.2;
   transform: rotate(-4deg);
