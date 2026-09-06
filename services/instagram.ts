@@ -11,7 +11,9 @@ const GRAPH_VERSION = "v23.0";
 // Long-lived tokens last 60 days. Renewing once there is less than this left
 // means a refresh normally happens ~20 days after the last one, so the cron
 // can fail silently for six weeks before anything actually breaks.
-const REFRESH_WHEN_REMAINING_MS = 40 * 24 * 60 * 60 * 1000;
+// Exported because the editor's health readout is only meaningful against the
+// same threshold the job actually renews on — two copies would drift.
+export const REFRESH_WHEN_REMAINING_MS = 40 * 24 * 60 * 60 * 1000;
 
 // Meta rejects a refresh of a token younger than this.
 const MIN_TOKEN_AGE_MS = 24 * 60 * 60 * 1000;

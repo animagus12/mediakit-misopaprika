@@ -1,11 +1,12 @@
 import type { LinkItem, LinkKind, LinkProfile, LinkSection, LinksData } from "@/repositories/links";
 
-// Which image slot a file picker click is filling. Sections and items are
-// addressed by id rather than index so a concurrent reorder can't land an
-// upload on the wrong card.
-export type LinksPickerTarget =
-  | { kind: "avatar" }
-  | { kind: "image"; sectionId: string; itemId: string };
+// Which item's image a file picker click is filling — addressed by id rather
+// than index so a concurrent reorder can't land an upload on the wrong card.
+// The profile photo is not a target: it belongs to the media kit.
+export interface LinksPickerTarget {
+  sectionId: string;
+  itemId: string;
+}
 
 export type SectionPatch = Partial<Omit<LinkSection, "id" | "items">>;
 export type ItemPatch = Partial<Omit<LinkItem, "id">>;
@@ -28,7 +29,7 @@ export interface LinksEditorActions {
   reorderItems: (sectionId: string, fromIndex: number, toIndex: number) => void;
 
   openPicker: (target: LinksPickerTarget) => void;
-  /** Id of the slot currently uploading ("avatar", or an item id), else null. */
+  /** Id of the item currently uploading, else null. */
   uploadingSlot: string | null;
 }
 

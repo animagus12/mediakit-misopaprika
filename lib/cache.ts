@@ -114,3 +114,95 @@ export async function getMediaKitUniqueVisitors(): Promise<number> {
     return 0;
   }
 }
+
+// ---------------------------------------------------------------------------
+// /links analytics.
+//
+// Same best-effort contract as the media kit counters above: a public page
+// render, or the click that leaves it, must never fail because KV is unset or
+// unreachable. Reads answer 0 / {} so the editor renders an honest empty
+// state rather than an error.
+//
+// Clicks live in one hash keyed by LinkItem.id — the id is stable across
+// relabelling and reordering (see LinkItem), so a link keeps its history when
+// it is renamed or dragged, and one HGETALL fetches every link's total.
+// ---------------------------------------------------------------------------
+
+const LINKS_VIEWS_KEY = "links_views";
+const LINKS_UNIQUE_VISITORS_KEY = "links_unique_visitors";
+const LINKS_CLICKS_KEY = "links_clicks";
+
+export async function incrementLinksViews(): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.incr(LINKS_VIEWS_KEY);
+  } catch {
+    // Non-critical: dropping a view count is preferable to breaking the public page.
+  }
+}
+
+export async function getLinksViews(): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  try {
+    return (await redis.get<number>(LINKS_VIEWS_KEY)) ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function recordLinksVisitor(visitorId: string | undefined): Promise<void> {
+  const redis = getRedis();
+  if (!redis || !visitorId) return;
+  try {
+    await redis.sadd(LINKS_UNIQUE_VISITORS_KEY, visitorId);
+  } catch {
+    // Non-critical: dropping a visitor from the unique count is preferable to breaking the public page.
+  }
+}
+
+export async function getLinksUniqueVisitors(): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  try {
+    return (await redis.scard(LINKS_UNIQUE_VISITORS_KEY)) ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Callers must have already checked the id against the published page — this
+ * writes a new hash field for whatever it is given, so an unvalidated id from
+ * a request body would let anyone grow the key without bound.
+ */
+export async function incrementLinkClick(itemId: string): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.hincrby(LINKS_CLICKS_KEY, itemId, 1);
+  } catch {
+    // Non-critical: a lost click is preferable to a failed navigation.
+  }
+}
+
+/** Total clicks per item id; ids never clicked are simply absent. */
+export async function getLinkClicks(): Promise<Record<string, number>> {
+  const redis = getRedis();
+  if (!redis) return {};
+  try {
+    const stored = await redis.hgetall<Record<string, string | number>>(LINKS_CLICKS_KEY);
+    if (!stored) return {};
+    const clicks: Record<string, number> = {};
+    for (const [itemId, value] of Object.entries(stored)) {
+      const count = Number(value);
+      // A field that doesn't parse is a corrupt write, not a zero: skipping it
+      // keeps one bad entry out of the totals instead of into them as NaN.
+      if (Number.isFinite(count)) clicks[itemId] = count;
+    }
+    return clicks;
+  } catch {
+    return {};
+  }
+}
