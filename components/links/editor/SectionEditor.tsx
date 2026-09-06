@@ -12,9 +12,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { linkPerformance } from "@/lib/linkStats";
+import type { LinksAnalytics } from "@/repositories/linkStats";
 import type { LinkSection } from "@/repositories/links";
 import { ItemEditor } from "./ItemEditor";
 import { SortableList, useSortableRow } from "./SortableList";
@@ -25,9 +28,17 @@ interface SectionEditorProps {
   index: number;
   sectionCount: number;
   actions: LinksEditorActions;
+  /** Passed through whole; each row takes its own figures from it. */
+  analytics: LinksAnalytics;
 }
 
-export function SectionEditor({ section, index, sectionCount, actions }: SectionEditorProps) {
+export function SectionEditor({
+  section,
+  index,
+  sectionCount,
+  actions,
+  analytics,
+}: SectionEditorProps) {
   const { ref, style, handleProps } = useSortableRow(section.id);
 
   return (
@@ -41,17 +52,22 @@ export function SectionEditor({ section, index, sectionCount, actions }: Section
           <GripVertical size={18} />
         </span>
 
+        {/* Chromeless until hovered or focused: this is the section's
+            heading first and a text field second, and a page of boxed
+            inputs gave the eye nothing to structure it by. */}
         <Input
           aria-label="Section title"
-          className="h-9 max-w-64 flex-1 font-medium"
+          className="hover:border-input focus-visible:border-ring font-heading h-8 max-w-64 flex-1 border-transparent bg-transparent px-2 text-sm font-semibold dark:bg-transparent"
           value={section.title}
           placeholder="Section title"
           onChange={(event) => actions.updateSection(section.id, { title: event.target.value })}
         />
 
-        <span className="text-muted-foreground text-xs">
+        <Badge variant="secondary">
           {section.items.length} link{section.items.length === 1 ? "" : "s"}
-        </span>
+        </Badge>
+
+        {!section.enabled ? <Badge variant="outline">Hidden</Badge> : null}
 
         <div className="ml-auto flex items-center gap-1">
           <Button
@@ -104,7 +120,13 @@ export function SectionEditor({ section, index, sectionCount, actions }: Section
           onReorder={(from, to) => actions.reorderItems(section.id, from, to)}
         >
           {section.items.map((item) => (
-            <ItemEditor key={item.id} item={item} sectionId={section.id} actions={actions} />
+            <ItemEditor
+              key={item.id}
+              item={item}
+              sectionId={section.id}
+              actions={actions}
+              linkStats={linkPerformance(analytics, item.id)}
+            />
           ))}
         </SortableList>
 
@@ -117,24 +139,27 @@ export function SectionEditor({ section, index, sectionCount, actions }: Section
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => actions.addItem(section.id, "link")}
           >
             <Plus /> Add link
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => actions.addItem(section.id, "social")}
           >
             <Plus /> Add social
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => actions.addItem(section.id, "code")}
           >
             <Plus /> Add creator code

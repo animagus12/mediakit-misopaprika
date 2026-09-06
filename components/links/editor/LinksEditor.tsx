@@ -1,16 +1,23 @@
 "use client";
 
 import { upload } from "@vercel/blob/client";
-import { ExternalLink, Loader2, Plus, RotateCcw } from "lucide-react";
+import { ExternalLink, Loader2, Plus, RotateCcw, Smartphone } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { publishLinks, saveLinks } from "@/app/links-editor/actions";
 import { LinksPublicView } from "@/components/links/LinksPublicView";
 import { Button } from "@/components/ui/button";
+import { linksSummary } from "@/lib/linkStats";
 import { blankItem, blankSection, moveItem, visiblePageNow } from "@/lib/links";
+import type { LinksAnalytics } from "@/repositories/linkStats";
 import type { LinkKind, LinkProfile, LinkSection, LinksData } from "@/repositories/links";
-import type { SocialStats } from "@/repositories/socialStats";
+import type {
+  InstagramTokenStatus,
+  SocialStats,
+  SocialStatsFreshness,
+} from "@/repositories/socialStats";
+import { LinksStatCards } from "./LinksStatCards";
 import { ProfileFields } from "./ProfileFields";
 import { SectionEditor } from "./SectionEditor";
 import { SortableList } from "./SortableList";
@@ -21,9 +28,24 @@ interface LinksEditorProps {
   /** Read on the server; the preview resolves stat tokens with the same
    * figures the public page will use. */
   stats: SocialStats;
+  /** The media kit's published photo, shown but not editable here. */
+  photo: string;
+  /** When each cached figure was last written; read-only. */
+  freshness: SocialStatsFreshness;
+  /** Health of the token behind the Instagram figure; read-only. */
+  instagramToken: InstagramTokenStatus;
+  /** What /links has done: views, visitors, and clicks per link. Read-only. */
+  analytics: LinksAnalytics;
 }
 
-export function LinksEditor({ data, stats }: LinksEditorProps) {
+export function LinksEditor({
+  data,
+  stats,
+  photo,
+  freshness,
+  instagramToken,
+  analytics,
+}: LinksEditorProps) {
   const [state, setState] = useState<LinksData>(data);
   const [isSaving, startSaveTransition] = useTransition();
   const [isPublishing, startPublishTransition] = useTransition();
@@ -158,8 +180,7 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
       event.target.value = "";
       if (!file || !target) return;
 
-      const slot = target.kind === "avatar" ? "avatar" : target.itemId;
-      setUploadingSlot(slot);
+      setUploadingSlot(target.itemId);
       try {
         // Reuses the media kit's upload route: it only verifies the session and
         // returns a Blob client token, with nothing media-kit-specific in it.
@@ -167,11 +188,7 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
           access: "public",
           handleUploadUrl: "/api/mediakit/upload",
         });
-        if (target.kind === "avatar") {
-          setProfile("avatar", blob.url);
-        } else {
-          updateItem(target.sectionId, target.itemId, { image: blob.url });
-        }
+        updateItem(target.sectionId, target.itemId, { image: blob.url });
         toast.success("Image uploaded");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "";
@@ -180,7 +197,7 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
         setUploadingSlot(null);
       }
     },
-    [setProfile, updateItem]
+    [updateItem]
   );
 
   const revert = useCallback(() => {
@@ -248,8 +265,14 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
   const preview = visiblePageNow(state, stats);
   const itemCount = state.sections.reduce((count, section) => count + section.items.length, 0);
 
+  // Summed over the links on screen rather than over the stored map, so a link
+  // deleted in this unsaved session stops counting immediately — see
+  // linksSummary(). The figures themselves describe what is published, which
+  // is why they don't move as the draft is edited.
+  const summary = linksSummary(state, analytics);
+
   return (
-    <div className="p-4 md:p-6">
+    <div className="mx-auto max-w-screen-xl space-y-6 px-4 py-10">
       <input
         ref={fileInputRef}
         type="file"
@@ -258,17 +281,17 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
         onChange={handleFileChange}
       />
 
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Links</h1>
-          <p className="text-muted-foreground text-sm">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-heading text-lg font-semibold">Links</h1>
+          <p className="text-muted-foreground text-xs">
             {state.sections.length} section{state.sections.length === 1 ? "" : "s"} · {itemCount} link
             {itemCount === 1 ? "" : "s"} · nothing reaches /links until you publish
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild variant="ghost">
-            <Link href="/links" target="_blank" rel="noopener noreferrer">
+            <Link href="/links" target="_blank" rel="noopener noreferrer" prefetch={false}>
               View live <ExternalLink />
             </Link>
           </Button>
@@ -284,9 +307,16 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
         </div>
       </header>
 
+      <LinksStatCards summary={summary} />
+
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
         <div className="flex min-w-0 flex-col gap-4">
-          <ProfileFields profile={state.profile} actions={actions} />
+          <ProfileFields
+            profile={state.profile}
+            freshness={freshness}
+            instagramToken={instagramToken}
+            actions={actions}
+          />
 
           <SortableList
             id="links-sections"
@@ -301,6 +331,7 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
                   index={index}
                   sectionCount={state.sections.length}
                   actions={actions}
+                  analytics={analytics}
                 />
               ))}
             </div>
@@ -312,19 +343,30 @@ export function LinksEditor({ data, stats }: LinksEditorProps) {
             </p>
           ) : null}
 
-          <Button type="button" variant="outline" onClick={addSection}>
+          <Button
+            type="button"
+            variant="outline"
+            className="text-muted-foreground hover:text-foreground h-10 border-dashed"
+            onClick={addSection}
+          >
             <Plus /> Add section
           </Button>
         </div>
 
-        <div className="hidden xl:sticky xl:top-6 xl:block">
-          <p className="text-muted-foreground mb-2 text-xs font-medium">
+        <aside className="hidden xl:sticky xl:top-6 xl:block">
+          <p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium">
+            <Smartphone className="size-3.5" />
             Preview — 390px, the layout a phone gets
           </p>
-          <div className="border-border h-[720px] w-[390px] overflow-y-auto rounded-2xl border">
-            <LinksPublicView profile={preview.profile} sections={preview.sections} />
+          <div className="bg-card ring-foreground/10 h-[720px] w-[390px] overflow-y-auto rounded-2xl shadow-sm ring-1">
+            <LinksPublicView
+              profile={preview.profile}
+              photo={photo}
+              followers={preview.followers}
+              sections={preview.sections}
+            />
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );

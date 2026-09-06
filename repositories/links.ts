@@ -25,8 +25,6 @@ export interface SocialHandle {
 export interface LinkProfile {
   displayName: string;
   tagline: string;
-  avatar: string;
-  followers: string;
   socials: SocialHandle[];
 }
 
@@ -131,8 +129,6 @@ export function normalizeLinksData(data: StoredLinksData): LinksData {
     profile: {
       displayName: data.profile?.displayName ?? "",
       tagline: data.profile?.tagline ?? "",
-      avatar: data.profile?.avatar ?? "",
-      followers: data.profile?.followers ?? "",
       socials: (data.profile?.socials ?? []).map((social) => ({
         platform: social.platform,
         url: social.url,

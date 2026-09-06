@@ -2,17 +2,27 @@ import { isExternal, isNavigable } from "@/lib/links";
 import type { LinkItem } from "@/repositories/links";
 import { CopyCodeButton } from "./CopyCodeButton";
 import { SocialIcon } from "./SocialIcon";
+import { TrackedLink } from "./TrackedLink";
 import styles from "./links.module.css";
 
-interface LinkCardProps {
+interface ItemProps {
   item: LinkItem;
+}
+
+interface LinkCardProps extends ItemProps {
+  /**
+   * Count a click on this card. False in the editor preview, whose cards are
+   * the same component and would otherwise report the author's own clicks as
+   * traffic.
+   */
+  trackClicks: boolean;
 }
 
 // Left slot for the "thumbnail" variant: an uploaded image wins over the
 // platform mark, so a social card with a real cover doesn't get a redundant
 // glyph. The mark is looked up from the label ("Instagram" → the Instagram
 // icon), which is what the editor's Label field controls.
-function Leading({ item }: LinkCardProps) {
+function Leading({ item }: ItemProps) {
   if (item.image) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img className={styles.thumb} src={item.image} alt="" />;
@@ -27,7 +37,7 @@ function Leading({ item }: LinkCardProps) {
   return <span className={styles.spacer} aria-hidden />;
 }
 
-function CardText({ item }: LinkCardProps) {
+function CardText({ item }: ItemProps) {
   return (
     <span className={styles.cardBody}>
       <span className={styles.cardLabel}>{item.label}</span>
@@ -48,7 +58,7 @@ function CardText({ item }: LinkCardProps) {
   );
 }
 
-export function LinkCard({ item }: LinkCardProps) {
+export function LinkCard({ item, trackClicks }: LinkCardProps) {
   const showCode = item.kind === "code" && item.code.length > 0;
   // A banner variant with no image uploaded yet falls back to the row layout
   // rather than rendering an empty picture frame.
@@ -78,15 +88,20 @@ export function LinkCard({ item }: LinkCardProps) {
   }
 
   const external = isExternal(item.url);
+  const anchorProps = {
+    className,
+    href: item.url,
+    target: external ? "_blank" : undefined,
+    rel: external ? "noopener noreferrer" : undefined,
+  };
 
-  return (
-    <a
-      className={className}
-      href={item.url}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noopener noreferrer" : undefined}
-    >
+  // Same anchor either way — the tracked one only adds a beacon — so an
+  // untracked render (the preview) ships no client JS for this card at all.
+  return trackClicks ? (
+    <TrackedLink itemId={item.id} {...anchorProps}>
       {body}
-    </a>
+    </TrackedLink>
+  ) : (
+    <a {...anchorProps}>{body}</a>
   );
 }

@@ -4,14 +4,18 @@ import styles from "./links.module.css";
 
 interface ProfileHeaderProps {
   profile: LinkProfile;
+  /** The media kit's photo — see getPublishedProfilePhoto(). */
+  photo: string;
+  /** Computed by totalFollowers(); null hides the line. */
+  followers: string | null;
 }
 
-export function ProfileHeader({ profile }: ProfileHeaderProps) {
+export function ProfileHeader({ profile, photo, followers }: ProfileHeaderProps) {
   return (
     <header className={styles.header}>
-      {profile.avatar ? (
+      {photo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className={styles.avatar} src={profile.avatar} alt={profile.displayName} />
+        <img className={styles.avatar} src={photo} alt={profile.displayName} />
       ) : null}
 
       <h1 className={styles.displayName}>{profile.displayName}</h1>
@@ -34,7 +38,7 @@ export function ProfileHeader({ profile }: ProfileHeaderProps) {
         </nav>
       ) : null}
 
-      {profile.followers ? <p className={styles.followers}>{profile.followers}</p> : null}
+      {followers ? <p className={styles.followers}>{followers}</p> : null}
     </header>
   );
 }

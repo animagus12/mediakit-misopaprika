@@ -1,6 +1,20 @@
 "use client";
 
-import { ChevronDown, Eye, EyeOff, GripVertical, ImagePlus, Loader2, Trash2 } from "lucide-react";
+import {
+  AtSign,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  GripVertical,
+  ImagePlus,
+  Link2,
+  Loader2,
+  MousePointerClick,
+  TicketPercent,
+  Trash2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -12,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatClickRate, type LinkPerformance } from "@/lib/linkStats";
 import { LINK_KIND_LABELS, LINK_VARIANT_LABELS } from "@/lib/links";
 import {
   LINK_KINDS,
@@ -20,14 +35,24 @@ import {
   type LinkKind,
   type LinkVariant,
 } from "@/repositories/links";
-import { StatTokenHint } from "./StatTokenHint";
 import type { LinksEditorActions } from "./types";
 import { useSortableRow } from "./SortableList";
+
+const KIND_ICONS: Record<LinkKind, LucideIcon> = {
+  link: Link2,
+  social: AtSign,
+  code: TicketPercent,
+};
 
 interface ItemEditorProps {
   item: LinkItem;
   sectionId: string;
   actions: LinksEditorActions;
+  /**
+   * This link's clicks and click rate. Describes the published card, so a link
+   * added in the current draft reads 0 until it has been live.
+   */
+  linkStats: LinkPerformance;
 }
 
 // <input type="datetime-local"> speaks local wall-clock time while the model
@@ -47,9 +72,10 @@ function fromLocalInput(value: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
-export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
+export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorProps) {
   const { ref, style, handleProps } = useSortableRow(item.id);
   const uploading = actions.uploadingSlot === item.id;
+  const KindIcon = KIND_ICONS[item.kind];
   const patch = (changes: Parameters<LinksEditorActions["updateItem"]>[2]) =>
     actions.updateItem(sectionId, item.id, changes);
 
@@ -60,7 +86,7 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
       style={style}
       className={`rounded-md border ${item.enabled ? "" : "opacity-60"}`}
     >
-      <div className="flex flex-wrap items-center gap-2 p-2">
+      <div className="hover:bg-muted/40 flex flex-wrap items-center gap-2 rounded-md p-2 transition-colors">
         <span
           className="text-muted-foreground cursor-grab touch-none active:cursor-grabbing"
           title="Drag to reorder"
@@ -76,12 +102,29 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
             aria-label={`Edit ${item.label}`}
           >
             <ChevronDown size={14} className="shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
+            <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md">
+              <KindIcon size={13} />
+            </span>
             <span className="truncate font-medium">{item.label || "Untitled"}</span>
-            <span className="text-muted-foreground shrink-0 text-xs">
+            <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
               {LINK_KIND_LABELS[item.kind]} · {LINK_VARIANT_LABELS[item.variant]}
             </span>
+            {!item.enabled ? <Badge variant="outline">Hidden</Badge> : null}
           </button>
         </CollapsibleTrigger>
+
+        {/* Sits outside the trigger so it stays readable while collapsed —
+            comparing links is the point, and that only works if every row
+            shows its figures without being opened. */}
+        <span
+          className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs tabular-nums"
+          title={`${linkStats.clicks.toLocaleString()} click${linkStats.clicks === 1 ? "" : "s"} — ${formatClickRate(linkStats.clickRate)} of the views /links has had`}
+        >
+          <MousePointerClick className="size-3.5" />
+          <span className="text-foreground font-medium">{linkStats.clicks.toLocaleString()}</span>
+          <span className="text-muted-foreground/50">·</span>
+          {formatClickRate(linkStats.clickRate)}
+        </span>
 
         <Button
           type="button"
@@ -165,7 +208,6 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
             value={item.sublabel}
             onChange={(event) => patch({ sublabel: event.target.value })}
           />
-          <StatTokenHint />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -177,9 +219,6 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
               value={item.url}
               onChange={(event) => patch({ url: event.target.value })}
             />
-            <p className="text-muted-foreground text-xs">
-              Leave empty for a card that isn’t clickable — useful for a code with no shop link.
-            </p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -237,7 +276,7 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
                 variant="outline"
                 size="sm"
                 disabled={uploading}
-                onClick={() => actions.openPicker({ kind: "image", sectionId, itemId: item.id })}
+                onClick={() => actions.openPicker({ sectionId, itemId: item.id })}
               >
                 {uploading ? <Loader2 className="animate-spin" /> : <ImagePlus />}
                 {item.image ? "Replace" : "Upload"}
@@ -253,11 +292,6 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
                 </Button>
               ) : null}
             </div>
-            <p className="text-muted-foreground text-xs">
-              {item.image
-                ? "The same image is kept when you switch layout — it's cropped round for Small image and shown full width for Banner."
-                : "Without an image, Banner falls back to the text-only layout rather than rendering an empty frame."}
-            </p>
           </div>
         )}
 
@@ -281,9 +315,6 @@ export function ItemEditor({ item, sectionId, actions }: ItemEditorProps) {
             />
           </div>
         </div>
-        <p className="text-muted-foreground text-xs">
-          Optional. Leave both empty to always show. Times are your local time.
-        </p>
       </CollapsibleContent>
     </Collapsible>
   );

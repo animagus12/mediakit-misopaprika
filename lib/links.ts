@@ -47,7 +47,7 @@ export function visibleSections(data: LinksData, now: number): LinkSection[] {
 // — "MisoPaprika · {youtube_subscribers}" — and substituted at render. Keeping
 // it a token rather than a dedicated field means the author still owns the
 // phrasing (handle, separator, order), no schema migration was needed, and the
-// same mechanism works in the profile line and any card's sub-label.
+// same mechanism works in any card's sub-label.
 //
 // Each token expands to the whole phrase, count *and* noun, so that dropping
 // an unavailable one leaves a sentence that still reads: "MisoPaprika" rather
@@ -100,15 +100,37 @@ export function resolveStatTokens(text: string, stats: SocialStats): string {
   return resolved;
 }
 
+/**
+ * The audience total shown under the profile: summed from whatever platform
+ * figures are cached, never authored. It replaced a hand-typed line that sat
+ * directly above two cards already carrying these same counts live, so the
+ * page had a third number to keep in sync by hand and no way to notice when
+ * it drifted.
+ *
+ * Summed over the stats object's own values rather than a list of platforms
+ * repeated here, so adding a platform stays what STAT_TOKENS promises: one
+ * entry there plus one field on SocialStats.
+ *
+ * Null when no platform reported a figure — a normal state (see SocialStats),
+ * and the header renders no line at all rather than "0 followers".
+ */
+export function totalFollowers(stats: SocialStats): string | null {
+  const counts = Object.values(stats).filter((count) => typeof count === "number");
+  if (counts.length === 0) return null;
+  return `${formatCount(counts.reduce((sum, count) => sum + count, 0))} followers`;
+}
+
 export interface VisiblePage {
   profile: LinkProfile;
+  /** Computed, not authored — see totalFollowers(). */
+  followers: string | null;
   sections: LinkSection[];
 }
 
 /**
  * Everything the public page should render, in one call: the profile with
- * hidden social icons dropped, visibleSections(), and live stat tokens
- * resolved. Deliberately a single entry point rather than several — a surface
+ * hidden social icons dropped, the computed follower total, visibleSections(),
+ * and live stat tokens resolved. Deliberately a single entry point rather than several — a surface
  * that renders the page shouldn't be able to apply half the rules by
  * forgetting a call, which is why `stats` is required even where the caller
  * has none to give (pass EMPTY_SOCIAL_STATS).
@@ -117,9 +139,9 @@ export function visiblePage(data: LinksData, now: number, stats: SocialStats): V
   return {
     profile: {
       ...data.profile,
-      followers: resolveStatTokens(data.profile.followers, stats),
       socials: data.profile.socials.filter((social) => social.enabled),
     },
+    followers: totalFollowers(stats),
     sections: visibleSections(data, now).map((section) => ({
       ...section,
       items: section.items.map((item) => ({

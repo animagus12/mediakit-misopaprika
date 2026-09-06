@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { MediaKitPublicView } from "@/components/mediakit/MediaKitPublicView";
 import { incrementMediaKitViews, recordMediaKitVisitor } from "@/lib/cache";
 import { toFormState } from "@/lib/mediakit";
-import { VISITOR_COOKIE } from "@/lib/visitor";
+import { SESSION_COOKIE, VISITOR_COOKIE, isCountableVisit } from "@/lib/visitor";
 import { getPublishedMediaKitData } from "@/repositories/mediakit.writer.server";
 
 const TITLE = "Media kit - @misopaprika";
@@ -32,8 +32,17 @@ export default async function MediaKitPage() {
   if (!data) notFound();
 
   const cookieStore = await cookies();
-  await incrementMediaKitViews();
-  await recordMediaKitVisitor(cookieStore.get(VISITOR_COOKIE)?.value);
+
+  // The owner is not counted — see isCountableVisit(). Every protected page
+  // renders a sidebar link to /mediakit, and next/link prefetching it runs this
+  // render exactly like a real visit, so without the gate the figure counted
+  // dashboard navigation rather than an audience.
+  if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value)) {
+    await Promise.all([
+      incrementMediaKitViews(),
+      recordMediaKitVisitor(cookieStore.get(VISITOR_COOKIE)?.value),
+    ]);
+  }
 
   return <MediaKitPublicView state={toFormState(data)} />;
 }

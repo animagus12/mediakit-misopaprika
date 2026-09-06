@@ -41,3 +41,20 @@ export async function getPublishedMediaKitData(): Promise<MediaKitData | null> {
   if (!redis) return null;
   return (await redis.get<MediaKitData>(MEDIAKIT_PUBLISHED_KEY)) ?? null;
 }
+
+/**
+ * The one profile photo, shared by /mediakit and /links. It is uploaded in
+ * the media kit generator and owned by the media kit's header — /links has no
+ * photo field of its own, so the two pages cannot drift apart or be updated
+ * separately.
+ *
+ * Reads the **published** snapshot, not the draft: /links is public, and a
+ * photo saved but not yet published shouldn't appear there any more than an
+ * unpublished rate would. Falls back to the bundled seed's photo rather than
+ * to the draft, so a media kit that has never been published still leaves
+ * /links with a face rather than a gap.
+ */
+export async function getPublishedProfilePhoto(): Promise<string> {
+  const published = await getPublishedMediaKitData();
+  return published?.header.photo || mediakitRepository.get().header.photo;
+}
