@@ -4,7 +4,7 @@
   --mediakit-ink: #545454;
   --mediakit-dark: #1a1a1a;
   --mediakit-coral: #ff5757;
-  /* Chrome colors follow the app's light/dark theme tokens (globals.css) —
+  /* Chrome colors follow the app's light/dark theme tokens (globals.css): 
      only the printed A4 sheet below keeps its own fixed brand colors. */
   --mediakit-panel: var(--background);
   --mediakit-panel-2: var(--card);
@@ -47,7 +47,7 @@
   container-type: inline-size;
 }
 
-/* Scale the fixed A4 sheet down to whatever width .stage actually has —
+/* Scale the fixed A4 sheet down to whatever width .stage actually has: 
    computed live from the container query size, so it's correct on the very
    first paint (no JS/useEffect delay causing a flash of the full 793px-wide
    sheet) and re-solves instantly on any resize/rotation.
@@ -55,8 +55,8 @@
    `transform`, NOT `zoom`: zoom multiplies the *used* font sizes, so at a
    phone's ~0.44 factor this sheet's type (6.6pt fine print through 47pt
    wordmark) computes down to ~3.9px at the small end. Mobile WebKit/Blink
-   then boost that unreadably-small text back up toward a minimum — text
-   only, independently of the mm-positioned boxes around it — so the type
+   then boost that unreadably-small text back up toward a minimum: text
+   only, independently of the mm-positioned boxes around it: so the type
    hierarchy collapses and every string overflows its box and gets clipped
    by .page's `overflow: hidden`. transform scales the finished rendering
    instead: computed font sizes stay at their authored pt values, so there
@@ -64,7 +64,7 @@
    size explicitly because, unlike zoom, a transform doesn't shrink the
    layout box it reserves (the original reason zoom was used here).
 
-   Scoped to screen only — some print pipelines (e.g. printing through an OS
+   Scoped to screen only: some print pipelines (e.g. printing through an OS
    printer driver like "Microsoft Print to PDF" rather than the browser's own
    PDF export) don't reliably honor an override in @media print, so instead
    the rule is simply never declared for print. */
@@ -72,7 +72,7 @@
   .stageInner {
     /* vw baseline (minus .stage's 20px side padding) so engines without
        container query support still scale; overridden just below where cqw
-       is available, which is what the editor needs — its .stage is narrower
+       is available, which is what the editor needs: its .stage is narrower
        than the viewport by the 400px controls panel. */
     --mk-scale: min(1, calc((100vw - 40px) / 210mm));
     width: calc(210mm * var(--mk-scale));
@@ -329,13 +329,13 @@
   font-family: var(--font-mediakit-body, "Mulish"), sans-serif;
   /* Without this, Chrome/Safari drop background colors when printing
      unless the user manually enables "Background graphics" in the print
-     dialog — since Save as PDF goes through window.print(), colored
+     dialog: since Save as PDF goes through window.print(), colored
      elements like .pill and .scrim would silently print without their
      background. Inherited, so it also covers nested elements. */
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  /* This sheet is a fixed-metric A4 render — every box is positioned in mm
-     and every string sized in pt — so any automatic text inflation breaks
+  /* This sheet is a fixed-metric A4 render: every box is positioned in mm
+     and every string sized in pt: so any automatic text inflation breaks
      it rather than helping. Opted out here only; the rest of the app keeps
      Tailwind preflight's `text-size-adjust: 100%`. */
   -webkit-text-size-adjust: none;
@@ -446,7 +446,7 @@
 }
 
 /* nested under .facts (not a standalone class) so this wins the specificity
-   fight against .facts div above — matches the original's ".facts .r" */
+   fight against .facts div above: matches the original's ".facts .r" */
 .facts .factsRight {
   text-align: right;
   color: var(--mediakit-blue);
@@ -818,7 +818,7 @@
   }
 
   .stage {
-    /* Desktop's flex:1 means "grow to fill leftover space" — but in a
+    /* Desktop's flex:1 means "grow to fill leftover space", but in a
        stacked column layout where .panel's content already exceeds
        100vh, there is no leftover space to distribute, so flex:1's
        flex-basis:0% collapses .stage instead of sizing to its content.

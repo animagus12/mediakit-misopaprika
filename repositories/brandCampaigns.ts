@@ -4,7 +4,7 @@ import type { Campaign, CampaignPaymentStatus } from "./campaigns";
 
 export type BrandCampaignPaymentStatus = CampaignPaymentStatus;
 
-// One campaign, projected for the brand CRM's Campaigns/Payments tabs — same
+// One campaign, projected for the brand CRM's Campaigns/Payments tabs: same
 // records repositories/collaborations.ts and repositories/earnings.ts read,
 // just carrying the invoice/payment fields neither of those projections needs.
 export interface BrandCampaignRecord {
@@ -13,8 +13,8 @@ export interface BrandCampaignRecord {
   brandId: string | null; // → Brand (repositories/brands.ts); null when not linked to a CRM brand
   campaign: string;
   deliverables: string; // e.g. "1 Reel, 1 Story"
-  date: string; // DD/MM/YYYY — deal date
-  uploadDate: string; // DD/MM/YYYY — actual delivery date, often blank until posted
+  date: string; // DD/MM/YYYY, deal date
+  uploadDate: string; // DD/MM/YYYY, actual delivery date, often blank until posted
   status: string; // pipeline status: Discussion/Todo/Completed/Cancelled/...
   amount: number;
   barterValue: number;

@@ -13,7 +13,7 @@ interface DeleteInvoiceButtonProps {
 export function DeleteInvoiceButton({ id, label }: DeleteInvoiceButtonProps) {
   const [isPending, startTransition] = useTransition();
 
-  // Double-click to arm, then a confirm prompt — deleting an invoice is
+  // Double-click to arm, then a confirm prompt: deleting an invoice is
   // destructive and the row is otherwise click-to-open, so a single stray
   // click must never remove a record.
   function handleDoubleClick() {

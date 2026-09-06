@@ -113,12 +113,12 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
           </button>
         </CollapsibleTrigger>
 
-        {/* Sits outside the trigger so it stays readable while collapsed —
+        {/* Sits outside the trigger so it stays readable while collapsed: 
             comparing links is the point, and that only works if every row
             shows its figures without being opened. */}
         <span
           className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs tabular-nums"
-          title={`${linkStats.clicks.toLocaleString()} click${linkStats.clicks === 1 ? "" : "s"} — ${formatClickRate(linkStats.clickRate)} of the views /links has had`}
+          title={`${linkStats.clicks.toLocaleString()} click${linkStats.clicks === 1 ? "" : "s"}, ${formatClickRate(linkStats.clickRate)} of the views /links has had`}
         >
           <MousePointerClick className="size-3.5" />
           <span className="text-foreground font-medium">{linkStats.clicks.toLocaleString()}</span>
@@ -194,7 +194,7 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
           />
           {item.kind === "social" && item.variant === "thumbnail" && !item.image ? (
             <p className="text-muted-foreground text-xs">
-              With no image set, the label picks the icon — name it Instagram, YouTube, TikTok, X or
+              With no image set, the label picks the icon: name it Instagram, YouTube, TikTok, X or
               Discord to get that mark.
             </p>
           ) : null}

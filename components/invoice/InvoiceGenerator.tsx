@@ -34,13 +34,13 @@ function buildInitialState(
 ): InvoiceFormState {
   if (invoice) return invoiceRecordToFormState(invoice);
   const base = invoiceDefaultsToFormState(data);
-  // Deep-linked from a brand ("New invoice" on /brands/[id]) — pre-select it
+  // Deep-linked from a brand ("New invoice" on /brands/[id]): pre-select it
   // and seed the shown client name from the brand.
   const brand = initialBrandId ? brandOptions.find((option) => option.id === initialBrandId) : undefined;
   return {
     ...base,
     // Prefilled from the dashboard's "Needs attention" / "Payments due" links
-    // so the saved invoice names the same brand + campaign the record does —
+    // so the saved invoice names the same brand + campaign the record does: 
     // that's the pair those cards match on to stop re-flagging the deal.
     ...(initialCampaignName ? { campaignName: initialCampaignName } : {}),
     ...(brand
@@ -87,7 +87,7 @@ export function InvoiceGenerator({
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Only ever called from client-triggered handlers (add line, apply
-  // preset, reset) — never during the initial render — so a plain
+  // preset, reset)(never during the initial render) so a plain
   // incrementing counter is safe and can't collide with the "initial-*"
   // ids used for the first render's items.
   const nextItemId = useRef(0);
@@ -113,7 +113,7 @@ export function InvoiceGenerator({
 
   // Links the invoice to a CRM brand and pulls the brand name onto the invoice
   // (and its sole contact, when there's exactly one and no name typed yet).
-  // The snapshot fields stay editable — this is a convenience, not a lock.
+  // The snapshot fields stay editable: this is a convenience, not a lock.
   const selectBrand = useCallback(
     (brandId: string | null) => {
       setState((prev) => {
@@ -196,7 +196,7 @@ export function InvoiceGenerator({
     showToast("Fields reset");
   }, [data.defaultItems, data.dueInDays, showToast, withFreshIds]);
 
-  // Persists the invoice without touching the print dialog — "Save" and
+  // Persists the invoice without touching the print dialog: "Save" and
   // "Download PDF" are separate actions. For a brand-new invoice the current
   // form is also carried forward as the defaults for the next one (invoice
   // number, campaign name, payee details, line items, …), then the URL swaps
@@ -222,7 +222,7 @@ export function InvoiceGenerator({
 
   // Opens the browser's print/Save-as-PDF dialog for the live preview. The
   // invoice.module.css @media print rules hide the controls panel, so only
-  // the A4 sheet prints. Independent of Save — the record isn't touched.
+  // the A4 sheet prints. Independent of Save: the record isn't touched.
   const download = useCallback(() => {
     window.print();
   }, []);

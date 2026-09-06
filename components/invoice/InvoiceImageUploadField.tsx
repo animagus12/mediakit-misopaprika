@@ -34,7 +34,7 @@ export function InvoiceImageUploadField({
       onChange(blob.url);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
-      onError(reason ? `Upload failed — ${reason}` : "Upload failed — try a different image");
+      onError(reason ? `Upload failed(${reason}` : "Upload failed) try a different image");
     } finally {
       setIsUploading(false);
     }

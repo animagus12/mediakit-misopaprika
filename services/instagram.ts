@@ -1,6 +1,6 @@
 // Instagram API with Instagram Login (graph.instagram.com). Unlike YouTube,
 // which authenticates with a plain API key, this needs a user access token
-// that expires — so the token itself is state the app has to keep and renew.
+// that expires: so the token itself is state the app has to keep and renew.
 // See refreshInstagramTokenIfDue() for why that lives here.
 
 // Pinned rather than left unversioned: an unversioned graph.instagram.com call
@@ -12,7 +12,7 @@ const GRAPH_VERSION = "v23.0";
 // means a refresh normally happens ~20 days after the last one, so the cron
 // can fail silently for six weeks before anything actually breaks.
 // Exported because the editor's health readout is only meaningful against the
-// same threshold the job actually renews on — two copies would drift.
+// same threshold the job actually renews on: two copies would drift.
 export const REFRESH_WHEN_REMAINING_MS = 40 * 24 * 60 * 60 * 1000;
 
 // Meta rejects a refresh of a token younger than this.
@@ -28,7 +28,7 @@ export interface InstagramStatsCache {
 
 /**
  * The live token and when it lapses. Persisted (not held in an env var)
- * because a refresh mints a *new* token — the process cannot rewrite its own
+ * because a refresh mints a *new* token: the process cannot rewrite its own
  * environment, so a token kept only in `INSTAGRAM_ACCESS_TOKEN` would be
  * frozen at whatever was deployed and die 60 days later.
  */
@@ -74,7 +74,7 @@ export async function fetchInstagramStats(token: string): Promise<InstagramStats
   if (typeof body.followers_count !== "number") {
     // The field is only returned for Business and Creator accounts.
     throw new Error(
-      "Instagram returned no followers_count — the account must be a Business or Creator account"
+      "Instagram returned no followers_count: the account must be a Business or Creator account"
     );
   }
 
@@ -87,7 +87,7 @@ export async function fetchInstagramStats(token: string): Promise<InstagramStats
 
 /**
  * Renews the token when it is close enough to lapsing, and returns the new
- * record — or null when nothing was due, which is the common case.
+ * record: or null when nothing was due, which is the common case.
  *
  * `now` is a parameter rather than a clock read so the due/not-due decision is
  * testable, the same reason visibleSections() takes one.

@@ -45,7 +45,7 @@ interface StatusStyle {
 }
 
 // Same pipeline vocabulary/coloring as components/dashboard/DashboardCampaignsSection.tsx
-// and components/brands/BrandCampaignsTab.tsx — duplicated rather than
+// and components/brands/BrandCampaignsTab.tsx: duplicated rather than
 // imported cross-feature, matching how this styling is already duplicated
 // per-surface elsewhere in the app.
 function statusStyle(status: string): StatusStyle {
@@ -151,7 +151,7 @@ export function CampaignsTable({ campaigns, brandOptions = [] }: CampaignsTableP
   const [page, setPage] = useState(1);
 
   // Adopt the URL value when it changes from the outside (a tab click,
-  // browser back/forward) — the sanctioned "reset state on prop change" pattern.
+  // browser back/forward): the sanctioned "reset state on prop change" pattern.
   const [lastQueryParam, setLastQueryParam] = useState(queryParam);
   if (queryParam !== lastQueryParam) {
     setLastQueryParam(queryParam);
@@ -303,14 +303,14 @@ export function CampaignsTable({ campaigns, brandOptions = [] }: CampaignsTableP
                             {campaign.brand}
                           </TableCell>
                           <TableCell className="max-w-32 truncate text-muted-foreground" title={campaign.campaign}>
-                            {campaign.campaign || "—"}
+                            {campaign.campaign || "-"}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{campaign.type || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{campaign.type || "-"}</TableCell>
                           <TableCell className="text-muted-foreground whitespace-nowrap">
-                            {[campaign.reels, campaign.story].filter(Boolean).join(", ") || "—"}
+                            {[campaign.reels, campaign.story].filter(Boolean).join(", ") || "-"}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{campaign.date || "—"}</TableCell>
-                          <TableCell className="text-muted-foreground">{campaign.uploadDate || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{campaign.date || "-"}</TableCell>
+                          <TableCell className="text-muted-foreground">{campaign.uploadDate || "-"}</TableCell>
                           <TableCell>
                             <Badge variant={status.variant} className={status.className}>
                               {campaign.status || "Unknown"}
@@ -321,16 +321,16 @@ export function CampaignsTable({ campaigns, brandOptions = [] }: CampaignsTableP
                           <TableCell className="text-right tabular-nums font-medium">
                             {formatMoney(campaign.total)}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{campaign.invoiceId || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{campaign.invoiceId || "-"}</TableCell>
                           <TableCell>
                             <Badge variant={payment.variant} className={payment.className}>
-                              {campaign.paymentStatus === "unknown" ? "—" : campaign.paymentStatus}
+                              {campaign.paymentStatus === "unknown" ? "-" : campaign.paymentStatus}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{campaign.paymentDue || "—"}</TableCell>
-                          <TableCell className="text-muted-foreground">{campaign.paymentMethod || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground">{campaign.paymentDue || "-"}</TableCell>
+                          <TableCell className="text-muted-foreground">{campaign.paymentMethod || "-"}</TableCell>
                           <TableCell className="max-w-40 truncate text-muted-foreground" title={campaign.notes || undefined}>
-                            {campaign.notes || "—"}
+                            {campaign.notes || "-"}
                           </TableCell>
                         </TableRow>
                       }

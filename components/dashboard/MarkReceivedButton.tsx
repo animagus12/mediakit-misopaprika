@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// Presentational only — the optimistic hide, sheet write, toast and Undo all
+// Presentational only: the optimistic hide, sheet write, toast and Undo all
 // live in the parent card via useMarkReceived().
 export function MarkReceivedButton({
   onClick,

@@ -21,7 +21,7 @@ export interface EarningsSummary {
   paid: number;
   barter: number;
   pending: number;
-  monthly: MonthlyEarnings[]; // descending by month — most recent first
+  monthly: MonthlyEarnings[]; // descending by month, most recent first
 }
 
 export interface IEarningsRepository {
@@ -37,7 +37,7 @@ function monthKey(raw: string | undefined): string | null {
   return `${year}-${month.padStart(2, "0")}`;
 }
 
-// A cancelled deal never happened commercially — excluded from every stat
+// A cancelled deal never happened commercially: excluded from every stat
 // (received, pending, monthly), not just netted out of "pending".
 function isCancelled(status: string): boolean {
   return status.trim().toLowerCase() === "cancelled";

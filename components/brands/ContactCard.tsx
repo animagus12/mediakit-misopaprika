@@ -72,13 +72,13 @@ export function ContactCard({ contact, brandId, agencyId, agencyName }: ContactC
     event.stopPropagation();
     if (!window.confirm(`Remove ${contact.name} from contacts?`)) return;
     startTransition(async () => {
-      await removeContact(contact.id, brandId);
+      await removeContact(contact.id);
     });
   }
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      {/* A <div> here, not a <button> — the delete button below is a real
+      {/* A <div> here, not a <button>: the delete button below is a real
           nested <button>, and <button> can't contain <button> in valid HTML
           (React 19 warns and fails to hydrate it). */}
       <div

@@ -105,14 +105,14 @@ export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabP
                   : null;
                 return (
                   <TableRow key={record.campaignId || `${record.campaign}-${record.date}`}>
-                    <TableCell className="max-w-40 truncate font-medium">{record.campaign || "—"}</TableCell>
+                    <TableCell className="max-w-40 truncate font-medium">{record.campaign || "-"}</TableCell>
                     <TableCell className="text-muted-foreground">
                       {matchedInvoice ? (
                         <Link href={`/invoices/${matchedInvoice.id}`} className="text-foreground hover:underline">
                           {record.invoiceId}
                         </Link>
                       ) : (
-                        record.invoiceId || "—"
+                        record.invoiceId || "-"
                       )}
                       {mismatch && (
                         <span className="block text-[11px] text-amber-600 dark:text-amber-400">{mismatch}</span>
@@ -121,10 +121,10 @@ export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabP
                     <TableCell className="text-right tabular-nums">{formatMoney(record.total)}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant} className={status.className}>
-                        {record.paymentStatus === "unknown" ? "—" : record.paymentStatus}
+                        {record.paymentStatus === "unknown" ? "-" : record.paymentStatus}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{record.paymentMethod || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{record.paymentMethod || "-"}</TableCell>
                   </TableRow>
                 );
               })}

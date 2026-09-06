@@ -1,6 +1,6 @@
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 
-// Client-safe aggregation over BrandCampaignRecord[] — kept out of
+// Client-safe aggregation over BrandCampaignRecord[]: kept out of
 // repositories/brandCampaigns.ts (which is "server-only", since it fetches
 // from Redis) so both the /brands list page and a brand's detail page can
 // reuse this without pulling in the fetching code.
@@ -9,7 +9,7 @@ export function normalizeBrandName(name: string): string {
   return name.trim().toLowerCase();
 }
 
-// Matches by brandId when a record carries one — the correct, rename-proof
+// Matches by brandId when a record carries one: the correct, rename-proof
 // link. Falls back to a case-insensitive name match only for older/unlinked
 // records that predate Campaign.brandId (repositories/campaigns.ts).
 export function recordsForBrand(
@@ -40,7 +40,7 @@ export interface BrandStats {
 
 export const EMPTY_STATS: BrandStats = { campaignCount: 0, totalBilled: 0, totalReceived: 0, pending: 0, lastCollabDate: null };
 
-// A cancelled deal never happened commercially — excluded entirely, same as
+// A cancelled deal never happened commercially: excluded entirely, same as
 // repositories/earnings.ts's isCancelled skip.
 export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
   const stats = { ...EMPTY_STATS };
@@ -65,7 +65,7 @@ export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
   return stats;
 }
 
-// Bulk variant for the /brands list page — one pass per brand rather than
+// Bulk variant for the /brands list page: one pass per brand rather than
 // scanning the full record set redundantly for each row's stat cells. Keyed
 // by name (not id) since that's what callers already look the result up by.
 export function computeStatsByBrand(

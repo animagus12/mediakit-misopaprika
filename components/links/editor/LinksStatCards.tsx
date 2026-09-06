@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 // tiles read consistently across the dashboard: a raw palette hue at low
 // opacity, since globals.css has no success/info token.
 //
-// Tones group the four figures rather than rank them — audience in sky, what
-// the audience did in emerald — and are applied unconditionally, as on
+// Tones group the four figures rather than rank them: audience in sky, what
+// the audience did in emerald: and are applied unconditionally, as on
 // /brands, so a tile doesn't change colour just because its figure is 0.
 const TONES = {
   audience: {
@@ -51,7 +51,7 @@ interface LinksStatCardsProps {
 /**
  * What /links has done, above the editor that changes it. Read-only, and
  * deliberately the first thing on the page: every decision the editor invites
- * — what to feature, what to retire, whether a code still earns its slot —
+ *: what to feature, what to retire, whether a code still earns its slot: 
  * is one of these four figures' to inform.
  */
 export function LinksStatCards({ summary }: LinksStatCardsProps) {

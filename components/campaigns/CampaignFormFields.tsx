@@ -111,10 +111,10 @@ export function CampaignFormFields({ idPrefix, form, setForm, brandOptions = [] 
             }}
           >
             <SelectTrigger id={`${idPrefix}-brandId`} className="w-full">
-              <SelectValue placeholder="No brand — one-off" />
+              <SelectValue placeholder="No brand (one-off)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_BRAND_LINK}>No brand — one-off</SelectItem>
+              <SelectItem value={NO_BRAND_LINK}>No brand (one-off)</SelectItem>
               {brandOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.name}
@@ -124,7 +124,7 @@ export function CampaignFormFields({ idPrefix, form, setForm, brandOptions = [] 
           </Select>
           {form.brandId && !linkedBrand && (
             <p className="text-[11px] text-amber-600 dark:text-amber-400">
-              Linked brand no longer exists — pick another or set it to one-off.
+              Linked brand no longer exists: pick another or set it to one-off.
             </p>
           )}
         </div>

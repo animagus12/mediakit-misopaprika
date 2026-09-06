@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   try {
     const now = Date.now();
 
-    // Redis is the source of truth once seeded — the env var is only the
+    // Redis is the source of truth once seeded: the env var is only the
     // starting token, and re-seeding from it would overwrite a newer one.
     const stored = await getInstagramToken();
     let record = stored;
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       const seed = process.env.INSTAGRAM_ACCESS_TOKEN;
       // Not configured yet is a state, not a failure. Throwing here would 500
       // the job every morning until someone finishes the Meta app setup,
-      // which trains the alert to be ignored — right up until it fires for a
+      // which trains the alert to be ignored: right up until it fires for a
       // real token expiry months later.
       if (!seed) {
         return NextResponse.json({ ok: false, skipped: "INSTAGRAM_ACCESS_TOKEN is not set" });
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     // no effect until someone deleted the key by hand.
     if (!stored) await setInstagramToken(record);
 
-    // Renewal is reported, not thrown — the run still did its main job, and
+    // Renewal is reported, not thrown: the run still did its main job, and
     // there are ~40 days of headroom to succeed on a later one.
     let refreshed: string | null = null;
     let refreshError: string | null = null;

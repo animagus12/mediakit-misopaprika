@@ -9,7 +9,7 @@ import { getPublishedProfilePhoto } from "@/repositories/mediakit.writer.server"
 import { getSocialStats } from "@/repositories/socialStats.server";
 
 const TITLE = "@misopaprika - links";
-const DESCRIPTION = "Socials, creator codes, and collabs — everything in one place.";
+const DESCRIPTION = "Socials, creator codes, and collabs: everything in one place.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -41,7 +41,7 @@ export default async function LinksPage() {
 
   // Counted per render, alongside the per-link clicks the cards report, so
   // the editor can show a click rate. Both writes are best-effort and neither
-  // can fail the page — see lib/cache. The owner's own renders don't count;
+  // can fail the page: see lib/cache. The owner's own renders don't count;
   // see isCountableVisit().
   if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value)) {
     await Promise.all([

@@ -22,7 +22,7 @@ import type { Contact } from "@/repositories/contacts";
 interface NewBrandButtonProps {
   agencies: Agency[];
   contacts: Contact[];
-  // Defaults to the primary solid button — /brands' own "Add brand" CTA.
+  // Defaults to the primary solid button: /brands' own "Add brand" CTA.
   // Dashboard QuickActions passes "outline" so New campaign stays the one
   // prominent action in that row.
   variant?: VariantProps<typeof buttonVariants>["variant"];

@@ -42,7 +42,7 @@ const NO_AGENCY = "__none__";
 
 interface BrandFormFieldsProps {
   idPrefix: string;
-  brandId?: string; // omitted for a not-yet-created brand — limits the contact picker to the selected agency's contacts
+  brandId?: string; // omitted for a not-yet-created brand, limits the contact picker to the selected agency's contacts
   form: BrandFormState;
   setForm: React.Dispatch<React.SetStateAction<BrandFormState>>;
   agencies: Agency[];
@@ -60,7 +60,7 @@ export function BrandFormFields({
   onUploadError,
 }: BrandFormFieldsProps) {
   // Same contact set the brands table would show for this brand (own direct
-  // contacts + the selected agency's) — lets a creator pick which one to
+  // contacts + the selected agency's): lets a creator pick which one to
   // surface there when more than one applies.
   const eligibleContacts = contactsForBrand(
     { id: brandId ?? "", agencyId: form.agencyId },

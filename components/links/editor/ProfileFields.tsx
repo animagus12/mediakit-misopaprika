@@ -14,7 +14,7 @@ import type { LinksEditorActions } from "./types";
 
 interface ProfileFieldsProps {
   profile: LinkProfile;
-  /** Both sit under the rows they describe — see SocialRowNotes. */
+  /** Both sit under the rows they describe: see SocialRowNotes. */
   freshness: SocialStatsFreshness;
   instagramToken: InstagramTokenStatus;
   actions: LinksEditorActions;
@@ -32,7 +32,7 @@ export function ProfileFields({
         <CardTitle>Profile</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {/* One photo across both public pages, uploaded in one place — so
+        {/* One photo across both public pages, uploaded in one place: so
             there is no second copy here to fall out of step with the kit. */}
         <p className="text-muted-foreground text-xs">
           The profile photo comes from your media kit. Change it in the{" "}

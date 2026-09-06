@@ -25,7 +25,7 @@ import type { Invoice } from "@/repositories/invoices";
 
 interface BrandInvoicesTabProps {
   brandId: string;
-  invoices: Invoice[]; // already scoped to this brand — see lib/invoice.ts's invoicesForBrand
+  invoices: Invoice[]; // already scoped to this brand, see lib/invoice.ts's invoicesForBrand
   editorJobs: InvoiceEditorJobOption[];
 }
 
@@ -48,7 +48,7 @@ export function BrandInvoicesTab({ brandId, invoices, editorJobs }: BrandInvoice
     );
   }
 
-  // Most recently issued first — mirrors the /invoices list default sort.
+  // Most recently issued first: mirrors the /invoices list default sort.
   const rows = [...invoices].sort((a, b) => b.issueDate.localeCompare(a.issueDate));
   const anyMargin = rows.some((invoice) => computeInvoiceMargin(invoice, editorJobs) !== null);
 
@@ -92,11 +92,11 @@ export function BrandInvoicesTab({ brandId, invoices, editorJobs }: BrandInvoice
                     </Link>
                   </TableCell>
                   <TableCell className="max-w-40 truncate text-muted-foreground">
-                    {invoice.campaignName || "—"}
+                    {invoice.campaignName || "-"}
                   </TableCell>
                   <TableCell className="tabular-nums">
                     <span className={overdue ? "text-destructive" : "text-muted-foreground"}>
-                      {formatInvoiceDate(invoice.dueDate) || "—"}
+                      {formatInvoiceDate(invoice.dueDate) || "-"}
                     </span>
                     {overdue && <span className="block text-[11px] text-destructive">Overdue</span>}
                   </TableCell>
@@ -104,7 +104,7 @@ export function BrandInvoicesTab({ brandId, invoices, editorJobs }: BrandInvoice
                   <TableCell className="text-right tabular-nums">{formatMoney(invoice.balanceDue)}</TableCell>
                   {anyMargin && (
                     <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {margin ? formatMoney(margin.margin) : "—"}
+                      {margin ? formatMoney(margin.margin) : "-"}
                     </TableCell>
                   )}
                   <TableCell>

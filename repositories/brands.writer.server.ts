@@ -3,10 +3,10 @@ import { getRedis } from "@/lib/cache";
 import brandsSeed from "@/data/brands.json";
 import type { Brand, BrandUpdate, NewBrand } from "./brands";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors editors.writer.server.ts / editorTransactions.writer.server.ts.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly.
 const BRANDS_KEY = "brands";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = brandsSeed as Brand[];
 
 async function readBrands(): Promise<Brand[]> {
@@ -85,7 +85,7 @@ export async function updateBrand(input: BrandUpdate): Promise<void> {
   await redis.set(BRANDS_KEY, updated);
 }
 
-// Sets just the logo, leaving every other field untouched — for assigning
+// Sets just the logo, leaving every other field untouched: for assigning
 // an already-uploaded media kit logo to a brand (see lib/brands.ts's
 // brandsWithoutLogo / app/brands/actions.ts's assignBrandLogo) without
 // requiring the full brand form.

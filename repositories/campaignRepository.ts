@@ -10,7 +10,7 @@ import { toSheetDate } from "@/lib/campaigns";
 
 export type { Campaign, CampaignPaymentStatus, CampaignType };
 
-// Form-shaped input/update — dates as produced by <input type="date">
+// Form-shaped input/update: dates as produced by <input type="date">
 // ("yyyy-mm-dd"), converted to the storage format (DD/MM/YYYY) before being
 // handed to campaigns.writer.server.ts. Distinct from NewCampaignInput/
 // CampaignUpdate in ./campaigns, which are already storage-shaped.
@@ -41,10 +41,10 @@ export interface ICampaignRepository {
   getAll(): Promise<Campaign[]>;
   create(input: CampaignFormValues): Promise<void>;
   update(input: CampaignFormUpdate): Promise<void>;
-  // Marks the deal's payment as collected without touching any other field —
+  // Marks the deal's payment as collected without touching any other field: 
   // the dashboard's quick action on a payments-due row.
   setPaymentReceived(campaignId: string): Promise<void>;
-  // Reverts that — puts payment status back to "pending". Backs the Undo on
+  // Reverts that: puts payment status back to "pending". Backs the Undo on
   // the "Mark received" toast.
   setPaymentPending(campaignId: string): Promise<void>;
 }

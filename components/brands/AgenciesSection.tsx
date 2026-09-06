@@ -22,7 +22,7 @@ export function AgenciesSection({ agencies, brands, contacts }: AgenciesSectionP
       {agencies.length === 0 ? (
         <Card>
           <CardContent className="py-4 text-xs text-muted-foreground">
-            No agencies yet — add one to reuse its contacts across the brands it reps.
+            No agencies yet. Add one to reuse its contacts across the brands it reps.
           </CardContent>
         </Card>
       ) : (

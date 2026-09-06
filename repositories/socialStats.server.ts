@@ -29,7 +29,7 @@ export interface SocialStatsSnapshot {
 /**
  * Reads the snapshots `/api/cron/refresh-youtube` and `refresh-instagram`
  * write each morning, with the figures and their write times taken from the
- * same read — a second pass could report a freshness that doesn't belong to
+ * same read: a second pass could report a freshness that doesn't belong to
  * the figure on screen. Nothing is fetched from either API here: a public
  * page render must not depend on a third party being up, and the YouTube
  * Data API quota is a daily budget.
@@ -43,7 +43,7 @@ export async function getSocialStatsSnapshot(): Promise<SocialStatsSnapshot> {
   ]);
   const now = Date.now();
 
-  // `accountsReached` is channels.list `statistics.subscriberCount` — see
+  // `accountsReached` is channels.list `statistics.subscriberCount`: see
   // fetchYouTubeAnalytics(). A channel that hides its subscriber count
   // reports 0, which is not a figure worth putting on the page.
   const subscribers = youtube?.accountsReached ?? 0;
@@ -61,20 +61,20 @@ export async function getSocialStatsSnapshot(): Promise<SocialStatsSnapshot> {
   };
 }
 
-/** The figures alone — all the public page needs. */
+/** The figures alone: all the public page needs. */
 export async function getSocialStats(): Promise<SocialStats> {
   return (await getSocialStatsSnapshot()).stats;
 }
 
 // The daily job renews once a token has less than REFRESH_WHEN_REMAINING_MS
 // left, so a working setup never sits deep inside that window. Ten days in
-// with no renewal means it is not happening — worth saying while there is
+// with no renewal means it is not happening: worth saying while there is
 // still a month of headroom, rather than at the point it stops working.
 const RENEWAL_GRACE_MS = 10 * DAY_MS;
 
 /**
  * How the Instagram credential is doing, for the links editor's readout.
- * Read-only — renewal itself belongs to the cron, not to a page render.
+ * Read-only: renewal itself belongs to the cron, not to a page render.
  */
 export async function getInstagramTokenStatus(): Promise<InstagramTokenStatus> {
   let record;
@@ -90,7 +90,7 @@ export async function getInstagramTokenStatus(): Promise<InstagramTokenStatus> {
   if (!record) return { state: "missing" };
 
   const remaining = Date.parse(record.expiresAt) - Date.now();
-  // An unparseable expiry is a corrupt record, not an expired token — saying
+  // An unparseable expiry is a corrupt record, not an expired token: saying
   // "expired" would send someone to redo an OAuth round trip they don't need.
   if (Number.isNaN(remaining)) return { state: "unknown" };
 

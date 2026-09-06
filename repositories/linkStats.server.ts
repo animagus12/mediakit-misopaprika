@@ -6,7 +6,7 @@ import type { LinksAnalytics } from "./linkStats";
  * Every /links counter in one read, for the editor's performance readout.
  *
  * The three reads are independent so one missing counter can't take the
- * others off the screen with it — each already answers with its own empty
+ * others off the screen with it: each already answers with its own empty
  * value rather than throwing.
  */
 export async function getLinksAnalytics(): Promise<LinksAnalytics> {

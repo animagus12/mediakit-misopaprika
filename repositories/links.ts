@@ -1,14 +1,14 @@
 import linksJson from "@/data/links.json";
 
-// "link"   — a plain destination card
-// "social" — a platform profile; rendered with that platform's icon
-// "code"   — a creator/affiliate code, copyable, with an optional destination
+// "link"  : a plain destination card
+// "social": a platform profile; rendered with that platform's icon
+// "code"  : a creator/affiliate code, copyable, with an optional destination
 export type LinkKind = "link" | "social" | "code";
 
 // How a card is laid out, chosen per item in the editor:
-//   "row"       — text only
-//   "thumbnail" — small round image (or the platform mark) at the left
-//   "banner"    — full-width brand image above the text
+//   "row"      : text only
+//   "thumbnail": small round image (or the platform mark) at the left
+//   "banner"   : full-width brand image above the text
 export type LinkVariant = "row" | "thumbnail" | "banner";
 
 export const LINK_KINDS: LinkKind[] = ["link", "social", "code"];
@@ -29,7 +29,7 @@ export interface LinkProfile {
 }
 
 export interface LinkItem {
-  // Stable across edits — links are reordered and retitled freely, so click
+  // Stable across edits: links are reordered and retitled freely, so click
   // counts and any future per-link state key off this rather than the label.
   id: string;
   kind: LinkKind;
@@ -39,8 +39,8 @@ export interface LinkItem {
   // Internal ("/mediakit") or external. Empty means the card isn't a link:
   // a creator code with nowhere to send people is still worth showing.
   url: string;
-  // One image per link. `variant` decides how it's shown — cropped round at
-  // 52px for "thumbnail", full width for "banner" — so switching layout keeps
+  // One image per link. `variant` decides how it's shown: cropped round at
+  // 52px for "thumbnail", full width for "banner": so switching layout keeps
   // the picture instead of pointing at a second, empty slot.
   image: string;
   badge: string;
@@ -93,7 +93,7 @@ interface StoredLinksData {
 }
 
 function normalizeItem(item: StoredLinkItem): LinkItem {
-  // Pre-migration records can have BOTH slots filled with different images —
+  // Pre-migration records can have BOTH slots filled with different images: 
   // that is what uploading under one layout and then re-uploading after
   // switching produced. Read the slot that item's own layout was rendering,
   // so migrating never silently swaps the picture someone is looking at; the
@@ -120,8 +120,8 @@ function normalizeItem(item: StoredLinkItem): LinkItem {
 
 /**
  * Reshapes whatever storage returns into the current LinkItem/LinkSection
- * contract. Every read path goes through this — the bundled seed and both
- * Redis snapshots — because a published snapshot can outlive several schema
+ * contract. Every read path goes through this: the bundled seed and both
+ * Redis snapshots: because a published snapshot can outlive several schema
  * changes, and a missing field would otherwise reach the page as undefined.
  */
 export function normalizeLinksData(data: StoredLinksData): LinksData {

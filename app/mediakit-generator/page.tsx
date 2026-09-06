@@ -21,7 +21,7 @@ export default async function MediaKitGeneratorPage() {
   ]);
 
   // A brand with a paid invoice counts as a real past collab even if its
-  // pipeline status wasn't updated by hand. Best-effort — no invoices just
+  // pipeline status wasn't updated by hand. Best-effort: no invoices just
   // means eligibility falls back to status alone.
   let paidBrandIds = new Set<string>();
   try {

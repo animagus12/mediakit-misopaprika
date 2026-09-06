@@ -21,7 +21,7 @@ interface StatusStyle {
 }
 
 // Same pipeline vocabulary as components/dashboard/DashboardCampaignsSection.tsx
-// — duplicated rather than imported cross-feature, matching how that status
+//: duplicated rather than imported cross-feature, matching how that status
 // styling is already duplicated per-surface elsewhere in the app.
 function statusStyle(status: string): StatusStyle {
   switch (status.toLowerCase()) {
@@ -81,7 +81,7 @@ export function BrandCampaignsTab({ brandId, records, contacts, campaignContacts
             const key = record.campaignId || `${record.campaign}-${record.date}`;
             return (
               <TableRow key={key}>
-                <TableCell className="max-w-40 truncate font-medium">{record.campaign || "—"}</TableCell>
+                <TableCell className="max-w-40 truncate font-medium">{record.campaign || "-"}</TableCell>
                 <TableCell className="min-w-32">
                   {record.campaignId ? (
                     <CampaignContactSheet
@@ -92,11 +92,11 @@ export function BrandCampaignsTab({ brandId, records, contacts, campaignContacts
                       contacts={contacts}
                     />
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{record.date || "—"}</TableCell>
-                <TableCell className="text-muted-foreground">{record.deliverables || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{record.date || "-"}</TableCell>
+                <TableCell className="text-muted-foreground">{record.deliverables || "-"}</TableCell>
                 <TableCell className="text-right tabular-nums">{formatMoney(record.total)}</TableCell>
                 <TableCell>
                   <Badge variant={status.variant} className={status.className}>

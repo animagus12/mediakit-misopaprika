@@ -44,7 +44,7 @@ export function BrandSummaryCards({ stats }: BrandSummaryCardsProps) {
         <CardHeader>
           <CardDescription>Last collaboration</CardDescription>
           <CardTitle className={cn("text-lg tabular-nums", STAT_TONES.neutral.value)}>
-            {stats.lastCollabDate ?? "—"}
+            {stats.lastCollabDate ?? "-"}
           </CardTitle>
         </CardHeader>
       </Card>

@@ -2,16 +2,15 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import { mediakitRepository, type MediaKitData } from "./mediakit";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// AppSideBar and other client components import from that barrel, and any
-// module they pull in must stay bundler-safe. Reading/writing the media
-// kit's draft and published snapshots goes through Redis (Vercel's
+// server-only, and never imported from a client component: any module a
+// client component pulls in must stay bundler-safe. Reading/writing the
+// media kit's draft and published snapshots goes through Redis (Vercel's
 // serverless filesystem is read-only, so a local `fs` write only ever works
-// in `next dev`), so that logic lives here instead, imported directly by the
-// server actions and the public /mediakit page that need it.
+// in `next dev`), so that logic lives here rather than in ./mediakit,
+// imported directly by the server actions and the public /mediakit page.
 const MEDIAKIT_DRAFT_KEY = "mediakit_draft";
 const MEDIAKIT_PUBLISHED_KEY = "mediakit_published";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
 // Falls back to the bundled data/mediakit.json seed until the first Save,
 // or whenever Redis isn't configured (e.g. local dev without KV env vars).
@@ -34,7 +33,7 @@ export async function publishMediaKitData(data: MediaKitData): Promise<void> {
   await redis.set(MEDIAKIT_PUBLISHED_KEY, data);
 }
 
-// Powers the public /mediakit page. Returns null until the first Publish —
+// Powers the public /mediakit page. Returns null until the first Publish: 
 // distinct from the draft, which always falls back to the bundled seed.
 export async function getPublishedMediaKitData(): Promise<MediaKitData | null> {
   const redis = getRedis();
@@ -44,7 +43,7 @@ export async function getPublishedMediaKitData(): Promise<MediaKitData | null> {
 
 /**
  * The one profile photo, shared by /mediakit and /links. It is uploaded in
- * the media kit generator and owned by the media kit's header — /links has no
+ * the media kit generator and owned by the media kit's header: /links has no
  * photo field of its own, so the two pages cannot drift apart or be updated
  * separately.
  *

@@ -4,13 +4,12 @@ import campaignsSeed from "@/data/campaigns.json";
 import { nextSequenceId, toCampaign } from "./campaigns";
 import type { Campaign, CampaignPaymentStatus, CampaignRecord, CampaignUpdate, NewCampaignInput } from "./campaigns";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors invoices.writer.server.ts / editorTransactions.writer.server.ts.
-// Reading/writing campaigns goes through Redis (Vercel's serverless
-// filesystem is read-only), so that logic lives here instead, imported
-// directly by the server actions and pages that need it.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly. Reading/writing
+// campaigns goes through Redis (Vercel's serverless filesystem is
+// read-only), so that logic lives here rather than in ./campaigns.
 const CAMPAIGNS_KEY = "campaigns";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = campaignsSeed as CampaignRecord[];
 
 async function readRecords(): Promise<CampaignRecord[]> {
@@ -27,7 +26,7 @@ export async function getCampaigns(): Promise<Campaign[]> {
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of
-// what the form handed over — same defensive shape as brands.writer.server.ts.
+// what the form handed over: same defensive shape as brands.writer.server.ts.
 function normalize(input: NewCampaignInput): Omit<CampaignRecord, "id" | "invoiceId"> {
   return {
     date: input.date,
@@ -49,7 +48,7 @@ function normalize(input: NewCampaignInput): Omit<CampaignRecord, "id" | "invoic
 }
 
 // MC (monetary campaign) gets an auto-assigned invoice id; BC (barter
-// campaign) doesn't — matches the sheet's original "MSP-BC0001" /
+// campaign) doesn't: matches the sheet's original "MSP-BC0001" /
 // "MSP-MC0001" + "MSP-INV-0001" convention. A caller-supplied invoiceId
 // (e.g. entered by hand for a barter deal) always wins.
 export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {

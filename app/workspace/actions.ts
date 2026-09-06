@@ -1,14 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateStores } from "@/lib/revalidation";
 import {
   addEditorTransaction,
   deleteEditorTransaction,
+  renameEditorOnTransactions,
   updateEditorTransaction as updateEditorTransactionRecord,
 } from "@/repositories/editorTransactions.writer.server";
 import type { EditorTransactionUpdate, NewEditorTransaction } from "@/repositories/editorTransactions";
 import {
   addEditor,
+  getEditors,
   updateEditor as updateEditorRecord,
 } from "@/repositories/editors.writer.server";
 import type { EditorUpdate, NewEditor } from "@/repositories/editors";
@@ -18,7 +20,7 @@ export async function createEditor(
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     await addEditor(input);
-    revalidatePath("/workspace");
+    revalidateStores("editors");
     return { success: true };
   } catch (err) {
     return {
@@ -32,8 +34,13 @@ export async function updateEditor(
   input: EditorUpdate
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
+    // Transactions are filed under the editor's name, so a rename has to carry
+    // them along or that editor's history detaches: read the old name before
+    // the write, then move anything filed under it.
+    const previousName = (await getEditors()).find((editor) => editor.id === input.id)?.name ?? "";
     await updateEditorRecord(input);
-    revalidatePath("/workspace");
+    await renameEditorOnTransactions(previousName, input.name);
+    revalidateStores("editors", "editorTransactions");
     return { success: true };
   } catch (err) {
     return {
@@ -48,7 +55,7 @@ export async function createEditorTransaction(
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     await addEditorTransaction(input);
-    revalidatePath("/workspace");
+    revalidateStores("editorTransactions");
     return { success: true };
   } catch (err) {
     return {
@@ -63,7 +70,7 @@ export async function updateEditorTransaction(
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     await updateEditorTransactionRecord(input);
-    revalidatePath("/workspace");
+    revalidateStores("editorTransactions");
     return { success: true };
   } catch (err) {
     return {
@@ -78,7 +85,7 @@ export async function removeEditorTransaction(
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     await deleteEditorTransaction(id);
-    revalidatePath("/workspace");
+    revalidateStores("editorTransactions");
     return { success: true };
   } catch (err) {
     return {

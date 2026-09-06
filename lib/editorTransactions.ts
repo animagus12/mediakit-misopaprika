@@ -68,7 +68,7 @@ export interface EditorPayoutSummary {
 }
 
 // Sums what's actually owed to one editor. A "Cancelled" transaction never
-// happened commercially, so it counts toward neither figure — same
+// happened commercially, so it counts toward neither figure: same
 // convention as the earnings overview's handling of cancelled deals.
 export function computeEditorPayoutSummary(
   editorName: string,

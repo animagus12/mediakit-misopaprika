@@ -6,7 +6,7 @@ function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="space-y-0.5">
       <p className="text-[0.625rem] tracking-wide text-muted-foreground uppercase">{label}</p>
-      <p className="truncate">{value || "—"}</p>
+      <p className="truncate">{value || "-"}</p>
     </div>
   );
 }

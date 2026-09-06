@@ -32,7 +32,7 @@ export function MediaKitLogosSection({ logos, brands }: MediaKitLogosSectionProp
       <div className="space-y-1">
         <h2 className="font-heading text-sm font-semibold">Unassigned media kit logos</h2>
         <p className="text-xs text-muted-foreground">
-          Already uploaded on your media kit — pick which brand each belongs to instead of re-uploading.
+          Already uploaded on your media kit: pick which brand each belongs to instead of re-uploading.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">

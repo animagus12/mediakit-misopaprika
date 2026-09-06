@@ -13,7 +13,7 @@ interface BrandLogoUploadFieldProps {
 }
 
 // Reuses the same client-upload handler as the editor QR picker
-// (app/api/workspace/upload) — it's a generic authenticated image upload,
+// (app/api/workspace/upload): it's a generic authenticated image upload,
 // not editor-specific, so a brand logo doesn't need its own route.
 export function BrandLogoUploadField({ value, onChange, onError }: BrandLogoUploadFieldProps) {
   const inputId = useId();
@@ -30,7 +30,7 @@ export function BrandLogoUploadField({ value, onChange, onError }: BrandLogoUplo
       onChange(blob.url);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
-      onError(reason ? `Upload failed — ${reason}` : "Upload failed — try a different image");
+      onError(reason ? `Upload failed(${reason}` : "Upload failed) try a different image");
     } finally {
       setIsUploading(false);
     }

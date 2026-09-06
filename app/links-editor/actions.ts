@@ -14,12 +14,12 @@ export async function saveLinks(data: LinksData): Promise<ActionResult> {
     revalidatePath("/links-editor");
     return { success: true };
   } catch {
-    return { success: false, error: `Couldn't save — ${REDIS_HINT}` };
+    return { success: false, error: `Couldn't save: ${REDIS_HINT}` };
   }
 }
 
 // Publishing also saves the draft, so /links always reflects exactly what was
-// on screen when Publish was clicked even if Save was never pressed — same
+// on screen when Publish was clicked even if Save was never pressed: same
 // contract as publishMediaKit.
 export async function publishLinks(data: LinksData): Promise<ActionResult> {
   try {
@@ -29,6 +29,6 @@ export async function publishLinks(data: LinksData): Promise<ActionResult> {
     revalidatePath("/links");
     return { success: true };
   } catch {
-    return { success: false, error: `Couldn't publish — ${REDIS_HINT}` };
+    return { success: false, error: `Couldn't publish: ${REDIS_HINT}` };
   }
 }

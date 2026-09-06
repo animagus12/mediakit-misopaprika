@@ -6,7 +6,7 @@ interface MediaKitPublicViewProps {
   state: MediaKitFormState;
 }
 
-// Read-only counterpart to MediaKitGenerator's stage — same scale-to-fit
+// Read-only counterpart to MediaKitGenerator's stage: same scale-to-fit
 // A4 sheet (see .stageInner's transform in mediakit.module.css), no controls
 // panel, no editing.
 export function MediaKitPublicView({ state }: MediaKitPublicViewProps) {

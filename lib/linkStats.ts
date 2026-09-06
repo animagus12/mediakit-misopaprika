@@ -9,7 +9,7 @@ export interface LinkPerformance {
   clicks: number;
   /**
    * Clicks ÷ page views, as a fraction. Null when there are no views to
-   * divide by — that is "not measurable yet", which a surface should render
+   * divide by: that is "not measurable yet", which a surface should render
    * differently from a measured 0%.
    *
    * Legitimately exceeds 1: a rate is per page view, and one visitor may tap
@@ -31,7 +31,7 @@ export interface LinksPerformanceSummary {
   views: number;
   uniqueVisitors: number;
   totalClicks: number;
-  /** Total clicks ÷ views — how many links an average view produced. */
+  /** Total clicks ÷ views: how many links an average view produced. */
   clickRate: number | null;
 }
 
@@ -59,11 +59,11 @@ export function linksSummary(data: LinksData, analytics: LinksAnalytics): LinksP
 }
 
 /**
- * An unmeasurable rate reads as an em dash rather than "0%" — with no views
+ * An unmeasurable rate reads as an em dash rather than "0%": with no views
  * recorded, zero clicks says nothing about the link.
  */
 export function formatClickRate(clickRate: number | null): string {
-  if (clickRate === null) return "—";
+  if (clickRate === null) return "-";
   const percent = clickRate * 100;
   // A decimal matters at 4.2% and is noise at 137%.
   return `${percent.toFixed(percent < 10 ? 1 : 0)}%`;

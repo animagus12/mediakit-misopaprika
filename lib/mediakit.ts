@@ -23,7 +23,7 @@ export interface MediaKitLayout {
 
 // The "Past Collabs" logo grid and the "Top Performing Content" tiles below it
 // share one fixed-height A4 page, so the logo count/row-mode cascades all the
-// way down into tile size — everything here is tuned to keep the sheet at
+// way down into tile size: everything here is tuned to keep the sheet at
 // exactly one page. Ported 1:1 from the original tool's layoutLogosAndReels().
 const LOGO_ROW_WIDTH_MM = 162.5;
 const LOGOS_TOP_MM = 13.4;
@@ -80,12 +80,12 @@ export function computeMediaKitLayout(
     tileGapMm,
     tileScale,
     bowTopMm,
-    note: note + (logoSizeMm < 9.5 ? " — getting too small to read" : ""),
+    note: note + (logoSizeMm < 9.5 ? ": getting too small to read" : ""),
   };
 }
 
 // Placeholder shown in a logo slot right after "+ Add brand", before the user
-// picks a real image — generated at runtime, not a static asset.
+// picks a real image: generated at runtime, not a static asset.
 const BLANK_LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
   '<rect width="100" height="100" fill="#EDF1F7"/>' +
@@ -137,7 +137,7 @@ export function toMediaKitData(state: MediaKitFormState, brandHandle: string): M
   };
 }
 
-// Inverse of toMediaKitData — seeds editable form state from a persisted
+// Inverse of toMediaKitData: seeds editable form state from a persisted
 // record. Shared by the generator (editing a draft) and the public preview
 // (rendering a published snapshot with no editing affordances).
 export function toFormState(data: MediaKitData): MediaKitFormState {

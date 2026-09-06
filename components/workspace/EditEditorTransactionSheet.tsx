@@ -111,7 +111,7 @@ export function EditEditorTransactionSheet({ transaction, editors }: EditEditorT
         <TableCell className="text-muted-foreground">{transaction.deliveryDate}</TableCell>
         <TableCell className="text-right tabular-nums text-muted-foreground">{transaction.etaDays}d</TableCell>
         <TableCell className="text-right tabular-nums">
-          {transaction.amount == null ? "—" : formatMoney(transaction.amount)}
+          {transaction.amount == null ? "-" : formatMoney(transaction.amount)}
         </TableCell>
         <TableCell className="text-muted-foreground">{transaction.editor}</TableCell>
         <TableCell>

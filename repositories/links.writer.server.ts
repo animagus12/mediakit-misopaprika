@@ -2,12 +2,11 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import { linksRepository, normalizeLinksData, type LinksData } from "./links";
 
-// Same split as mediakit.writer.server.ts, and deliberately not re-exported
-// from ./index for the same reason: the barrel is imported by client
-// components, and this module is server-only.
+// Same split as mediakit.writer.server.ts, and server-only for the same
+// reason: this module must never be reachable from a client component.
 const LINKS_DRAFT_KEY = "links_draft";
 const LINKS_PUBLISHED_KEY = "links_published";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
 // Falls back to the bundled data/links.json seed until the first Save, or
 // whenever Redis isn't configured (e.g. local dev without KV env vars).
@@ -30,8 +29,8 @@ export async function publishLinksData(data: LinksData): Promise<void> {
   await redis.set(LINKS_PUBLISHED_KEY, data);
 }
 
-// Powers the public /links page. Unlike the media kit's equivalent — which
-// returns null and 404s until the first Publish — this falls back to the
+// Powers the public /links page. Unlike the media kit's equivalent: which
+// returns null and 404s until the first Publish: this falls back to the
 // bundled seed, because that seed is real content: the page was live off it
 // before any editor existed, and a deploy shouldn't take it down while
 // waiting for someone to press Publish.

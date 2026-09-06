@@ -16,7 +16,7 @@ export function DeleteBrandButton({ id, name }: DeleteBrandButtonProps) {
   const [isPending, startTransition] = useTransition();
 
   function handleDelete() {
-    if (!window.confirm(`Remove "${name}" and all its contacts/notes/activity from the brand CRM?`)) return;
+    if (!window.confirm(`Remove "${name}" and all its contacts/notes from the brand CRM?`)) return;
     startTransition(async () => {
       const result = await removeBrand(id);
       if (result.success) router.push("/brands");

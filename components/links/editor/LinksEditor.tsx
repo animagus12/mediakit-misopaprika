@@ -192,7 +192,7 @@ export function LinksEditor({
         toast.success("Image uploaded");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "";
-        toast.error(reason ? `Upload failed — ${reason}` : "Upload failed — try a different image");
+        toast.error(reason ? `Upload failed(${reason}` : "Upload failed) try a different image");
       } finally {
         setUploadingSlot(null);
       }
@@ -216,7 +216,7 @@ export function LinksEditor({
   const publish = useCallback(() => {
     startPublishTransition(async () => {
       const result = await publishLinks(state);
-      if (result.success) toast.success("Published — live at /links");
+      if (result.success) toast.success("Published: live at /links");
       else toast.error(result.error);
     });
   }, [state]);
@@ -266,13 +266,13 @@ export function LinksEditor({
   const itemCount = state.sections.reduce((count, section) => count + section.items.length, 0);
 
   // Summed over the links on screen rather than over the stored map, so a link
-  // deleted in this unsaved session stops counting immediately — see
+  // deleted in this unsaved session stops counting immediately: see
   // linksSummary(). The figures themselves describe what is published, which
   // is why they don't move as the draft is edited.
   const summary = linksSummary(state, analytics);
 
   return (
-    <div className="mx-auto max-w-screen-xl space-y-6 px-4 py-10">
+    <div className="mx-auto max-w-screen-xl 2xl:max-w-[1600px] space-y-6 px-4 py-10">
       <input
         ref={fileInputRef}
         type="file"
@@ -339,7 +339,7 @@ export function LinksEditor({
 
           {state.sections.length === 0 ? (
             <p className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
-              No sections yet — add one to start building the page.
+              No sections yet: add one to start building the page.
             </p>
           ) : null}
 
@@ -356,7 +356,7 @@ export function LinksEditor({
         <aside className="hidden xl:sticky xl:top-6 xl:block">
           <p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium">
             <Smartphone className="size-3.5" />
-            Preview — 390px, the layout a phone gets
+            Preview: 390px, the layout a phone gets
           </p>
           <div className="bg-card ring-foreground/10 h-[720px] w-[390px] overflow-y-auto rounded-2xl shadow-sm ring-1">
             <LinksPublicView

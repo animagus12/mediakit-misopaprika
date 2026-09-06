@@ -20,7 +20,7 @@ export function EditorsSection({ editors, transactions }: EditorsSectionProps) {
       {editors.length === 0 ? (
         <Card>
           <CardContent className="py-4 text-xs text-muted-foreground">
-            No editors yet — add one to start tagging transactions.
+            No editors yet. Add one to start tagging transactions.
           </CardContent>
         </Card>
       ) : (

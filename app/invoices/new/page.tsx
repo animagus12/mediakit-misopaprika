@@ -23,7 +23,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
   const data = await getInvoiceData();
 
   // The handle shown on the invoice header is the media kit's handle, so the
-  // two never drift apart. Best-effort — falls back to the invoice default.
+  // two never drift apart. Best-effort: falls back to the invoice default.
   let brandHandle = data.brandHandle;
   try {
     brandHandle = (await getMediaKitData()).header.handle || brandHandle;
@@ -31,7 +31,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
     // keep the default
   }
 
-  // Best-effort — the editor still works if any of these can't be loaded; it
+  // Best-effort: the editor still works if any of these can't be loaded; it
   // just can't warn about clashes or offer the brand / editor-job pickers.
   let takenInvoiceNumbers: string[] = [];
   let brandOptions: ReturnType<typeof buildInvoiceBrandOptions> = [];

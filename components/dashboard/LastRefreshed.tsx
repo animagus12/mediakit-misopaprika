@@ -21,7 +21,7 @@ function relativeTime(fromMs: number, nowMs: number): string {
 export function LastRefreshed({ loadedAtISO }: { loadedAtISO: string }) {
   const loadedAt = new Date(loadedAtISO).getTime();
   // Start equal to loadedAt so the server render and first client render both
-  // read "just now" — no hydration mismatch. loadedAtISO is the page's render
+  // read "just now": no hydration mismatch. loadedAtISO is the page's render
   // time, so it genuinely is ~now on load; the interval advances it from there.
   const [now, setNow] = useState(loadedAt);
   const [isPending, startTransition] = useTransition();

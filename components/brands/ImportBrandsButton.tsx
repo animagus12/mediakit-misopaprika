@@ -19,7 +19,7 @@ export function ImportBrandsButton() {
       }
       setMessage(
         result.imported === 0
-          ? `No new brands — all ${result.skipped} already tracked.`
+          ? `No new brands: all ${result.skipped} already tracked.`
           : `Imported ${result.imported} new brand${result.imported === 1 ? "" : "s"}${result.skipped > 0 ? ` (${result.skipped} already tracked)` : ""}.`
       );
     });

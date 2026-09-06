@@ -18,7 +18,7 @@ interface QuickActionsProps {
 }
 
 // One row that starts work from the dashboard instead of navigating to the
-// section first. New campaign leads — it's the most important add-action on
+// section first. New campaign leads: it's the most important add-action on
 // the site, so it lives here at the top rather than inside the Campaigns
 // section further down. The rest are the same create-sheets used on
 // /brands and /workspace, plus a link into the full-page invoice editor.
@@ -34,7 +34,7 @@ export function QuickActions({ agencies, contacts, editors, campaignBrandOptions
           </Link>
         </Button>
         <NewBrandButton agencies={agencies} contacts={contacts} variant="outline" />
-        <NewEditorTransactionButton editors={editors} />
+        <NewEditorTransactionButton editors={editors} variant="outline" />
       </div>
     </div>
   );
