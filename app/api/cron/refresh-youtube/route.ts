@@ -1,11 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { isAuthorizedCron } from "@/lib/cron";
 import { fetchYouTubeAnalytics } from "@/services/youtube";
 import { setCachedYouTubeAnalytics } from "@/lib/cache";
 
-// Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` for cron requests.
 export async function GET(request: NextRequest) {
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
