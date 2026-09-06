@@ -74,3 +74,15 @@ export type {
   MediaKitTileInput,
   IMediaKitRepository,
 } from "./mediakit";
+
+export { linksRepository, LINK_KINDS, LINK_VARIANTS } from "./links";
+export type {
+  LinksData,
+  LinkProfile,
+  LinkSection,
+  LinkItem,
+  LinkKind,
+  LinkVariant,
+  SocialHandle,
+  ILinksRepository,
+} from "./links";

@@ -1,0 +1,104 @@
+{
+  "profile": {
+    "displayName": "misopaprika",
+    "tagline": "your resident anime dealer",
+    "avatar": "/mediakit/photo-default.jpg",
+    "followers": "8.7K followers",
+    "socials": [
+      {
+        "platform": "instagram",
+        "url": "https://www.instagram.com/misopaprika/",
+        "enabled": true
+      },
+      {
+        "platform": "youtube",
+        "url": "https://www.youtube.com/@MisoPaprika",
+        "enabled": true
+      },
+      {
+        "platform": "tiktok",
+        "url": "https://www.tiktok.com/@misopaprika",
+        "enabled": true
+      }
+    ]
+  },
+  "sections": [
+    {
+      "id": "socials",
+      "title": "Socials",
+      "enabled": true,
+      "items": [
+        {
+          "id": "instagram",
+          "kind": "social",
+          "variant": "thumbnail",
+          "label": "Instagram",
+          "sublabel": "misopaprika · {instagram_followers}",
+          "url": "https://www.instagram.com/misopaprika/",
+          "image": "/mediakit/photo-default.jpg",
+          "badge": "",
+          "code": "",
+          "enabled": true,
+          "startsAt": null,
+          "endsAt": null
+        },
+        {
+          "id": "youtube",
+          "kind": "social",
+          "variant": "thumbnail",
+          "label": "Youtube",
+          "sublabel": "MisoPaprika · {youtube_subscribers}",
+          "url": "https://www.youtube.com/@MisoPaprika",
+          "image": "/mediakit/photo-default.jpg",
+          "badge": "",
+          "code": "",
+          "enabled": true,
+          "startsAt": null,
+          "endsAt": null
+        }
+      ]
+    },
+    {
+      "id": "creator-codes",
+      "title": "Creator Codes",
+      "enabled": true,
+      "items": [
+        {
+          "id": "overblaze",
+          "kind": "code",
+          "variant": "banner",
+          "label": "Overblaze",
+          "sublabel": "Anime merch & collectibles",
+          "url": "",
+          "image": "/links/overblaze.jpg",
+          "badge": "",
+          "code": "PAPRIKA10",
+          "enabled": true,
+          "startsAt": null,
+          "endsAt": null
+        }
+      ]
+    },
+    {
+      "id": "work-with-me",
+      "title": "Work with me",
+      "enabled": true,
+      "items": [
+        {
+          "id": "collabs",
+          "kind": "link",
+          "variant": "row",
+          "label": "Collabs & enquiries",
+          "sublabel": "paprikax1000@gmail.com",
+          "url": "mailto:paprikax1000@gmail.com",
+          "image": "",
+          "badge": "FOR BRANDS",
+          "code": "",
+          "enabled": true,
+          "startsAt": null,
+          "endsAt": null
+        }
+      ]
+    }
+  ]
+}

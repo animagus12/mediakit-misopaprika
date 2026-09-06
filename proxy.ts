@@ -47,6 +47,7 @@ export const config = {
     "/invoices/:path*",
     "/mediakit-generator/:path*",
     "/mediakit",
+    "/links-editor/:path*",
     "/workspace/:path*",
     "/brands/:path*",
   ],

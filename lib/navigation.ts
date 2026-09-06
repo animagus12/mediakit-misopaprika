@@ -1,4 +1,4 @@
-import { Building2, Clapperboard, FileText, Handshake, Sparkles, UserRound } from "lucide-react";
+import { Building2, Clapperboard, FileText, Handshake, Link2, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface NavEntry {
@@ -16,6 +16,20 @@ export const navEntries: NavEntry[] = [
     description: "Public, shareable view of your published media kit.",
     Icon: UserRound,
     access: "public",
+  },
+  {
+    href: "/links",
+    title: "Links",
+    description: "Public link-in-bio page for socials, creator codes, and collabs.",
+    Icon: Link2,
+    access: "public",
+  },
+  {
+    href: "/links-editor",
+    title: "Edit Links",
+    description: "Edit sections, links, and creator codes on your links page.",
+    Icon: Link2,
+    access: "protected",
   },
   {
     href: "/mediakit-generator",
