@@ -81,8 +81,8 @@ export function LinkCard({ item, trackClicks }: LinkCardProps) {
 
   const className = isBanner ? `${styles.card} ${styles.bannerCard}` : styles.card;
 
-  // A card with no destination still renders — a creator code is useful on
-  // its own — it just isn't a link. See isNavigable().
+  // A card with no destination still renders: a creator code is useful on
+  // its own: it just isn't a link. See isNavigable().
   if (!isNavigable(item)) {
     return <div className={className}>{body}</div>;
   }
@@ -95,7 +95,7 @@ export function LinkCard({ item, trackClicks }: LinkCardProps) {
     rel: external ? "noopener noreferrer" : undefined,
   };
 
-  // Same anchor either way — the tracked one only adds a beacon — so an
+  // Same anchor either way(the tracked one only adds a beacon) so an
   // untracked render (the preview) ships no client JS for this card at all.
   return trackClicks ? (
     <TrackedLink itemId={item.id} {...anchorProps}>

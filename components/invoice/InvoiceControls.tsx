@@ -61,7 +61,7 @@ export function InvoiceControls({
   const numberClash = Boolean(state.invoiceNo.trim()) && takenInvoiceNumbers.includes(state.invoiceNo.trim());
   const linkedBrand = state.brandId ? brandOptions.find((option) => option.id === state.brandId) : undefined;
   const editorJobLabel = (job: InvoiceEditorJobOption) =>
-    `${job.video || "Untitled"} — ${job.editor || "?"}${job.amount != null ? ` · ${formatMoney(job.amount)}` : ""}`;
+    `${job.video || "Untitled"}: ${job.editor || "?"}${job.amount != null ? ` · ${formatMoney(job.amount)}` : ""}`;
 
   return (
     <aside className={styles.panel}>
@@ -163,10 +163,10 @@ export function InvoiceControls({
               onValueChange={(value) => actions.selectBrand(value === NO_LINK ? null : value)}
             >
               <SelectTrigger id="brandLink" className="w-full">
-                <SelectValue placeholder="No brand — one-off" />
+                <SelectValue placeholder="No brand (one-off)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={NO_LINK}>No brand — one-off</SelectItem>
+                <SelectItem value={NO_LINK}>No brand (one-off)</SelectItem>
                 {brandOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
                     {option.name}
@@ -176,7 +176,7 @@ export function InvoiceControls({
             </Select>
             {state.brandId && !linkedBrand && (
               <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                Linked brand no longer exists — pick another or set it to one-off.
+                Linked brand no longer exists: pick another or set it to one-off.
               </p>
             )}
           </>

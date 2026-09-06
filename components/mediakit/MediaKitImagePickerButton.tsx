@@ -11,7 +11,7 @@ interface MediaKitImagePickerButtonProps {
 }
 
 // A thumbnail + "Change ..." button pair, used wherever an image is always
-// populated and click-to-replace (profile photo, each reel cover) — unlike
+// populated and click-to-replace (profile photo, each reel cover): unlike
 // InvoiceImageUploadField, there's no "Remove" state here.
 export function MediaKitImagePickerButton({
   src,

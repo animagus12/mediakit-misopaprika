@@ -3,10 +3,10 @@ import { getRedis } from "@/lib/cache";
 import editorsSeed from "@/data/editors.json";
 import type { Editor, EditorUpdate, NewEditor } from "./editors";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors editorTransactions.writer.server.ts / mediakit.writer.server.ts.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly.
 const EDITORS_KEY = "editors";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = editorsSeed as Editor[];
 
 async function readEditors(): Promise<Editor[]> {

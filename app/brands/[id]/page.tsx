@@ -44,7 +44,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
   let records: BrandCampaignRecord[] = [];
   let sheetError: string | null = null;
   try {
-    // A cancelled deal never happened commercially — same convention as
+    // A cancelled deal never happened commercially: same convention as
     // lib/brandCampaignStats.ts's computeBrandStats, but applied here too
     // so cancelled rows don't show up in the Campaigns/Payments tabs either.
     records = recordsForBrand(brand, await fetchBrandCampaignRecords()).filter(
@@ -54,7 +54,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
     sheetError = err instanceof Error ? err.message : "Something went wrong";
   }
 
-  // Best-effort — a Redis hiccup on invoices/editor jobs shouldn't take down
+  // Best-effort: a Redis hiccup on invoices/editor jobs shouldn't take down
   // the whole brand page; the Invoices tab just shows empty.
   let brandInvoices: Invoice[] = [];
   let editorJobs: InvoiceEditorJobOption[] = [];
@@ -75,7 +75,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-screen-lg space-y-6 px-4 py-10">
+      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-6 px-4 py-10">
         <BrandDetailHeader
           brand={brand}
           agencyName={agency?.name ?? null}
@@ -87,7 +87,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
         {sheetError && (
           <Card>
             <CardContent className="py-3 text-xs text-muted-foreground">
-              Campaign history and revenue couldn&apos;t be loaded — {sheetError}.
+              Campaign history and revenue couldn&apos;t be loaded: {sheetError}.
             </CardContent>
           </Card>
         )}

@@ -3,10 +3,10 @@ import { getRedis } from "@/lib/cache";
 import campaignContactsSeed from "@/data/campaign-contacts.json";
 import type { CampaignContact } from "./campaignContacts";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors editors.writer.server.ts / editorTransactions.writer.server.ts.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly.
 const CAMPAIGN_CONTACTS_KEY = "campaign_contacts";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = campaignContactsSeed as CampaignContact[];
 
 async function readCampaignContacts(): Promise<CampaignContact[]> {
@@ -20,7 +20,7 @@ export async function getCampaignContacts(): Promise<CampaignContact[]> {
   return readCampaignContacts();
 }
 
-// Upsert — one contact per campaign. Passing contactId: null clears the
+// Upsert: one contact per campaign. Passing contactId: null clears the
 // assignment (removes the record) instead of storing an empty one.
 export async function setCampaignContact(
   campaignId: string,

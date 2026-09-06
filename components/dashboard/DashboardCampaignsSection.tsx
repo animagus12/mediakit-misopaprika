@@ -20,7 +20,7 @@ export function DashboardCampaignsSection({ active, past, error, brandOptions = 
         <SectionHeader />
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            Couldn&apos;t load campaigns — {error}
+            Couldn&apos;t load campaigns: {error}
           </CardContent>
         </Card>
       </section>
@@ -29,7 +29,7 @@ export function DashboardCampaignsSection({ active, past, error, brandOptions = 
 
   // Counted across the full history (not just `active`) so "Total campaigns"
   // and "Highest-value campaign" stay lifetime figures even though past
-  // campaigns are no longer listed here — that detail lives on /campaigns.
+  // campaigns are no longer listed here: that detail lives on /campaigns.
   const stats = computeCampaignStats([...active, ...past]);
 
   return (
@@ -51,7 +51,7 @@ export function DashboardCampaignsSection({ active, past, error, brandOptions = 
             <CardHeader>
               <CardDescription>Highest-value campaign</CardDescription>
               <CardTitle className="text-lg">
-                {stats.highestValue ? formatMoney(stats.highestValue.total) : "—"}
+                {stats.highestValue ? formatMoney(stats.highestValue.total) : "-"}
               </CardTitle>
               {stats.highestValue && (
                 <p className="truncate text-xs text-muted-foreground">
@@ -81,7 +81,7 @@ export function DashboardCampaignsSection({ active, past, error, brandOptions = 
 }
 
 // "New campaign" lives in QuickActions at the top of the dashboard instead of
-// here — it's the most important add-action on the site, so it stays with
+// here: it's the most important add-action on the site, so it stays with
 // the other quick actions rather than buried inside this section.
 function SectionHeader() {
   return (

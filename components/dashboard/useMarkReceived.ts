@@ -12,6 +12,10 @@ import {
 // the write happens in the background, and the success toast carries an
 // Undo that puts payment status back to pending. On failure the optimistic
 // hide reverts itself when the transition ends, so the row simply reappears.
+//
+// Marking received also moves the deal's linked invoice to "paid". The Undo
+// carries the status that invoice held beforehand, so reverting restores it
+// exactly rather than assuming it was "sent".
 export function useMarkReceived() {
   const [isPending, startTransition] = useTransition();
   const [hiddenIds, hide] = useOptimistic<string[], string>([], (ids, id) => [...ids, id]);
@@ -24,15 +28,29 @@ export function useMarkReceived() {
         toast.error("Couldn't mark received", { description: result.error });
         return;
       }
-      toast.success(`${label} — marked received`, {
-        action: {
-          label: "Undo",
-          onClick: () =>
-            startTransition(async () => {
-              const undo = await unmarkCampaignPaymentReceived(campaignId);
-              if (!undo.success) toast.error("Couldn't undo", { description: undo.error });
-            }),
-        },
+
+      const undoAction = {
+        label: "Undo",
+        onClick: () =>
+          startTransition(async () => {
+            const undo = await unmarkCampaignPaymentReceived(campaignId, result.previousInvoiceStatus);
+            if (!undo.success) toast.error("Couldn't undo", { description: undo.error });
+          }),
+      };
+
+      // The payment landed either way; the warning is about the invoice not
+      // following, which is worth saying rather than showing a plain success.
+      if (result.warning) {
+        toast.warning(`${label}: marked received`, {
+          description: `The linked invoice wasn't updated: ${result.warning}`,
+          action: undoAction,
+        });
+        return;
+      }
+
+      toast.success(`${label}: marked received`, {
+        description: result.previousInvoiceStatus ? "Linked invoice marked paid." : undefined,
+        action: undoAction,
       });
     });
   }

@@ -5,17 +5,17 @@ import styles from "./links.module.css";
 
 interface LinksPublicViewProps {
   profile: LinkProfile;
-  // Owned by the media kit, not by this page — see getPublishedProfilePhoto().
+  // Owned by the media kit, not by this page: see getPublishedProfilePhoto().
   photo: string;
   // Computed by totalFollowers(), like the rest of this component's input:
   // decided by lib/links, rendered here.
   followers: string | null;
-  // Already filtered by visibleSections() — this component renders what it's
+  // Already filtered by visibleSections(): this component renders what it's
   // given and makes no visibility decisions of its own.
   sections: LinkSection[];
   /**
    * Count card clicks. Defaults to off so a new surface rendering this view
-   * — the editor preview is the one that exists today — can't quietly write
+   *(the editor preview is the one that exists today) can't quietly write
    * to the public page's figures; /links opts in.
    */
   trackClicks?: boolean;

@@ -7,8 +7,8 @@ import type { Campaign } from "@/repositories/campaigns";
 // An active-pipeline card: most of it is a stretched hit target that opens
 // the full edit sheet (the `absolute inset-0` button), with the status
 // <Select> lifted above it (`z-10`) as the one carve-out so the pipeline
-// stage can be advanced in place. Keeping the two as DOM siblings — not the
-// old badge-inside-a-<button> — avoids the nested-interactive hydration bug.
+// stage can be advanced in place. Keeping the two as DOM siblings: not the
+// old badge-inside-a-<button>: avoids the nested-interactive hydration bug.
 export function ActiveCampaignCard({
   campaign,
   brandOptions = [],

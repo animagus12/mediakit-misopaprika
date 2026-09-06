@@ -52,7 +52,7 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
             Create, revisit, and edit invoices for brand collaborations.
           </p>
         </div>
-        <Button asChild size="sm" variant="outline">
+        <Button asChild size="sm">
           <Link href="/invoices/new">
             <Plus className="size-3.5" />
             New invoice
@@ -63,7 +63,7 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
       {error ? (
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            Couldn&apos;t load saved invoices — {error}
+            Couldn&apos;t load saved invoices: {error}
           </CardContent>
         </Card>
       ) : invoices.length === 0 ? (

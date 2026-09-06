@@ -29,7 +29,7 @@ export function EditorTransactionsSection({ transactions, editors, error }: Edit
         <SectionHeader editors={editors} />
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            Couldn&apos;t load editor transactions — {error}
+            Couldn&apos;t load editor transactions: {error}
           </CardContent>
         </Card>
       </section>

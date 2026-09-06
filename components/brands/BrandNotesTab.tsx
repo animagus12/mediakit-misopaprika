@@ -40,7 +40,7 @@ export function BrandNotesTab({ brandId, notes }: BrandNotesTabProps) {
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await removeBrandNote(id, brandId);
+      await removeBrandNote(id);
     });
   }
 

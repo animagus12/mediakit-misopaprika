@@ -13,7 +13,7 @@ export async function saveMediaKit(
     revalidatePath("/", "layout");
     return { success: true };
   } catch {
-    return { success: false, error: "Couldn't save — check KV_REST_API_URL and KV_REST_API_TOKEN are set" };
+    return { success: false, error: "Couldn't save: check KV_REST_API_URL and KV_REST_API_TOKEN are set" };
   }
 }
 
@@ -33,7 +33,7 @@ export async function publishMediaKit(
   } catch {
     return {
       success: false,
-      error: "Couldn't publish — check KV_REST_API_URL and KV_REST_API_TOKEN are set",
+      error: "Couldn't publish: check KV_REST_API_URL and KV_REST_API_TOKEN are set",
     };
   }
 }

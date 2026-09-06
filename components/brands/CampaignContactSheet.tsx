@@ -36,7 +36,7 @@ interface CampaignContactSheetProps {
   contacts: Contact[]; // this brand's contacts (direct + its agency's)
 }
 
-// Trigger shows the current assignment as plain text — the Edit button opens
+// Trigger shows the current assignment as plain text: the Edit button opens
 // a Sheet to either reassign to an existing contact or add a brand-new one
 // (discovered specifically through this campaign) and assign it in one step.
 export function CampaignContactSheet({ campaignId, campaignName, brandId, contactId, contacts }: CampaignContactSheetProps) {
@@ -123,7 +123,7 @@ export function CampaignContactSheet({ campaignId, campaignName, brandId, contac
           <div className="space-y-2">
             <Label>Contact</Label>
             {contacts.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No contacts yet — add one below.</p>
+              <p className="text-xs text-muted-foreground">No contacts yet. Add one below.</p>
             ) : (
               <Select value={selected} onValueChange={handleSelectChange} disabled={isPending}>
                 <SelectTrigger className="w-full">

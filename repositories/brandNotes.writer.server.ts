@@ -3,10 +3,10 @@ import { getRedis } from "@/lib/cache";
 import brandNotesSeed from "@/data/brand-notes.json";
 import type { BrandNote, NewBrandNote } from "./brandNotes";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors editors.writer.server.ts / editorTransactions.writer.server.ts.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly.
 const BRAND_NOTES_KEY = "brand_notes";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = brandNotesSeed as BrandNote[];
 
 async function readBrandNotes(): Promise<BrandNote[]> {

@@ -20,7 +20,7 @@ export default async function InvoicesPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-screen-lg space-y-8 px-4 py-10">
+      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-8 px-4 py-10">
         <InvoiceListSection invoices={invoices} error={error} />
       </div>
     </AppShell>

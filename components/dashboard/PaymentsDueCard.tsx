@@ -71,7 +71,7 @@ export function PaymentsDueCard({ due, className }: PaymentsDueCardProps) {
               <div className="min-w-0">
                 <p className="truncate font-medium">{record.brand}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {record.campaign || "—"} · {formatMoney(record.total)}
+                  {record.campaign || "-"} · {formatMoney(record.total)}
                 </p>
               </div>
               <div className="shrink-0 text-right">

@@ -18,7 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 interface SortableListProps {
-  /** Stable per list — dnd-kit warns when two contexts share an id. */
+  /** Stable per list: dnd-kit warns when two contexts share an id. */
   id: string;
   ids: string[];
   onReorder: (fromIndex: number, toIndex: number) => void;

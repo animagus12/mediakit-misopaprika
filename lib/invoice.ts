@@ -15,7 +15,7 @@ export interface InvoiceLineItem extends InvoiceLineItemInput {
 }
 
 // Kept client-safe (no "server-only") since the editor renders these as
-// <Select> options — mirrors lib/editorTransactions.ts's status options.
+// <Select> options: mirrors lib/editorTransactions.ts's status options.
 export const INVOICE_STATUS_OPTIONS: InvoiceStatus[] = ["draft", "sent", "paid", "void"];
 
 export function formatInvoiceStatus(status: InvoiceStatus): string {
@@ -42,6 +42,23 @@ export function buildInvoiceNumber(invoiceNo: string): string {
   return `MSP-INV-${String(invoiceNo || "").trim().padStart(4, "0")}`;
 }
 
+/**
+ * Resolves a campaign's free-text `invoiceId` ("MSP-INV-0008") to the invoice
+ * record it names. Campaign.invoiceId is a reference typed on the campaign
+ * form, not a foreign key, so the match goes through buildInvoiceNumber():
+ * the same function that renders an invoice's number, which is what makes the
+ * two sides line up. Returns null when the reference is blank or names an
+ * invoice that was never saved as a record.
+ */
+export function findInvoiceByCampaignRef<T extends { invoiceNo: string }>(
+  invoiceRef: string,
+  invoices: T[]
+): T | null {
+  const ref = invoiceRef.trim().toUpperCase();
+  if (!ref || ref === "-") return null;
+  return invoices.find((invoice) => buildInvoiceNumber(invoice.invoiceNo).toUpperCase() === ref) ?? null;
+}
+
 export function lineItemTotal(item: InvoiceLineItemInput): number {
   return (Number(item.qty) || 0) * (Number(item.price) || 0);
 }
@@ -54,14 +71,14 @@ export function computeBalanceDue(subtotal: number, advance: number): number {
   return Math.max(subtotal - (Number(advance) || 0), 0);
 }
 
-export function daysBetween(startISO: string, endISO: string): number {
+function daysBetween(startISO: string, endISO: string): number {
   const start = new Date(startISO).getTime();
   const end = new Date(endISO).getTime();
   return Math.round((end - start) / 86_400_000);
 }
 
 // The number just saved is already taken, so seeding the next invoice with
-// it verbatim would immediately collide — bump it by one instead, keeping
+// it verbatim would immediately collide: bump it by one instead, keeping
 // the zero-padded width (e.g. "0007" -> "0008"). Falls back to the literal
 // value when it isn't numeric.
 function nextInvoiceNumberSeed(invoiceNo: string): string {
@@ -71,11 +88,11 @@ function nextInvoiceNumberSeed(invoiceNo: string): string {
   return String(numeric + 1).padStart(trimmed.length, "0");
 }
 
-// Builds the record to persist as the new defaults for the *next* invoice —
+// Builds the record to persist as the new defaults for the *next* invoice: 
 // spreads `current` and overrides only the fields the form actually edits.
 // qrImage/stampImage are safe to include here because InvoiceImageUploadField
 // uploads to Vercel Blob and stores the resulting URL, not an inlined base64
-// data URL — the same reason the media kit's image fields are safe to
+// data URL: the same reason the media kit's image fields are safe to
 // persist (see CHANGELOG 1.7.0, which moved media kit uploads to Blob for
 // exactly this reason).
 export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData): InvoiceData {
@@ -125,7 +142,7 @@ interface InvoiceStatusStyle {
 }
 
 // Same low-opacity palette-color convention as the workspace's transaction
-// status badges (see EditEditorTransactionSheet) — globals.css has no
+// status badges (see EditEditorTransactionSheet): globals.css has no
 // success/warning token, so meaning is carried by raw Tailwind colors.
 export function invoiceStatusStyle(status: InvoiceStatus): InvoiceStatusStyle {
   switch (status) {
@@ -164,7 +181,7 @@ export interface InvoiceStats {
   overdueCount: number;
 }
 
-// Void invoices are excluded everywhere — they never happened commercially,
+// Void invoices are excluded everywhere: they never happened commercially,
 // same convention as the earnings overview's handling of cancelled deals.
 export function computeInvoiceStats(invoices: Invoice[], now: Date = new Date()): InvoiceStats {
   let count = 0;
@@ -174,7 +191,7 @@ export function computeInvoiceStats(invoices: Invoice[], now: Date = new Date())
   for (const invoice of invoices) {
     if (invoice.status === "void") continue;
     count += 1;
-    // A draft hasn't been issued to the client yet — it's part of the
+    // A draft hasn't been issued to the client yet: it's part of the
     // pipeline (count, overdue nudge) but no money has been billed or is owed.
     if (invoice.status !== "draft") {
       totalBilled += invoice.subtotal;
@@ -204,7 +221,7 @@ export function isInvoiceFilter(value: string | null | undefined): value is Invo
   return INVOICE_FILTER_TABS.some((tab) => tab.value === value);
 }
 
-// Every invoice number typed on more than one record — flag every copy so a
+// Every invoice number typed on more than one record: flag every copy so a
 // clash is visible from the list without opening each one.
 export function findDuplicateInvoiceNumbers(invoices: Pick<Invoice, "invoiceNo">[]): Set<string> {
   const counts = new Map<string, number>();
@@ -287,7 +304,7 @@ export function sortInvoices(
 }
 
 // Deterministic (index-based) ids so an SSR render and the first client
-// render agree — Math.random()/crypto here would cause a hydration mismatch.
+// render agree: Math.random()/crypto here would cause a hydration mismatch.
 function itemsWithStableIds(items: InvoiceLineItemInput[]): InvoiceLineItem[] {
   return items.map((item, index) => ({ ...item, id: `initial-${index}` }));
 }
@@ -434,7 +451,7 @@ export interface InvoiceEditorJobOption {
   status: string;
 }
 
-// Most recent (by assigned date) first — the job a fresh invoice is most
+// Most recent (by assigned date) first: the job a fresh invoice is most
 // likely to bill for. Cancelled jobs are dropped: nothing to bill against.
 export function buildInvoiceEditorJobOptions(transactions: EditorTransaction[]): InvoiceEditorJobOption[] {
   return transactions
@@ -471,8 +488,8 @@ export function computeInvoiceMargin(
   return { editorCost, margin: invoice.subtotal - editorCost };
 }
 
-// Invoices belonging to a brand: an explicit brandId link, or — for invoices
-// saved before the link existed / one-offs typed by hand — a case-insensitive
+// Invoices belonging to a brand: an explicit brandId link, or, for invoices
+// saved before the link existed / one-offs typed by hand: a case-insensitive
 // match on the snapshotted client name.
 export function invoicesForBrand(
   brand: Pick<Brand, "id" | "name">,
@@ -487,8 +504,8 @@ export function invoicesForBrand(
 }
 
 // Resolves a campaign record's free-text "Invoice ID" field to a saved
-// invoice record. The field is entered by hand and inconsistent —
-// "MSP-INV-0007", "0007", "7" all mean the same invoice — so match on the
+// invoice record. The field is entered by hand and inconsistent: 
+// "MSP-INV-0007", "0007", "7" all mean the same invoice: so match on the
 // full label, the raw number, and the zero-stripped number.
 export function findInvoiceByCampaignInvoiceId(campaignInvoiceId: string, invoices: Invoice[]): Invoice | undefined {
   const needle = campaignInvoiceId.trim().toLowerCase();
@@ -512,10 +529,10 @@ export function invoicePaymentMismatch(
   invoiceStatus: InvoiceStatus
 ): string | null {
   if (campaignPaymentStatus === "received" && invoiceStatus !== "paid" && invoiceStatus !== "void") {
-    return "Campaign says received — invoice isn't marked paid";
+    return "Campaign says received: invoice isn't marked paid";
   }
   if (campaignPaymentStatus === "pending" && invoiceStatus === "paid") {
-    return "Invoice marked paid — campaign still says pending";
+    return "Invoice marked paid: campaign still says pending";
   }
   return null;
 }

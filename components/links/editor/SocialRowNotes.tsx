@@ -8,7 +8,7 @@ interface SocialRowNotesProps {
 }
 
 // Fixed locale and UTC so the server render and the client hydration produce
-// the same string — a viewer's timezone would otherwise change the date and
+// the same string: a viewer's timezone would otherwise change the date and
 // trip a hydration mismatch. (The relative part is computed server-side, for
 // the same reason; see SocialStatUpdate.)
 const STAMP = new Intl.DateTimeFormat("en-GB", {
@@ -46,10 +46,10 @@ function ago(hours: number): string {
 
 function LastUpdated({ noun, update }: { noun: string; update: SocialStatUpdate | null }) {
   // The cached figure carries a 26h TTL, so a stalled job makes the entry
-  // vanish rather than go stale — absence is the symptom to name, not age.
+  // vanish rather than go stale: absence is the symptom to name, not age.
   if (!update) {
     return (
-      <p className={MUTED}>{noun} not cached — the daily refresh hasn&apos;t run, or it failed.</p>
+      <p className={MUTED}>{noun} not cached: the daily refresh hasn&apos;t run, or it failed.</p>
     );
   }
   return (
@@ -61,7 +61,7 @@ function LastUpdated({ noun, update }: { noun: string; update: SocialStatUpdate 
 
 /**
  * The small print under a social row: when the figure behind it was last
- * refreshed, and — for Instagram, whose figure rides on a 60-day credential —
+ * refreshed, and: for Instagram, whose figure rides on a 60-day credential: 
  * whether that credential is still renewing itself. Nothing here is
  * actionable while things are working; the states that need a person say so.
  */
@@ -85,7 +85,7 @@ function InstagramToken({ status }: { status: InstagramTokenStatus }) {
   if (status.state === "missing") {
     return (
       <p className={MUTED}>
-        No access token stored yet — the first daily run seeds it from{" "}
+        No access token stored yet: the first daily run seeds it from{" "}
         <code>INSTAGRAM_ACCESS_TOKEN</code>.
       </p>
     );
@@ -96,7 +96,7 @@ function InstagramToken({ status }: { status: InstagramTokenStatus }) {
   if (status.state === "ok") {
     return (
       <p className={MUTED}>
-        Access token renews itself — valid to {on} UTC ({status.daysRemaining} days). Nothing to do.
+        Access token renews itself: valid to {on} UTC ({status.daysRemaining} days). Nothing to do.
       </p>
     );
   }
@@ -104,7 +104,7 @@ function InstagramToken({ status }: { status: InstagramTokenStatus }) {
   return (
     <p className={`${ALERT} ${status.state === "expired" ? EXPIRED : OVERDUE}`}>
       {status.state === "expired"
-        ? `Access token expired on ${on} UTC. Reconnect Instagram and set a fresh INSTAGRAM_ACCESS_TOKEN — the follower count is stale until you do.`
+        ? `Access token expired on ${on} UTC. Reconnect Instagram and set a fresh INSTAGRAM_ACCESS_TOKEN: the follower count is stale until you do.`
         : `Access token expires ${on} UTC (${status.daysRemaining} days) and the daily job has not renewed it. Check the refresh-instagram cron before it lapses.`}
     </p>
   );

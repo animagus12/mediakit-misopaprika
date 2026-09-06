@@ -11,7 +11,7 @@ import type { SocialStats } from "@/repositories/socialStats";
 function isVisible(item: LinkItem, now: number): boolean {
   if (!item.enabled) return false;
 
-  // An unparseable date is treated as no bound rather than hiding the item —
+  // An unparseable date is treated as no bound rather than hiding the item: 
   // a typo in one timestamp shouldn't silently drop a link from the page.
   const startsAt = item.startsAt ? Date.parse(item.startsAt) : NaN;
   if (!Number.isNaN(startsAt) && now < startsAt) return false;
@@ -44,7 +44,7 @@ export function visibleSections(data: LinksData, now: number): LinkSection[] {
 // Live stat tokens.
 //
 // A follower count is authored as a placeholder inside otherwise ordinary text
-// — "MisoPaprika · {youtube_subscribers}" — and substituted at render. Keeping
+//("MisoPaprika · {youtube_subscribers}") and substituted at render. Keeping
 // it a token rather than a dedicated field means the author still owns the
 // phrasing (handle, separator, order), no schema migration was needed, and the
 // same mechanism works in any card's sub-label.
@@ -69,8 +69,6 @@ const STAT_TOKENS: Record<string, (stats: SocialStats) => string | null> = {
     instagramFollowers === null ? null : `${formatCount(instagramFollowers)} followers`,
 };
 
-export const STAT_TOKEN_NAMES = Object.keys(STAT_TOKENS);
-
 /**
  * Tidies what a removed token leaves behind. Only the middot is handled
  * because it is the separator this page's copy uses; anything else is left
@@ -85,7 +83,7 @@ function tidySeparators(text: string): string {
     .trim();
 }
 
-export function resolveStatTokens(text: string, stats: SocialStats): string {
+function resolveStatTokens(text: string, stats: SocialStats): string {
   if (!text.includes("{")) return text;
 
   let resolved = text;
@@ -111,7 +109,7 @@ export function resolveStatTokens(text: string, stats: SocialStats): string {
  * repeated here, so adding a platform stays what STAT_TOKENS promises: one
  * entry there plus one field on SocialStats.
  *
- * Null when no platform reported a figure — a normal state (see SocialStats),
+ * Null when no platform reported a figure: a normal state (see SocialStats),
  * and the header renders no line at all rather than "0 followers".
  */
 export function totalFollowers(stats: SocialStats): string | null {
@@ -122,7 +120,7 @@ export function totalFollowers(stats: SocialStats): string | null {
 
 export interface VisiblePage {
   profile: LinkProfile;
-  /** Computed, not authored — see totalFollowers(). */
+  /** Computed, not authored: see totalFollowers(). */
   followers: string | null;
   sections: LinkSection[];
 }
@@ -130,12 +128,12 @@ export interface VisiblePage {
 /**
  * Everything the public page should render, in one call: the profile with
  * hidden social icons dropped, the computed follower total, visibleSections(),
- * and live stat tokens resolved. Deliberately a single entry point rather than several — a surface
+ * and live stat tokens resolved. Deliberately a single entry point rather than several: a surface
  * that renders the page shouldn't be able to apply half the rules by
  * forgetting a call, which is why `stats` is required even where the caller
  * has none to give (pass EMPTY_SOCIAL_STATS).
  */
-export function visiblePage(data: LinksData, now: number, stats: SocialStats): VisiblePage {
+function visiblePage(data: LinksData, now: number, stats: SocialStats): VisiblePage {
   return {
     profile: {
       ...data.profile,
@@ -161,7 +159,7 @@ export function visiblePageNow(data: LinksData, stats: SocialStats): VisiblePage
   return visiblePage(data, Date.now(), stats);
 }
 
-/** Cards only link out when they have somewhere to go — see LinkItem.url. */
+/** Cards only link out when they have somewhere to go: see LinkItem.url. */
 export function isNavigable(item: LinkItem): boolean {
   return item.url.trim().length > 0;
 }

@@ -94,7 +94,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
     [state.logos.length, showToast]
   );
 
-  // Additive — skips any brand logo already in the grid (matched by image
+  // Additive: skips any brand logo already in the grid (matched by image
   // URL) so re-running the sync after adding more brands doesn't duplicate
   // ones already here. Never auto-saves: synced logos land in the same
   // editable form state as everything else, for the creator to reorder/trim
@@ -112,7 +112,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
         const added = toAdd.slice(0, room);
         showToast(
           added.length < toAdd.length
-            ? `Added ${added.length} — ${MAX_LOGOS} logos is the sensible ceiling`
+            ? `Added ${added.length}: ${MAX_LOGOS} logos is the sensible ceiling`
             : `Added ${added.length} brand logo${added.length === 1 ? "" : "s"}`
         );
         return { ...prev, logos: [...prev.logos, ...added] };
@@ -180,7 +180,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
         showToast("Image uploaded");
       } catch (error) {
         const reason = error instanceof Error ? error.message : "";
-        showToast(reason ? `Upload failed — ${reason}` : "Upload failed — try a different image");
+        showToast(reason ? `Upload failed(${reason}` : "Upload failed) try a different image");
       }
     },
     [showToast]
@@ -199,7 +199,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
     const payload = toMediaKitData(state, data.brandHandle);
     startSaveTransition(async () => {
       const result = await saveMediaKit(payload);
-      showToast(result.success ? "Saved — values updated permanently" : result.error);
+      showToast(result.success ? "Saved: values updated permanently" : result.error);
     });
   }, [state, data.brandHandle, showToast]);
 
@@ -207,7 +207,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
     const payload = toMediaKitData(state, data.brandHandle);
     startPublishTransition(async () => {
       const result = await publishMediaKit(payload);
-      showToast(result.success ? "Published — live at /mediakit" : result.error);
+      showToast(result.success ? "Published: live at /mediakit" : result.error);
     });
   }, [state, data.brandHandle, showToast]);
 

@@ -1,7 +1,7 @@
 import type { Campaign, CampaignPaymentStatus, CampaignType } from "@/repositories/campaigns";
 import type { Brand } from "@/repositories/brands";
 
-// View-model for the "Link to brand" picker — same "flat option list, never
+// View-model for the "Link to brand" picker: same "flat option list, never
 // the full domain object" discipline as lib/invoice.ts's buildInvoiceBrandOptions.
 export interface CampaignBrandOption {
   id: string;
@@ -14,7 +14,7 @@ export function buildCampaignBrandOptions(brands: Brand[]): CampaignBrandOption[
     .map((brand) => ({ id: brand.id, name: brand.name }));
 }
 
-// The fixed option lists for each field — kept client-safe (no "server-only")
+// The fixed option lists for each field: kept client-safe (no "server-only")
 // since the quick-add form renders these as <Select> options. "Scam" is a
 // valid Type (inherited from the original spreadsheet's data) but isn't
 // offered when adding a new deal; it's something you'd mark after the fact.
@@ -34,7 +34,7 @@ export const STATUS_OPTIONS = [
 
 // Manually settable from the campaign form (unlike the dashboard's
 // "Mark received" quick actions, this covers barter-only deals too, which
-// PaymentsDueCard/NeedsAttentionCard deliberately skip — see
+// PaymentsDueCard/NeedsAttentionCard deliberately skip: see
 // lib/dashboardAttention.ts).
 export const PAYMENT_STATUS_OPTIONS: CampaignPaymentStatus[] = ["unknown", "pending", "received"];
 
@@ -113,7 +113,7 @@ export function computeCampaignStats(items: Campaign[]): CampaignStats {
 
 // --- Full-table view (/campaigns): filtering, sorting -----------------------
 // Kept here (not in the client table component) so the list's business rules
-// stay testable and out of the UI, per the project's architecture guide —
+// stay testable and out of the UI, per the project's architecture guide: 
 // same split as lib/invoice.ts's filterInvoices/sortInvoices.
 
 export type CampaignFilter = "all" | "active" | "completed" | "pending-payment" | "cancelled";

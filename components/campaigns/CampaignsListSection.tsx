@@ -47,7 +47,7 @@ export function CampaignsListSection({
       {error ? (
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            Couldn&apos;t load campaigns — {error}
+            Couldn&apos;t load campaigns: {error}
           </CardContent>
         </Card>
       ) : campaigns.length === 0 ? (

@@ -59,7 +59,7 @@ export function ContactFormFields({ idPrefix, form, setForm, agencyName }: Conta
             onCheckedChange={(checked) => setForm((f) => ({ ...f, scope: checked === true ? "agency" : "brand" }))}
           />
           <Label htmlFor={`${idPrefix}-scope`} className="font-normal">
-            Agency contact — also shows on {agencyName}&apos;s other brands
+            Agency contact: also shows on {agencyName}&apos;s other brands
           </Label>
         </div>
       )}

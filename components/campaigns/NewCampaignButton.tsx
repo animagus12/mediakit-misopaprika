@@ -77,7 +77,7 @@ export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: Campai
           <SheetTitle>New campaign</SheetTitle>
           <SheetDescription>
             Records a new campaign. Payment status defaults to
-            unmarked — fill in payment details once the deal is paid out.
+            unmarked: fill in payment details once the deal is paid out.
           </SheetDescription>
         </SheetHeader>
 

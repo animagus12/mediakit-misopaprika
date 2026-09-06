@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 interface TrackedLinkProps {
-  /** LinkItem.id — the key clicks are counted against. */
+  /** LinkItem.id: the key clicks are counted against. */
   itemId: string;
   href: string;
   className: string;
@@ -36,7 +36,7 @@ function record(itemId: string): void {
  * the beacon above.
  *
  * Deliberately a real <a> with the real destination rather than a redirect
- * through a counting route — the URL stays copyable, long-pressable, and
+ * through a counting route: the URL stays copyable, long-pressable, and
  * correct in the status bar, and a link still works with JS disabled or the
  * counter down. The trade is that the count is a floor, not an exact figure.
  */

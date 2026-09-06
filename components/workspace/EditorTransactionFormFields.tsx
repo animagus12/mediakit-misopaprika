@@ -57,7 +57,7 @@ export function EditorTransactionFormFields({ idPrefix, form, setForm, editors }
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-editor`}>Editor</Label>
         {editors.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No editors yet — add one first.</p>
+          <p className="text-xs text-muted-foreground">No editors yet. Add one first.</p>
         ) : (
           <Select value={form.editor} onValueChange={(value) => setForm((f) => ({ ...f, editor: value }))}>
             <SelectTrigger id={`${idPrefix}-editor`} className="w-full">

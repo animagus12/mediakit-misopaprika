@@ -1,8 +1,6 @@
-import campaignContactsJson from "@/data/campaign-contacts.json";
-
 // Brand-facing campaign records are read-only (see repositories/brandCampaigns.ts),
 // so "which contact handled this deal" can't live on the campaign record
-// itself — this is a separate local assignment keyed by the campaign's ID.
+// itself: this is a separate local assignment keyed by the campaign's ID.
 // One contact per campaign; campaignId is the natural unique key.
 export interface CampaignContact {
   campaignId: string;
@@ -10,15 +8,3 @@ export interface CampaignContact {
   contactId: string;
   updatedAt: string; // ISO datetime
 }
-
-export interface ICampaignContactRepository {
-  get(): CampaignContact[];
-}
-
-class JsonCampaignContactRepository implements ICampaignContactRepository {
-  get(): CampaignContact[] {
-    return campaignContactsJson as CampaignContact[];
-  }
-}
-
-export const campaignContactRepository: ICampaignContactRepository = new JsonCampaignContactRepository();

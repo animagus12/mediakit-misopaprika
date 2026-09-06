@@ -1,6 +1,6 @@
 import type { LinkItem, LinkKind, LinkProfile, LinkSection, LinksData } from "@/repositories/links";
 
-// Which item's image a file picker click is filling — addressed by id rather
+// Which item's image a file picker click is filling: addressed by id rather
 // than index so a concurrent reorder can't land an upload on the wrong card.
 // The profile photo is not a target: it belongs to the media kit.
 export interface LinksPickerTarget {

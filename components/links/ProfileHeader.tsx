@@ -4,7 +4,7 @@ import styles from "./links.module.css";
 
 interface ProfileHeaderProps {
   profile: LinkProfile;
-  /** The media kit's photo — see getPublishedProfilePhoto(). */
+  /** The media kit's photo: see getPublishedProfilePhoto(). */
   photo: string;
   /** Computed by totalFollowers(); null hides the line. */
   followers: string | null;

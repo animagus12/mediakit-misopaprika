@@ -26,7 +26,7 @@ export interface MediaKitFormState {
   avgReelViews: string;
   caption: string;
   // Fixed-count by design (no add/remove UI exists for these, unlike
-  // `logos`) — plain arrays rather than tuples so index-based updates
+  // `logos`): plain arrays rather than tuples so index-based updates
   // don't fight the type checker; the exact count of 3/3/2 is guaranteed
   // by the repository's default data instead.
   services: MediaKitServiceInput[];

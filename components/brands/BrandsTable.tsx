@@ -87,7 +87,7 @@ export function BrandsTable({ rows }: BrandsTableProps) {
       {rows.length === 0 ? (
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
-            No brands yet — add one to start tracking the relationship.
+            No brands yet. Add one to start tracking the relationship.
           </CardContent>
         </Card>
       ) : sorted.length === 0 ? (
@@ -164,7 +164,7 @@ export function BrandsTable({ rows }: BrandsTableProps) {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {row.contactName ? <span className="truncate text-foreground">{row.contactName}</span> : "—"}
+                      {row.contactName ? <span className="truncate text-foreground">{row.contactName}</span> : "-"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {row.agencyName ? `Agency · ${row.agencyName}` : "Direct"}
@@ -178,7 +178,7 @@ export function BrandsTable({ rows }: BrandsTableProps) {
                       {row.campaignCount}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatMoney(row.revenue)}</TableCell>
-                    <TableCell className="text-muted-foreground">{row.lastCollabDate ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{row.lastCollabDate ?? "-"}</TableCell>
                   </TableRow>
                 );
               })}

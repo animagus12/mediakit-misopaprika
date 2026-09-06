@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
+import { Button } from "../ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -12,15 +15,22 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
   SidebarSeparator,
   useSidebar,
 } from "../ui/sidebar";
-import { navEntries } from "@/lib/navigation";
+import {
+  dashboardEntry,
+  isNavHrefActive,
+  navEntries,
+  navGroups,
+  type NavEntry,
+} from "@/lib/navigation";
 
-const navItems = [
-  { title: "Dashboard", href: "/" },
-  ...navEntries.map(({ title, href }) => ({ title, href })),
-];
+const entriesByGroup = navGroups.map(({ id, label }) => ({
+  label,
+  entries: navEntries.filter((entry) => entry.group === id),
+}));
 
 interface AppSideBarProps {
   photo: string;
@@ -28,54 +38,89 @@ interface AppSideBarProps {
 
 const AppSideBar = ({ photo }: AppSideBarProps) => {
   const { isMobile, setOpenMobile } = useSidebar();
+  const pathname = usePathname();
 
-  const handleNavClick = () => {
+  const closeOnMobile = () => {
     if (isMobile) setOpenMobile(false);
   };
 
-  return (
-    <Sidebar className="rounded-r-3xl border-r border-border bg-background/95 shadow-sm shadow-slate-900/5">
-      <SidebarHeader className="space-y-3 border-b border-border/70 px-4 pb-4 pt-6">
-        <Link href="/" onClick={handleNavClick} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-2 transition hover:bg-muted/80">
-          {/* Plain img, not next/image: the media kit photo can be a data: URL
-              from the image picker, which next/image can't optimize. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo} alt="" className="size-8 rounded-full object-cover" />
-          <div>
-            <p className="text-sm font-semibold">Misoparika</p>
-            <p className="text-xs text-muted-foreground">Creator media kit</p>
-          </div>
+  const renderItem = ({ href, title, Icon }: Pick<NavEntry, "href" | "title" | "Icon">) => (
+    <SidebarMenuItem key={href}>
+      <SidebarMenuButton
+        asChild
+        isActive={isNavHrefActive(pathname, href)}
+        tooltip={title}
+        className="h-9 gap-3 text-sm pointer-coarse:h-11"
+      >
+        <Link href={href} onClick={closeOnMobile}>
+          <Icon className="text-sidebar-foreground/70 group-data-active/menu-button:text-sidebar-accent-foreground" />
+          <span>{title}</span>
         </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+
+  return (
+    <Sidebar collapsible="icon" className="border-r border-border">
+      <SidebarHeader className="gap-0 border-b border-border/70 p-2 pt-[calc(--spacing(2)+env(safe-area-inset-top))]">
+        <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            onClick={closeOnMobile}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 transition hover:bg-sidebar-accent group-data-[collapsible=icon]:p-0"
+          >
+            {/* Plain img, not next/image: the media kit photo can be a data: URL
+                from the image picker, which next/image can't optimize. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photo} alt="" className="size-8 shrink-0 rounded-full object-cover" />
+            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+              <p className="truncate text-sm font-semibold">Misopaprika</p>
+              <p className="truncate text-xs text-muted-foreground">Creator media kit</p>
+            </div>
+          </Link>
+          {/* The mobile sheet hides its own close affordance, so the sidebar
+              has to offer one of its own. */}
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            onClick={() => setOpenMobile(false)}
+            className="size-9 shrink-0 pointer-coarse:size-11 md:hidden"
+          >
+            <X className="size-5" />
+            <span className="sr-only">Close menu</span>
+          </Button>
+        </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-4 py-4">
+      <SidebarContent className="py-2">
         <SidebarGroup>
-          <SidebarGroupLabel>Navigate</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.href} onClick={handleNavClick}>
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
+            <SidebarMenu>{renderItem(dashboardEntry)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {entriesByGroup.map(({ label, entries }) => (
+          <SidebarGroup key={label}>
+            <SidebarGroupLabel className="text-[0.7rem] font-medium tracking-wide uppercase">
+              {label}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>{entries.map(renderItem)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarSeparator />
-      <SidebarFooter className="px-4 pb-6 pt-4 text-xs text-muted-foreground">
-        <div className="rounded-2xl border border-border/70 bg-muted px-3 py-3">
-          <p className="font-medium">Deployed version</p>
-          <p className="mt-1 font-mono text-[0.82rem] leading-tight">
+      <SidebarFooter className="p-3 pb-[calc(--spacing(3)+env(safe-area-inset-bottom))] group-data-[collapsible=icon]:hidden">
+        <p className="text-xs text-muted-foreground">
+          Version{" "}
+          <span className="font-mono text-foreground/80">
             {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
-          </p>
-        </div>
+          </span>
+        </p>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 };

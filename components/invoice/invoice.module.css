@@ -3,7 +3,7 @@
   --invoice-ink: #141414;
   --invoice-blue: #0052c4;
   --invoice-rule: #1a1a1a;
-  /* Chrome colors follow the app's light/dark theme tokens (globals.css) —
+  /* Chrome colors follow the app's light/dark theme tokens (globals.css): 
      only the printed A4 sheet below keeps its own fixed brand colors. */
   --invoice-panel: var(--background);
   --invoice-panel-2: var(--card);
@@ -51,13 +51,13 @@
   transform-origin: top center;
 }
 
-/* Scale the fixed A4 sheet down to whatever width .stage actually has —
+/* Scale the fixed A4 sheet down to whatever width .stage actually has: 
    computed live from the container query size, so it's correct on the
    very first paint (no JS/useEffect delay causing a flash of the full
    793px-wide sheet) and re-solves instantly on any resize/rotation. zoom
    (not transform) is used so the box's layout size shrinks with it, instead
    of needing a JS-measured height to collapse the reserved space. Scoped to
-   screen only — some print pipelines (e.g. printing through an OS printer
+   screen only: some print pipelines (e.g. printing through an OS printer
    driver like "Microsoft Print to PDF" rather than the browser's own PDF
    export) don't reliably honor a `zoom: normal !important` override in
    @media print, so instead the rule is simply never declared for print. */
@@ -219,7 +219,7 @@
   font-family: var(--font-invoice-body, "Poppins", sans-serif);
   /* Without this, Chrome/Safari drop background colors when printing
      unless the user manually enables "Background graphics" in the print
-     dialog — since Save as PDF goes through window.print(), the cream
+     dialog: since Save as PDF goes through window.print(), the cream
      sheet background would silently print as plain white. Inherited, so
      it also covers nested elements. */
   -webkit-print-color-adjust: exact;
@@ -541,7 +541,7 @@
   }
 
   .stage {
-    /* Desktop's flex:1 means "grow to fill leftover space" — but in a
+    /* Desktop's flex:1 means "grow to fill leftover space", but in a
        stacked column layout where .panel's content already exceeds
        100vh, there is no leftover space to distribute, so flex:1's
        flex-basis:0% collapses .stage instead of sizing to its content.

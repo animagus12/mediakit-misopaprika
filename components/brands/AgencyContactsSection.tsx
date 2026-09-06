@@ -14,7 +14,7 @@ interface AgencyContactsSectionProps {
 }
 
 // Lets a creator add contacts (name + phone, for now) straight from the
-// agency itself — previously the only way to create an agency-scoped
+// agency itself: previously the only way to create an agency-scoped
 // contact was via a brand's Contacts tab.
 export function AgencyContactsSection({ agencyId, contacts }: AgencyContactsSectionProps) {
   const [name, setName] = useState("");

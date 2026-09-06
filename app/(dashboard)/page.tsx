@@ -36,7 +36,7 @@ import { buildDashboardNavBadges } from "@/lib/dashboardNav";
 // fetch (the campaign records) never holds up the rest of the page.
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-screen-lg px-4 py-10">
+    <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] px-4 py-10">
       <div className="mb-6 flex items-center justify-between gap-3">
         <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
         <LastRefreshed loadedAtISO={new Date().toISOString()} />
@@ -125,7 +125,7 @@ async function NavCardsSection() {
   const navBadges = buildDashboardNavBadges({ invoices, brands, contacts, editorTransactions });
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
       {navEntries.map(({ href, title, description, Icon, access }) => (
         <Link key={href} href={href} className="group">
           <Card className="h-full transition hover:ring-foreground/20">
@@ -173,7 +173,7 @@ function QuickActionsSkeleton() {
 
 function NavCardsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
       {Array.from({ length: navEntries.length }).map((_, index) => (
         <Skeleton key={index} className="h-28 rounded-lg" />
       ))}

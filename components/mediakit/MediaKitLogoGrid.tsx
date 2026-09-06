@@ -124,7 +124,7 @@ export function MediaKitLogoGrid({ state, actions, brandLogos }: MediaKitLogoGri
   return (
     <>
       <Label className={styles.fieldLabel}>
-        Logos — tap image to replace, drag the handle to reorder, × to remove
+        Logos: tap image to replace, drag the handle to reorder, × to remove
       </Label>
       <DndContext
         id="mediakit-logo-grid"

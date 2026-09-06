@@ -1,5 +1,5 @@
 /* Self-contained palette. This page is fan-facing and deliberately does NOT
-   follow the dashboard's light/dark tokens from globals.css — it keeps one
+   follow the dashboard's light/dark tokens from globals.css: it keeps one
    fixed look for every visitor, the same way the media kit's A4 sheet does. */
 /* Container root for the responsive rules below. On the public page this is
    full width, so the queries fire at the same widths a media query would; in
@@ -47,7 +47,7 @@
 }
 
 /* Painting the gradient on .page covers only that element, so an iOS
-   rubber-band scroll past either end exposes the app's own background —
+   rubber-band scroll past either end exposes the app's own background: 
    white in the light theme. Route-scoped: this module's CSS chunk is only
    loaded on /links. */
 :root {
@@ -101,7 +101,7 @@
      glyph, so this preserves the original visual gap. */
   margin-top: 11px;
   display: flex;
-  /* 8px between 44px boxes puts the glyph centres 52px apart — same rhythm
+  /* 8px between 44px boxes puts the glyph centres 52px apart: same rhythm
      the old 26px gap between bare 26px icons produced. */
   gap: 8px;
 }
@@ -125,7 +125,7 @@
 }
 
 .followers {
-  /* Also reduced by the icon box's built-in padding — see .socials. */
+  /* Also reduced by the icon box's built-in padding: see .socials. */
   margin-top: 9px;
   padding: 5px 14px;
   border-radius: 999px;
@@ -196,7 +196,7 @@ a.card:hover {
 .banner {
   display: block;
   width: 100%;
-  /* No forced aspect ratio — brand logos vary wildly and cropping one to fit
+  /* No forced aspect ratio: brand logos vary wildly and cropping one to fit
      a 16:9 box mangles it. The cap only bites on unusually tall images. */
   max-height: 320px;
   object-fit: cover;
@@ -223,7 +223,7 @@ a.card:hover {
 }
 
 /* Keeps the label optically centred when only one side has a thumbnail or
-   action — the spacer matches .thumb's footprint. */
+   action: the spacer matches .thumb's footprint. */
 .spacer {
   width: 52px;
   flex: 0 0 52px;
@@ -300,7 +300,7 @@ a.card:hover {
 }
 
 /* Periodic hop so the code reads as the thing to tap. Most of the timeline
-   is the resting state — the nudge itself is ~0.6s of a 5s loop, which draws
+   is the resting state: the nudge itself is ~0.6s of a 5s loop, which draws
    the eye without turning into a fidget. */
 @keyframes codeNudge {
   0%,
@@ -327,7 +327,7 @@ a.card:hover {
 }
 
 /* The loop runs unattended, so it's exactly the kind of motion this opts out
-   of. Hover/press transitions stay — those are user-initiated. */
+   of. Hover/press transitions stay: those are user-initiated. */
 @media (prefers-reduced-motion: reduce) {
   .code {
     animation: none;
@@ -371,7 +371,7 @@ a.card:hover {
   /* The trailing spacer balances the leading thumbnail, which is what keeps
      the label centred in the card rather than centred in the space left over
      beside the thumbnail. Only dropped where the third column genuinely
-     doesn't fit — a code card, whose pill needs the room. */
+     doesn't fit: a code card, whose pill needs the room. */
   .card:has(.code) .spacer {
     display: none;
   }

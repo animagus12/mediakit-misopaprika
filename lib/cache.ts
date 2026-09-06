@@ -4,7 +4,7 @@ import type { YouTubeAnalyticsCache } from "@/services/youtube";
 
 const YOUTUBE_KEY = "youtube_analytics";
 const INSTAGRAM_KEY = "instagram_stats";
-const TTL_SECONDS = 60 * 60 * 26; // 26 h — covers daily refresh + buffer
+const TTL_SECONDS = 60 * 60 * 26; // 26 h: covers daily refresh + buffer
 
 // The access token is deliberately NOT given a TTL. The stats above are a
 // cache and may lapse harmlessly; the token is the only copy of a credential
@@ -24,11 +24,11 @@ export function getRedis(): Redis | null {
 
 export async function setCachedYouTubeAnalytics(data: YouTubeAnalyticsCache): Promise<void> {
   const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN");
+  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
   await redis.set(YOUTUBE_KEY, data, { ex: TTL_SECONDS });
 }
 
-// Best-effort — a public page shouldn't fail to render because KV is unset,
+// Best-effort: a public page shouldn't fail to render because KV is unset,
 // unreachable, or because the daily refresh hasn't run yet. Callers treat null
 // as "no live figure" and fall back to whatever the author wrote by hand.
 export async function getCachedYouTubeAnalytics(): Promise<YouTubeAnalyticsCache | null> {
@@ -43,7 +43,7 @@ export async function getCachedYouTubeAnalytics(): Promise<YouTubeAnalyticsCache
 
 export async function setCachedInstagramStats(data: InstagramStatsCache): Promise<void> {
   const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN");
+  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
   await redis.set(INSTAGRAM_KEY, data, { ex: TTL_SECONDS });
 }
 
@@ -63,17 +63,17 @@ export async function getCachedInstagramStats(): Promise<InstagramStatsCache | n
 // env var and overwrite a good refreshed token with a stale one.
 export async function getInstagramToken(): Promise<InstagramTokenRecord | null> {
   const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN");
+  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
   return (await redis.get<InstagramTokenRecord>(INSTAGRAM_TOKEN_KEY)) ?? null;
 }
 
 export async function setInstagramToken(record: InstagramTokenRecord): Promise<void> {
   const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN");
+  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
   await redis.set(INSTAGRAM_TOKEN_KEY, record);
 }
 
-// Best-effort — a page view shouldn't fail to render because KV is unset or unreachable.
+// Best-effort: a page view shouldn't fail to render because KV is unset or unreachable.
 export async function incrementMediaKitViews(): Promise<void> {
   const redis = getRedis();
   if (!redis) return;
@@ -94,7 +94,7 @@ export async function getMediaKitViews(): Promise<number> {
   }
 }
 
-// Best-effort — a page view shouldn't fail to render because KV is unset or unreachable.
+// Best-effort: a page view shouldn't fail to render because KV is unset or unreachable.
 export async function recordMediaKitVisitor(visitorId: string | undefined): Promise<void> {
   const redis = getRedis();
   if (!redis || !visitorId) return;
@@ -123,7 +123,7 @@ export async function getMediaKitUniqueVisitors(): Promise<number> {
 // unreachable. Reads answer 0 / {} so the editor renders an honest empty
 // state rather than an error.
 //
-// Clicks live in one hash keyed by LinkItem.id — the id is stable across
+// Clicks live in one hash keyed by LinkItem.id: the id is stable across
 // relabelling and reordering (see LinkItem), so a link keeps its history when
 // it is renamed or dragged, and one HGETALL fetches every link's total.
 // ---------------------------------------------------------------------------
@@ -173,7 +173,7 @@ export async function getLinksUniqueVisitors(): Promise<number> {
 }
 
 /**
- * Callers must have already checked the id against the published page — this
+ * Callers must have already checked the id against the published page: this
  * writes a new hash field for whatever it is given, so an unvalidated id from
  * a request body would let anyone grow the key without bound.
  */

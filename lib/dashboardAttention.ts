@@ -4,7 +4,7 @@ import { isInvoiceOverdue } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 
 // Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
-// with an open loop the creator still has to close — the operational
+// with an open loop the creator still has to close: the operational
 // counterpart to selectDuePayments (money that's owed on a schedule). Kept
 // out of the "server-only" repository so the dashboard card can import the
 // type freely.
@@ -13,7 +13,7 @@ export type AttentionKind = "uninvoiced" | "untracked-payment" | "overdue-invoic
 
 export interface AttentionItem {
   kind: AttentionKind;
-  campaignId: string; // for "overdue-invoice", this is the Invoice id instead — never collides with a real campaign id, and it's all NeedsAttentionCard needs to link to it
+  campaignId: string; // for "overdue-invoice", this is the Invoice id instead, never collides with a real campaign id, and it's all NeedsAttentionCard needs to link to it
   brand: string;
   campaign: string;
   amount: number; // the deal's Total, for ranking + display
@@ -28,13 +28,13 @@ function isDelivered(record: BrandCampaignRecord): boolean {
   return normalized(record.status) === "completed" || record.uploadDate.trim() !== "";
 }
 
-// Whether an invoice exists for this deal — either the campaign record's
+// Whether an invoice exists for this deal: either the campaign record's
 // "Invoice ID" field points at one (it's auto-filled for paid deals added
 // through the app), or a saved invoice in the invoices store names the same
 // brand + campaign. The second check is what makes the "Delivered, no invoice
 // raised" item clear itself once the creator saves an invoice from the link,
 // since that save never writes back to the campaign record's field. Void
-// invoices don't count — a voided invoice means the deal is still uninvoiced.
+// invoices don't count: a voided invoice means the deal is still uninvoiced.
 function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
   const recordInvoiceId = record.invoiceId.trim();
   if (recordInvoiceId !== "" && recordInvoiceId !== "-") {
@@ -78,7 +78,7 @@ export function selectAttentionItems(
     }
 
     // Completed work where the Payment column was never set either way and
-    // there's no due date scheduling it — it would otherwise fall through
+    // there's no due date scheduling it: it would otherwise fall through
     // every reminder.
     if (
       normalized(record.status) === "completed" &&
@@ -96,7 +96,7 @@ export function selectAttentionItems(
     }
   }
 
-  // Already-raised invoices past their due date — the sharpest follow-up
+  // Already-raised invoices past their due date: the sharpest follow-up
   // item there is, and previously only visible as a count badge on the
   // /invoices nav card.
   for (const invoice of invoices) {

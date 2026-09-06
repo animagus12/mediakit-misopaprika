@@ -6,7 +6,7 @@ import { getPublishedLinksData } from "@/repositories/links.writer.server";
 // (see TrackedLink), so nothing here is on the path of the navigation itself
 // and the response body is never read. The status codes are for debugging.
 //
-// Public by necessity — /links is public, so the proxy doesn't guard this —
+// Public by necessity: /links is public, so the proxy doesn't guard this: 
 // which is why the id is checked against the published page before anything
 // is written: incrementLinkClick() creates whatever hash field it is handed,
 // and an unvalidated id would let anyone grow that key without bound.

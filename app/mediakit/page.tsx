@@ -9,7 +9,7 @@ import { getPublishedMediaKitData } from "@/repositories/mediakit.writer.server"
 
 const TITLE = "Media kit - @misopaprika";
 const DESCRIPTION =
-  "Anime, cosplay, and collectibles content creator — audience stats, rates, and past brand collabs.";
+  "Anime, cosplay, and collectibles content creator: audience stats, rates, and past brand collabs.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -33,7 +33,7 @@ export default async function MediaKitPage() {
 
   const cookieStore = await cookies();
 
-  // The owner is not counted — see isCountableVisit(). Every protected page
+  // The owner is not counted: see isCountableVisit(). Every protected page
   // renders a sidebar link to /mediakit, and next/link prefetching it runs this
   // render exactly like a real visit, so without the gate the figure counted
   // dashboard navigation rather than an audience.

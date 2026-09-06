@@ -60,14 +60,14 @@ function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: bo
 
   return (
     <Collapsible>
-      <CollapsibleTrigger className="group/month block w-full rounded-md text-left transition hover:bg-muted/50">
+      <CollapsibleTrigger className="group/month block w-full rounded-md text-left transition pointer-coarse:min-h-11 hover:bg-muted/50">
         {summaryRow}
       </CollapsibleTrigger>
       <CollapsibleContent className="mx-3 mt-1 mb-2 space-y-1.5 rounded-md bg-muted/30 py-2 pr-3 pl-4">
         {month.deals.map((deal, index) => (
           // Fixed-width deliverables/amount columns (not auto) so each deal
-          // row — an independent grid, since rows vary in whether they even
-          // have a deliverables badge — still lines up with its siblings.
+          // row: an independent grid, since rows vary in whether they even
+          // have a deliverables badge: still lines up with its siblings.
           <div
             key={index}
             className="grid grid-cols-[auto_1fr_6.5rem_4.5rem] items-center gap-2.5 text-[0.7rem]"

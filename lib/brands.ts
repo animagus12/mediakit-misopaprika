@@ -10,7 +10,7 @@ import { primaryContactForBrand } from "./contacts";
 import { BLANK_LOGO } from "./mediakit";
 
 // Kept client-safe (no "server-only") since forms render these as <Select>
-// options — mirrors lib/collaborations.ts's STATUS_OPTIONS.
+// options: mirrors lib/collaborations.ts's STATUS_OPTIONS.
 export const BRAND_STATUS_OPTIONS: BrandStatus[] = [
   "Lead",
   "Contacted",
@@ -30,7 +30,7 @@ interface StatusStyle {
 // Centralized (unlike the Campaign/EditorTransaction statusStyle
 // helpers, each duplicated per-feature) since BrandStatus is one fixed
 // 7-value vocabulary reused verbatim across the list table, the detail
-// header, and the create/edit forms — not coincidentally similar strings
+// header, and the create/edit forms: not coincidentally similar strings
 // from two unrelated domains.
 export function brandStatusStyle(status: BrandStatus): StatusStyle {
   switch (status) {
@@ -69,7 +69,7 @@ const LEAD_STATUSES = new Set<BrandStatus>(["Lead", "Contacted", "Negotiating"])
 
 // Statuses where an incomplete profile isn't worth nagging about: a Lead
 // hasn't been worked with yet (no contact is normal), and Cancelled/Do Not
-// Contact are dead ends — nothing left to fill in for either.
+// Contact are dead ends: nothing left to fill in for either.
 const STATUSES_EXEMPT_FROM_DETAILS_NUDGE = new Set<BrandStatus>(["Lead", "Cancelled", "Do Not Contact"]);
 
 export interface MissingBrandDetails {
@@ -78,7 +78,7 @@ export interface MissingBrandDetails {
 }
 
 // A brand worth having a real profile for (see STATUSES_EXEMPT_FROM_DETAILS_NUDGE)
-// that's still missing a photo or a reachable contact — most commonly one
+// that's still missing a photo or a reachable contact: most commonly one
 // just auto-created from a new campaign whose brand name didn't match
 // anything on file (see resolveOrCreateBrandId in app/(dashboard)/actions.ts),
 // which starts with neither. null when the brand is exempt or complete.
@@ -89,7 +89,7 @@ export function missingBrandDetails(brand: Brand, hasContact: boolean): MissingB
   return photo || contact ? { photo, contact } : null;
 }
 
-// "Missing photo & contact" / "Missing photo" / "Missing contact" — for the
+// "Missing photo & contact" / "Missing photo" / "Missing contact": for the
 // dot's hover title and the brand detail page's banner.
 export function missingBrandDetailsLabel(missing: MissingBrandDetails): string {
   const parts = [missing.photo && "photo", missing.contact && "contact"].filter(Boolean);
@@ -105,7 +105,7 @@ export interface BrandPipelineStats {
   pendingPayments: number;
 }
 
-// Drives the /brands stat cards — pipeline counts come from Brand.status,
+// Drives the /brands stat cards: pipeline counts come from Brand.status,
 // money figures roll up each brand's sheet-linked BrandStats (see
 // lib/brandCampaignStats.ts) keyed by name.
 export function computePipelineStats(brands: Brand[], statsByBrand: Map<string, BrandStats>): BrandPipelineStats {
@@ -139,17 +139,17 @@ export interface BrandRow {
   revenue: number;
   lastCollabDate: string | null;
   missingDetails: MissingBrandDetails | null;
-  searchText: string; // lowercase, pre-joined — what the search bar filters against
+  searchText: string; // lowercase and pre-joined, which is what the search bar filters against
 }
 
-// A brand whose only sheet-linked deal(s) all got cancelled — the Status
+// A brand whose only sheet-linked deal(s) all got cancelled: the Status
 // column should surface that plainly rather than keep showing whatever
 // pipeline status (e.g. "Worked With") it was given on import.
 function isCancelledOnly(records: BrandCampaignRecord[]): boolean {
   return records.length > 0 && records.every((record) => record.status.trim().toLowerCase() === "cancelled");
 }
 
-// View-model for the /brands table — joins in the agency name and primary
+// View-model for the /brands table: joins in the agency name and primary
 // contact server-side so the client table only has to filter/sort flat
 // fields per keystroke, not repeat the brand/agency/contact join.
 export function buildBrandRows(
@@ -185,14 +185,14 @@ export function buildBrandRows(
   });
 }
 
-// A real collaboration on record, not just a lead in the pipeline — mirrors
+// A real collaboration on record, not just a lead in the pipeline: mirrors
 // what "past collaborations" is supposed to mean on the media kit.
 const MEDIA_KIT_ELIGIBLE_STATUSES = new Set<BrandStatus>(["Worked With", "Active"]);
 
 // Feeds the media kit generator's "Sync from brands" button (MediaKitLogoGrid.tsx)
-// — brand logo becomes the media kit collab logo image, brand website becomes
+//: brand logo becomes the media kit collab logo image, brand website becomes
 // its click-through link. A brand qualifies on pipeline status, or on having
-// at least one paid invoice (`paidBrandIds`) — a paid invoice is proof of a
+// at least one paid invoice (`paidBrandIds`): a paid invoice is proof of a
 // real collaboration regardless of how the status was last set by hand.
 export function brandLogosForMediaKit(
   brands: Brand[],
@@ -205,7 +205,7 @@ export function brandLogosForMediaKit(
     .map((brand) => ({ src: brand.logoUrl, url: brand.website }));
 }
 
-// The reverse direction — media kit logos not yet linked to any brand, for
+// The reverse direction: media kit logos not yet linked to any brand, for
 // MediaKitLogosSection.tsx's one-time "assign instead of re-upload" list.
 // Excludes the blank placeholder slot and anything already matched by
 // image URL to an existing brand.

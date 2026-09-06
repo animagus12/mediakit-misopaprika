@@ -2,8 +2,8 @@ import { Mulish, Oranienbaum, Sacramento } from "next/font/google";
 import { cn } from "@/lib/utils";
 
 // `display: "block"` (not next/font's default "swap") because the A4 sheet is
-// a fixed-metric layout — absolute mm positions, pt font sizes, `white-space:
-// nowrap` — with no tolerance for a substitute font's metrics. Painting
+// a fixed-metric layout, absolute mm positions, pt font sizes, `white-space:
+// nowrap`: with no tolerance for a substitute font's metrics. Painting
 // fallback text first (what "swap" does) doesn't degrade gracefully here: it
 // overflows every box and gets clipped by .page's `overflow: hidden`, which is
 // what in-app browsers on a slow connection were showing. Blocking keeps the

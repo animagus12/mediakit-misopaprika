@@ -92,7 +92,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
   const [page, setPage] = useState(1);
 
   // Adopt the URL value when it changes from the outside (a stat-card link,
-  // browser back/forward) — the sanctioned "reset state on prop change" pattern.
+  // browser back/forward): the sanctioned "reset state on prop change" pattern.
   const [lastQueryParam, setLastQueryParam] = useState(queryParam);
   if (queryParam !== lastQueryParam) {
     setLastQueryParam(queryParam);
@@ -262,7 +262,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                           className="block max-w-40 truncate"
                           title={invoice.campaignName || undefined}
                         >
-                          {invoice.campaignName || "—"}
+                          {invoice.campaignName || "-"}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -273,14 +273,14 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                             className="block max-w-40 truncate text-foreground rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                             title={invoice.client.name || undefined}
                           >
-                            {invoice.client.name || "—"}
+                            {invoice.client.name || "-"}
                           </Link>
                         ) : (
                           <span
                             className="block max-w-40 truncate text-foreground"
                             title={invoice.client.name || undefined}
                           >
-                            {invoice.client.name || "—"}
+                            {invoice.client.name || "-"}
                           </span>
                         )}
                         {invoice.client.contactName && (
@@ -293,11 +293,11 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                         )}
                       </TableCell>
                       <TableCell className="tabular-nums text-muted-foreground">
-                        {formatInvoiceDate(invoice.issueDate) || "—"}
+                        {formatInvoiceDate(invoice.issueDate) || "-"}
                       </TableCell>
                       <TableCell className="tabular-nums">
                         <span className={overdue ? "text-destructive" : "text-muted-foreground"}>
-                          {formatInvoiceDate(invoice.dueDate) || "—"}
+                          {formatInvoiceDate(invoice.dueDate) || "-"}
                         </span>
                         {overdue && (
                           <span className="block text-[11px] text-destructive">Overdue</span>
@@ -346,7 +346,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                             </span>
                           )}
                           <p className="truncate text-muted-foreground">
-                            {invoice.campaignName || "—"}
+                            {invoice.campaignName || "-"}
                           </p>
                         </div>
                         <Badge variant={status.variant} className={status.className}>
@@ -356,19 +356,19 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                       <p className="truncate">
                         {invoice.brandId ? (
                           <Link href={`/brands/${invoice.brandId}`} className="text-foreground hover:underline">
-                            {invoice.client.name || "—"}
+                            {invoice.client.name || "-"}
                           </Link>
                         ) : (
-                          <span className="text-foreground">{invoice.client.name || "—"}</span>
+                          <span className="text-foreground">{invoice.client.name || "-"}</span>
                         )}
                         {invoice.client.contactName && (
                           <span className="text-muted-foreground"> · {invoice.client.contactName}</span>
                         )}
                       </p>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1 tabular-nums text-muted-foreground">
-                        <span>Issued {formatInvoiceDate(invoice.issueDate) || "—"}</span>
+                        <span>Issued {formatInvoiceDate(invoice.issueDate) || "-"}</span>
                         <span className={overdue ? "text-destructive" : undefined}>
-                          Due {formatInvoiceDate(invoice.dueDate) || "—"}
+                          Due {formatInvoiceDate(invoice.dueDate) || "-"}
                           {overdue ? " · Overdue" : ""}
                         </span>
                         <span>

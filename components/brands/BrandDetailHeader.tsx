@@ -63,7 +63,7 @@ export function BrandDetailHeader({ brand, agencyName, agencies, contacts, missi
         <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
           <CircleAlert className="size-3.5 shrink-0" />
           <span>
-            {missingBrandDetailsLabel(missingDetails)} — use Edit to fill it in.
+            {missingBrandDetailsLabel(missingDetails)}: use Edit to fill it in.
           </span>
         </div>
       )}

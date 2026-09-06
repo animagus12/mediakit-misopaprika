@@ -46,7 +46,7 @@ export function SectionEditor({
       <CardHeader className="flex flex-row flex-wrap items-center gap-2 space-y-0">
         <span
           className="text-muted-foreground cursor-grab touch-none active:cursor-grabbing"
-          title={`Drag to reorder — section ${index + 1} of ${sectionCount}`}
+          title={`Drag to reorder: section ${index + 1} of ${sectionCount}`}
           {...handleProps}
         >
           <GripVertical size={18} />
@@ -110,7 +110,7 @@ export function SectionEditor({
       <CardContent className="flex flex-col gap-2">
         {!section.enabled ? (
           <p className="text-muted-foreground text-xs">
-            Hidden — this section and everything in it stays off the public page.
+            Hidden: this section and everything in it stays off the public page.
           </p>
         ) : null}
 
@@ -132,7 +132,7 @@ export function SectionEditor({
 
         {section.items.length === 0 ? (
           <p className="text-muted-foreground rounded-md border border-dashed p-4 text-center text-xs">
-            Empty — a section with no visible links is skipped on the public page.
+            Empty: a section with no visible links is skipped on the public page.
           </p>
         ) : null}
 

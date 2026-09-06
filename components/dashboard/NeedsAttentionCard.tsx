@@ -18,7 +18,7 @@ interface NeedsAttentionCardProps {
 const MAX_ROWS = 6;
 
 // Carry the brand + campaign into the invoice editor so the saved invoice
-// names the same pair the record does — that's what lets this card stop
+// names the same pair the record does: that's what lets this card stop
 // re-flagging the deal (selectAttentionItems matches on brand + campaign).
 function newInvoiceHref(brand: string, campaign: string): string {
   const params = new URLSearchParams();
@@ -28,8 +28,8 @@ function newInvoiceHref(brand: string, campaign: string): string {
   return query ? `/invoices/new?${query}` : "/invoices/new";
 }
 
-// Operational open loops — delivered work with no invoice, completed deals
-// with untracked payment — each with the one action that closes it. Sits
+// Operational open loops: delivered work with no invoice, completed deals
+// with untracked payment: each with the one action that closes it. Sits
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
 // due date, so the two lists don't overlap. Renders nothing when clear.
 export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps) {
@@ -62,7 +62,7 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.brand}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {item.campaign || "—"} · {formatMoney(item.amount)}
+                  {item.campaign || "-"} · {formatMoney(item.amount)}
                 </p>
               </div>
               <p className="shrink-0 pt-0.5 text-right text-xs text-muted-foreground">{item.label}</p>

@@ -2,15 +2,14 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import invoicesSeed from "@/data/invoices.json";
 import { toInvoice } from "./invoices";
-import type { Invoice, InvoiceRecord, InvoiceUpdate, NewInvoice } from "./invoices";
+import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors editorTransactions.writer.server.ts. Reading/writing invoices goes
-// through Redis (Vercel's serverless filesystem is read-only), so that logic
-// lives here instead, imported directly by the server actions and pages that
-// need it.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly. Reading/writing
+// invoices goes through Redis (Vercel's serverless filesystem is read-only),
+// so that logic lives here rather than in ./invoices.
 const INVOICES_KEY = "invoices";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = invoicesSeed as InvoiceRecord[];
 
 async function readRecords(): Promise<InvoiceRecord[]> {
@@ -33,7 +32,7 @@ export async function getInvoice(id: string): Promise<Invoice | null> {
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of what
-// the form handed over — same defensive shape as brands.writer.server.ts.
+// the form handed over: same defensive shape as brands.writer.server.ts.
 function normalize(input: NewInvoice): NewInvoice {
   return {
     status: input.status,
@@ -104,6 +103,22 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<void> {
       : record
   );
   await redis.set(INVOICES_KEY, updated);
+}
+
+// Writes just the status, leaving every other field untouched: mirrors
+// setCampaignPaymentStatus in campaigns.writer.server.ts, and backs the
+// dashboard's "Mark received" keeping a linked invoice in step.
+export async function setInvoiceStatus(id: string, status: InvoiceStatus): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  if (!records.some((record) => record.id === id)) throw new Error(`Invoice "${id}" not found`);
+  await redis.set(
+    INVOICES_KEY,
+    records.map((record): InvoiceRecord =>
+      record.id === id ? { ...record, status, updatedAt: new Date().toISOString() } : record
+    )
+  );
 }
 
 export async function deleteInvoice(id: string): Promise<void> {

@@ -10,13 +10,12 @@ import type {
 } from "./editorTransactions";
 import { toSheetDate } from "@/lib/editorTransactions";
 
-// Deliberately not re-exported from ./index (the shared repository barrel) —
-// mirrors mediakit.writer.server.ts. Reading/writing transactions goes
-// through Redis (Vercel's serverless filesystem is read-only), so that logic
-// lives here instead, imported directly by the server actions and page that
-// need it.
+// server-only, and never imported from a client component: the server
+// actions and pages that need it import it directly. Reading/writing
+// transactions goes through Redis (Vercel's serverless filesystem is
+// read-only), so that logic lives here rather than in ./editorTransactions.
 const EDITOR_TRANSACTIONS_KEY = "editor_transactions";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured — set KV_REST_API_URL and KV_REST_API_TOKEN";
+const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = editorTransactionsSeed as EditorTransactionRecord[];
 
 async function readRecords(): Promise<EditorTransactionRecord[]> {
@@ -48,6 +47,38 @@ export async function addEditorTransaction(input: NewEditorTransaction): Promise
     status: input.status,
   };
   await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
+}
+
+/**
+ * Repoints every transaction filed under `from` to `to`.
+ *
+ * EditorTransaction.editor stores the editor's *name*, not their id, and
+ * computeEditorPayoutSummary() matches it with an exact string compare. So a
+ * rename in the editors list silently detaches that editor's whole history
+ * and zeroes their payout unless the transactions move with it. Called by
+ * updateEditor for exactly that reason.
+ *
+ * Returns how many transactions moved, so the caller can skip revalidating
+ * when a rename touched nothing.
+ */
+export async function renameEditorOnTransactions(from: string, to: string): Promise<number> {
+  const before = from.trim();
+  const after = to.trim();
+  if (!before || !after || before === after) return 0;
+
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  if (!records.some((record) => record.editor.trim() === before)) return 0;
+
+  let moved = 0;
+  const updated = records.map((record): EditorTransactionRecord => {
+    if (record.editor.trim() !== before) return record;
+    moved += 1;
+    return { ...record, editor: after };
+  });
+  await redis.set(EDITOR_TRANSACTIONS_KEY, updated);
+  return moved;
 }
 
 export async function updateEditorTransaction(input: EditorTransactionUpdate): Promise<void> {

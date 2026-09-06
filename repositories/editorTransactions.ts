@@ -1,7 +1,6 @@
-import editorTransactionsJson from "@/data/editor-transactions.json";
 import { computeEtaDays } from "@/lib/editorTransactions";
 
-// Shape as persisted (JSON seed / Redis) — DD/MM/YYYY dates, no derived fields.
+// Shape as persisted (JSON seed / Redis): DD/MM/YYYY dates, no derived fields.
 export interface EditorTransactionRecord {
   id: string;
   video: string;
@@ -13,7 +12,7 @@ export interface EditorTransactionRecord {
 }
 
 export interface EditorTransaction extends EditorTransactionRecord {
-  etaDays: number; // derived from videoDate/deliveryDate — see computeEtaDays
+  etaDays: number; // derived from videoDate/deliveryDate, see computeEtaDays
 }
 
 export interface NewEditorTransaction {
@@ -32,15 +31,3 @@ export interface EditorTransactionUpdate extends NewEditorTransaction {
 export function toEditorTransaction(record: EditorTransactionRecord): EditorTransaction {
   return { ...record, etaDays: computeEtaDays(record.videoDate, record.deliveryDate) };
 }
-
-export interface IEditorTransactionRepository {
-  get(): EditorTransaction[];
-}
-
-class JsonEditorTransactionRepository implements IEditorTransactionRepository {
-  get(): EditorTransaction[] {
-    return (editorTransactionsJson as EditorTransactionRecord[]).map(toEditorTransaction);
-  }
-}
-
-export const editorTransactionRepository: IEditorTransactionRepository = new JsonEditorTransactionRepository();

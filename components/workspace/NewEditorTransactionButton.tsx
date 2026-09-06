@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, type buttonVariants } from "@/components/ui/button";
+import type { VariantProps } from "class-variance-authority";
 import {
   Sheet,
   SheetClose,
   SheetContent,
-  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -18,10 +18,14 @@ import { EditorTransactionFormFields, editorTransactionInitialForm } from "./Edi
 import type { Editor } from "@/repositories/editors";
 
 interface NewEditorTransactionButtonProps {
+  // Defaults to the primary solid button: /workspace's own "New transaction" CTA.
+  // Dashboard QuickActions passes "outline" so New campaign stays the one
+  // prominent action in that row.
+  variant?: VariantProps<typeof buttonVariants>["variant"];
   editors: Editor[];
 }
 
-export function NewEditorTransactionButton({ editors }: NewEditorTransactionButtonProps) {
+export function NewEditorTransactionButton({ editors, variant = "default" }: NewEditorTransactionButtonProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => editorTransactionInitialForm(editors));
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +61,7 @@ export function NewEditorTransactionButton({ editors }: NewEditorTransactionButt
       }}
     >
       <SheetTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant={variant}>
           <Plus className="size-3.5" />
           New transaction
         </Button>
