@@ -1,0 +1,389 @@
+/* Self-contained palette. This page is fan-facing and deliberately does NOT
+   follow the dashboard's light/dark tokens from globals.css — it keeps one
+   fixed look for every visitor, the same way the media kit's A4 sheet does. */
+/* Container root for the responsive rules below. On the public page this is
+   full width, so the queries fire at the same widths a media query would; in
+   the editor's 390px preview frame they fire on the frame's width instead,
+   which is what makes that preview show the real phone layout. */
+.frame {
+  container-type: inline-size;
+  width: 100%;
+}
+
+.page {
+  --links-ink: #ffffff;
+  /* Held at 0.66 rather than dimmed further to match the reference: the
+     sub-label is already down to 12px, and it carries the handle. */
+  --links-muted: rgba(255, 255, 255, 0.66);
+  /* Cards are a warm plum wash rather than neutral white: over this gradient a
+     white overlay greys off, where the tint keeps the pink the background
+     already leans towards and holds the cards a step above it without
+     shouting. */
+  --links-card: rgba(214, 148, 222, 0.22);
+  --links-card-hover: rgba(214, 148, 222, 0.33);
+  --links-card-line: rgba(255, 255, 255, 0.1);
+  --links-badge: rgba(255, 255, 255, 0.14);
+
+  min-height: 100vh;
+  /* dvh so a phone's collapsing URL bar doesn't leave the page short or
+     introduce a scroll jump; vh above stays as the fallback. */
+  min-height: 100dvh;
+  /* Side insets keep content clear of a notch in landscape. */
+  padding: 56px max(20px, env(safe-area-inset-right)) 80px max(20px, env(safe-area-inset-left));
+  display: flex;
+  justify-content: center;
+  color: var(--links-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Three blooms over a dark base rather than one bright one over the middle:
+     a plum low and left, a blue low and right, and a darker cap up top. The
+     single centred bloom it replaces peaked behind the name, which washed the
+     avatar out and left nothing for the cards to sit above. */
+  background:
+    radial-gradient(86% 46% at 24% 58%, rgba(174, 76, 180, 0.62) 0%, rgba(174, 76, 180, 0) 74%),
+    radial-gradient(74% 42% at 88% 90%, rgba(48, 104, 168, 0.55) 0%, rgba(48, 104, 168, 0) 70%),
+    radial-gradient(70% 26% at 50% 0%, rgba(22, 27, 48, 0.7) 0%, rgba(22, 27, 48, 0) 78%),
+    linear-gradient(168deg, #212844 0%, #2b2450 34%, #3a2a62 60%, #23395c 100%);
+}
+
+/* Painting the gradient on .page covers only that element, so an iOS
+   rubber-band scroll past either end exposes the app's own background —
+   white in the light theme. Route-scoped: this module's CSS chunk is only
+   loaded on /links. */
+:root {
+  background-color: #212844;
+}
+
+.column {
+  width: 100%;
+  max-width: 600px;
+  /* Flex items default to min-width:auto, which would let the widest card's
+     min-content width push this column past the viewport. */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ---------- profile header ---------- */
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+}
+
+.displayName {
+  margin: 20px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.tagline {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.94);
+  text-align: center;
+}
+
+.socials {
+  /* Reduced from 20px: .socialLink's 44px box already carries ~9px above the
+     glyph, so this preserves the original visual gap. */
+  margin-top: 11px;
+  display: flex;
+  /* 8px between 44px boxes puts the glyph centres 52px apart — same rhythm
+     the old 26px gap between bare 26px icons produced. */
+  gap: 8px;
+}
+
+.socialLink {
+  /* A bare 26px glyph is well under a thumb-sized target; the box around it
+     is the hit area, not the icon. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--links-ink);
+  opacity: 0.9;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.socialLink:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.followers {
+  /* Also reduced by the icon box's built-in padding — see .socials. */
+  margin-top: 9px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--links-badge);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+/* ---------- sections ---------- */
+.sections {
+  width: 100%;
+  min-width: 0;
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sectionTitle {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- link card ---------- */
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--links-card-line);
+  background: var(--links-card);
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Only cards that actually go somewhere react to the pointer. */
+a.card {
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+a.card:hover {
+  background: var(--links-card-hover);
+  transform: translateY(-2px);
+}
+
+/* Banner variant: the row stacks instead of running in one line, so a brand
+   image can lead. Used by creator codes, but keyed off `banner` being set
+   rather than the kind, so any item can opt in. */
+.bannerCard {
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: 24px;
+  padding: 12px;
+  gap: 12px;
+}
+
+.banner {
+  display: block;
+  width: 100%;
+  /* No forced aspect ratio — brand logos vary wildly and cropping one to fit
+     a 16:9 box mangles it. The cap only bites on unusually tall images. */
+  max-height: 320px;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 16px;
+}
+
+.thumb {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Platform mark shown when an item has no thumbnail of its own. */
+.iconSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+}
+
+/* Keeps the label optically centred when only one side has a thumbnail or
+   action — the spacer matches .thumb's footprint. */
+.spacer {
+  width: 52px;
+  flex: 0 0 52px;
+}
+
+.cardBody {
+  /* Basis 0, not auto: an auto basis makes the hypothetical main size the
+     text's max-content width, which on a 320px phone overflows the line and
+     wraps the thumbnail onto a row of its own. */
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+}
+
+.cardLabel {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.cardSublabel {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--links-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Inline, not a flex item: the glyph reads as a leading character, so when the
+   handle wraps at 320px the text flows underneath it instead of the icon
+   floating beside a two-line block. */
+.sublabelIcon {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 5px;
+  opacity: 0.8;
+}
+
+.badge {
+  margin-top: 6px;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--links-badge);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* ---------- creator code ---------- */
+.code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  /* 12px vertical puts the button at a 44px tap target. */
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px dashed var(--links-card-line);
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.code:hover {
+  background: var(--links-card-hover);
+}
+
+/* Periodic hop so the code reads as the thing to tap. Most of the timeline
+   is the resting state — the nudge itself is ~0.6s of a 5s loop, which draws
+   the eye without turning into a fidget. */
+@keyframes codeNudge {
+  0%,
+  84%,
+  100% {
+    transform: translateY(0);
+  }
+  88% {
+    transform: translateY(-5px);
+  }
+  92% {
+    transform: translateY(0);
+  }
+  95% {
+    transform: translateY(-2px);
+  }
+  98% {
+    transform: translateY(0);
+  }
+}
+
+.code {
+  animation: codeNudge 5s ease-in-out infinite;
+}
+
+/* The loop runs unattended, so it's exactly the kind of motion this opts out
+   of. Hover/press transitions stay — those are user-initiated. */
+@media (prefers-reduced-motion: reduce) {
+  .code {
+    animation: none;
+  }
+}
+
+.footer {
+  margin-top: 48px;
+  font-size: 12px;
+  color: var(--links-muted);
+}
+
+
+@container (max-width: 480px) {
+  .page {
+    padding: 40px max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+  }
+
+  .avatar {
+    width: 96px;
+    height: 96px;
+  }
+
+  .displayName {
+    font-size: 26px;
+  }
+
+  .card {
+    padding: 12px 14px;
+  }
+
+  /* Only a code card needs to wrap, so its pill can take a row of its own
+     (see the .code rule below). Applying this to every card wrapped the
+     thumbnail off ordinary rows at 320px. A wrapped card is no longer one
+     line tall, so it squares off; every other card keeps the stadium shape. */
+  .card:has(.code):not(.bannerCard) {
+    flex-wrap: wrap;
+    border-radius: 20px;
+  }
+
+  /* The trailing spacer balances the leading thumbnail, which is what keeps
+     the label centred in the card rather than centred in the space left over
+     beside the thumbnail. Only dropped where the third column genuinely
+     doesn't fit — a code card, whose pill needs the room. */
+  .card:has(.code) .spacer {
+    display: none;
+  }
+
+  /* Scoped away from .bannerCard: that one is a column flex container, where
+     a 100% flex-basis would size the pill against the card's HEIGHT. There
+     the pill is already full width via align-items: stretch. */
+  .card:not(.bannerCard) .code {
+    flex: 1 0 100%;
+  }
+
+  .bannerCard {
+    border-radius: 20px;
+  }
+}
