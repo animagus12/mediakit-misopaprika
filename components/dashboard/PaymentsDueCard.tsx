@@ -37,6 +37,10 @@ interface PaymentsDueCardProps {
 // days"), most-overdue first, with per-row shortcuts to mark the payment
 // received (optimistic, with Undo) or raise the missing invoice. Renders
 // nothing when there's nothing owed on a schedule.
+//
+// Deals only. Licence renewal fees are a separate debt with their own row
+// shape and their own collect action, and they are chased in the ad-usage card
+// alongside the licence that produced them.
 export function PaymentsDueCard({ due, className }: PaymentsDueCardProps) {
   const { hiddenIds, isPending, markReceived } = useMarkReceived();
 

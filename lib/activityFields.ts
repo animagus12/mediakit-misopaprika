@@ -4,6 +4,7 @@ import type { Agency } from "@/repositories/agencies";
 import type { Brand } from "@/repositories/brands";
 import type { CampaignRecord } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
+import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { Editor } from "@/repositories/editors";
 import type { EditorTransactionRecord } from "@/repositories/editorTransactions";
 import type { InvoiceRecord } from "@/repositories/invoices";
@@ -23,6 +24,13 @@ import type { InvoiceRecord } from "@/repositories/invoices";
 
 function money(value: unknown): string {
   return typeof value === "number" ? formatMoney(value) : "";
+}
+
+// 0 is "no licence recorded" rather than a zero-month one, so it reads as
+// absent: describeChanges then says "usage term added" instead of "0 to 3".
+function months(value: unknown): string {
+  if (typeof value !== "number" || value <= 0) return "";
+  return `${value} month${value === 1 ? "" : "s"}`;
 }
 
 export const brandFields: readonly DiffField<Brand>[] = [
@@ -56,13 +64,26 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
   { label: "brand", value: (campaign) => campaign.brand },
   { label: "type", value: (campaign) => campaign.type },
   { label: "payment due", value: (campaign) => campaign.paymentDue },
+  { label: "paid on", value: (campaign) => campaign.paidDate },
+  { label: "usage term", value: (campaign) => campaign.usage?.months, format: months },
+  { label: "usage status", value: (campaign) => campaign.usage?.status },
+  { label: "usage renewals", value: (campaign) => campaign.usage?.renewals, format: countOf },
   { label: "upload date", value: (campaign) => campaign.uploadDate },
   { label: "deal date", value: (campaign) => campaign.date },
   { label: "invoice", value: (campaign) => campaign.invoiceId },
   { label: "deliverables", value: (campaign) => `${campaign.reels} ${campaign.story}`.trim() },
   { label: "payment method", value: (campaign) => campaign.paymentMethod },
+];
+
+export const contentFields: readonly DiffField<ContentItemRecord>[] = [
+  { label: "status", value: (item) => item.status },
+  { label: "posting date", value: (item) => item.postDate },
+  { label: "title", value: (item) => item.title },
+  { label: "format", value: (item) => item.format },
+  // An id says nothing to a reader, so only the fact is recorded.
+  { label: "editor video", value: (item) => item.editorTransactionId, redact: true },
   // Free text, and long: the fact it moved is the useful part.
-  { label: "notes", value: (campaign) => campaign.notes, redact: true },
+  { label: "notes", value: (item) => item.notes, redact: true },
 ];
 
 export const invoiceFields: readonly DiffField<InvoiceRecord>[] = [

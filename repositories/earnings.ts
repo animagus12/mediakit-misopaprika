@@ -3,12 +3,20 @@ import { getCampaigns } from "./campaigns.writer.server";
 
 export interface MonthlyDeal {
   brand: string;
-  amount: number; // the deal's Total (Amount + Barter Value)
-  deliverables: string; // e.g. "1 Reel, 1 Story"
+  amount: number; // the deal's Total (Amount + Barter Value), or a renewal's fee
+  deliverables: string; // e.g. "1 Reel, 1 Story", or "Usage renewal"
 }
 
 export interface MonthlyEarnings {
   month: string; // "YYYY-MM"
+  /**
+   * Money actually received this month: paid + barter, and never `pending`,
+   * which is tracked separately below.
+   *
+   * The name undersells that, so it is worth saying: a deal still awaiting
+   * payment contributes to `pending` and to nothing else here. The dashboard
+   * renders this column as "Received" for the same reason.
+   */
   total: number;
   paid: number;
   barter: number;
@@ -62,8 +70,50 @@ class CampaignsEarningsRepository implements IEarningsRepository {
     let barter = 0;
     let pending = 0;
 
+    // A licence renewal is money against the same brand for the same post,
+    // and it lands in a month of its own: the fee is credited to the month it
+    // was actually paid in, falling back to the month the extended term
+    // started. It is deliberately not folded into Campaign.total, which is the
+    // deal's own headline value and would silently drift upward every time a
+    // brand bought another three months.
+    const countRenewals = (campaign: (typeof campaigns)[number]) => {
+      for (const renewal of campaign.usage.renewals) {
+        if (renewal.amount <= 0) continue; // an extension granted for free is not earnings
+
+        const key = monthKey(renewal.paidDate) ?? monthKey(renewal.startDate);
+        const deal: MonthlyDeal = {
+          brand: campaign.brand,
+          amount: renewal.amount,
+          deliverables: "Usage renewal",
+        };
+
+        if (renewal.paymentStatus === "pending") {
+          pending += renewal.amount;
+          if (key) {
+            const bucket = getBucket(key);
+            bucket.pending += renewal.amount;
+            bucket.deals.push(deal);
+          }
+          continue;
+        }
+        if (renewal.paymentStatus !== "received") continue;
+
+        // Always cash: a licence extension is never bartered for.
+        total += renewal.amount;
+        paid += renewal.amount;
+        if (key) {
+          const bucket = getBucket(key);
+          bucket.total += renewal.amount;
+          bucket.paid += renewal.amount;
+          bucket.deals.push(deal);
+        }
+      }
+    };
+
     for (const campaign of campaigns) {
       if (isCancelled(campaign.status)) continue;
+
+      countRenewals(campaign);
 
       const key = monthKey(campaign.uploadDate) ?? monthKey(campaign.date);
       const deal: MonthlyDeal = {

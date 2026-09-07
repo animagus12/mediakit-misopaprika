@@ -26,6 +26,10 @@ function EarningsBar({
   isCurrent: boolean;
   maxValue: number;
 }) {
+  // The height of the stacked bar, which is what this tooltip describes: all
+  // three series, pending included. Deliberately not month.total, which counts
+  // received money only and would name a number the bar does not draw. The
+  // breakdown table below the chart shows that one, under its own heading.
   const grandTotal = month.paid + month.barter + month.pending;
 
   let topVisible = -1;

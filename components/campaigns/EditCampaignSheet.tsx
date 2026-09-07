@@ -14,7 +14,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { updateCampaign } from "@/app/(dashboard)/actions";
+import { Separator } from "@/components/ui/separator";
 import { CampaignFormFields, type CampaignFormState } from "./CampaignFormFields";
+import { UsageRightsPanel } from "./UsageRightsPanel";
 import {
   REEL_OPTIONS,
   STORY_OPTIONS,
@@ -43,8 +45,9 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     uploadDate: toIsoDate(campaign.uploadDate),
     invoiceId: campaign.invoiceId,
     paymentDue: toIsoDate(campaign.paymentDue),
+    paidDate: toIsoDate(campaign.paidDate),
     paymentMethod: campaign.paymentMethod,
-    notes: campaign.notes,
+    usageMonths: campaign.usage.months > 0 ? String(campaign.usage.months) : "",
   };
 }
 
@@ -85,8 +88,9 @@ export function EditCampaignSheet({
         uploadDate: form.uploadDate,
         invoiceId: form.invoiceId.trim(),
         paymentDue: form.paymentDue,
+        paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
-        notes: form.notes.trim(),
+        usageMonths: Number(form.usageMonths) || 0,
       });
       if (!result.success) {
         setError(result.error);
@@ -115,10 +119,28 @@ export function EditCampaignSheet({
           <SheetDescription>Updates this campaign&apos;s record.</SheetDescription>
         </SheetHeader>
 
-        <form id={formId} onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-6">
-          <CampaignFormFields idPrefix={formId} form={form} setForm={setForm} brandOptions={brandOptions} />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-        </form>
+        {/* The licence panel sits beside the form rather than in it: its
+            controls write on click and are not part of what Save submits, so
+            putting them inside would invite the two to be confused. Both share
+            one scroll container so the sheet still scrolls as a single body. */}
+        <div className="flex-1 space-y-4 overflow-y-auto px-6">
+          <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+            <CampaignFormFields
+              idPrefix={formId}
+              form={form}
+              setForm={setForm}
+              brandOptions={brandOptions}
+            />
+            {error && <p className="text-xs text-destructive">{error}</p>}
+          </form>
+
+          <Separator />
+
+          <div className="space-y-2 pb-2">
+            <p className="text-xs font-medium">Ad usage rights</p>
+            <UsageRightsPanel campaign={campaign} />
+          </div>
+        </div>
 
         <SheetFooter className="flex-row">
           <SheetClose asChild>

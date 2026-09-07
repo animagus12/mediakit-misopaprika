@@ -17,6 +17,7 @@ export type ActivityEntityType =
   | "agency"
   | "contact"
   | "campaign"
+  | "content"
   | "invoice"
   | "editor"
   | "editorTransaction"
@@ -41,6 +42,19 @@ export type ActivityAction =
   | "campaign.updated"
   | "campaign.payment_received"
   | "campaign.payment_reverted"
+  | "campaign.scheduled"
+  | "campaign.unscheduled"
+  | "campaign.usage_paused"
+  | "campaign.usage_resumed"
+  | "campaign.usage_ended"
+  | "campaign.usage_renewed"
+  | "campaign.usage_payment_received"
+  | "campaign.usage_payment_reverted"
+  | "content.created"
+  | "content.updated"
+  | "content.deleted"
+  | "content.scheduled"
+  | "content.unscheduled"
   | "invoice.created"
   | "invoice.updated"
   | "invoice.paid"
@@ -69,6 +83,19 @@ export const activityActions: readonly ActivityAction[] = [
   "campaign.updated",
   "campaign.payment_received",
   "campaign.payment_reverted",
+  "campaign.scheduled",
+  "campaign.unscheduled",
+  "campaign.usage_paused",
+  "campaign.usage_resumed",
+  "campaign.usage_ended",
+  "campaign.usage_renewed",
+  "campaign.usage_payment_received",
+  "campaign.usage_payment_reverted",
+  "content.created",
+  "content.updated",
+  "content.deleted",
+  "content.scheduled",
+  "content.unscheduled",
   "invoice.created",
   "invoice.updated",
   "invoice.paid",
@@ -137,6 +164,7 @@ const ENTITY_TYPES = new Set<string>([
   "agency",
   "contact",
   "campaign",
+  "content",
   "invoice",
   "editor",
   "editorTransaction",

@@ -28,6 +28,8 @@ import {
   type SortDirection,
 } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
+import { paymentTiming, type PaymentPunctuality } from "@/lib/paymentReliability";
+import { usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
 import { EditCampaignSheet } from "./EditCampaignSheet";
@@ -101,6 +103,28 @@ function paymentStatusStyle(status: Campaign["paymentStatus"]): StatusStyle {
       return { variant: "secondary" };
   }
 }
+
+// How a payment landed against the day it was promised for. Muted is the
+// resting state on purpose: only lateness and an open overdue payment are
+// worth colour, since a table where every row is tinted says nothing.
+const TIMING_TONES: Record<PaymentPunctuality, string> = {
+  early: "text-emerald-600 dark:text-emerald-400",
+  "on-time": "text-emerald-600 dark:text-emerald-400",
+  late: "text-amber-600 dark:text-amber-400",
+  overdue: "text-destructive",
+  waiting: "text-muted-foreground",
+  untimed: "text-muted-foreground",
+};
+
+const USAGE_TONES: Record<UsageState, string> = {
+  untracked: "text-muted-foreground",
+  unstarted: "text-muted-foreground",
+  active: "text-muted-foreground",
+  expiring: "text-amber-600 dark:text-amber-400",
+  expired: "text-destructive",
+  paused: "text-muted-foreground",
+  ended: "text-muted-foreground",
+};
 
 function SortHeader({
   column,
@@ -231,7 +255,7 @@ export function CampaignsTable({ campaigns, brandOptions = [] }: CampaignsTableP
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search brand, campaign, invoice, notes..."
+            placeholder="Search brand, campaign, invoice..."
             className="pl-7"
           />
         </div>
@@ -281,14 +305,25 @@ export function CampaignsTable({ campaigns, brandOptions = [] }: CampaignsTableP
                   <TableHead>
                     <SortHeader column="paymentDue" label="Due" sort={sort} onToggle={toggleSort} />
                   </TableHead>
+                  <TableHead>
+                    <SortHeader column="paidDate" label="Paid on" sort={sort} onToggle={toggleSort} />
+                  </TableHead>
                   <TableHead>Method</TableHead>
-                  <TableHead>Notes</TableHead>
+                  <TableHead>Ad usage</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pageRows.map((campaign) => {
                   const status = statusStyle(campaign.status);
                   const payment = paymentStatusStyle(campaign.paymentStatus);
+                  // A cancelled deal is owed nothing, so the days since its
+                  // due date measure nothing either: computePaymentReliability
+                  // drops these rows for the same reason, and a cell reading
+                  // "250 days overdue" on a deal nobody is chasing is worse
+                  // than a blank one.
+                  const cancelled = campaign.status.trim().toLowerCase() === "cancelled";
+                  const timing = paymentTiming(campaign);
+                  const term = usageTerm(campaign);
                   return (
                     <EditCampaignSheet
                       key={campaign.id}
@@ -328,9 +363,27 @@ export function CampaignsTable({ campaigns, brandOptions = [] }: CampaignsTableP
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground">{campaign.paymentDue || "-"}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {campaign.paidDate || "-"}
+                            {timing.label && !cancelled && (
+                              <span className={cn("block text-[11px]", TIMING_TONES[timing.punctuality])}>
+                                {timing.label}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{campaign.paymentMethod || "-"}</TableCell>
-                          <TableCell className="max-w-40 truncate text-muted-foreground" title={campaign.notes || undefined}>
-                            {campaign.notes || "-"}
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
+                            {term.state === "untracked" ? (
+                              "-"
+                            ) : (
+                              <>
+                                <span className={cn("block", USAGE_TONES[term.state])}>{term.label}</span>
+                                <span className="block text-[11px]">
+                                  {term.totalMonths} month{term.totalMonths === 1 ? "" : "s"}
+                                  {term.termCount > 1 ? ` · ${term.termCount} terms` : ""}
+                                </span>
+                              </>
+                            )}
                           </TableCell>
                         </TableRow>
                       }

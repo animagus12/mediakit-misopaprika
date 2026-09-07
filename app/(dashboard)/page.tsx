@@ -17,6 +17,8 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { LastRefreshed } from "@/components/dashboard/LastRefreshed";
 import { DashboardCampaignsSection } from "@/components/dashboard/DashboardCampaignsSection";
 import { RecentActivityCard } from "@/components/dashboard/RecentActivityCard";
+import { WeekAheadCard } from "@/components/calendar/WeekAheadCard";
+import { UsageRenewalsCard } from "@/components/campaigns/UsageRenewalsCard";
 import { navEntries } from "@/lib/navigation";
 import { earningsRepository } from "@/repositories/earnings";
 import { campaignRepository } from "@/repositories/campaignRepository";
@@ -31,7 +33,14 @@ import { splitCampaigns, buildCampaignBrandOptions } from "@/lib/campaigns";
 import { selectDuePayments } from "@/lib/brandCampaignStats";
 import { selectAttentionItems } from "@/lib/dashboardAttention";
 import { buildDashboardNavBadges } from "@/lib/dashboardNav";
+import {
+  selectScheduledPosts,
+  selectUnscheduledPosts,
+  selectWeekAhead,
+} from "@/lib/contentCalendar";
+import { selectExpiringUsage, selectOwedRenewals } from "@/lib/usageRights";
 import { listActivities } from "@/repositories/activity.writer.server";
+import { getContentItems } from "@/repositories/contentPlan.writer.server";
 
 // The shell (title, sync status, quick actions) paints immediately; each
 // data-backed section streams in behind its own <Suspense> so the slowest
@@ -50,6 +59,14 @@ export default function HomePage() {
 
       <Suspense fallback={<Skeleton className="mb-8 h-36 w-full rounded-lg" />}>
         <PaymentsAttentionSection />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="mb-8 h-32 w-full rounded-lg" />}>
+        <UsageRenewalsSection />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="mb-8 h-40 w-full rounded-lg" />}>
+        <WeekAheadSection />
       </Suspense>
 
       <Suspense fallback={<Skeleton className="mb-8 h-72 w-full rounded-lg" />}>
@@ -102,6 +119,46 @@ async function PaymentsAttentionSection() {
   );
 }
 
+// Licences about to run out, and the renewal money they brought in that is
+// still owed. Sits directly under the payments card, so everything owed and
+// every decision waiting is on one screen. Renders nothing when neither
+// applies: unlike the week ahead, silence here is unambiguous, since a licence
+// with nothing to decide is not a licence that was forgotten.
+async function UsageRenewalsSection() {
+  const now = new Date();
+  const campaigns = await campaignRepository.getAll().catch(() => []);
+  return (
+    <UsageRenewalsCard
+      alerts={selectExpiringUsage(campaigns, now)}
+      owed={selectOwedRenewals(campaigns, now)}
+      href="/campaigns"
+      className="mb-8"
+    />
+  );
+}
+
+// What has to go out in the next week, and anything already past its day.
+//
+// A clear week collapses to one line rather than disappearing: the backlog
+// count is what makes that line honest, since "nothing to publish" means the
+// work is done only when nothing is also waiting to be given a day.
+async function WeekAheadSection() {
+  const now = new Date();
+  const [campaigns, contentItems] = await Promise.all([
+    campaignRepository.getAll().catch(() => []),
+    getContentItems().catch(() => []),
+  ]);
+  return (
+    <WeekAheadCard
+      posts={selectWeekAhead(selectScheduledPosts(campaigns, contentItems, now))}
+      waitingCount={selectUnscheduledPosts(campaigns, contentItems, now).length}
+      emptyState="line"
+      href="/calendar"
+      className="mb-8"
+    />
+  );
+}
+
 async function EarningsSection() {
   const earnings = await earningsRepository.getSummary().catch(() => null);
   if (!earnings) return null;
@@ -129,13 +186,23 @@ async function RecentActivitySection() {
 }
 
 async function NavCardsSection() {
-  const [brands, contacts, invoices, editorTransactions] = await Promise.all([
-    getBrands().catch(() => []),
-    getContacts().catch(() => []),
-    getInvoices().catch(() => []),
-    getEditorTransactions().catch(() => []),
-  ]);
-  const navBadges = buildDashboardNavBadges({ invoices, brands, contacts, editorTransactions });
+  const [brands, contacts, invoices, editorTransactions, campaigns, contentItems] =
+    await Promise.all([
+      getBrands().catch(() => []),
+      getContacts().catch(() => []),
+      getInvoices().catch(() => []),
+      getEditorTransactions().catch(() => []),
+      campaignRepository.getAll().catch(() => []),
+      getContentItems().catch(() => []),
+    ]);
+  const navBadges = buildDashboardNavBadges({
+    campaigns,
+    contentItems,
+    invoices,
+    brands,
+    contacts,
+    editorTransactions,
+  });
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
