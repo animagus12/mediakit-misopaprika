@@ -8,7 +8,10 @@ import {
   updateInvoice as updateInvoiceRecord,
 } from "@/repositories/invoices.writer.server";
 import { getCampaigns, setCampaignPaymentStatus } from "@/repositories/campaigns.writer.server";
-import { buildInvoiceNumber } from "@/lib/invoice";
+import { buildInvoiceNumber, computeSubtotal } from "@/lib/invoice";
+import { recordActivity } from "@/repositories/activity.writer.server";
+import { describeChanges } from "@/lib/activityDiff";
+import { invoiceFields } from "@/lib/activityFields";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { InvoiceStatus, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
 
@@ -70,6 +73,12 @@ export async function createInvoice(
       // The invoice is saved; the deal not following is not worth failing on.
     }
     revalidateStores("invoices", "campaigns");
+    await recordActivity({
+      action: "invoice.created",
+      entity: { type: "invoice", id: record.id, label: buildInvoiceNumber(record.invoiceNo) },
+      detail: record.client.name || undefined,
+      amount: computeSubtotal(record.items),
+    });
     return { success: true, id: record.id };
   } catch (err) {
     return toActionError(err, "Couldn't save the invoice");
@@ -78,7 +87,7 @@ export async function createInvoice(
 
 export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult> {
   try {
-    await updateInvoiceRecord(input);
+    const change = await updateInvoiceRecord(input);
     // Outside the write above for the same reason as the dashboard's mark
     // received: the invoice edit stands even if the deal couldn't follow.
     try {
@@ -87,6 +96,26 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
       // Reported through the pages below rather than failing a saved invoice.
     }
     revalidateStores("invoices", "campaigns");
+    if (change) {
+      // Collecting on an invoice is the event worth finding later, so it is
+      // logged as its own action rather than as another edit: but only on the
+      // crossing into paid, or re-saving a paid invoice would log it again.
+      const collected = change.after.status === "paid" && change.before.status !== "paid";
+      await recordActivity({
+        action: collected ? "invoice.paid" : "invoice.updated",
+        entity: {
+          type: "invoice",
+          id: change.after.id,
+          label: buildInvoiceNumber(change.after.invoiceNo),
+        },
+        // On the crossing into paid the client is the useful context; on an
+        // ordinary edit, what moved is.
+        detail: collected
+          ? change.after.client.name || undefined
+          : describeChanges(change, invoiceFields) ?? (change.after.client.name || undefined),
+        amount: computeSubtotal(change.after.items),
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the invoice");
@@ -95,8 +124,16 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
 
 export async function removeInvoice(id: string): Promise<ActionResult> {
   try {
-    await deleteInvoice(id);
+    const removed = await deleteInvoice(id);
     revalidateStores("invoices");
+    if (removed) {
+      await recordActivity({
+        action: "invoice.deleted",
+        entity: { type: "invoice", id: removed.id, label: buildInvoiceNumber(removed.invoiceNo) },
+        detail: removed.client.name || undefined,
+        amount: computeSubtotal(removed.items),
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't remove the invoice");

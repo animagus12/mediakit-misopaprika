@@ -1,6 +1,7 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import brandsSeed from "@/data/brands.json";
+import type { RecordChange } from "@/lib/activityDiff";
 import type { Brand, BrandUpdate, NewBrand } from "./brands";
 
 // server-only, and never imported from a client component: the server
@@ -61,35 +62,40 @@ export async function addBrand(input: NewBrand): Promise<Brand> {
   return brand;
 }
 
-export async function updateBrand(input: BrandUpdate): Promise<void> {
+// Answers the record either side of the write, or null when the id matched
+// nothing, so the caller can say what actually changed without re-reading the
+// list this already holds. Comparing against the caller's input instead would
+// be wrong: the normalising below means a trailing space would read as an edit.
+export async function updateBrand(input: BrandUpdate): Promise<RecordChange<Brand> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const brands = await readBrands();
   const name = input.name.trim();
   assertNameAvailable(brands, name, input.id);
-  const updated = brands.map((brand): Brand =>
-    brand.id === input.id
-      ? {
-          ...brand,
-          name,
-          logoUrl: input.logoUrl,
-          website: input.website.trim(),
-          instagram: input.instagram.trim(),
-          agencyId: input.agencyId,
-          primaryContactId: input.primaryContactId,
-          status: input.status,
-          updatedAt: new Date().toISOString(),
-        }
-      : brand
-  );
-  await redis.set(BRANDS_KEY, updated);
+  const before = brands.find((brand) => brand.id === input.id);
+  if (!before) return null;
+  const after: Brand = {
+    ...before,
+    name,
+    logoUrl: input.logoUrl,
+    website: input.website.trim(),
+    instagram: input.instagram.trim(),
+    agencyId: input.agencyId,
+    primaryContactId: input.primaryContactId,
+    status: input.status,
+    updatedAt: new Date().toISOString(),
+  };
+  await redis.set(BRANDS_KEY, brands.map((brand) => (brand.id === input.id ? after : brand)));
+  return { before, after };
 }
 
 // Sets just the logo, leaving every other field untouched: for assigning
 // an already-uploaded media kit logo to a brand (see lib/brands.ts's
 // brandsWithoutLogo / app/brands/actions.ts's assignBrandLogo) without
 // requiring the full brand form.
-export async function setBrandLogo(id: string, logoUrl: string): Promise<void> {
+// Returns the brand it touched, or null when the id matched nothing, so the
+// caller can name it without a second read.
+export async function setBrandLogo(id: string, logoUrl: string): Promise<Brand | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const brands = await readBrands();
@@ -97,14 +103,20 @@ export async function setBrandLogo(id: string, logoUrl: string): Promise<void> {
     brand.id === id ? { ...brand, logoUrl, updatedAt: new Date().toISOString() } : brand
   );
   await redis.set(BRANDS_KEY, updated);
+  return updated.find((brand) => brand.id === id) ?? null;
 }
 
-export async function deleteBrand(id: string): Promise<void> {
+// Returns the brand it removed, or null when the id matched nothing. The
+// caller needs the name for the activity log, and reading it back after the
+// write is impossible by definition.
+export async function deleteBrand(id: string): Promise<Brand | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const brands = await readBrands();
+  const removed = brands.find((brand) => brand.id === id) ?? null;
   await redis.set(
     BRANDS_KEY,
     brands.filter((brand) => brand.id !== id)
   );
+  return removed;
 }

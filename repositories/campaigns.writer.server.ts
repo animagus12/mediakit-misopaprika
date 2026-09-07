@@ -1,6 +1,7 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import campaignsSeed from "@/data/campaigns.json";
+import type { RecordChange } from "@/lib/activityDiff";
 import { nextSequenceId, toCampaign } from "./campaigns";
 import type { Campaign, CampaignPaymentStatus, CampaignRecord, CampaignUpdate, NewCampaignInput } from "./campaigns";
 
@@ -74,29 +75,45 @@ export async function addCampaign(input: NewCampaignInput): Promise<CampaignReco
   return record;
 }
 
-export async function updateCampaign(input: CampaignUpdate): Promise<void> {
+// Answers the record either side of the write, or null when the id matched
+// nothing, so the caller can say what actually changed without re-reading the
+// list this already holds. Comparing against the caller's input instead would
+// be wrong: the normalising below means a trailing space would read as an edit.
+export async function updateCampaign(
+  input: CampaignUpdate
+): Promise<RecordChange<CampaignRecord> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  const updated = records.map((record): CampaignRecord =>
-    record.id === input.id
-      ? { ...record, ...normalize(input), invoiceId: input.invoiceId?.trim() ?? record.invoiceId }
-      : record
-  );
-  await redis.set(CAMPAIGNS_KEY, updated);
+  const before = records.find((record) => record.id === input.id);
+  if (!before) return null;
+  const after: CampaignRecord = {
+    ...before,
+    ...normalize(input),
+    invoiceId: input.invoiceId?.trim() ?? before.invoiceId,
+  };
+  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === input.id ? after : record)));
+  return { before, after };
 }
 
 // Writes just the paymentStatus, leaving every other field untouched. Powers
 // the dashboard's one-click "Mark received" action on the payments-due list
 // (and its Undo, which puts it back to "pending").
-export async function setCampaignPaymentStatus(id: string, status: CampaignPaymentStatus): Promise<void> {
+// Answers the record it wrote, so a caller can name the deal without a
+// second read of the list this already fetched.
+export async function setCampaignPaymentStatus(
+  id: string,
+  status: CampaignPaymentStatus
+): Promise<CampaignRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  const found = records.some((r) => r.id === id);
+  const found = records.find((r) => r.id === id);
   if (!found) throw new Error(`Campaign "${id}" not found`);
+  const updated: CampaignRecord = { ...found, paymentStatus: status };
   await redis.set(
     CAMPAIGNS_KEY,
-    records.map((record): CampaignRecord => (record.id === id ? { ...record, paymentStatus: status } : record))
+    records.map((record): CampaignRecord => (record.id === id ? updated : record))
   );
+  return updated;
 }

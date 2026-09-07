@@ -9,6 +9,7 @@ import type {
   NewEditorTransaction,
 } from "./editorTransactions";
 import { toSheetDate } from "@/lib/editorTransactions";
+import type { RecordChange } from "@/lib/activityDiff";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly. Reading/writing
@@ -81,32 +82,44 @@ export async function renameEditorOnTransactions(from: string, to: string): Prom
   return moved;
 }
 
-export async function updateEditorTransaction(input: EditorTransactionUpdate): Promise<void> {
+// Answers the record either side of the write, or null when the id matched
+// nothing, so the caller can say what actually changed without re-reading the
+// list this already holds. Comparing against the caller's input instead would
+// be wrong: the normalising below means a trailing space would read as an edit.
+export async function updateEditorTransaction(
+  input: EditorTransactionUpdate
+): Promise<RecordChange<EditorTransactionRecord> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  const updated = records.map((record): EditorTransactionRecord =>
-    record.id === input.id
-      ? {
-          id: record.id,
-          video: input.video.trim(),
-          videoDate: toSheetDate(input.videoDate),
-          deliveryDate: toSheetDate(input.deliveryDate),
-          amount: input.amount,
-          editor: input.editor.trim(),
-          status: input.status,
-        }
-      : record
+  const before = records.find((record) => record.id === input.id);
+  if (!before) return null;
+  const after: EditorTransactionRecord = {
+    id: before.id,
+    video: input.video.trim(),
+    videoDate: toSheetDate(input.videoDate),
+    deliveryDate: toSheetDate(input.deliveryDate),
+    amount: input.amount,
+    editor: input.editor.trim(),
+    status: input.status,
+  };
+  await redis.set(
+    EDITOR_TRANSACTIONS_KEY,
+    records.map((record) => (record.id === input.id ? after : record))
   );
-  await redis.set(EDITOR_TRANSACTIONS_KEY, updated);
+  return { before, after };
 }
 
-export async function deleteEditorTransaction(id: string): Promise<void> {
+// Returns the transaction it removed, or null when the id matched nothing:
+// see deleteBrand in brands.writer.server.ts for why.
+export async function deleteEditorTransaction(id: string): Promise<EditorTransactionRecord | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
+  const removed = records.find((record) => record.id === id) ?? null;
   await redis.set(
     EDITOR_TRANSACTIONS_KEY,
     records.filter((record) => record.id !== id)
   );
+  return removed;
 }

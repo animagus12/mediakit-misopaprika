@@ -1,6 +1,7 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import editorsSeed from "@/data/editors.json";
+import type { RecordChange } from "@/lib/activityDiff";
 import type { Editor, EditorUpdate, NewEditor } from "./editors";
 
 // server-only, and never imported from a client component: the server
@@ -47,23 +48,26 @@ export async function addEditor(input: NewEditor): Promise<void> {
   await redis.set(EDITORS_KEY, [...editors, editor]);
 }
 
-export async function updateEditor(input: EditorUpdate): Promise<void> {
+// Answers the record either side of the write, or null when the id matched
+// nothing, so the caller can say what actually changed without re-reading the
+// list this already holds. Comparing against the caller's input instead would
+// be wrong: the normalising below means a trailing space would read as an edit.
+export async function updateEditor(input: EditorUpdate): Promise<RecordChange<Editor> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const editors = await readEditors();
   const name = input.name.trim();
   assertNameAvailable(editors, name, input.id);
-  const updated = editors.map((editor): Editor =>
-    editor.id === input.id
-      ? {
-          id: editor.id,
-          name,
-          phone: input.phone.trim(),
-          email: input.email.trim(),
-          upi: input.upi.trim(),
-          qrImage: input.qrImage,
-        }
-      : editor
-  );
-  await redis.set(EDITORS_KEY, updated);
+  const before = editors.find((editor) => editor.id === input.id);
+  if (!before) return null;
+  const after: Editor = {
+    id: before.id,
+    name,
+    phone: input.phone.trim(),
+    email: input.email.trim(),
+    upi: input.upi.trim(),
+    qrImage: input.qrImage,
+  };
+  await redis.set(EDITORS_KEY, editors.map((editor) => (editor.id === input.id ? after : editor)));
+  return { before, after };
 }

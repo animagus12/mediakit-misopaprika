@@ -1,6 +1,7 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import invoicesSeed from "@/data/invoices.json";
+import type { RecordChange } from "@/lib/activityDiff";
 import { toInvoice } from "./invoices";
 import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
 
@@ -93,16 +94,24 @@ export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
   return record;
 }
 
-export async function updateInvoice(input: InvoiceUpdate): Promise<void> {
+/**
+ * Answers the record either side of this write, or null when the id matched
+ * nothing.
+ *
+ * Both records rather than a flag, so a caller can tell an ordinary edit from
+ * collecting payment, and can say which fields moved, without re-reading a
+ * store this call already read. Comparing against `input` would not do:
+ * normalize() trims and coerces, so a trailing space would read as an edit.
+ */
+export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<InvoiceRecord> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  const updated = records.map((record): InvoiceRecord =>
-    record.id === input.id
-      ? { ...record, ...normalize(input), updatedAt: new Date().toISOString() }
-      : record
-  );
-  await redis.set(INVOICES_KEY, updated);
+  const before = records.find((record) => record.id === input.id);
+  if (!before) return null;
+  const after: InvoiceRecord = { ...before, ...normalize(input), updatedAt: new Date().toISOString() };
+  await redis.set(INVOICES_KEY, records.map((record) => (record.id === input.id ? after : record)));
+  return { before, after };
 }
 
 // Writes just the status, leaving every other field untouched: mirrors
@@ -121,12 +130,16 @@ export async function setInvoiceStatus(id: string, status: InvoiceStatus): Promi
   );
 }
 
-export async function deleteInvoice(id: string): Promise<void> {
+// Returns the invoice it removed, or null when the id matched nothing: see
+// deleteBrand in brands.writer.server.ts for why.
+export async function deleteInvoice(id: string): Promise<InvoiceRecord | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
+  const removed = records.find((record) => record.id === id) ?? null;
   await redis.set(
     INVOICES_KEY,
     records.filter((record) => record.id !== id)
   );
+  return removed;
 }

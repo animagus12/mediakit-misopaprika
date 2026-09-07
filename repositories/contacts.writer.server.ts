@@ -1,6 +1,7 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import contactsSeed from "@/data/contacts.json";
+import type { RecordChange } from "@/lib/activityDiff";
 import type { Contact, ContactUpdate, NewContact } from "./contacts";
 
 // server-only, and never imported from a client component: the server
@@ -41,33 +42,40 @@ export async function addContact(input: NewContact): Promise<Contact> {
   return contact;
 }
 
-export async function updateContact(input: ContactUpdate): Promise<void> {
+// Answers the record either side of the write, or null when the id matched
+// nothing, so the caller can say what actually changed without re-reading the
+// list this already holds. Comparing against the caller's input instead would
+// be wrong: the normalising below means a trailing space would read as an edit.
+export async function updateContact(input: ContactUpdate): Promise<RecordChange<Contact> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const contacts = await readContacts();
-  const updated = contacts.map((contact): Contact =>
-    contact.id === input.id
-      ? {
-          ...contact,
-          name: input.name.trim(),
-          phone: input.phone.trim(),
-          brandId: input.brandId,
-          agencyId: input.agencyId,
-          updatedAt: new Date().toISOString(),
-        }
-      : contact
-  );
-  await redis.set(CONTACTS_KEY, updated);
+  const before = contacts.find((contact) => contact.id === input.id);
+  if (!before) return null;
+  const after: Contact = {
+    ...before,
+    name: input.name.trim(),
+    phone: input.phone.trim(),
+    brandId: input.brandId,
+    agencyId: input.agencyId,
+    updatedAt: new Date().toISOString(),
+  };
+  await redis.set(CONTACTS_KEY, contacts.map((contact) => (contact.id === input.id ? after : contact)));
+  return { before, after };
 }
 
-export async function deleteContact(id: string): Promise<void> {
+// Returns the contact it removed, or null when the id matched nothing: see
+// deleteBrand in brands.writer.server.ts for why.
+export async function deleteContact(id: string): Promise<Contact | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const contacts = await readContacts();
+  const removed = contacts.find((contact) => contact.id === id) ?? null;
   await redis.set(
     CONTACTS_KEY,
     contacts.filter((contact) => contact.id !== id)
   );
+  return removed;
 }
 
 // Cascade for brand deletion: only direct contacts (brandId match), never

@@ -1,6 +1,7 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import agenciesSeed from "@/data/agencies.json";
+import type { RecordChange } from "@/lib/activityDiff";
 import type { Agency, AgencyUpdate, NewAgency } from "./agencies";
 
 // server-only, and never imported from a client component: the server
@@ -47,20 +48,19 @@ export async function addAgency(input: NewAgency): Promise<Agency> {
   return agency;
 }
 
-export async function updateAgency(input: AgencyUpdate): Promise<void> {
+// Answers the record either side of the write, or null when the id matched
+// nothing, so the caller can say what actually changed without re-reading the
+// list this already holds. Comparing against the caller's input instead would
+// be wrong: the normalising below means a trailing space would read as an edit.
+export async function updateAgency(input: AgencyUpdate): Promise<RecordChange<Agency> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const agencies = await readAgencies();
   const name = input.name.trim();
   assertNameAvailable(agencies, name, input.id);
-  const updated = agencies.map((agency): Agency =>
-    agency.id === input.id
-      ? {
-          ...agency,
-          name,
-          updatedAt: new Date().toISOString(),
-        }
-      : agency
-  );
-  await redis.set(AGENCIES_KEY, updated);
+  const before = agencies.find((agency) => agency.id === input.id);
+  if (!before) return null;
+  const after: Agency = { ...before, name, updatedAt: new Date().toISOString() };
+  await redis.set(AGENCIES_KEY, agencies.map((agency) => (agency.id === input.id ? after : agency)));
+  return { before, after };
 }
