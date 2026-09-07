@@ -21,6 +21,87 @@ export type CampaignType = "Barter" | "Paid" | "Barter+Paid" | "Scam";
 const PAST_STATUSES = new Set(["completed", "cancelled", "redacted"]);
 export type CampaignStage = "active" | "past";
 
+// --- Usage rights --------------------------------------------------------
+// How long a brand may keep running the content as an ad, and what happened
+// when that ran out. Modelled on the deal rather than in a store of its own:
+// a licence has no existence apart from the post it licenses, it starts from
+// that post's upload date, and every renewal of it is money against the same
+// brand. A second store would have bought nothing but a join.
+
+export type UsageStatus = "active" | "paused" | "ended";
+
+/**
+ * One extension of the licence, priced separately from the deal itself.
+ *
+ * It carries its own payment fields rather than folding into the campaign's,
+ * because it is its own transaction: a deal can be paid and its renewal still
+ * outstanding, and collapsing the two would lose which of them is owed. The
+ * same reason `Campaign.total` deliberately excludes renewal money (see
+ * repositories/earnings.ts, which counts it as its own monthly entry).
+ */
+export interface UsageRenewalRecord {
+  id: string; // "R0001", unique within the deal: see nextSequenceId
+  startDate: string; // DD/MM/YYYY the extended term runs from
+  months: number;
+  amount: number; // 0 for an extension granted for free
+  paymentStatus: CampaignPaymentStatus;
+  paymentDue: string; // DD/MM/YYYY, "" when nothing was agreed
+  paidDate: string; // DD/MM/YYYY the money landed, "" until it does
+  paymentMethod: string;
+  /**
+   * The Invoice raised for this renewal (repositories/invoices.ts), or ""
+   * when none was.
+   *
+   * A real id rather than the free-text "MSP-INV-0007" reference
+   * CampaignRecord.invoiceId carries. That field predates the invoice store
+   * and has to stay a string someone types; this link is made by the app at
+   * the moment both records are written, so there is no reason to weaken it
+   * into something that has to be matched back by name.
+   */
+  invoiceId: string;
+  recordedAt: string; // ISO, when the renewal was agreed in the app
+}
+
+export interface CampaignUsage {
+  /** The base term in months, counted from uploadDate. 0 = not tracked. */
+  months: number;
+  status: UsageStatus;
+  /**
+   * DD/MM/YYYY the countdown was frozen on, "" while it is running.
+   *
+   * A paused licence is one the brand has stopped running, so the days it
+   * spends paused are days it does not spend. Storing the day it stopped
+   * (and, below, the days already banked) is what lets the term resume
+   * exactly where it left off rather than restarting or silently expiring.
+   */
+  pausedOn: string;
+  /** Days already spent paused across every earlier pause. */
+  pausedDays: number;
+  /** DD/MM/YYYY the licence was called off on, "" while it is live. */
+  endedOn: string;
+  renewals: UsageRenewalRecord[];
+}
+
+export function emptyUsage(): CampaignUsage {
+  return { months: 0, status: "active", pausedOn: "", pausedDays: 0, endedOn: "", renewals: [] };
+}
+
+// Legacy rows predate the field entirely, and a hand-edited one can carry
+// anything: every campaign read through toCampaign gets a whole, coerced
+// object, so nothing downstream has to test for its absence. Records are
+// healed on their next write (see normalize in ./campaigns.writer.server).
+export function toUsage(raw: CampaignUsage | undefined): CampaignUsage {
+  if (!raw) return emptyUsage();
+  return {
+    months: Math.max(0, Math.round(Number(raw.months) || 0)),
+    status: raw.status === "paused" || raw.status === "ended" ? raw.status : "active",
+    pausedOn: raw.pausedOn?.trim() ?? "",
+    pausedDays: Math.max(0, Math.round(Number(raw.pausedDays) || 0)),
+    endedOn: raw.endedOn?.trim() ?? "",
+    renewals: Array.isArray(raw.renewals) ? raw.renewals : [],
+  };
+}
+
 export interface CampaignRecord {
   id: string; // e.g. "MSP-BC0014" / "MSP-MC0010": see nextCampaignId()
   invoiceId: string; // free-text reference (e.g. "MSP-INV-0010"), "" when none
@@ -43,13 +124,26 @@ export interface CampaignRecord {
   barterValue: number;
   paymentStatus: CampaignPaymentStatus;
   paymentDue: string; // DD/MM/YYYY the payment is expected by, or "" when unset
+  /**
+   * DD/MM/YYYY the money actually landed, or "" while it hasn't.
+   *
+   * Separate from paymentDue, which is when it was *meant* to: the gap
+   * between the two is the only evidence there is of whether a brand pays
+   * when it says it will (see lib/paymentReliability.ts). Optional on the
+   * record because rows written before this field existed don't carry it;
+   * Campaign below always has one.
+   */
+  paidDate?: string;
   paymentMethod: string;
-  notes: string;
+  /** The ad-usage licence on this deal. Absent on rows that predate it. */
+  usage?: CampaignUsage;
 }
 
 export interface Campaign extends CampaignRecord {
   total: number; // amount + barterValue, derived, never stored, so it can't drift
   stage: CampaignStage; // derived from status, see PAST_STATUSES
+  paidDate: string; // "" rather than absent: see toCampaign
+  usage: CampaignUsage; // whole rather than absent: see toUsage
 }
 
 export interface NewCampaignInput {
@@ -67,8 +161,10 @@ export interface NewCampaignInput {
   uploadDate?: string;
   invoiceId?: string;
   paymentDue?: string;
+  paidDate?: string;
   paymentMethod?: string;
-  notes?: string;
+  /** The base licence term. Renewals are added separately, never through a form. */
+  usageMonths?: number;
 }
 
 export interface CampaignUpdate extends NewCampaignInput {
@@ -82,6 +178,8 @@ export function toCampaign(record: CampaignRecord): Campaign {
     status,
     total: record.amount + record.barterValue,
     stage: PAST_STATUSES.has(status.toLowerCase()) ? "past" : "active",
+    paidDate: record.paidDate?.trim() ?? "",
+    usage: toUsage(record.usage),
   };
 }
 

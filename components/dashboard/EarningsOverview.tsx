@@ -119,11 +119,18 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
                 <p
                   className={cn(
                     "flex items-center gap-1 text-[0.65rem] font-medium",
-                    trend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+                    trend.percent >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
                   )}
                 >
-                  {trend >= 0 ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-                  {Math.abs(trend).toFixed(0)}% vs last month
+                  {trend.percent >= 0 ? (
+                    <TrendingUp className="size-3" />
+                  ) : (
+                    <TrendingDown className="size-3" />
+                  )}
+                  {Math.abs(trend.percent).toFixed(0)}%
+                  {/* The pair is named rather than implied: this compares the
+                      last two complete months, not the one in progress. */}
+                  <span className="font-normal text-muted-foreground">{trend.label}</span>
                 </p>
               )}
             </CardHeader>
@@ -145,7 +152,7 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
                 <span className="text-right">Cash</span>
                 <span className="text-right">Barter</span>
                 <span className="text-right">Pending</span>
-                <span className="text-right">Total</span>
+                <span className="text-right">Received</span>
               </div>
               <div className="space-y-0.5 pt-1">
                 {recent.map((m) => (

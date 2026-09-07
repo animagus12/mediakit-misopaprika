@@ -45,8 +45,9 @@ export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: Campai
         uploadDate: form.uploadDate,
         invoiceId: form.invoiceId.trim(),
         paymentDue: form.paymentDue,
+        paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
-        notes: form.notes.trim(),
+        usageMonths: Number(form.usageMonths) || 0,
       });
       if (!result.success) {
         setError(result.error);

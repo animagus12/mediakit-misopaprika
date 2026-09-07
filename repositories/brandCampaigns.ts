@@ -1,6 +1,6 @@
 import "server-only";
 import { getCampaigns } from "./campaigns.writer.server";
-import type { Campaign, CampaignPaymentStatus } from "./campaigns";
+import type { Campaign, CampaignPaymentStatus, CampaignUsage } from "./campaigns";
 
 export type BrandCampaignPaymentStatus = CampaignPaymentStatus;
 
@@ -22,8 +22,9 @@ export interface BrandCampaignRecord {
   invoiceId: string;
   paymentStatus: BrandCampaignPaymentStatus;
   paymentDue: string; // DD/MM/YYYY the payment is expected by, or "" when unset
+  paidDate: string; // DD/MM/YYYY the money landed; the other half of the reliability read
   paymentMethod: string;
-  notes: string;
+  usage: CampaignUsage; // the ad-usage licence, for the brand's renewal history
 }
 
 function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
@@ -42,8 +43,9 @@ function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     invoiceId: campaign.invoiceId,
     paymentStatus: campaign.paymentStatus,
     paymentDue: campaign.paymentDue,
+    paidDate: campaign.paidDate,
     paymentMethod: campaign.paymentMethod,
-    notes: campaign.notes,
+    usage: campaign.usage,
   };
 }
 

@@ -6,8 +6,10 @@ import {
   Link2,
   Sparkles,
   UserRound,
+  Video,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { CALENDAR_TIME_ZONE, dayKeyOf } from "@/lib/day";
 import type {
   Activity,
   ActivityAction,
@@ -49,6 +51,19 @@ const TITLES: Record<ActivityAction, (label: string) => string> = {
   "campaign.updated": (label) => `Campaign ${label} updated`,
   "campaign.payment_received": (label) => `Payment received for ${label}`,
   "campaign.payment_reverted": (label) => `Payment reverted on ${label}`,
+  "campaign.scheduled": (label) => `${label} scheduled to post`,
+  "campaign.unscheduled": (label) => `Posting date cleared on ${label}`,
+  "campaign.usage_paused": (label) => `Ad usage paused on ${label}`,
+  "campaign.usage_resumed": (label) => `Ad usage resumed on ${label}`,
+  "campaign.usage_ended": (label) => `Ad usage ended on ${label}`,
+  "campaign.usage_renewed": (label) => `Ad usage renewed on ${label}`,
+  "campaign.usage_payment_received": (label) => `Renewal payment received for ${label}`,
+  "campaign.usage_payment_reverted": (label) => `Renewal payment reverted on ${label}`,
+  "content.created": (label) => `${label} added to the content plan`,
+  "content.updated": (label) => `${label} updated`,
+  "content.deleted": (label) => `${label} removed from the content plan`,
+  "content.scheduled": (label) => `${label} scheduled to post`,
+  "content.unscheduled": (label) => `Posting date cleared on ${label}`,
   "invoice.created": (label) => `Invoice ${label} created`,
   "invoice.updated": (label) => `Invoice ${label} updated`,
   "invoice.paid": (label) => `Invoice ${label} marked paid`,
@@ -69,11 +84,14 @@ const TITLES: Record<ActivityAction, (label: string) => string> = {
 // token.
 const TONES: Partial<Record<ActivityAction, ActivityTone>> = {
   "campaign.payment_received": "positive",
+  "campaign.usage_payment_received": "positive",
+  "campaign.usage_renewed": "positive",
   "invoice.paid": "positive",
   "brand.deleted": "destructive",
   "contact.deleted": "destructive",
   "invoice.deleted": "destructive",
   "editorTransaction.deleted": "destructive",
+  "content.deleted": "destructive",
 };
 
 // Icons follow the entity, not the action, so the same kind of record always
@@ -84,6 +102,7 @@ const ICONS: Record<ActivityEntityType, LucideIcon> = {
   agency: Building2,
   contact: UserRound,
   campaign: Handshake,
+  content: Video,
   invoice: FileText,
   editor: Clapperboard,
   editorTransaction: Clapperboard,
@@ -99,6 +118,7 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   agency: { detail: null, list: "/brands" },
   contact: { detail: null, list: "/brands" },
   campaign: { detail: null, list: "/campaigns" },
+  content: { detail: null, list: "/calendar" },
   invoice: { detail: (id) => `/invoices/${id}`, list: "/invoices" },
   editor: { detail: null, list: "/workspace" },
   editorTransaction: { detail: null, list: "/workspace" },
@@ -126,6 +146,7 @@ export const activityFilters: readonly ActivityFilter[] = [
   { id: "all", label: "All", types: [] },
   { id: "brands", label: "Brands", types: ["brand", "agency", "contact"] },
   { id: "campaigns", label: "Campaigns", types: ["campaign"] },
+  { id: "content", label: "Content", types: ["content"] },
   { id: "invoices", label: "Invoices", types: ["invoice"] },
   { id: "workspace", label: "Workspace", types: ["editor", "editorTransaction"] },
   { id: "publishing", label: "Publishing", types: ["links", "mediakit"] },
@@ -157,7 +178,9 @@ export function describeActivity(activity: Activity): ActivityDescription {
 //
 // The locale stays fixed for the same reason it is fixed elsewhere: the
 // output should not depend on where the page is rendered.
-const TIME_ZONE = "Asia/Kolkata";
+// The zone itself lives in lib/day.ts, which the content calendar shares:
+// one definition of "which day is it for the reader", not two that can drift.
+const TIME_ZONE = CALENDAR_TIME_ZONE;
 
 const TIME = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
@@ -170,15 +193,6 @@ const DAY = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
   year: "numeric",
-  timeZone: TIME_ZONE,
-});
-
-// yyyy-mm-dd in TIME_ZONE. en-CA is the locale whose short date already has
-// that shape, so the parts come back in the right order to join.
-const DAY_KEY = new Intl.DateTimeFormat("en-CA", {
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
   timeZone: TIME_ZONE,
 });
 
@@ -203,17 +217,10 @@ export function formatActivityAge(at: string, now: Date = new Date()): string {
 }
 
 export interface ActivityDay {
-  /** UTC yyyy-mm-dd, stable enough to key a list on. */
+  /** yyyy-mm-dd in TIME_ZONE, stable enough to key a list on. */
   key: string;
   label: string;
   items: Activity[];
-}
-
-// Not at.slice(0, 10): that is the UTC date baked into the ISO string, which
-// is the very thing that files a late-night edit under the day before.
-function dayKey(at: string | Date): string {
-  const date = typeof at === "string" ? new Date(at) : at;
-  return Number.isNaN(date.getTime()) ? "" : DAY_KEY.format(date);
 }
 
 /**
@@ -222,12 +229,12 @@ function dayKey(at: string | Date): string {
  * reader is rather than where the server happens to run.
  */
 export function groupActivitiesByDay(items: Activity[], now: Date = new Date()): ActivityDay[] {
-  const today = dayKey(now);
-  const yesterday = dayKey(new Date(now.getTime() - 86_400_000));
+  const today = dayKeyOf(now);
+  const yesterday = dayKeyOf(new Date(now.getTime() - 86_400_000));
 
   const days: ActivityDay[] = [];
   for (const item of items) {
-    const key = dayKey(item.at);
+    const key = dayKeyOf(item.at);
     const last = days[days.length - 1];
     if (last && last.key === key) {
       last.items.push(item);

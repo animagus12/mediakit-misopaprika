@@ -3,7 +3,6 @@
 import { ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Collapsible,
   CollapsibleContent,
@@ -44,8 +43,10 @@ export interface CampaignFormState {
   uploadDate: string;
   invoiceId: string;
   paymentDue: string;
+  paidDate: string;
   paymentMethod: string;
-  notes: string;
+  /** Kept as a string like the money fields, so the input can be left empty. */
+  usageMonths: string;
 }
 
 export function campaignInitialForm(): CampaignFormState {
@@ -64,8 +65,9 @@ export function campaignInitialForm(): CampaignFormState {
     uploadDate: "",
     invoiceId: "",
     paymentDue: "",
+    paidDate: "",
     paymentMethod: "",
-    notes: "",
+    usageMonths: "",
   };
 }
 
@@ -245,7 +247,7 @@ export function CampaignFormFields({ idPrefix, form, setForm, brandOptions = [] 
 
       <Collapsible>
         <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-          Invoice, payment &amp; notes
+          Invoice, payment &amp; usage rights
           <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-4">
@@ -270,15 +272,6 @@ export function CampaignFormFields({ idPrefix, form, setForm, brandOptions = [] 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-uploadDate`}>Upload date</Label>
-              <Input
-                id={`${idPrefix}-uploadDate`}
-                type="date"
-                value={form.uploadDate}
-                onChange={(event) => setForm((f) => ({ ...f, uploadDate: event.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-paymentDue`}>Payment due</Label>
               <Input
                 id={`${idPrefix}-paymentDue`}
@@ -287,7 +280,23 @@ export function CampaignFormFields({ idPrefix, form, setForm, brandOptions = [] 
                 onChange={(event) => setForm((f) => ({ ...f, paymentDue: event.target.value }))}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
+              <Input
+                id={`${idPrefix}-paidDate`}
+                type="date"
+                value={form.paidDate}
+                onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
+              />
+            </div>
           </div>
+          {/* The pair above is the whole of the payment-reliability record:
+              when it was promised, and when it arrived. Said here rather than
+              left to be inferred, because a blank "Paid on" is what makes a
+              settled deal count for nothing either way. */}
+          <p className="text-[11px] text-muted-foreground">
+            The gap between these two is what the brand&apos;s payment record is built from.
+          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
@@ -310,14 +319,36 @@ export function CampaignFormFields({ idPrefix, form, setForm, brandOptions = [] 
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-notes`}>Notes</Label>
-            <Textarea
-              id={`${idPrefix}-notes`}
-              value={form.notes}
-              onChange={(event) => setForm((f) => ({ ...f, notes: event.target.value }))}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-uploadDate`}>Upload date</Label>
+              <Input
+                id={`${idPrefix}-uploadDate`}
+                type="date"
+                value={form.uploadDate}
+                onChange={(event) => setForm((f) => ({ ...f, uploadDate: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-usageMonths`}>Ad usage (months)</Label>
+              <Input
+                id={`${idPrefix}-usageMonths`}
+                type="number"
+                min={0}
+                step={1}
+                placeholder="0"
+                value={form.usageMonths}
+                onChange={(event) => setForm((f) => ({ ...f, usageMonths: event.target.value }))}
+              />
+            </div>
           </div>
+          {/* Paired with the upload date on purpose: the licence counts from
+              the day the post goes up, not from the day the deal was struck,
+              so the two fields belong on the same row. */}
+          <p className="text-[11px] text-muted-foreground">
+            How long the brand may keep running this as an ad, counted from the upload date.
+            Leave at 0 if there is no licence to track.
+          </p>
         </CollapsibleContent>
       </Collapsible>
     </>

@@ -5,8 +5,10 @@ import { formatMoney } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
 import type { EarningsSummary } from "@/repositories/earnings";
+import { selectExpiringUsage, selectOwedRenewals } from "@/lib/usageRights";
 import { NewCampaignButton } from "./NewCampaignButton";
 import { CampaignsTable } from "./CampaignsTable";
+import { UsageRenewalsCard } from "./UsageRenewalsCard";
 
 // Same tone system as the invoices list's stat cards, so money/count tiles
 // read consistently across the dashboard.
@@ -91,6 +93,14 @@ export function CampaignsListSection({
               </CardHeader>
             </Card>
           </div>
+
+          {/* Above the table, not inside it: a licence running out is a
+              decision to make today, and the table is where a record is looked
+              up. The card renders nothing when nothing is owed or expiring. */}
+          <UsageRenewalsCard
+            alerts={selectExpiringUsage(campaigns)}
+            owed={selectOwedRenewals(campaigns)}
+          />
 
           <Suspense fallback={<div className="h-64 rounded-md border border-border" />}>
             <CampaignsTable campaigns={campaigns} brandOptions={brandOptions} />

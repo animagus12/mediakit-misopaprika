@@ -13,6 +13,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+// Same reason /calendar carries this: the page is invalidated by the clock as
+// well as by a write. Nothing is written when a licence crosses into its last
+// thirty days or runs out entirely, but the renewals card changes what it says
+// and a cached render would keep offering yesterday's decisions.
+export const dynamic = "force-dynamic";
+
 export default async function CampaignsPage() {
   let campaigns: Campaign[] = [];
   let earnings: EarningsSummary | null = null;

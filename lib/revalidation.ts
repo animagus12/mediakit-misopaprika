@@ -15,7 +15,8 @@ import { revalidatePath } from "next/cache";
  * a new store, add the route here rather than to the action.
  */
 const ROUTES = {
-  campaigns: ["/", "/campaigns", "/brands", "/brands/[id]"],
+  campaigns: ["/", "/campaigns", "/calendar", "/brands", "/brands/[id]"],
+  contentPlan: ["/", "/calendar"],
   invoices: ["/", "/invoices", "/invoices/[id]", "/invoices/new", "/brands/[id]"],
   brands: ["/", "/campaigns", "/brands", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
   contacts: ["/", "/brands", "/brands/[id]", "/invoices/[id]", "/invoices/new"],

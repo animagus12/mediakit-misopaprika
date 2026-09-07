@@ -68,6 +68,14 @@ export function toIsoDate(sheetDate: string): string {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
+// A deal's own name is regularly left blank on the record, and a row reading
+// "Campaign  created" helps nobody: the brand is what makes it findable, so
+// it stands in. Shared by every caller that has to name a deal in a sentence
+// (activity events, calendar rows, toasts).
+export function campaignLabel(campaign: string, brand: string): string {
+  return campaign.trim() || brand.trim() || "untitled deal";
+}
+
 export interface SplitCampaigns {
   active: Campaign[];
   past: Campaign[];
@@ -151,8 +159,7 @@ function matchesCampaignQuery(item: Campaign, needle: string): boolean {
   return (
     item.brand.toLowerCase().includes(needle) ||
     item.campaign.toLowerCase().includes(needle) ||
-    item.invoiceId.toLowerCase().includes(needle) ||
-    item.notes.toLowerCase().includes(needle)
+    item.invoiceId.toLowerCase().includes(needle)
   );
 }
 
@@ -166,7 +173,15 @@ export function filterCampaigns(
   );
 }
 
-export type CampaignSortColumn = "date" | "uploadDate" | "amount" | "barterValue" | "total" | "paymentDue" | "status";
+export type CampaignSortColumn =
+  | "date"
+  | "uploadDate"
+  | "amount"
+  | "barterValue"
+  | "total"
+  | "paymentDue"
+  | "paidDate"
+  | "status";
 export type SortDirection = "asc" | "desc";
 
 // Pipeline order, so ascending reads roughly left-to-right through a deal's life.
@@ -195,6 +210,9 @@ export function sortCampaigns(
         break;
       case "paymentDue":
         delta = parseSheetDate(a.paymentDue) - parseSheetDate(b.paymentDue);
+        break;
+      case "paidDate":
+        delta = parseSheetDate(a.paidDate) - parseSheetDate(b.paidDate);
         break;
       case "status":
         delta =

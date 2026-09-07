@@ -7,7 +7,7 @@ import {
   deleteInvoice,
   updateInvoice as updateInvoiceRecord,
 } from "@/repositories/invoices.writer.server";
-import { getCampaigns, setCampaignPaymentStatus } from "@/repositories/campaigns.writer.server";
+import { campaignRepository } from "@/repositories/campaignRepository";
 import { buildInvoiceNumber, computeSubtotal } from "@/lib/invoice";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
@@ -38,7 +38,8 @@ async function syncLinkedCampaignPayment(invoiceNo: string, status: InvoiceStatu
   if (status !== "paid" && status !== "sent") return;
 
   const ref = buildInvoiceNumber(invoiceNo);
-  const campaign = (await getCampaigns()).find((entry) => entry.invoiceId.trim().toUpperCase() === ref.toUpperCase());
+  const campaigns = await campaignRepository.getAll();
+  const campaign = campaigns.find((entry) => entry.invoiceId.trim().toUpperCase() === ref.toUpperCase());
   if (!campaign) return;
 
   const target = status === "paid" ? "received" : "pending";
@@ -47,7 +48,11 @@ async function syncLinkedCampaignPayment(invoiceNo: string, status: InvoiceStatu
   // "unknown" (e.g. a cancelled one) is left as it is.
   if (campaign.paymentStatus !== "received" && campaign.paymentStatus !== "pending") return;
 
-  await setCampaignPaymentStatus(campaign.id, target);
+  // Through the repository rather than the writer, so this collects a payment
+  // the same way the dashboard's "Mark received" does: stamping the day the
+  // money landed, and clearing it again when an invoice comes back off "paid".
+  if (target === "received") await campaignRepository.setPaymentReceived(campaign.id);
+  else await campaignRepository.setPaymentPending(campaign.id);
 }
 
 export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResult> {

@@ -1,4 +1,4 @@
-import { Building2, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
+import { Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Sidebar sections. Grouping lives here rather than in the sidebar component
@@ -58,6 +58,14 @@ export const navEntries: NavEntry[] = [
     title: "Campaigns",
     description: "Every brand collaboration on record, in one table.",
     Icon: Handshake,
+    access: "protected",
+    group: "manage",
+  },
+  {
+    href: "/calendar",
+    title: "Content calendar",
+    description: "Plan your own reels and brand deals on one calendar.",
+    Icon: CalendarDays,
     access: "protected",
     group: "manage",
   },

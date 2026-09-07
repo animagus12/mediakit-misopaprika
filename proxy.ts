@@ -49,6 +49,7 @@ export const config = {
   matcher: [
     "/",
     "/campaigns/:path*",
+    "/calendar",
     "/invoices/:path*",
     "/mediakit-generator/:path*",
     "/mediakit",
