@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { publishMediaKitData, saveMediaKitData } from "@/repositories/mediakit.writer.server";
+import { recordActivity } from "@/repositories/activity.writer.server";
 import type { MediaKitData } from "@/repositories/mediakit";
 
 export async function saveMediaKit(
@@ -29,6 +30,11 @@ export async function publishMediaKit(
     revalidatePath("/mediakit-generator");
     revalidatePath("/mediakit");
     revalidatePath("/", "layout");
+    // Publish only, not save: same reasoning as publishLinks.
+    await recordActivity({
+      action: "mediakit.published",
+      entity: { type: "mediakit", id: null, label: "" },
+    });
     return { success: true };
   } catch {
     return {

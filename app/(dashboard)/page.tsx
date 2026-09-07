@@ -16,6 +16,7 @@ import { NeedsAttentionCard } from "@/components/dashboard/NeedsAttentionCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { LastRefreshed } from "@/components/dashboard/LastRefreshed";
 import { DashboardCampaignsSection } from "@/components/dashboard/DashboardCampaignsSection";
+import { RecentActivityCard } from "@/components/dashboard/RecentActivityCard";
 import { navEntries } from "@/lib/navigation";
 import { earningsRepository } from "@/repositories/earnings";
 import { campaignRepository } from "@/repositories/campaignRepository";
@@ -30,6 +31,7 @@ import { splitCampaigns, buildCampaignBrandOptions } from "@/lib/campaigns";
 import { selectDuePayments } from "@/lib/brandCampaignStats";
 import { selectAttentionItems } from "@/lib/dashboardAttention";
 import { buildDashboardNavBadges } from "@/lib/dashboardNav";
+import { listActivities } from "@/repositories/activity.writer.server";
 
 // The shell (title, sync status, quick actions) paints immediately; each
 // data-backed section streams in behind its own <Suspense> so the slowest
@@ -56,6 +58,10 @@ export default function HomePage() {
 
       <Suspense fallback={<Skeleton className="mb-8 h-48 w-full rounded-lg" />}>
         <DashboardCampaignsContainer />
+      </Suspense>
+
+      <Suspense fallback={<Skeleton className="mb-8 h-64 w-full rounded-lg" />}>
+        <RecentActivitySection />
       </Suspense>
 
       <Suspense fallback={<NavCardsSkeleton />}>
@@ -113,6 +119,13 @@ async function DashboardCampaignsContainer() {
   }
   const brandOptions = buildCampaignBrandOptions(await getBrands().catch(() => []));
   return <DashboardCampaignsSection active={active} past={past} error={error} brandOptions={brandOptions} />;
+}
+
+// listActivities answers an empty page rather than throwing, so this needs
+// no catch of its own, and the card renders nothing on an empty log.
+async function RecentActivitySection() {
+  const { items } = await listActivities({ limit: 6 });
+  return <RecentActivityCard activities={items} className="mb-8" />;
 }
 
 async function NavCardsSection() {

@@ -2,8 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { revalidateStores } from "@/lib/revalidation";
+import { recordActivity } from "@/repositories/activity.writer.server";
+import { describeChanges } from "@/lib/activityDiff";
+import { campaignFields } from "@/lib/activityFields";
 import { campaignRepository } from "@/repositories/campaignRepository";
-import type { CampaignFormUpdate, CampaignFormValues } from "@/repositories/campaignRepository";
+import type {
+  CampaignFormUpdate,
+  CampaignFormValues,
+  CampaignRecord,
+} from "@/repositories/campaignRepository";
 import { getBrands, addBrand } from "@/repositories/brands.writer.server";
 import { getInvoices, setInvoiceStatus } from "@/repositories/invoices.writer.server";
 import type { InvoiceStatus } from "@/repositories/invoices";
@@ -50,6 +57,13 @@ async function resolveOrCreateBrandId(
   return { brandId: created.id, createdBrand: { id: created.id, name: created.name } };
 }
 
+// A deal's own name is regularly left blank on the record, and an activity
+// row reading "Campaign  created" helps nobody: the brand is what makes it
+// findable, so it stands in.
+function campaignLabel(campaign: string, brand: string): string {
+  return campaign.trim() || brand.trim() || "untitled deal";
+}
+
 function revalidateCampaignPaths(): void {
   // A campaign write can also create a brand (see resolveOrCreateBrandId).
   revalidateStores("campaigns", "brands");
@@ -60,8 +74,14 @@ export async function createCampaign(
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
   try {
     const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
-    await campaignRepository.create({ ...input, brandId });
+    const record = await campaignRepository.create({ ...input, brandId });
     revalidateCampaignPaths();
+    await recordActivity({
+      action: "campaign.created",
+      entity: { type: "campaign", id: record.id, label: campaignLabel(input.campaign, input.brand) },
+      detail: input.brand.trim() || undefined,
+      amount: input.amount + input.barterValue,
+    });
     return { success: true, createdBrand };
   } catch (err) {
     return {
@@ -76,8 +96,20 @@ export async function updateCampaign(
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
   try {
     const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
-    await campaignRepository.update({ ...input, brandId });
+    const change = await campaignRepository.update({ ...input, brandId });
     revalidateCampaignPaths();
+    if (change) {
+      await recordActivity({
+        action: "campaign.updated",
+        entity: {
+          type: "campaign",
+          id: change.after.id,
+          label: campaignLabel(change.after.campaign, change.after.brand),
+        },
+        detail: describeChanges(change, campaignFields) ?? (change.after.brand.trim() || undefined),
+        amount: change.after.amount + change.after.barterValue,
+      });
+    }
     return { success: true, createdBrand };
   } catch (err) {
     return {
@@ -133,8 +165,9 @@ export async function markCampaignPaymentReceived(
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
+  let campaign: CampaignRecord;
   try {
-    await campaignRepository.setPaymentReceived(campaignId);
+    campaign = await campaignRepository.setPaymentReceived(campaignId);
   } catch (err) {
     return {
       success: false,
@@ -153,6 +186,16 @@ export async function markCampaignPaymentReceived(
   }
 
   revalidatePaymentPaths();
+  await recordActivity({
+    action: "campaign.payment_received",
+    entity: {
+      type: "campaign",
+      id: campaign.id,
+      label: campaignLabel(campaign.campaign, campaign.brand),
+    },
+    detail: campaign.brand.trim() || undefined,
+    amount: campaign.amount,
+  });
   return { success: true, previousInvoiceStatus, ...(warning ? { warning } : {}) };
 }
 
@@ -166,11 +209,23 @@ export async function unmarkCampaignPaymentReceived(
     return { success: false, error: "This deal has no campaign ID to update" };
   }
   try {
-    await campaignRepository.setPaymentPending(campaignId);
+    const campaign = await campaignRepository.setPaymentPending(campaignId);
     if (previousInvoiceStatus) {
       await syncLinkedInvoiceStatus(campaignId, previousInvoiceStatus);
     }
     revalidatePaymentPaths();
+    // The Undo is logged as its own event rather than by removing the one it
+    // reverses: an audit trail that rewrites itself isn't one.
+    await recordActivity({
+      action: "campaign.payment_reverted",
+      entity: {
+        type: "campaign",
+        id: campaign.id,
+        label: campaignLabel(campaign.campaign, campaign.brand),
+      },
+      detail: campaign.brand.trim() || undefined,
+      amount: campaign.amount,
+    });
     return { success: true };
   } catch (err) {
     return {

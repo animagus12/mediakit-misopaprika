@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidateStores } from "@/lib/revalidation";
+import { recordActivity } from "@/repositories/activity.writer.server";
+import { describeChanges } from "@/lib/activityDiff";
+import { agencyFields, brandFields, contactFields } from "@/lib/activityFields";
 import { addAgency, updateAgency as updateAgencyRecord } from "@/repositories/agencies.writer.server";
 import type { AgencyUpdate, NewAgency } from "@/repositories/agencies";
 import {
@@ -35,8 +38,12 @@ function toActionError(err: unknown, fallback: string): ActionResult {
 
 export async function createAgency(input: NewAgency): Promise<ActionResult> {
   try {
-    await addAgency(input);
+    const agency = await addAgency(input);
     revalidateStores("agencies");
+    await recordActivity({
+      action: "agency.created",
+      entity: { type: "agency", id: agency.id, label: agency.name },
+    });
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the agency");
@@ -45,8 +52,15 @@ export async function createAgency(input: NewAgency): Promise<ActionResult> {
 
 export async function updateAgency(input: AgencyUpdate): Promise<ActionResult> {
   try {
-    await updateAgencyRecord(input);
+    const change = await updateAgencyRecord(input);
     revalidateStores("agencies");
+    if (change) {
+      await recordActivity({
+        action: "agency.updated",
+        entity: { type: "agency", id: change.after.id, label: change.after.name },
+        detail: describeChanges(change, agencyFields),
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the agency");
@@ -59,6 +73,10 @@ export async function createBrand(
   try {
     const brand = await addBrand(input);
     revalidateStores("brands");
+    await recordActivity({
+      action: "brand.created",
+      entity: { type: "brand", id: brand.id, label: brand.name },
+    });
     return { success: true, id: brand.id };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Couldn't save the brand" };
@@ -67,8 +85,15 @@ export async function createBrand(
 
 export async function updateBrand(input: BrandUpdate): Promise<ActionResult> {
   try {
-    await updateBrandRecord(input);
+    const change = await updateBrandRecord(input);
     revalidateStores("brands");
+    if (change) {
+      await recordActivity({
+        action: "brand.updated",
+        entity: { type: "brand", id: change.after.id, label: change.after.name },
+        detail: describeChanges(change, brandFields),
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the brand");
@@ -79,8 +104,14 @@ export async function updateBrand(input: BrandUpdate): Promise<ActionResult> {
 // re-uploading the same image: see components/brands/MediaKitLogosSection.tsx.
 export async function assignBrandLogo(brandId: string, logoUrl: string): Promise<ActionResult> {
   try {
-    await setBrandLogo(brandId, logoUrl);
+    const brand = await setBrandLogo(brandId, logoUrl);
     revalidateStores("brands");
+    if (brand) {
+      await recordActivity({
+        action: "brand.logo_assigned",
+        entity: { type: "brand", id: brand.id, label: brand.name },
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't assign the logo");
@@ -97,8 +128,14 @@ export async function removeBrand(id: string): Promise<ActionResult> {
       deleteBrandNotesForBrand(id),
       deleteCampaignContactsForBrand(id),
     ]);
-    await deleteBrandRecord(id);
+    const removed = await deleteBrandRecord(id);
     revalidateStores("brands", "contacts", "brandNotes", "campaignContacts");
+    if (removed) {
+      await recordActivity({
+        action: "brand.deleted",
+        entity: { type: "brand", id: removed.id, label: removed.name },
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't remove the brand");
@@ -168,6 +205,16 @@ export async function importBrandsFromCampaigns(): Promise<
     }
 
     revalidateStores("brands");
+    // One event for the run, not one per brand: the creator pressed a button
+    // once. A run that imported nothing is left unlogged rather than filling
+    // the feed with "0 imported" every time it is safely re-run.
+    if (imported > 0) {
+      await recordActivity({
+        action: "brand.imported",
+        entity: { type: "brand", id: null, label: "" },
+        detail: `${imported} imported, ${skipped} already on file`,
+      });
+    }
     return { success: true, imported, skipped };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Couldn't import brands from campaigns" };
@@ -180,6 +227,10 @@ export async function createContact(
   try {
     const contact = await addContact(input);
     revalidateStores("contacts", "brands");
+    await recordActivity({
+      action: "contact.created",
+      entity: { type: "contact", id: contact.id, label: contact.name },
+    });
     return { success: true, id: contact.id };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Couldn't save the contact" };
@@ -188,8 +239,15 @@ export async function createContact(
 
 export async function updateContact(input: ContactUpdate): Promise<ActionResult> {
   try {
-    await updateContactRecord(input);
+    const change = await updateContactRecord(input);
     revalidateStores("contacts", "brands");
+    if (change) {
+      await recordActivity({
+        action: "contact.updated",
+        entity: { type: "contact", id: change.after.id, label: change.after.name },
+        detail: describeChanges(change, contactFields),
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't save the contact");
@@ -200,8 +258,14 @@ export async function updateContact(input: ContactUpdate): Promise<ActionResult>
 // pages from the store, so the caller does not have to know them.
 export async function removeContact(id: string): Promise<ActionResult> {
   try {
-    await deleteContactRecord(id);
+    const removed = await deleteContactRecord(id);
     revalidateStores("contacts", "brands");
+    if (removed) {
+      await recordActivity({
+        action: "contact.deleted",
+        entity: { type: "contact", id: removed.id, label: removed.name },
+      });
+    }
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't remove the contact");

@@ -1,4 +1,4 @@
-import { Building2, Clapperboard, FileText, Handshake, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
+import { Building2, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Sidebar sections. Grouping lives here rather than in the sidebar component
@@ -82,6 +82,14 @@ export const navEntries: NavEntry[] = [
     title: "Brands",
     description: "Manage brand, agency, and contact relationships.",
     Icon: Building2,
+    access: "protected",
+    group: "manage",
+  },
+  {
+    href: "/activity",
+    title: "Activity",
+    description: "Everything you have changed, newest first.",
+    Icon: History,
     access: "protected",
     group: "manage",
   },
