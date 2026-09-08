@@ -653,10 +653,17 @@ a.codeCard:hover {
    fire for the individual rotate / scale / translate properties. Animated
    through those, the layer is rasterised at 1x and then scaled, which visibly
    softens the card's image and text for the whole loop, resting frames
-   included. */
+   included.
+
+   None of them declares will-change. It reads as the obvious companion to an
+   animation and is the wrong call here: it makes the compositor rasterise the
+   layer at the largest scale in the keyframes and then draw it at 1x for the
+   nine tenths of the loop the card is at rest, so the card is permanently
+   downsampled to buy sharpness during half a second of Pop. Measured at 5%
+   of the label's edge energy and 6% of the thumbnail's, against an identical
+   still card at the same position on the page. */
 
 .animWiggle {
-  will-change: transform;
   animation: linkWiggle 5s ease-in-out infinite;
 }
 
@@ -681,10 +688,17 @@ a.codeCard:hover {
 }
 
 .animPop {
-  will-change: transform;
   animation: linkPop 5s ease-in-out infinite;
 }
 
+/* Compresses and releases rather than swelling past its resting size, and
+   that is a rendering constraint before it is a taste one: the compositor
+   rasterises the layer at the largest scale in the keyframes and draws it at
+   whatever scale the moment calls for, so a peak above 1 leaves the card
+   permanently downsampled through the nine tenths of the loop it spends at
+   rest. Measured at 5% of the label's edge energy and 6% of the thumbnail's
+   when this peaked at 1.045. Capped at 1, nothing is ever resampled, and a
+   quick squash and release reads as a press, which is the same beat. */
 @keyframes linkPop {
   0%,
   84%,
@@ -692,13 +706,13 @@ a.codeCard:hover {
     transform: scale(1);
   }
   89% {
-    transform: scale(1.045);
+    transform: scale(0.945);
   }
   94% {
-    transform: scale(0.986);
-  }
-  98% {
     transform: scale(1);
+  }
+  97% {
+    transform: scale(0.985);
   }
 }
 
@@ -739,7 +753,6 @@ a.codeCard:hover {
    works on a card of any shape. Held at zero alpha at rest rather than at
    none, which does not interpolate. */
 .animGlitch {
-  will-change: transform;
   animation: linkGlitch 5s steps(1, end) infinite;
 }
 
@@ -865,16 +878,6 @@ a.codeCard:hover {
   .animShimmer::before,
   .animOrbit::before {
     animation: none;
-  }
-
-  /* Released along with the animation it was declared for. Left standing it
-     would promote a compositor layer for a card that has nothing to composite,
-     which is the same softening this whole section is arranged to avoid, held
-     over the readers who explicitly asked for less. */
-  .animWiggle,
-  .animPop,
-  .animGlitch {
-    will-change: auto;
   }
 }
 
