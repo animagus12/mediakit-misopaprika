@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Campaign } from "@/repositories/campaigns";
-import { computeCampaignStats, type CampaignBrandOption } from "@/lib/campaigns";
-import { formatMoney } from "@/lib/invoice";
+import type { CampaignBrandOption } from "@/lib/campaigns";
+import type { EditorVideoOption } from "@/lib/contentPlan";
 import { ActiveCampaignCard } from "./ActiveCampaignCard";
 
+// Active and upcoming campaigns only. The full history, and the lifetime
+// figures drawn from it, live on /campaigns.
 interface DashboardCampaignsSectionProps {
   active: Campaign[];
-  past: Campaign[];
   error?: string | null;
   brandOptions?: CampaignBrandOption[];
+  videoOptions?: EditorVideoOption[];
 }
 
-export function DashboardCampaignsSection({ active, past, error, brandOptions = [] }: DashboardCampaignsSectionProps) {
+export function DashboardCampaignsSection({
+  active,
+  error,
+  brandOptions = [],
+  videoOptions = [],
+}: DashboardCampaignsSectionProps) {
   if (error) {
     return (
       <section className="mb-8">
@@ -27,41 +34,9 @@ export function DashboardCampaignsSection({ active, past, error, brandOptions = 
     );
   }
 
-  // Counted across the full history (not just `active`) so "Total campaigns"
-  // and "Highest-value campaign" stay lifetime figures even though past
-  // campaigns are no longer listed here: that detail lives on /campaigns.
-  const stats = computeCampaignStats([...active, ...past]);
-
   return (
     <section className="mb-8 space-y-4">
       <SectionHeader />
-
-      {stats.total > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardDescription>Total campaigns</CardDescription>
-              <CardTitle className="text-lg">{stats.total}</CardTitle>
-              {stats.cancelled > 0 && (
-                <p className="text-xs text-muted-foreground">{stats.cancelled} cancelled</p>
-              )}
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardDescription>Highest-value campaign</CardDescription>
-              <CardTitle className="text-lg">
-                {stats.highestValue ? formatMoney(stats.highestValue.total) : "-"}
-              </CardTitle>
-              {stats.highestValue && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {stats.highestValue.brand}
-                </p>
-              )}
-            </CardHeader>
-          </Card>
-        </div>
-      )}
 
       {active.length === 0 ? (
         <Card>
@@ -72,7 +47,12 @@ export function DashboardCampaignsSection({ active, past, error, brandOptions = 
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {active.map((campaign) => (
-            <ActiveCampaignCard key={campaign.id} campaign={campaign} brandOptions={brandOptions} />
+            <ActiveCampaignCard
+              key={campaign.id}
+              campaign={campaign}
+              brandOptions={brandOptions}
+              videoOptions={videoOptions}
+            />
           ))}
         </div>
       )}

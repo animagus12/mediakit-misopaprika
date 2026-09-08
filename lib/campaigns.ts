@@ -42,6 +42,64 @@ export function paymentStatusLabel(status: CampaignPaymentStatus): string {
   return status === "unknown" ? "Not tracked" : status[0].toUpperCase() + status.slice(1);
 }
 
+// The one terminal status that means the money question is closed rather than
+// answered. Its own function because four files were each spelling out the
+// same trim/lowercase comparison, and every one of them is making this same
+// call.
+//
+// Narrower than isCampaignCalledOff below, and deliberately: this one decides
+// what a badge *says*, and a row whose Status column reads "Redacted" must not
+// have its payment column reading "cancelled".
+export function isCampaignCancelled(status: string): boolean {
+  return status.trim().toLowerCase() === "cancelled";
+}
+
+// Both terminal statuses that mean the deal never happened commercially.
+// "Redacted" is the sheet's own word for a row written out of the record: the
+// content calendar and the usage-rights selectors have always dropped it
+// alongside "Cancelled", and the campaigns list files it under the Cancelled
+// tab. The money figures were the one place that did not, so a redacted deal
+// still counted toward lifetime earnings, toward a brand's total received, and
+// toward the payment-reliability score.
+//
+// Every one of those now reads through here, so what "called off" means is
+// settled in one place rather than in five copies that were already drifting.
+const CALLED_OFF_STATUSES = new Set(["cancelled", "redacted"]);
+
+export function isCampaignCalledOff(status: string): boolean {
+  return CALLED_OFF_STATUSES.has(status.trim().toLowerCase());
+}
+
+/**
+ * What a deal's payment column should read.
+ *
+ * "Not tracked" is the wrong answer for a cancelled deal: it says nobody
+ * recorded whether the money came, when in fact there is no money to record.
+ * Every projection in the app already treats a cancelled deal that way
+ * (selectDuePayments drops it, selectAttentionItems skips it,
+ * computePaymentReliability refuses to score it), so this only puts on screen
+ * a rule the app has always followed silently.
+ *
+ * Derived rather than stored, and deliberately not a fourth
+ * CampaignPaymentStatus. The stored field feeds the earnings totals, the
+ * reliability score and the invoice sync; a value those have never seen would
+ * have to be taught to each of them, and a second copy of "this deal was
+ * cancelled" is a second copy that can disagree with the first.
+ *
+ * A received payment outranks the cancellation, because it is a fact about
+ * money that actually moved: reading "cancelled" over a deal whose ₹5,000
+ * landed would have the table contradicting the earnings page.
+ */
+export type PaymentDisplayStatus = CampaignPaymentStatus | "cancelled";
+
+export function paymentDisplayStatus(deal: {
+  status: string;
+  paymentStatus: CampaignPaymentStatus;
+}): PaymentDisplayStatus {
+  if (deal.paymentStatus === "received") return "received";
+  return isCampaignCancelled(deal.status) ? "cancelled" : deal.paymentStatus;
+}
+
 // Sheet dates are entered as "DD/MM/YYYY"; undated rows sort last.
 function parseSheetDate(date: string): number {
   const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
@@ -96,27 +154,24 @@ export interface CampaignStats {
   paid: number;
   barter: number;
   cancelled: number;
-  highestValue: Campaign | null;
 }
 
 export function computeCampaignStats(items: Campaign[]): CampaignStats {
   let paid = 0;
   let barter = 0;
   let cancelled = 0;
-  let highestValue: Campaign | null = null;
 
   for (const item of items) {
-    if (item.status.trim().toLowerCase() === "cancelled") {
+    if (isCampaignCalledOff(item.status)) {
       cancelled += 1;
       continue;
     }
     const type = item.type.trim().toLowerCase();
     if (type.includes("paid")) paid += 1;
     if (type.includes("barter")) barter += 1;
-    if (!highestValue || item.total > highestValue.total) highestValue = item;
   }
 
-  return { total: items.length - cancelled, paid, barter, cancelled, highestValue };
+  return { total: items.length - cancelled, paid, barter, cancelled };
 }
 
 // --- Full-table view (/campaigns): filtering, sorting -----------------------
@@ -159,7 +214,7 @@ function matchesCampaignQuery(item: Campaign, needle: string): boolean {
   return (
     item.brand.toLowerCase().includes(needle) ||
     item.campaign.toLowerCase().includes(needle) ||
-    item.invoiceId.toLowerCase().includes(needle)
+    item.invoiceRef.toLowerCase().includes(needle)
   );
 }
 
@@ -183,6 +238,11 @@ export type CampaignSortColumn =
   | "paidDate"
   | "status";
 export type SortDirection = "asc" | "desc";
+
+export interface CampaignSort {
+  column: CampaignSortColumn;
+  direction: SortDirection;
+}
 
 // Pipeline order, so ascending reads roughly left-to-right through a deal's life.
 const STATUS_ORDER = new Map(STATUS_OPTIONS.map((status, index) => [status.toLowerCase(), index]));
@@ -225,3 +285,38 @@ export function sortCampaigns(
     return factor * delta;
   });
 }
+
+// --- Sort groups -----------------------------------------------------------
+// Merging columns (see components/campaigns/CampaignsTable.tsx) leaves fewer
+// headers than there are things worth sorting by, so a header owns a group
+// rather than a single column: "Value" sorts by total, cash or barter value.
+// The first entry is what a plain click on that header sorts by.
+//
+// Here rather than in the table for the same reason filterCampaigns and
+// sortCampaigns are: what a column can be ordered by is the list's rule, not
+// its markup.
+
+export interface CampaignSortOption {
+  column: CampaignSortColumn;
+  label: string;
+}
+
+export const CAMPAIGN_SORT_GROUPS: Record<string, CampaignSortOption[]> = {
+  dates: [
+    { column: "date", label: "Deal date" },
+    { column: "uploadDate", label: "Posted date" },
+  ],
+  status: [{ column: "status", label: "Status" }],
+  value: [
+    { column: "total", label: "Total value" },
+    { column: "amount", label: "Cash amount" },
+    { column: "barterValue", label: "Barter value" },
+  ],
+  payment: [
+    { column: "paymentDue", label: "Due date" },
+    { column: "paidDate", label: "Paid date" },
+  ],
+};
+
+// Most recent deal first, until the creator picks another column.
+export const DEFAULT_CAMPAIGN_SORT: CampaignSort = { column: "date", direction: "desc" };

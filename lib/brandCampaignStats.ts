@@ -1,3 +1,5 @@
+import { isCampaignCalledOff } from "@/lib/campaigns";
+import { computePaymentReliability, type PaymentReliability } from "@/lib/paymentReliability";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 
 // Client-safe aggregation over BrandCampaignRecord[]: kept out of
@@ -56,14 +58,14 @@ export const EMPTY_STATS: BrandStats = {
   renewalCount: 0,
 };
 
-// A cancelled deal never happened commercially: excluded entirely, same as
-// repositories/earnings.ts's isCancelled skip.
+// A called-off deal never happened commercially: excluded entirely, same as
+// repositories/earnings.ts.
 export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
   const stats = { ...EMPTY_STATS };
   let lastCollabTime = Number.NEGATIVE_INFINITY;
 
   for (const record of records) {
-    if (record.status.trim().toLowerCase() === "cancelled") continue;
+    if (isCampaignCalledOff(record.status)) continue;
 
     stats.campaignCount += 1;
     stats.totalBilled += record.total;
@@ -129,7 +131,7 @@ function dueLabel(days: number): string {
 
 // The dashboard's payment-reminder feed: brand-campaign rows still marked
 // pending on the Payment column that also carry a Payment Due date, as
-// reverse timers, most-overdue first. Cancelled deals and rows with no
+// reverse timers, most-overdue first. Called-off deals and rows with no
 // parseable due date are dropped. `now` is injectable so server render and
 // tests aren't at the mercy of the wall clock.
 //
@@ -143,7 +145,7 @@ export function selectDuePayments(records: BrandCampaignRecord[], now: Date = ne
   return records
     .filter(
       (record) =>
-        record.paymentStatus === "pending" && record.status.trim().toLowerCase() !== "cancelled"
+        record.paymentStatus === "pending" && !isCampaignCalledOff(record.status)
     )
     .map((record) => ({ record, dueTime: parseSheetDate(record.paymentDue) }))
     .filter((entry) => Number.isFinite(entry.dueTime))
@@ -160,17 +162,85 @@ export function selectDuePayments(records: BrandCampaignRecord[], now: Date = ne
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 }
 
+export interface DuePaymentsSummary {
+  count: number;
+  /** Sum of Total across the rows: what the deals are worth. */
+  outstanding: number;
+  overdueCount: number;
+  /** Cash already past its due date. */
+  overdueAmount: number;
+  windowDays: number;
+  /** Cash due inside the window, the overdue money included. */
+  cashInWindow: number;
+  windowCount: number;
+}
+
+/** A month, which is the horizon a freelance book is actually planned over. */
+const CASH_IN_WINDOW_DAYS = 30;
+
+/**
+ * What the payments-due list comes to, rather than what each row of it says.
+ *
+ * The card had reverse timers on every row and no aggregate of any of them, so
+ * the one question the list exists to answer, how much is landing and when,
+ * had to be done in the reader's head.
+ *
+ * Two different bases here, deliberately. `outstanding` sums Total, because
+ * that is what the rows below it print and a header that disagreed with its
+ * own list would be worse than no header. `cashInWindow` sums the cash half,
+ * because a pending barter parcel is value owed and is not money arriving in
+ * an account: it cannot pay an editor, and this figure exists to be set
+ * against what has to go out.
+ *
+ * Overdue money counts toward the window rather than being excluded from it.
+ * It is owed now, so the soonest it can arrive is inside any window starting
+ * today, and leaving it out would project a month that quietly assumes the
+ * oldest debts are never collected.
+ *
+ * Taken over the rows given rather than recomputed from the records, so a
+ * caller that has hidden a row (the card's optimistic "Mark received") gets a
+ * total that agrees with what is on screen.
+ */
+export function summarizeDuePayments(
+  due: DuePayment[],
+  windowDays: number = CASH_IN_WINDOW_DAYS
+): DuePaymentsSummary {
+  const summary: DuePaymentsSummary = {
+    count: due.length,
+    outstanding: 0,
+    overdueCount: 0,
+    overdueAmount: 0,
+    windowDays,
+    cashInWindow: 0,
+    windowCount: 0,
+  };
+
+  for (const entry of due) {
+    summary.outstanding += entry.record.total;
+    if (entry.overdue) {
+      summary.overdueCount += 1;
+      summary.overdueAmount += entry.record.amount;
+    }
+    if (entry.daysUntilDue <= windowDays && entry.record.amount > 0) {
+      summary.cashInWindow += entry.record.amount;
+      summary.windowCount += 1;
+    }
+  }
+
+  return summary;
+}
+
 // --- Payment rows ----------------------------------------------------------
 
 /**
  * One line in a brand's payment history: a deal, or a renewal bought against
  * one.
  *
- * Flattened here rather than in the tab, because the two carry different
- * links to an invoice and would otherwise be two branches inside a table body.
- * A deal points at one by the free-text reference typed on the campaign form,
- * which has to be matched back by number; a renewal was written by the app
- * alongside the invoice that bills for it and carries its real id.
+ * Flattened here rather than in the tab, so a renewal and the deal it extends
+ * are one list rather than two branches inside a table body. Both carry the
+ * same invoiceRef/invoiceId pair the campaign record does, which is what lets
+ * the tab resolve either kind through resolveCampaignInvoice: a renewal only
+ * ever has the key, a deal that has not been reconciled only the reference.
  *
  * The shape satisfies PaymentTimingSource (lib/paymentReliability.ts), so the
  * same rows that are rendered are the ones the reliability read scores. A row
@@ -182,14 +252,23 @@ export interface BrandPaymentRow {
   kind: "deal" | "renewal";
   label: string; // "IG Page", or "IG Page · usage renewal"
   status: string; // the deal's pipeline status; "" for a renewal
+  /** What the Amount column shows: a deal's Total, a renewal's fee. */
+  total: number;
+  /**
+   * The cash half, which is all a payment schedule can be kept or missed on,
+   * and what PaymentTimingSource requires. Held apart from `total` because
+   * this row used to carry the Total under this name, which quietly opted
+   * every barter deal into a reliability score it was meant to be dropped
+   * from, and counted barter value as money overdue.
+   */
   amount: number;
   paymentStatus: BrandCampaignRecord["paymentStatus"];
   paymentDue: string;
   paidDate: string;
   paymentMethod: string;
-  /** Deal rows: the free-text invoice reference to reconcile. "" on a renewal. */
+  /** The free-text invoice reference to reconcile. "" on a renewal. */
   invoiceRef: string;
-  /** Renewal rows: the saved invoice's id, linkable directly. "" on a deal. */
+  /** The saved invoice's id, linkable directly. "" until one is linked. */
   invoiceId: string;
   /** Deal rows only, so the tab can compare the deal against its invoice. */
   record: BrandCampaignRecord | null;
@@ -213,13 +292,14 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
       kind: "deal",
       label: name || "-",
       status: record.status,
-      amount: record.total,
+      total: record.total,
+      amount: record.amount,
       paymentStatus: record.paymentStatus,
       paymentDue: record.paymentDue,
       paidDate: record.paidDate,
       paymentMethod: record.paymentMethod,
-      invoiceRef: record.invoiceId,
-      invoiceId: "",
+      invoiceRef: record.invoiceRef,
+      invoiceId: record.invoiceId ?? "",
       record,
     });
 
@@ -230,6 +310,9 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
         label: name ? `${name} · usage renewal` : "Ad usage renewal",
         // No pipeline status of its own: a renewal is agreed or it is not.
         status: "",
+        // Always cash: a licence extension is never bartered for, so the two
+        // are the same figure.
+        total: renewal.amount,
         amount: renewal.amount,
         paymentStatus: renewal.paymentStatus,
         paymentDue: renewal.paymentDue,
@@ -243,4 +326,73 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
   }
 
   return rows;
+}
+
+// --- Portfolio reliability -------------------------------------------------
+
+export interface BrandReliability {
+  brand: string;
+  /** null on a record never linked to a CRM brand, so callers know not to link. */
+  brandId: string | null;
+  reliability: PaymentReliability;
+}
+
+export interface PortfolioReliability {
+  /** Every payment across every brand, scored as one record. */
+  overall: PaymentReliability;
+  /** One entry per brand with enough history to rate, worst score first. */
+  ranked: BrandReliability[];
+}
+
+/**
+ * The reliability read a brand's Payments tab does, run across the whole book.
+ *
+ * The per-brand verdict answers "should I take this deal"; nobody was asking
+ * the portfolio the question it can answer, which is "who do I stop taking
+ * deals from". Both go through computePaymentReliability on the rows
+ * selectBrandPaymentRows produces, so the dashboard and a brand's own tab
+ * cannot come to different conclusions about the same payments.
+ *
+ * Grouped by brandId where a record carries one and by name otherwise, the
+ * same rename-proof fallback recordsForBrand makes. Brands the score refuses
+ * to rate are left out of `ranked` rather than sorted to one end: below
+ * MIN_RELIABILITY_SAMPLE there is no verdict to rank on, and putting a brand
+ * with one late payment at the top of a "slowest payers" list would be
+ * inventing the evidence the module is careful not to invent.
+ */
+export function selectPortfolioReliability(
+  records: BrandCampaignRecord[],
+  now: Date = new Date()
+): PortfolioReliability {
+  const overall = computePaymentReliability(selectBrandPaymentRows(records), now);
+
+  const byBrand = new Map<string, BrandCampaignRecord[]>();
+  for (const record of records) {
+    const key = record.brandId ?? normalizeBrandName(record.brand);
+    const group = byBrand.get(key);
+    if (group) group.push(record);
+    else byBrand.set(key, [record]);
+  }
+
+  const ranked: BrandReliability[] = [];
+  for (const group of byBrand.values()) {
+    const reliability = computePaymentReliability(selectBrandPaymentRows(group), now);
+    if (reliability.score === null) continue;
+    ranked.push({
+      brand: group[0].brand,
+      brandId: group[0].brandId,
+      reliability,
+    });
+  }
+
+  // Worst first. Money still overdue breaks a tie ahead of sample size,
+  // because an open debt is the part of a tied score that is still running.
+  ranked.sort(
+    (a, b) =>
+      (a.reliability.score ?? 0) - (b.reliability.score ?? 0) ||
+      b.reliability.overdueAmount - a.reliability.overdueAmount ||
+      b.reliability.sample - a.reliability.sample
+  );
+
+  return { overall, ranked };
 }

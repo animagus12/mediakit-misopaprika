@@ -1,4 +1,4 @@
-import type { LinkProfile, LinkSection } from "@/repositories/links";
+import type { LinkProfile, LinkSection, SectionLayout } from "@/repositories/links";
 import { LinkCard } from "./LinkCard";
 import { ProfileHeader } from "./ProfileHeader";
 import styles from "./links.module.css";
@@ -21,6 +21,16 @@ interface LinksPublicViewProps {
   trackClicks?: boolean;
 }
 
+// The class each layout puts on the items container. A lookup rather than
+// styles[section.layout], so an unrecognised value from an older snapshot
+// cannot resolve to undefined and silently drop the layout entirely.
+const LAYOUT_CLASS: Record<SectionLayout, string> = {
+  list: styles.list,
+  grid: styles.grid,
+  carousel: styles.carousel,
+  showcase: styles.showcase,
+};
+
 export function LinksPublicView({
   profile,
   photo,
@@ -41,9 +51,14 @@ export function LinksPublicView({
             {sections.map((section) => (
               <section key={section.id}>
                 {section.title ? <h2 className={styles.sectionTitle}>{section.title}</h2> : null}
-                <div className={styles.items}>
+                <div className={`${styles.items} ${LAYOUT_CLASS[section.layout]}`}>
                   {section.items.map((item) => (
-                    <LinkCard key={item.id} item={item} trackClicks={trackClicks} />
+                    <LinkCard
+                      key={item.id}
+                      item={item}
+                      layout={section.layout}
+                      trackClicks={trackClicks}
+                    />
                   ))}
                 </div>
               </section>

@@ -53,8 +53,7 @@ export interface UsageRenewalRecord {
    * when none was.
    *
    * A real id rather than the free-text "MSP-INV-0007" reference
-   * CampaignRecord.invoiceId carries. That field predates the invoice store
-   * and has to stay a string someone types; this link is made by the app at
+   * CampaignRecord.invoiceRef carries. A renewal's link is made by the app at
    * the moment both records are written, so there is no reason to weaken it
    * into something that has to be matched back by name.
    */
@@ -102,9 +101,48 @@ export function toUsage(raw: CampaignUsage | undefined): CampaignUsage {
   };
 }
 
-export interface CampaignRecord {
+// --- Invoice link --------------------------------------------------------
+// A deal points at its invoice two ways, and they are not the same thing.
+//
+// `invoiceRef` is the number a human types or the app auto-assigns
+// ("MSP-INV-0010"). It exists before any invoice record does, it is what the
+// creator reconciles against a bank statement, and it stays typed text.
+//
+// `invoiceId` is the real foreign key into repositories/invoices.ts, written
+// by the app once a saved invoice is matched to the deal (see
+// syncLinkedCampaignPayment in app/invoices/actions.ts). Null until then.
+//
+// Same split UsageRenewalRecord already made, and the same one
+// lib/brandCampaignStats.ts's BrandPaymentRow already renders: the reference
+// has to be matched back by number, the key does not.
+
+export interface CampaignInvoiceLink {
+  invoiceRef: string;
+  invoiceId: string | null;
+}
+
+/**
+ * Coerces whichever of the two shapes a stored record is in into both fields.
+ *
+ * Records written before the split carry the reference under `invoiceId`, the
+ * name the foreign key now uses, so the presence of an `invoiceRef` key is
+ * what marks a record as already migrated: on one that isn't, whatever sits in
+ * `invoiceId` is a typed reference and never an Invoice id. Applied on read
+ * (see readRecords in ./campaigns.writer.server) so no caller downstream has
+ * to know the difference.
+ */
+export function toInvoiceLink(raw: {
+  invoiceRef?: string;
+  invoiceId?: string | null;
+}): CampaignInvoiceLink {
+  if (raw.invoiceRef === undefined) {
+    return { invoiceRef: raw.invoiceId?.trim() ?? "", invoiceId: null };
+  }
+  return { invoiceRef: raw.invoiceRef.trim(), invoiceId: raw.invoiceId?.trim() || null };
+}
+
+export interface CampaignRecord extends CampaignInvoiceLink {
   id: string; // e.g. "MSP-BC0014" / "MSP-MC0010": see nextCampaignId()
-  invoiceId: string; // free-text reference (e.g. "MSP-INV-0010"), "" when none
   date: string; // DD/MM/YYYY, deal date
   uploadDate: string; // DD/MM/YYYY, actual delivery date, "" until posted
   brand: string; // display snapshot, kept even if the linked Brand is renamed/deleted later
@@ -135,6 +173,17 @@ export interface CampaignRecord {
    */
   paidDate?: string;
   paymentMethod: string;
+  /**
+   * The EditorTransaction this deal's video was cut by, or null when it was
+   * not sent to an editor. Absent on rows that predate the field.
+   *
+   * A foreign key rather than an editor's name, and for the same reason
+   * ContentItemRecord.editorTransactionId is one: what the link buys is the
+   * job behind the cut, which carries who edited it, what it cost and when it
+   * came back. A name would answer the first of those and go stale on the
+   * day the editor is renamed.
+   */
+  editorTransactionId?: string | null;
   /** The ad-usage licence on this deal. Absent on rows that predate it. */
   usage?: CampaignUsage;
 }
@@ -143,6 +192,7 @@ export interface Campaign extends CampaignRecord {
   total: number; // amount + barterValue, derived, never stored, so it can't drift
   stage: CampaignStage; // derived from status, see PAST_STATUSES
   paidDate: string; // "" rather than absent: see toCampaign
+  editorTransactionId: string | null; // null rather than absent: see toCampaign
   usage: CampaignUsage; // whole rather than absent: see toUsage
 }
 
@@ -159,10 +209,12 @@ export interface NewCampaignInput {
   barterValue: number;
   paymentStatus: CampaignPaymentStatus;
   uploadDate?: string;
-  invoiceId?: string;
+  invoiceRef?: string;
   paymentDue?: string;
   paidDate?: string;
   paymentMethod?: string;
+  /** The editing job behind the video, or null when there wasn't one. */
+  editorTransactionId?: string | null;
   /** The base licence term. Renewals are added separately, never through a form. */
   usageMonths?: number;
 }
@@ -175,10 +227,16 @@ export function toCampaign(record: CampaignRecord): Campaign {
   const status = record.status.trim() || "Unknown";
   return {
     ...record,
+    ...toInvoiceLink(record),
     status,
     total: record.amount + record.barterValue,
     stage: PAST_STATUSES.has(status.toLowerCase()) ? "past" : "active",
     paidDate: record.paidDate?.trim() ?? "",
+    // An empty string is what a cleared <Select> leaves behind and a row
+    // written before the field existed has nothing at all; both mean the same
+    // thing, so both settle on null and no reader downstream has to test for
+    // two kinds of absence.
+    editorTransactionId: record.editorTransactionId?.trim() || null,
     usage: toUsage(record.usage),
   };
 }

@@ -1,121 +1,105 @@
-import { ChevronRight, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { TrendingUp, TrendingDown } from "lucide-react";
+import { Card, CardDescription, CardHeader } from "@/components/ui/card";
 import { EarningsChart } from "@/components/dashboard/EarningsChart";
+import { MarginTrend } from "@/components/dashboard/MarginTrend";
+import { StatTile, type StatTone } from "@/components/dashboard/StatTile";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/invoice";
-import { monthLabel, currentMonthKey, monthsAgoKey, computeMonthTrend } from "@/lib/earnings";
+import {
+  monthLabel,
+  currentMonthKey,
+  monthsAgoKey,
+  computeMonthTrend,
+  type MonthMargin,
+} from "@/lib/earnings";
+import type { MonthForecast } from "@/lib/cashTiming";
 import type { EarningsSummary, MonthlyEarnings } from "@/repositories/earnings";
 
-type StatTone = "neutral" | "cash" | "barter" | "pending";
+const RECENT_MONTHS = 6;
 
-const TONE_STYLES: Record<StatTone, { card: string; value: string }> = {
-  neutral: { card: "", value: "" },
-  cash: { card: "bg-emerald-500/5 ring-emerald-500/15", value: "text-emerald-600 dark:text-emerald-400" },
-  barter: { card: "bg-sky-500/5 ring-sky-500/15", value: "text-sky-600 dark:text-sky-400" },
-  pending: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },
+const EMPTY_MONTH: Omit<MonthlyEarnings, "month"> = {
+  total: 0,
+  paid: 0,
+  barter: 0,
+  pending: 0,
+  deals: [],
 };
 
-const RECENT_MONTHS = 6;
-const MONTH_GRID = "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[30rem]";
+/**
+ * The dashboard's earnings block: this month's figures, the six-month shape,
+ * and the month-over-month trend.
+ *
+ * Deliberately current-period rather than lifetime. The lifetime totals and
+ * the month-by-month ledger both live on /campaigns, which is where a figure
+ * is looked up; a dashboard answers "how is it going right now", and a number
+ * that only moves once a quarter cannot answer that.
+ */
+export function EarningsOverview({
+  summary,
+  forecast,
+  margins,
+}: {
+  summary: EarningsSummary;
+  /** The month in progress, finished out with what is contractually due. */
+  forecast: MonthForecast;
+  /** Cash net of editing, newest first, filtered here to the charted window. */
+  margins: MonthMargin[];
+}) {
+  const thisMonthKey = currentMonthKey();
+  const thisMonth = summary.monthly.find((m) => m.month === thisMonthKey) ?? EMPTY_MONTH;
 
-function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: boolean }) {
-  const summaryRow = (
-    <div
-      className={
-        highlight
-          ? `${MONTH_GRID} relative rounded-md bg-primary/8 py-2 pr-3 pl-4`
-          : `${MONTH_GRID} rounded-md px-3 py-2`
-      }
-    >
-      {highlight && <span className="absolute inset-y-1 left-0 w-1 rounded-full bg-primary" />}
-      <ChevronRight className="size-3 shrink-0 text-muted-foreground transition group-data-[state=open]/month:rotate-90" />
-      <span
-        className={
-          highlight
-            ? "flex items-center gap-2 font-medium text-foreground"
-            : "text-muted-foreground"
-        }
-      >
-        {monthLabel(month.month)}
-        {highlight && (
-          <Badge variant="default" className="h-4 px-1.5 text-[0.6rem]">
-            Current
-          </Badge>
-        )}
-      </span>
-      <span className="text-right tabular-nums">{formatMoney(month.paid)}</span>
-      <span className="text-right tabular-nums">{formatMoney(month.barter)}</span>
-      <span className="text-right tabular-nums text-muted-foreground">{formatMoney(month.pending)}</span>
-      <span className={highlight ? "text-right font-semibold tabular-nums" : "text-right font-medium tabular-nums"}>
-        {formatMoney(month.total)}
-      </span>
-    </div>
-  );
-
-  if (month.deals.length === 0) {
-    return summaryRow;
-  }
-
-  return (
-    <Collapsible>
-      <CollapsibleTrigger className="group/month block w-full rounded-md text-left transition pointer-coarse:min-h-11 hover:bg-muted/50">
-        {summaryRow}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mx-3 mt-1 mb-2 space-y-1.5 rounded-md bg-muted/30 py-2 pr-3 pl-4">
-        {month.deals.map((deal, index) => (
-          // Fixed-width deliverables/amount columns (not auto) so each deal
-          // row: an independent grid, since rows vary in whether they even
-          // have a deliverables badge: still lines up with its siblings.
-          <div
-            key={index}
-            className="grid grid-cols-[auto_1fr_6.5rem_4.5rem] items-center gap-2.5 text-[0.7rem]"
-          >
-            <span className="size-1 shrink-0 rounded-full bg-muted-foreground/40" />
-            <span className="truncate text-foreground/80">{deal.brand}</span>
-            <span className="justify-self-end">
-              {deal.deliverables && (
-                <Badge variant="outline" className="h-4 px-1.5 text-[0.6rem] font-normal">
-                  {deal.deliverables}
-                </Badge>
-              )}
-            </span>
-            <span className="text-right text-muted-foreground tabular-nums">{formatMoney(deal.amount)}</span>
-          </div>
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
   const stats: Array<{ label: string; value: number; tone: StatTone }> = [
-    { label: "Lifetime earnings", value: summary.total, tone: "neutral" },
-    { label: "Cash received", value: summary.paid, tone: "cash" },
-    { label: "Barter value received", value: summary.barter, tone: "barter" },
-    { label: "Pending payments", value: summary.pending, tone: "pending" },
+    { label: "Received", value: thisMonth.total, tone: "neutral" },
+    { label: "Cash", value: thisMonth.paid, tone: "cash" },
+    { label: "Barter value", value: thisMonth.barter, tone: "barter" },
+    { label: "Pending", value: thisMonth.pending, tone: "pending" },
   ];
 
   const trend = computeMonthTrend(summary.monthly);
-
-  const cutoff = monthsAgoKey(RECENT_MONTHS);
+  // -1 because the window includes the month in progress: monthsAgoKey(6)
+  // would put seven columns under a heading that promises six.
+  const cutoff = monthsAgoKey(RECENT_MONTHS - 1);
   const recent = summary.monthly.filter((m) => m.month >= cutoff);
-  const older = summary.monthly.filter((m) => m.month < cutoff);
-  const thisMonth = currentMonthKey();
+  const recentMargins = margins.filter((m) => m.month >= cutoff);
 
   return (
     <section className="mb-8 space-y-3">
-      <h2 className="font-heading text-sm font-semibold">Earnings overview</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-0.5">
+        <h2 className="font-heading text-sm font-semibold">Earnings</h2>
+        {/* The tiles below are one month wide, so the month is named rather
+            than left to be inferred from the word "received".
+            The forecast is on this line rather than on a fifth tile: the tiles
+            are all actuals, and a projection standing among them in the same
+            weight would be read as one. Shown only when something is actually
+            booked to land before the month is out, since "forecast: the same
+            number again" is a claim about the future dressed up as a figure. */}
+        <p className="text-xs text-muted-foreground">
+          {monthLabel(thisMonthKey)} so far
+          {forecast.expected > 0 && (
+            <>
+              {" · "}
+              <span className="text-foreground">{formatMoney(forecast.forecast)}</span> forecast,
+              with {formatMoney(forecast.expected)} due across {forecast.sources} payment
+              {forecast.sources === 1 ? "" : "s"} before month end
+            </>
+          )}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map(({ label, value, tone }) => (
-          <Card key={label} className={TONE_STYLES[tone].card}>
-            <CardHeader>
-              <CardDescription>{label}</CardDescription>
-              <CardTitle className={cn("text-lg tabular-nums", TONE_STYLES[tone].value)}>
-                {formatMoney(value)}
-              </CardTitle>
-              {label === "Lifetime earnings" && trend !== null && (
+          <StatTile key={label} label={label} value={formatMoney(value)} tone={tone} />
+        ))}
+      </div>
+
+      {recent.length > 0 && (
+        <Card>
+          <CardHeader className="gap-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <CardDescription>Last {RECENT_MONTHS} months</CardDescription>
+              {/* The trend sits with the chart, not on a tile: it compares two
+                  complete months, and the tiles are about the one in progress. */}
+              {trend !== null && (
                 <p
                   className={cn(
                     "flex items-center gap-1 text-[0.65rem] font-medium",
@@ -128,57 +112,16 @@ export function EarningsOverview({ summary }: { summary: EarningsSummary }) {
                     <TrendingDown className="size-3" />
                   )}
                   {Math.abs(trend.percent).toFixed(0)}%
-                  {/* The pair is named rather than implied: this compares the
-                      last two complete months, not the one in progress. */}
                   <span className="font-normal text-muted-foreground">{trend.label}</span>
                 </p>
               )}
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-
-      {summary.monthly.length > 0 && (
-        <Card>
-          <CardHeader className="gap-3">
-            <div className="flex items-baseline justify-between">
-              <CardDescription>Monthly breakdown</CardDescription>
             </div>
             <EarningsChart monthly={recent} />
-            <div className="-mx-4 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
-              <div className={`${MONTH_GRID} border-b border-foreground/10 px-3 pb-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground/70 uppercase`}>
-                <span />
-                <span>Month</span>
-                <span className="text-right">Cash</span>
-                <span className="text-right">Barter</span>
-                <span className="text-right">Pending</span>
-                <span className="text-right">Received</span>
-              </div>
-              <div className="space-y-0.5 pt-1">
-                {recent.map((m) => (
-                  <MonthRow key={m.month} month={m} highlight={m.month === thisMonth} />
-                ))}
-              </div>
-            </div>
+            {/* A sibling of the chart, not a child of it: both are block
+                children of this header, so the line spans exactly the width
+                the bars do and its points land on their columns. */}
+            <MarginTrend series={[...recentMargins].reverse()} />
           </CardHeader>
-
-          {older.length > 0 && (
-            <CardContent>
-              <Collapsible>
-                <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-                  Previous months ({older.length})
-                  <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="-mx-4 mt-2 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
-                  <div className="space-y-0.5">
-                    {older.map((m) => (
-                      <MonthRow key={m.month} month={m} />
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </CardContent>
-          )}
         </Card>
       )}
     </section>

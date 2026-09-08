@@ -1,7 +1,9 @@
 import { CalendarCheck, CalendarClock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { UnscheduledPost } from "@/lib/contentCalendar";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
 import { PostRow } from "./PostRow";
 
@@ -10,8 +12,12 @@ interface UnscheduledPostsCardProps {
   posts: UnscheduledPost[];
   /** The creator's own records by id, so an idea can be edited in place. */
   contentById: Map<string, ContentItem>;
+  /** The undated deals themselves, so one can be edited in place too. */
+  campaignById?: Map<string, Campaign>;
   /** Passed through to an own row's edit sheet. */
   videoOptions?: EditorVideoOption[];
+  /** Passed through to a brand row's edit sheet. */
+  brandOptions?: CampaignBrandOption[];
   className?: string;
 }
 
@@ -34,7 +40,9 @@ function waitingLabel(post: UnscheduledPost): string {
 export function UnscheduledPostsCard({
   posts,
   contentById,
+  campaignById,
   videoOptions,
+  brandOptions,
   className,
 }: UnscheduledPostsCardProps) {
   if (posts.length === 0) {
@@ -81,7 +89,9 @@ export function UnscheduledPostsCard({
             metaClassName="text-muted-foreground"
             schedulable
             item={post.source === "own" ? contentById.get(post.id) : undefined}
+            campaign={post.source === "campaign" ? campaignById?.get(post.id) : undefined}
             videoOptions={videoOptions}
+            brandOptions={brandOptions}
           />
         ))}
       </CardContent>

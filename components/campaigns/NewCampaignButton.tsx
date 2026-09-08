@@ -16,10 +16,17 @@ import {
 } from "@/components/ui/sheet";
 import { createCampaign } from "@/app/(dashboard)/actions";
 import type { CampaignBrandOption } from "@/lib/campaigns";
-import { CampaignFormFields, campaignInitialForm } from "./CampaignFormFields";
+import type { EditorVideoOption } from "@/lib/contentPlan";
+import { CampaignFormFields, campaignAmounts, campaignInitialForm } from "./CampaignFormFields";
 import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
-export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: CampaignBrandOption[] }) {
+export function NewCampaignButton({
+  brandOptions = [],
+  videoOptions = [],
+}: {
+  brandOptions?: CampaignBrandOption[];
+  videoOptions?: EditorVideoOption[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(campaignInitialForm);
@@ -38,15 +45,15 @@ export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: Campai
         reels: form.reels,
         story: form.story,
         status: form.status,
-        amount: Number(form.amount) || 0,
-        barterValue: Number(form.barterValue) || 0,
+        ...campaignAmounts(form),
         paymentStatus: form.paymentStatus,
         date: form.date,
         uploadDate: form.uploadDate,
-        invoiceId: form.invoiceId.trim(),
+        invoiceRef: form.invoiceRef.trim(),
         paymentDue: form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
+        editorTransactionId: form.editorTransactionId,
         usageMonths: Number(form.usageMonths) || 0,
       });
       if (!result.success) {
@@ -87,7 +94,13 @@ export function NewCampaignButton({ brandOptions = [] }: { brandOptions?: Campai
           onSubmit={handleSubmit}
           className="flex-1 space-y-4 overflow-y-auto px-6"
         >
-          <CampaignFormFields idPrefix="new-campaign" form={form} setForm={setForm} brandOptions={brandOptions} />
+          <CampaignFormFields
+            idPrefix="new-campaign"
+            form={form}
+            setForm={setForm}
+            brandOptions={brandOptions}
+            videoOptions={videoOptions}
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
         </form>
 

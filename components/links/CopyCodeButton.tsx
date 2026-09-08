@@ -31,10 +31,23 @@ export function CopyCodeButton({ code }: CopyCodeButtonProps) {
     }
   }
 
+  // The whole ticket is the button, not just the chip on its end: a code is
+  // read and tapped as one object, and the strip is a far easier target than
+  // a 60px chip. The chip is the affordance, so it carries the state.
   return (
     <button type="button" className={styles.code} onClick={handleCopy} aria-label={`Copy code ${code}`}>
-      {code}
-      {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+      <span className={styles.codeTag} aria-hidden>
+        CODE
+      </span>
+      <span className={styles.codeValue} aria-hidden>
+        {code}
+      </span>
+      <span className={styles.codeAction} aria-hidden>
+        {copied ? <Check size={13} /> : <Copy size={13} />}
+        {/* Its own element so a tile, where there is no room for it, can drop
+            the word and keep the glyph. */}
+        <span className={styles.codeActionLabel}>{copied ? "Copied" : "Copy"}</span>
+      </span>
     </button>
   );
 }

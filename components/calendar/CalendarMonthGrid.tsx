@@ -4,7 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { CalendarMonth, PostState } from "@/lib/contentCalendar";
+import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import type { Campaign } from "@/repositories/campaigns";
+import type { ContentItem } from "@/repositories/contentPlan";
 import { CalendarGrid } from "./CalendarGrid";
 import { POST_TONES } from "./postTone";
 
@@ -12,8 +15,17 @@ interface CalendarMonthGridProps {
   month: CalendarMonth;
   /** The month containing today, so "Today" can hide when already there. */
   currentMonthKey: string;
-  /** Passed through to the add sheet each cell opens. */
+  /**
+   * The creator's own records, so a day opened from the grid can edit what is
+   * on it. Without these a cell can only add.
+   */
+  contentItems?: ContentItem[];
+  /** The deals behind the brand pills, so one can be edited from its day. */
+  campaigns?: Campaign[];
+  /** Passed through to the add and edit sheets a cell opens. */
   videoOptions?: EditorVideoOption[];
+  /** Passed through to a brand row's edit sheet. */
+  brandOptions?: CampaignBrandOption[];
   className?: string;
 }
 
@@ -35,7 +47,10 @@ function monthHref(monthKey: string): string {
 export function CalendarMonthGrid({
   month,
   currentMonthKey,
+  contentItems = [],
+  campaigns = [],
   videoOptions = [],
+  brandOptions = [],
   className,
 }: CalendarMonthGridProps) {
   return (
@@ -70,7 +85,13 @@ export function CalendarMonthGrid({
         </div>
       </CardHeader>
       <CardContent>
-        <CalendarGrid month={month} videoOptions={videoOptions} />
+        <CalendarGrid
+          month={month}
+          contentItems={contentItems}
+          campaigns={campaigns}
+          videoOptions={videoOptions}
+          brandOptions={brandOptions}
+        />
 
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           {LEGEND.map(({ state, label }) => (

@@ -1,5 +1,5 @@
 import { daysBetween, todayKey } from "@/lib/day";
-import { toIsoDate } from "@/lib/campaigns";
+import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
 import type { CampaignPaymentStatus } from "@/repositories/campaigns";
 
 // How well a brand keeps to the dates it agrees to.
@@ -18,6 +18,15 @@ import type { CampaignPaymentStatus } from "@/repositories/campaigns";
 /** The fields a reliability read needs, common to Campaign and BrandCampaignRecord. */
 export interface PaymentTimingSource {
   status: string; // pipeline status, so cancelled deals can be dropped
+  /**
+   * The cash half of the deal, never the total.
+   *
+   * Punctuality is a fact about money that was owed on a date, and a barter
+   * deal owes none: what it owes is a parcel, which arrives when it arrives.
+   * Anything supplying its Total here would have barter deals scored on a
+   * schedule nobody agreed to, which is exactly what BrandPaymentRow used to
+   * do (see lib/brandCampaignStats.ts, where `total` is now its own field).
+   */
   amount: number;
   paymentStatus: CampaignPaymentStatus;
   paymentDue: string; // DD/MM/YYYY
@@ -61,6 +70,12 @@ function dayLabel(days: number, suffix: string): string {
  * the wall clock, the same shape selectDuePayments uses.
  */
 export function paymentTiming(record: PaymentTimingSource, now: Date = new Date()): PaymentTiming {
+  // Nothing was owed in cash, so there is no schedule to have kept or missed.
+  // computePaymentReliability has always refused to score these; returning a
+  // verdict here anyway put "On time" on a row that counted toward no verdict,
+  // which is the table arguing with the summary above it.
+  if (record.amount <= 0) return UNTIMED;
+
   const dueKey = toIsoDate(record.paymentDue);
   if (dueKey === "") return UNTIMED;
 
@@ -185,7 +200,7 @@ function reliabilityLabel(
  * at all a perfect record, which is exactly backwards: the deals it has gone
  * quiet on are the evidence.
  *
- * Cancelled deals and barter-only ones are dropped: nothing was owed on a
+ * Called-off deals and barter-only ones are dropped: nothing was owed on a
  * schedule, so nothing about them says whether a schedule is kept. The same
  * exclusions selectDuePayments and selectAttentionItems make.
  */
@@ -198,7 +213,7 @@ export function computePaymentReliability(
   const lateness: number[] = [];
 
   for (const record of records) {
-    if (record.status.trim().toLowerCase() === "cancelled") continue;
+    if (isCampaignCalledOff(record.status)) continue;
     if (record.amount <= 0) continue;
 
     const timing = paymentTiming(record, now);
@@ -245,4 +260,28 @@ export const RELIABILITY_RATING_LABELS: Record<ReliabilityRating, string> = {
   slow: "Slow payer",
   unreliable: "Unreliable payer",
   unrated: "Not enough history",
+};
+
+/**
+ * How a rating is coloured, kept beside the labels rather than in whichever
+ * component happened to need it first: a brand's Payments tab and the
+ * dashboard's portfolio card both render this scale, and a "slow payer"
+ * reading amber on one screen and rose on the other would be two verdicts.
+ *
+ * Raw palette hues at low opacity, since globals.css carries no
+ * success/warning token; unreliable is the one rating with a semantic token
+ * that already means it.
+ */
+export const RELIABILITY_RATING_TONES: Record<ReliabilityRating, { card: string; value: string }> = {
+  reliable: {
+    card: "bg-emerald-500/5 ring-emerald-500/15",
+    value: "text-emerald-600 dark:text-emerald-400",
+  },
+  "mostly-reliable": {
+    card: "bg-emerald-500/5 ring-emerald-500/15",
+    value: "text-emerald-600 dark:text-emerald-400",
+  },
+  slow: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },
+  unreliable: { card: "bg-destructive/5 ring-destructive/15", value: "text-destructive" },
+  unrated: { card: "", value: "text-muted-foreground" },
 };

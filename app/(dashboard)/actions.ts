@@ -23,7 +23,7 @@ import { primaryContactForBrand } from "@/lib/contacts";
 import { buildRenewalInvoice, nextInvoiceNo } from "@/lib/usageInvoice";
 import { buildInvoiceNumber, computeSubtotal, todayISO } from "@/lib/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
-import { findInvoiceByCampaignRef } from "@/lib/invoice";
+import { resolveCampaignInvoice } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { campaignLabel, toIsoDate } from "@/lib/campaigns";
 
@@ -123,9 +123,10 @@ export async function updateCampaign(
 }
 
 /**
- * Moves the invoice a campaign references (Campaign.invoiceId) to `status`,
- * and reports the status it held before, so an Undo can put back exactly what
- * was there rather than guessing at "sent".
+ * Moves the invoice a campaign is billed by (its invoiceId foreign key, or
+ * failing that the invoiceRef it quotes) to `status`, and reports the status it
+ * held before, so an Undo can put back exactly what was there rather than
+ * guessing at "sent".
  *
  * Returns null when the deal references no invoice, references one that was
  * never saved as a record, or when the invoice is void: a void invoice has
@@ -143,7 +144,7 @@ async function syncLinkedInvoiceStatus(
   const campaign = campaigns.find((entry) => entry.id === campaignId);
   if (!campaign) return null;
 
-  const invoice = findInvoiceByCampaignRef(campaign.invoiceId, await getInvoices());
+  const invoice = resolveCampaignInvoice(campaign, await getInvoices());
   if (!invoice || invoice.status === "void" || invoice.status === status) return null;
 
   await setInvoiceStatus(invoice.id, status);

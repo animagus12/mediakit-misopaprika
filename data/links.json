@@ -24,6 +24,7 @@
     {
       "id": "socials",
       "title": "Socials",
+      "layout": "list",
       "enabled": true,
       "items": [
         {
@@ -36,6 +37,7 @@
           "image": "/mediakit/photo-default.jpg",
           "badge": "",
           "code": "",
+          "animation": "none",
           "enabled": true,
           "startsAt": null,
           "endsAt": null
@@ -50,6 +52,7 @@
           "image": "/mediakit/photo-default.jpg",
           "badge": "",
           "code": "",
+          "animation": "none",
           "enabled": true,
           "startsAt": null,
           "endsAt": null
@@ -59,6 +62,7 @@
     {
       "id": "creator-codes",
       "title": "Creator Codes",
+      "layout": "list",
       "enabled": true,
       "items": [
         {
@@ -71,6 +75,7 @@
           "image": "/links/overblaze.jpg",
           "badge": "",
           "code": "PAPRIKA10",
+          "animation": "none",
           "enabled": true,
           "startsAt": null,
           "endsAt": null
@@ -80,6 +85,7 @@
     {
       "id": "work-with-me",
       "title": "Work with me",
+      "layout": "list",
       "enabled": true,
       "items": [
         {
@@ -92,6 +98,7 @@
           "image": "",
           "badge": "FOR BRANDS",
           "code": "",
+          "animation": "none",
           "enabled": true,
           "startsAt": null,
           "endsAt": null

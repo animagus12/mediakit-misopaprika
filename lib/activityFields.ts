@@ -70,9 +70,12 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
   { label: "usage renewals", value: (campaign) => campaign.usage?.renewals, format: countOf },
   { label: "upload date", value: (campaign) => campaign.uploadDate },
   { label: "deal date", value: (campaign) => campaign.date },
-  { label: "invoice", value: (campaign) => campaign.invoiceId },
+  { label: "invoice", value: (campaign) => campaign.invoiceRef },
   { label: "deliverables", value: (campaign) => `${campaign.reels} ${campaign.story}`.trim() },
   { label: "payment method", value: (campaign) => campaign.paymentMethod },
+  // An id says nothing to a reader, so only the fact is recorded: same call
+  // contentFields makes about the same link.
+  { label: "editor video", value: (campaign) => campaign.editorTransactionId, redact: true },
 ];
 
 export const contentFields: readonly DiffField<ContentItemRecord>[] = [

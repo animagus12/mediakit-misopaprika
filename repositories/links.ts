@@ -11,6 +11,41 @@ export type LinkKind = "link" | "social" | "code";
 //   "banner"   : full-width brand image above the text
 export type LinkVariant = "row" | "thumbnail" | "banner";
 
+// How a section arranges the cards inside it. Distinct from LinkVariant,
+// which is one card's own shape: a section layout is the creator's decision
+// about the block, and the image-led ones (everything but "list") override
+// the per-item variant rather than combining with it. See shapeFor().
+//   "list"    : one card per row, each card using its own variant
+//   "grid"    : two columns of square tiles
+//   "carousel": one row of tiles that scrolls sideways
+//   "showcase": full-bleed image cards with the text laid over them
+export type SectionLayout = "list" | "grid" | "carousel" | "showcase";
+
+export const SECTION_LAYOUTS: SectionLayout[] = ["list", "grid", "carousel", "showcase"];
+
+// An idle animation on one card, to draw the eye to it. Every one of these is
+// pure CSS: a card that animates must still be a card that ships no client
+// JavaScript, which is what rules out the text-scrambling and emoji-particle
+// effects the same pickers elsewhere offer.
+export type LinkAnimation =
+  | "none"
+  | "wiggle"
+  | "pop"
+  | "shimmer"
+  | "glitch"
+  | "electric"
+  | "orbit";
+
+export const LINK_ANIMATIONS: LinkAnimation[] = [
+  "none",
+  "wiggle",
+  "pop",
+  "shimmer",
+  "glitch",
+  "electric",
+  "orbit",
+];
+
 export const LINK_KINDS: LinkKind[] = ["link", "social", "code"];
 export const LINK_VARIANTS: LinkVariant[] = ["row", "thumbnail", "banner"];
 
@@ -45,6 +80,7 @@ export interface LinkItem {
   image: string;
   badge: string;
   code: string;
+  animation: LinkAnimation;
   enabled: boolean;
   // ISO timestamps bounding when the item is shown; null on either side
   // means unbounded. Applied by visibleSections() in @/lib/links.
@@ -55,6 +91,7 @@ export interface LinkItem {
 export interface LinkSection {
   id: string;
   title: string;
+  layout: SectionLayout;
   // Hiding a section hides everything in it without deleting anything, so a
   // seasonal block can be switched off and back on. Item-level `enabled`
   // works the same way one level down.
@@ -112,6 +149,11 @@ function normalizeItem(item: StoredLinkItem): LinkItem {
     image,
     badge: item.badge ?? "",
     code: item.code ?? "",
+    // Anything unrecognised is stillness rather than a guess: a card that
+    // moves when nobody asked it to is the worse failure of the two.
+    animation: LINK_ANIMATIONS.includes(item.animation as LinkAnimation)
+      ? (item.animation as LinkAnimation)
+      : "none",
     enabled: item.enabled ?? true,
     startsAt: item.startsAt ?? null,
     endsAt: item.endsAt ?? null,
@@ -139,6 +181,11 @@ export function normalizeLinksData(data: StoredLinksData): LinksData {
     sections: (data.sections ?? []).map((section) => ({
       id: section.id,
       title: section.title ?? "",
+      // Every section predates the layout picker, and the stacked rows they
+      // were written under are what "list" means.
+      layout: SECTION_LAYOUTS.includes(section.layout as SectionLayout)
+        ? (section.layout as SectionLayout)
+        : "list",
       enabled: section.enabled ?? true,
       items: (section.items ?? []).map(normalizeItem),
     })),

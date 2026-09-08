@@ -43,20 +43,56 @@ export function buildInvoiceNumber(invoiceNo: string): string {
 }
 
 /**
- * Resolves a campaign's free-text `invoiceId` ("MSP-INV-0008") to the invoice
- * record it names. Campaign.invoiceId is a reference typed on the campaign
- * form, not a foreign key, so the match goes through buildInvoiceNumber():
- * the same function that renders an invoice's number, which is what makes the
- * two sides line up. Returns null when the reference is blank or names an
- * invoice that was never saved as a record.
+ * Resolves a free-text invoice reference to the invoice record it names.
+ *
+ * The field is typed by hand and inconsistent: "MSP-INV-0007", "0007" and
+ * "7" all mean the same invoice, so all three match. Returns null when the
+ * reference is blank, a literal "-", or names an invoice that was never saved
+ * as a record.
+ *
+ * Prefer resolveCampaignInvoice below when the caller holds a whole campaign:
+ * a deal that has already been reconciled carries the real key, and matching
+ * it back by number again would be answering a question already settled.
  */
 export function findInvoiceByCampaignRef<T extends { invoiceNo: string }>(
   invoiceRef: string,
   invoices: T[]
 ): T | null {
-  const ref = invoiceRef.trim().toUpperCase();
-  if (!ref || ref === "-") return null;
-  return invoices.find((invoice) => buildInvoiceNumber(invoice.invoiceNo).toUpperCase() === ref) ?? null;
+  const needle = invoiceRef.trim().toLowerCase();
+  if (!needle || needle === "-") return null;
+  return (
+    invoices.find((invoice) => {
+      const no = invoice.invoiceNo.trim().toLowerCase();
+      if (!no) return false;
+      return (
+        needle === no ||
+        needle === no.replace(/^0+/, "") ||
+        needle === buildInvoiceNumber(invoice.invoiceNo).toLowerCase()
+      );
+    }) ?? null
+  );
+}
+
+/**
+ * The invoice a deal is billed by: its foreign key when one has been written,
+ * and the typed reference otherwise.
+ *
+ * The key wins because it survives what the reference does not: renumbering an
+ * invoice, or two deals that happen to quote the same number. The fallback is
+ * what keeps deals that predate the link (and ones whose invoice was raised
+ * outside the app) resolving at all. A key pointing at a deleted invoice falls
+ * through to the reference rather than answering null, since the reference may
+ * still name something.
+ */
+export function resolveCampaignInvoice<T extends { id: string; invoiceNo: string }>(
+  link: { invoiceId: string | null; invoiceRef: string },
+  invoices: T[]
+): T | null {
+  if (link.invoiceId) {
+    const linked = invoices.find((invoice) => invoice.id === link.invoiceId);
+    if (linked) return linked;
+  }
+  return findInvoiceByCampaignRef(link.invoiceRef, invoices);
 }
 
 export function lineItemTotal(item: InvoiceLineItemInput): number {
@@ -488,6 +524,43 @@ export function computeInvoiceMargin(
   return { editorCost, margin: invoice.subtotal - editorCost };
 }
 
+export interface InvoiceMarginTotals {
+  /** Issued invoices carrying a linked editing job: the only ones with a cost. */
+  invoices: number;
+  billed: number;
+  editorCost: number;
+  margin: number;
+}
+
+/**
+ * Billed-vs-editor-cost across every invoice that has an editing job linked.
+ *
+ * computeInvoiceMargin answers this one invoice at a time, which is the right
+ * shape for a table cell and the wrong one for "what is this actually worth
+ * after the edit". `invoices` is carried so a surface can say how much of the
+ * book the figure covers: an invoice with no job linked has no cost recorded,
+ * not a cost of zero, and folding those in would read as pure margin.
+ *
+ * Drafts and void invoices are excluded, matching computeInvoiceStats: a
+ * draft has not been issued, so nothing has been billed to net a cost off.
+ */
+export function computeInvoiceMarginTotals(
+  invoices: Invoice[],
+  jobs: InvoiceEditorJobOption[]
+): InvoiceMarginTotals {
+  const totals: InvoiceMarginTotals = { invoices: 0, billed: 0, editorCost: 0, margin: 0 };
+  for (const invoice of invoices) {
+    if (invoice.status === "void" || invoice.status === "draft") continue;
+    const margin = computeInvoiceMargin(invoice, jobs);
+    if (!margin) continue;
+    totals.invoices += 1;
+    totals.billed += invoice.subtotal;
+    totals.editorCost += margin.editorCost;
+    totals.margin += margin.margin;
+  }
+  return totals;
+}
+
 // Invoices belonging to a brand: an explicit brandId link, or, for invoices
 // saved before the link existed / one-offs typed by hand: a case-insensitive
 // match on the snapshotted client name.
@@ -501,24 +574,6 @@ export function invoicesForBrand(
       invoice.brandId === brand.id ||
       (!invoice.brandId && key.length > 0 && normalizeBrandName(invoice.client.name) === key)
   );
-}
-
-// Resolves a campaign record's free-text "Invoice ID" field to a saved
-// invoice record. The field is entered by hand and inconsistent: 
-// "MSP-INV-0007", "0007", "7" all mean the same invoice: so match on the
-// full label, the raw number, and the zero-stripped number.
-export function findInvoiceByCampaignInvoiceId(campaignInvoiceId: string, invoices: Invoice[]): Invoice | undefined {
-  const needle = campaignInvoiceId.trim().toLowerCase();
-  if (!needle) return undefined;
-  return invoices.find((invoice) => {
-    const no = invoice.invoiceNo.trim().toLowerCase();
-    if (!no) return false;
-    return (
-      needle === no ||
-      needle === no.replace(/^0+/, "") ||
-      needle === buildInvoiceNumber(invoice.invoiceNo).toLowerCase()
-    );
-  });
 }
 
 // A one-line note when the campaign record's payment status and the saved

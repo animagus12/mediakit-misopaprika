@@ -2,8 +2,11 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { EditCampaignSheet } from "@/components/campaigns/EditCampaignSheet";
+import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { PostSource } from "@/lib/contentCalendar";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
 import { EditContentSheet } from "./EditContentSheet";
 import { SchedulePostControl } from "./SchedulePostControl";
@@ -19,7 +22,10 @@ interface PostRowProps {
   title: string;
   detail: string;
   status: string;
-  /** Right-hand headline: "In 3 days", or "Waiting 12 days". */
+  /**
+   * Right-hand headline: "In 3 days", or "Waiting 12 days". Pass "" where it
+   * would only repeat the status badge under it, as "Posted" does.
+   */
   primaryMeta: string;
   /** Muted line under it: the date, or nothing. */
   secondaryMeta?: string;
@@ -35,14 +41,23 @@ interface PostRowProps {
   schedulable?: boolean;
   /** yyyy-mm-dd currently stored, or "" when the row has no day yet. */
   currentIsoDate?: string;
-  /**
-   * The full record behind an own row, so it can be edited in place. Absent
-   * for a brand deal: those are edited on /campaigns, where the money,
-   * invoice and payment fields that make up most of the record live.
-   */
+  /** The full record behind an own row, so it can be edited in place. */
   item?: ContentItem;
-  /** Passed to the edit sheet, so an entry can gain or change its video. */
+  /**
+   * The full record behind a brand row, so a deal can be edited without
+   * leaving for /campaigns. It opens that page's own sheet rather than a
+   * calendar-shaped subset of it: a deal's money, invoice, payment and
+   * licence fields are the record, and a second form offering half of them
+   * is the one that quietly disagrees with the first.
+   */
+  campaign?: Campaign;
+  /**
+   * The editing jobs, for whichever edit sheet the row opens: both a content
+   * entry and a deal link to one.
+   */
   videoOptions?: EditorVideoOption[];
+  /** Passed to the campaign edit sheet, for its brand picker. */
+  brandOptions?: CampaignBrandOption[];
 }
 
 export function PostRow({
@@ -58,9 +73,20 @@ export function PostRow({
   schedulable = false,
   currentIsoDate = "",
   item,
+  campaign,
   videoOptions,
+  brandOptions,
 }: PostRowProps) {
-  const showEdit = schedulable && item !== undefined;
+  // One affordance for both stores: which sheet it opens is the only thing
+  // that differs, and a row that edits its own kind of record is the whole
+  // point of the calendar being a place to work rather than a picture.
+  const editTrigger = (
+    <Button type="button" size="sm" variant="ghost">
+      <Pencil />
+      Edit
+    </Button>
+  );
+
   return (
     <div className="rounded-md px-2 py-2 text-sm odd:bg-muted/30">
       <div className="flex items-start justify-between gap-3">
@@ -69,7 +95,7 @@ export function PostRow({
           <p className="truncate text-xs text-muted-foreground">{detail || "-"}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <p className={cn("font-medium", metaClassName)}>{primaryMeta}</p>
+          {primaryMeta && <p className={cn("font-medium", metaClassName)}>{primaryMeta}</p>}
           <div className="flex items-center gap-1.5">
             {/* The status is the planner's whole point: "three reels this
                 week" reads very differently when none of them are shot, so a
@@ -99,16 +125,15 @@ export function PostRow({
             label={title}
             currentIsoDate={currentIsoDate}
           />
-          {showEdit && (
-            <EditContentSheet
-              item={item}
+          {item && (
+            <EditContentSheet item={item} videoOptions={videoOptions} trigger={editTrigger} />
+          )}
+          {campaign && (
+            <EditCampaignSheet
+              campaign={campaign}
+              brandOptions={brandOptions}
               videoOptions={videoOptions}
-              trigger={
-                <Button type="button" size="sm" variant="ghost">
-                  <Pencil />
-                  Edit
-                </Button>
-              }
+              trigger={editTrigger}
             />
           )}
         </div>

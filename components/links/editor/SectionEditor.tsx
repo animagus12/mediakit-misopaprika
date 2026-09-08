@@ -1,6 +1,17 @@
 "use client";
 
-import { Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  GalleryHorizontal,
+  GripVertical,
+  Image as ImageIcon,
+  LayoutGrid,
+  Plus,
+  Rows3,
+  Trash2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,12 +27,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { linkPerformance } from "@/lib/linkStats";
+import { SECTION_LAYOUT_LABELS } from "@/lib/links";
 import type { LinksAnalytics } from "@/repositories/linkStats";
-import type { LinkSection } from "@/repositories/links";
+import { SECTION_LAYOUTS, type LinkSection, type SectionLayout } from "@/repositories/links";
 import { ItemEditor } from "./ItemEditor";
 import { SortableList, useSortableRow } from "./SortableList";
 import type { LinksEditorActions } from "./types";
+
+const LAYOUT_ICONS: Record<SectionLayout, LucideIcon> = {
+  list: Rows3,
+  grid: LayoutGrid,
+  carousel: GalleryHorizontal,
+  showcase: ImageIcon,
+};
 
 interface SectionEditorProps {
   section: LinkSection;
@@ -108,6 +128,35 @@ export function SectionEditor({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-2">
+        {/* Above the links rather than beside the title: it changes how every
+            card below it is drawn, so it reads as the heading for them. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="lg"
+            spacing={0}
+            value={section.layout}
+            onValueChange={(value) => {
+              // Radix reports "" when the pressed item is pressed again. A
+              // section always has a layout, so that is a no-op here rather
+              // than a fourth state to model.
+              if (value) actions.updateSection(section.id, { layout: value as SectionLayout });
+            }}
+            aria-label="Section layout"
+          >
+            {SECTION_LAYOUTS.map((layout) => {
+              const LayoutIcon = LAYOUT_ICONS[layout];
+              return (
+                <ToggleGroupItem key={layout} value={layout} title={layout}>
+                  <LayoutIcon />
+                  {SECTION_LAYOUT_LABELS[layout]}
+                </ToggleGroupItem>
+              );
+            })}
+          </ToggleGroup>
+        </div>
+
         {!section.enabled ? (
           <p className="text-muted-foreground text-xs">
             Hidden: this section and everything in it stays off the public page.
