@@ -21,15 +21,17 @@ function EarningsBar({
   month,
   isCurrent,
   maxValue,
+  side,
 }: {
   month: MonthlyEarnings;
   isCurrent: boolean;
   maxValue: number;
+  side: "left" | "right";
 }) {
   // The height of the stacked bar, which is what this tooltip describes: all
   // three series, pending included. Deliberately not month.total, which counts
   // received money only and would name a number the bar does not draw. The
-  // breakdown table below the chart shows that one, under its own heading.
+  // monthly ledger on /campaigns shows that one, under its own heading.
   const grandTotal = month.paid + month.barter + month.pending;
 
   let topVisible = -1;
@@ -41,18 +43,22 @@ function EarningsBar({
     <div
       tabIndex={0}
       className={cn(
-        "group/bar relative flex flex-1 flex-col items-center gap-1.5 rounded-md px-1 pt-1 outline-none",
+        "group/bar flex flex-1 flex-col items-center gap-1.5 rounded-md px-1 pt-1 outline-none",
         "hover:bg-muted/50 focus-visible:bg-muted/50",
         isCurrent && "bg-primary/5"
       )}
     >
-      {/* Below the column, not above: the chart sits inside a Card, which
-          clips overflow, so a tooltip popping upward gets cut off near the
-          top of the card. There's ample clearance below (the breakdown
-          table), so the tooltip drops there instead. */}
+      {/* Pinned to a corner of the plot area, not to the column it describes.
+          The chart sits inside a Card, which clips overflow, so a tooltip that
+          follows the bar runs off the edge on a narrow screen; a corner is
+          always inside the card at any width. It takes the corner away from
+          the hovered bar, so the bar it describes stays visible. */}
       <div
         role="tooltip"
-        className="pointer-events-none absolute top-full left-1/2 z-10 mt-2 w-36 -translate-x-1/2 rounded-md border border-border bg-popover p-2.5 text-popover-foreground opacity-0 shadow-md transition-opacity group-hover/bar:opacity-100 group-focus-visible/bar:opacity-100"
+        className={cn(
+          "pointer-events-none absolute top-0 z-10 w-36 rounded-md border border-border bg-popover p-2.5 text-popover-foreground opacity-0 shadow-md transition-opacity group-hover/bar:opacity-100 group-focus-visible/bar:opacity-100",
+          side === "left" ? "left-0" : "right-0"
+        )}
       >
         <p className="mb-1.5 text-[0.65rem] font-medium text-muted-foreground">{monthLabel(month.month)}</p>
         <div className="space-y-1">
@@ -108,9 +114,21 @@ export function EarningsChart({ monthly }: { monthly: MonthlyEarnings[] }) {
 
   return (
     <div className="space-y-2.5">
-      <div className="flex items-start gap-1">
-        {ascending.map((month) => (
-          <EarningsBar key={month.month} month={month} isCurrent={month.month === thisMonth} maxValue={maxValue} />
+      {/* The positioning context for every bar's tooltip.
+          Columns tile edge to edge, with the space between bars coming from
+          each column's own px-1 rather than from a gap on this row. That is
+          what lets MarginTrend put a point at (i + 0.5) / n of the width and
+          land on the centre of the bar it belongs to: with a gap here, the
+          columns are narrower than width / n and the line drifts right. */}
+      <div className="relative flex items-start">
+        {ascending.map((month, index) => (
+          <EarningsBar
+            key={month.month}
+            month={month}
+            isCurrent={month.month === thisMonth}
+            maxValue={maxValue}
+            side={index < ascending.length / 2 ? "right" : "left"}
+          />
         ))}
       </div>
       <div className="flex items-center gap-4">

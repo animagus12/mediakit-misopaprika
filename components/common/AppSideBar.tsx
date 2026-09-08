@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense, use } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
@@ -13,6 +14,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -26,17 +28,38 @@ import {
   navGroups,
   type NavEntry,
 } from "@/lib/navigation";
+import type { NavBadgeMap } from "@/lib/navBadges";
 
 const entriesByGroup = navGroups.map(({ id, label }) => ({
   label,
   entries: navEntries.filter((entry) => entry.group === id),
 }));
 
-interface AppSideBarProps {
-  photo: string;
+// The counts arrive as an unresolved promise so the nav paints on the first
+// byte and each badge fills in behind its own boundary: the sidebar is on
+// every page, and none of it should wait on six stores being read.
+function NavBadge({ badges, href }: { badges: Promise<NavBadgeMap>; href: string }) {
+  const badge = use(badges)[href];
+  if (!badge) return null;
+  return (
+    <SidebarMenuBadge
+      // The slot is one row wide, so the count is all that fits; the phrase it
+      // stands for ("3 overdue") is the title and the accessible name.
+      title={badge.label}
+      className="pointer-events-auto border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+    >
+      <span aria-hidden>{badge.count}</span>
+      <span className="sr-only">{badge.label}</span>
+    </SidebarMenuBadge>
+  );
 }
 
-const AppSideBar = ({ photo }: AppSideBarProps) => {
+interface AppSideBarProps {
+  photo: string;
+  badges: Promise<NavBadgeMap>;
+}
+
+const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
   const { isMobile, setOpenMobile } = useSidebar();
   const pathname = usePathname();
 
@@ -57,6 +80,9 @@ const AppSideBar = ({ photo }: AppSideBarProps) => {
           <span>{title}</span>
         </Link>
       </SidebarMenuButton>
+      <Suspense fallback={null}>
+        <NavBadge badges={badges} href={href} />
+      </Suspense>
     </SidebarMenuItem>
   );
 

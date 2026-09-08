@@ -153,9 +153,58 @@
 }
 
 .items {
+  min-width: 0;
+}
+
+/* ---------- section layouts ----------
+   Chosen per section in the editor and applied to the items container. The
+   card inside reads the same choice through shapeFor(): the container decides
+   how the cards are arranged, the card decides what shape it takes, and the
+   two are kept in step by both being handed section.layout rather than by one
+   inferring the other. */
+
+.list {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.grid {
+  display: grid;
+  /* minmax(0, 1fr) rather than 1fr: a grid track's default min-content floor
+     would let a long unbroken label widen its column and push the page into a
+     horizontal scroll. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* The same tiles as .grid on a single line. The tile width is a fraction of
+   the container rather than a fixed px so a second tile is always part-visible
+   at any width: that overhang is the only affordance saying the row scrolls. */
+.carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 46%;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  /* Without this a swipe that runs past the end of the row is handed to the
+     browser, which reads it as a back gesture. */
+  overscroll-behavior-x: contain;
+  /* Room for the hover lift, which would otherwise be clipped by the scroll
+     container the moment overflow is not visible. */
+  padding-block: 2px;
+  scrollbar-width: none;
+}
+
+.carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 /* ---------- link card ---------- */
@@ -179,7 +228,11 @@ a.card {
 
 a.card:hover {
   background: var(--links-card-hover);
-  transform: translateY(-2px);
+  /* The individual translate property, not transform: the card animations need
+     transform for themselves, and these two compose rather than overwrite. See
+     the card animations section for why they get the shorthand and this
+     doesn't. */
+  translate: 0 -2px;
 }
 
 /* Banner variant: the row stacks instead of running in one line, so a brand
@@ -202,6 +255,164 @@ a.card:hover {
   object-fit: cover;
   object-position: center;
   border-radius: 16px;
+}
+
+/* ---------- tile shape (grid and carousel) ---------- */
+.tileCard {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  /* The row's 72px floor is about a thumbnail and a line of text side by side;
+     a tile is as tall as its picture and caption. */
+  min-height: 0;
+  padding: 10px;
+  border-radius: 18px;
+  text-align: center;
+  /* Inert in a grid; in the carousel it is what makes a swipe land on a tile
+     edge rather than halfway through one. */
+  scroll-snap-align: start;
+}
+
+.tileImage,
+.tileMark {
+  display: block;
+  width: 100%;
+  /* Square, and cropped to it. Tiles sit beside each other, so a picture that
+     keeps its own proportions puts every caption in the row on a different
+     line, which is the thing that stops a grid reading as a grid. */
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.tileMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Basis auto, not the row's 0: in a column that 0 is a HEIGHT, which collapses
+   the caption to nothing. Growing is wanted here, because tiles in a grid row
+   are stretched to the tallest of them and the caption is what takes up the
+   difference: centred in it, so a tile with no picture reads as a caption in a
+   card rather than one pinned to its ceiling above a void. */
+.tileCard .cardBody {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* A flex item would otherwise be stretched to the caption's full width, and
+   the badge is a pill around its own text. */
+.tileCard .badge {
+  align-self: center;
+}
+
+.tileCard .codeText {
+  flex: 0 0 auto;
+}
+
+.tileCard .cardLabel {
+  font-size: 14px;
+}
+
+.tileCard .cardSublabel {
+  font-size: 11px;
+}
+
+.tileCard .codeText {
+  text-align: center;
+}
+
+.tileCard .codeHead {
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* A tile is about 150px wide, which the full ticket does not fit. The code
+   itself is the part that has to survive, so the "CODE" tag and the word on
+   the chip go and the glyph stays. */
+.tileCard .codeTag,
+.tileCard .codeActionLabel {
+  display: none;
+}
+
+.tileCard .code {
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  /* Pinned to the floor of the tile, so the tickets line up across a row that
+     the grid has stretched to its tallest card. Without it a one-line brand
+     name beside a two-line one puts the two tickets at different heights. */
+  margin-top: auto;
+}
+
+.tileCard .codeValue {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.tileCard .codeAction {
+  padding: 7px;
+}
+
+/* ---------- showcase shape ----------
+   A list of banner cards with the text moved onto the picture. Scoped to
+   .bannerCard, so an item in a showcase section with no image (which shapeFor
+   leaves as a row) and a creator code (which needs its ticket below the text,
+   not over it) both keep their own card. */
+.showcase .bannerCard {
+  position: relative;
+  padding: 0;
+  gap: 0;
+  border-radius: 22px;
+  /* The picture is flush to the card edge here, so the card has to do the
+     rounding the image is no longer doing for itself. */
+  overflow: hidden;
+}
+
+.showcase .banner {
+  /* Uniform crop, unlike the free-height banner in a list: these are read as a
+     column of equal cards, and one tall logo among them breaks that. */
+  aspect-ratio: 4 / 3;
+  max-height: none;
+  border-radius: 0;
+}
+
+.showcase .bannerCard .cardBody {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  padding: 16px 18px;
+  text-align: left;
+}
+
+.showcase .bannerCard .cardLabel {
+  font-size: 20px;
+}
+
+/* Without this the text is set on whatever the photo happens to be, which is
+   unreadable often enough to count as broken. Tall enough to cover a two-line
+   label and a badge under it. */
+.showcase .bannerCard::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 64%;
+  background: linear-gradient(
+    to top,
+    rgba(12, 10, 26, 0.9) 0%,
+    rgba(12, 10, 26, 0.62) 34%,
+    rgba(12, 10, 26, 0) 100%
+  );
+  pointer-events: none;
 }
 
 .thumb {
@@ -275,33 +486,122 @@ a.card:hover {
 }
 
 /* ---------- creator code ---------- */
+/* Codes stack rather than sharing a row: see CodeBody(). The extra light in
+   the corner separates the card from the plain rows above it without adding
+   a second surface colour. */
+.codeCard {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 22px;
+  border-color: rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 54%),
+    var(--links-card);
+}
+
+a.codeCard:hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 54%),
+    var(--links-card-hover);
+}
+
+.codeHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.codeText {
+  /* Basis 0 for the same reason as .cardBody: an auto basis sizes this to the
+     sublabel's max-content width and pushes the badge off the line. */
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+}
+
+.codeBadge {
+  flex: 0 0 auto;
+  /* Overrides .badge's stacked spacing: here it sits beside the label. */
+  margin-top: 0;
+  /* The discount is the second thing worth reading on the card, so it gets an
+     accent rather than the neutral chip every other badge uses. Pink from the
+     same family as the gradient behind it, not a new hue. */
+  background: rgba(236, 72, 153, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* The code itself, as a coupon strip across the card. Tapping anywhere on it
+   copies, so the whole strip is the target rather than the chip on its end. */
 .code {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 0 0 auto;
-  /* 12px vertical puts the button at a 44px tap target. */
-  padding: 12px 16px;
-  border-radius: 999px;
-  border: 1px dashed var(--links-card-line);
-  background: transparent;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  /* Darker than the card, not lighter: it reads as a slot cut into the card
+     rather than a second raised surface competing with it. */
+  background: rgba(0, 0, 0, 0.2);
   color: inherit;
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  text-align: left;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .code:hover {
-  background: var(--links-card-hover);
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* Periodic hop so the code reads as the thing to tap. Most of the timeline
-   is the resting state: the nudge itself is ~0.6s of a 5s loop, which draws
-   the eye without turning into a fidget. */
+.codeTag {
+  flex: 0 0 auto;
+  padding-right: 10px;
+  border-right: 1px dashed rgba(255, 255, 255, 0.24);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--links-muted);
+}
+
+.codeValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  overflow-wrap: anywhere;
+}
+
+.codeAction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  /* 8px vertical on a 13px glyph keeps the strip at a 44px tap target even
+     though the strip, not the chip, is what receives the tap. */
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.code:hover .codeAction {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+/* Periodic hop so the chip reads as the thing to tap. Most of the timeline is
+   the resting state: the nudge itself is ~0.6s of a 5s loop, which draws the
+   eye without turning into a fidget. On the chip rather than the whole strip,
+   which would shunt the code around with it. */
 @keyframes codeNudge {
   0%,
   84%,
@@ -309,7 +609,7 @@ a.card:hover {
     transform: translateY(0);
   }
   88% {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
   }
   92% {
     transform: translateY(0);
@@ -322,15 +622,259 @@ a.card:hover {
   }
 }
 
-.code {
+.codeAction {
   animation: codeNudge 5s ease-in-out infinite;
 }
 
 /* The loop runs unattended, so it's exactly the kind of motion this opts out
    of. Hover/press transitions stay: those are user-initiated. */
 @media (prefers-reduced-motion: reduce) {
-  .code {
+  .codeAction {
     animation: none;
+  }
+}
+
+/* ---------- card animations ----------
+   Chosen per card in the editor, to pull the eye to one of them. Two rules
+   hold for all of them.
+
+   They are periodic, not continuous: each is a 5s loop that spends most of
+   its length at rest and bursts for well under a second, the same shape (and
+   for the same reason) as the codeNudge above. A page of cards moving all the
+   time is a page nothing stands out on, which is the opposite of what picking
+   an animation is for.
+
+   They animate the transform shorthand, and a.card:hover uses the individual
+   translate property instead so that the two still compose. It has to be this
+   way round rather than the reverse: an infinite transform animation keeps the
+   card on a compositor layer permanently, and the browser decides what
+   resolution to rasterise that layer at by reading the maximum scale out of
+   the keyframes, a heuristic that is implemented for transform and does not
+   fire for the individual rotate / scale / translate properties. Animated
+   through those, the layer is rasterised at 1x and then scaled, which visibly
+   softens the card's image and text for the whole loop, resting frames
+   included. */
+
+.animWiggle {
+  will-change: transform;
+  animation: linkWiggle 5s ease-in-out infinite;
+}
+
+@keyframes linkWiggle {
+  0%,
+  86%,
+  100% {
+    transform: rotate(0deg);
+  }
+  88% {
+    transform: rotate(-1.8deg);
+  }
+  91% {
+    transform: rotate(1.8deg);
+  }
+  94% {
+    transform: rotate(-1.1deg);
+  }
+  97% {
+    transform: rotate(0.5deg);
+  }
+}
+
+.animPop {
+  will-change: transform;
+  animation: linkPop 5s ease-in-out infinite;
+}
+
+@keyframes linkPop {
+  0%,
+  84%,
+  100% {
+    transform: scale(1);
+  }
+  89% {
+    transform: scale(1.045);
+  }
+  94% {
+    transform: scale(0.986);
+  }
+  98% {
+    transform: scale(1);
+  }
+}
+
+/* A sheen crossing the card. The card has to clip it, which is why this is the
+   one animation that changes the box it is applied to. */
+.animShimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.animShimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(
+    104deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0) 62%
+  );
+  animation: linkShimmer 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes linkShimmer {
+  0%,
+  62% {
+    translate: -130% 0;
+  }
+  90%,
+  100% {
+    translate: 130% 0;
+  }
+}
+
+/* The fringe is a pair of offset shadows rather than duplicated text, so it
+   works on a card of any shape. Held at zero alpha at rest rather than at
+   none, which does not interpolate. */
+.animGlitch {
+  will-change: transform;
+  animation: linkGlitch 5s steps(1, end) infinite;
+}
+
+@keyframes linkGlitch {
+  0%,
+  88%,
+  96%,
+  100% {
+    transform: translate(0, 0);
+    box-shadow:
+      0 0 0 rgba(255, 45, 110, 0),
+      0 0 0 rgba(60, 226, 255, 0);
+  }
+  89% {
+    transform: translate(-3px, 1px);
+    box-shadow:
+      3px 0 0 rgba(255, 45, 110, 0.6),
+      -3px 0 0 rgba(60, 226, 255, 0.6);
+  }
+  91% {
+    transform: translate(3px, -1px);
+    box-shadow:
+      -3px 0 0 rgba(255, 45, 110, 0.6),
+      3px 0 0 rgba(60, 226, 255, 0.6);
+  }
+  93% {
+    transform: translate(-2px, 0);
+    box-shadow:
+      2px 0 0 rgba(255, 45, 110, 0.45),
+      -2px 0 0 rgba(60, 226, 255, 0.45);
+  }
+}
+
+/* Two strikes rather than one: a single flash reads as a rendering fault,
+   where a stutter reads as deliberate. */
+.animElectric {
+  animation: linkElectric 5s ease-out infinite;
+}
+
+@keyframes linkElectric {
+  0%,
+  70%,
+  94%,
+  100% {
+    border-color: var(--links-card-line);
+    box-shadow: 0 0 0 0 rgba(130, 205, 255, 0);
+  }
+  75% {
+    border-color: rgba(170, 232, 255, 0.9);
+    box-shadow: 0 0 16px 1px rgba(120, 200, 255, 0.5);
+  }
+  80% {
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: 0 0 4px 0 rgba(120, 200, 255, 0.16);
+  }
+  86% {
+    border-color: rgba(200, 242, 255, 1);
+    box-shadow: 0 0 24px 2px rgba(140, 215, 255, 0.65);
+  }
+}
+
+/* A light running the perimeter. The ring is a conic gradient masked down to
+   the card's border, and it is the gradient's ANGLE that animates, not the
+   element: rotating the element itself would swing a card-shaped rectangle
+   around and out of its own bounds. @property is what lets an angle
+   interpolate at all; where it is unsupported the ring simply sits still,
+   which is a card with a faint highlight rather than a broken one. */
+@property --link-orbit-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.animOrbit {
+  position: relative;
+}
+
+.animOrbit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 2px;
+  /* A long tail rather than a short pip: on a card three times wider than it
+     is tall, a narrow arc of the gradient covers almost no perimeter along the
+     top and bottom edges and the light reads as a blink rather than a run. */
+  background: conic-gradient(
+    from var(--link-orbit-angle),
+    rgba(255, 255, 255, 0) 0deg,
+    rgba(255, 255, 255, 0) 244deg,
+    rgba(255, 255, 255, 0.95) 330deg,
+    rgba(255, 255, 255, 0) 360deg
+  );
+  filter: drop-shadow(0 0 5px rgba(190, 225, 255, 0.75));
+  /* Keeps the padding box and drops the content box, leaving the padding as a
+     ring. The prefixed pair is still needed for Safari. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: linkOrbit 5s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes linkOrbit {
+  to {
+    --link-orbit-angle: 360deg;
+  }
+}
+
+/* Every one of these runs unattended, which is exactly what this opts out of.
+   Hover and press transitions stay: those are user-initiated. */
+@media (prefers-reduced-motion: reduce) {
+  .animWiggle,
+  .animPop,
+  .animGlitch,
+  .animElectric,
+  .animShimmer::before,
+  .animOrbit::before {
+    animation: none;
+  }
+
+  /* Released along with the animation it was declared for. Left standing it
+     would promote a compositor layer for a card that has nothing to composite,
+     which is the same softening this whole section is arranged to avoid, held
+     over the readers who explicitly asked for less. */
+  .animWiggle,
+  .animPop,
+  .animGlitch {
+    will-change: auto;
   }
 }
 
@@ -359,31 +903,26 @@ a.card:hover {
     padding: 12px 14px;
   }
 
-  /* Only a code card needs to wrap, so its pill can take a row of its own
-     (see the .code rule below). Applying this to every card wrapped the
-     thumbnail off ordinary rows at 320px. A wrapped card is no longer one
-     line tall, so it squares off; every other card keeps the stadium shape. */
-  .card:has(.code):not(.bannerCard) {
-    flex-wrap: wrap;
-    border-radius: 20px;
-  }
-
-  /* The trailing spacer balances the leading thumbnail, which is what keeps
-     the label centred in the card rather than centred in the space left over
-     beside the thumbnail. Only dropped where the third column genuinely
-     doesn't fit: a code card, whose pill needs the room. */
-  .card:has(.code) .spacer {
-    display: none;
-  }
-
-  /* Scoped away from .bannerCard: that one is a column flex container, where
-     a 100% flex-basis would size the pill against the card's HEIGHT. There
-     the pill is already full width via align-items: stretch. */
-  .card:not(.bannerCard) .code {
-    flex: 1 0 100%;
-  }
-
   .bannerCard {
     border-radius: 20px;
+  }
+
+  /* Follows .card above, which would otherwise re-apply the row padding to
+     this column card. */
+  .codeCard {
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  /* Same reason as .codeCard above. A tile is only ~135px wide at this end of
+     the range, so the padding it gives up is the picture's gain. */
+  .tileCard {
+    padding: 8px;
+    border-radius: 16px;
+  }
+
+  .grid,
+  .carousel {
+    gap: 10px;
   }
 }

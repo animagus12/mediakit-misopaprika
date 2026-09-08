@@ -80,8 +80,11 @@ export interface EditorVideoOption {
   editor: string;
   /** DD/MM/YYYY the cut came back. */
   deliveryDate: string;
-  /** Already on the calendar. Shown rather than hidden: see below. */
-  planned: boolean;
+  /**
+   * Already linked to something: an entry on the plan, or a brand deal.
+   * Shown rather than hidden, see below.
+   */
+  linked: boolean;
 }
 
 // A cancelled job was never edited, so there is nothing to post.
@@ -89,19 +92,26 @@ const CANCELLED = "cancelled";
 
 /**
  * Every video that went to an editor, newest delivery first, with the ones
- * already on the plan marked and sorted last.
+ * already spoken for marked and sorted last.
  *
- * Marked rather than filtered out, for two reasons: an entry being edited has
+ * Marked rather than filtered out, for two reasons: a record being edited has
  * to be able to show its own current link, which a filtered list could not
- * offer back; and "which of these have I already scheduled" is exactly the
+ * offer back; and "which of these have I already used" is exactly the
  * question the picker is there to answer, so hiding the answer would be odd.
+ *
+ * `linkedRecords` is typed on the one field it reads, so both stores that can
+ * claim a job count toward the mark: an entry on the content plan and a brand
+ * deal are the same claim on the same cut, and a picker that knew about only
+ * one of them would offer a job as free that is not.
  */
 export function buildEditorVideoOptions(
   transactions: EditorTransactionRecord[],
-  contentItems: Pick<ContentItem, "editorTransactionId">[]
+  linkedRecords: Pick<ContentItem, "editorTransactionId">[]
 ): EditorVideoOption[] {
-  const planned = new Set(
-    contentItems.map((item) => item.editorTransactionId).filter((id): id is string => id !== null)
+  const claimed = new Set(
+    linkedRecords
+      .map((record) => record.editorTransactionId)
+      .filter((id): id is string => id !== null)
   );
 
   return transactions
@@ -111,11 +121,11 @@ export function buildEditorVideoOptions(
       video: txn.video.trim(),
       editor: txn.editor.trim(),
       deliveryDate: txn.deliveryDate,
-      planned: planned.has(txn.id),
+      linked: claimed.has(txn.id),
     }))
     .sort((a, b) => {
-      // Unplanned first: those are the ones the picker exists to surface.
-      if (a.planned !== b.planned) return a.planned ? 1 : -1;
+      // Unclaimed first: those are the ones the picker exists to surface.
+      if (a.linked !== b.linked) return a.linked ? 1 : -1;
       // Then newest delivery. parseSheetDate answers NaN for an unparsable
       // date, and a NaN comparison is always false, so those keep their
       // relative order at the end rather than shuffling.

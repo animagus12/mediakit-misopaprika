@@ -3,6 +3,7 @@ import {
   addCampaign,
   addCampaignUsageRenewal,
   getCampaigns,
+  setCampaignInvoice,
   setCampaignPaymentStatus,
   setCampaignUploadDate,
   setUsageRenewalInvoice,
@@ -45,10 +46,11 @@ export interface CampaignFormValues {
   paymentStatus: CampaignPaymentStatus;
   date: string; // "yyyy-mm-dd", as produced by <input type="date">
   uploadDate?: string; // "yyyy-mm-dd"
-  invoiceId?: string;
+  invoiceRef?: string; // free-text invoice reference; the invoiceId foreign key is never form-settable
   paymentDue?: string; // "yyyy-mm-dd"
   paidDate?: string; // "yyyy-mm-dd", the day the money actually landed
   paymentMethod?: string;
+  editorTransactionId?: string | null; // the editing job behind the video, or null
   usageMonths?: number; // base ad-usage licence term; 0 or absent = not tracked
 }
 
@@ -112,6 +114,10 @@ export interface ICampaignRepository {
     renewalId: string,
     status: CampaignPaymentStatus
   ): Promise<RecordChange<CampaignRecord> | null>;
+  // Points the deal at the invoice record that bills it, once that invoice
+  // exists, or clears the link with "". Answers the record it wrote, or null
+  // when the id matched nothing.
+  linkInvoice(campaignId: string, invoiceId: string): Promise<CampaignRecord | null>;
   // Points a renewal at the invoice raised for it, once that invoice exists.
   // Answers the record it wrote, or null when either id matched nothing.
   linkRenewalInvoice(
@@ -140,10 +146,11 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       barterValue: input.barterValue,
       paymentStatus: input.paymentStatus,
       uploadDate: input.uploadDate ? toSheetDate(input.uploadDate) : "",
-      invoiceId: input.invoiceId,
+      invoiceRef: input.invoiceRef,
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
+      editorTransactionId: input.editorTransactionId,
       usageMonths: input.usageMonths,
     });
   }
@@ -163,10 +170,11 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       barterValue: input.barterValue,
       paymentStatus: input.paymentStatus,
       uploadDate: input.uploadDate ? toSheetDate(input.uploadDate) : "",
-      invoiceId: input.invoiceId,
+      invoiceRef: input.invoiceRef,
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
+      editorTransactionId: input.editorTransactionId,
       usageMonths: input.usageMonths,
     });
   }
@@ -222,6 +230,10 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       status,
       status === "received" ? today() : ""
     );
+  }
+
+  async linkInvoice(campaignId: string, invoiceId: string): Promise<CampaignRecord | null> {
+    return setCampaignInvoice(campaignId, invoiceId);
   }
 
   async linkRenewalInvoice(

@@ -2,6 +2,7 @@ import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { Invoice } from "@/repositories/invoices";
 import { isInvoiceOverdue } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
+import { isCampaignCalledOff } from "@/lib/campaigns";
 
 // Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
 // with an open loop the creator still has to close: the operational
@@ -28,16 +29,18 @@ function isDelivered(record: BrandCampaignRecord): boolean {
   return normalized(record.status) === "completed" || record.uploadDate.trim() !== "";
 }
 
-// Whether an invoice exists for this deal: either the campaign record's
-// "Invoice ID" field points at one (it's auto-filled for paid deals added
-// through the app), or a saved invoice in the invoices store names the same
-// brand + campaign. The second check is what makes the "Delivered, no invoice
-// raised" item clear itself once the creator saves an invoice from the link,
-// since that save never writes back to the campaign record's field. Void
-// invoices don't count: a voided invoice means the deal is still uninvoiced.
+// Whether an invoice exists for this deal: it has been reconciled to a saved
+// invoice, or its "Invoice ref" field names one (auto-filled for paid deals
+// added through the app), or a saved invoice in the invoices store names the
+// same brand + campaign. The last check is what makes the "Delivered, no
+// invoice raised" item clear itself for a deal whose invoice was raised
+// without either link being written. Void invoices don't count: a voided
+// invoice means the deal is still uninvoiced.
 function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
-  const recordInvoiceId = record.invoiceId.trim();
-  if (recordInvoiceId !== "" && recordInvoiceId !== "-") {
+  if (record.invoiceId) return true;
+
+  const ref = record.invoiceRef.trim();
+  if (ref !== "" && ref !== "-") {
     return true;
   }
 
@@ -61,7 +64,7 @@ export function selectAttentionItems(
   const items: AttentionItem[] = [];
 
   for (const record of records) {
-    if (normalized(record.status) === "cancelled") continue;
+    if (isCampaignCalledOff(record.status)) continue;
     // Barter-only deals aren't invoiced or chased for cash here.
     if (record.amount <= 0) continue;
 

@@ -19,7 +19,8 @@ export interface BrandCampaignRecord {
   amount: number;
   barterValue: number;
   total: number;
-  invoiceId: string;
+  invoiceRef: string; // the free-text reference typed on the deal, "" when none
+  invoiceId: string | null; // → Invoice (repositories/invoices.ts); null until the deal is reconciled to a saved invoice
   paymentStatus: BrandCampaignPaymentStatus;
   paymentDue: string; // DD/MM/YYYY the payment is expected by, or "" when unset
   paidDate: string; // DD/MM/YYYY the money landed; the other half of the reliability read
@@ -40,6 +41,7 @@ function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     amount: campaign.amount,
     barterValue: campaign.barterValue,
     total: campaign.total,
+    invoiceRef: campaign.invoiceRef,
     invoiceId: campaign.invoiceId,
     paymentStatus: campaign.paymentStatus,
     paymentDue: campaign.paymentDue,

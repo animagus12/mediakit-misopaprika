@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatDayLabel } from "@/lib/day";
 import { WEEK_AHEAD_DAYS } from "@/lib/contentCalendar";
 import { cn } from "@/lib/utils";
+import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { ScheduledPost } from "@/lib/contentCalendar";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
 import { PostRow } from "./PostRow";
 import { POST_TONES } from "./postTone";
@@ -20,8 +22,12 @@ interface WeekAheadCardProps {
    * a workspace.
    */
   contentById?: Map<string, ContentItem>;
+  /** The deals behind the brand rows, keyed by id, for the same reason. */
+  campaignById?: Map<string, Campaign>;
   /** Passed through to an own row's edit sheet. */
   videoOptions?: EditorVideoOption[];
+  /** Passed through to a brand row's edit sheet. */
+  brandOptions?: CampaignBrandOption[];
   /** Renders each row with the date field that can move it. */
   schedulable?: boolean;
   /**
@@ -51,7 +57,9 @@ interface WeekAheadCardProps {
 export function WeekAheadCard({
   posts,
   contentById,
+  campaignById,
   videoOptions,
+  brandOptions,
   schedulable = false,
   emptyState = "hidden",
   waitingCount = 0,
@@ -180,7 +188,9 @@ export function WeekAheadCard({
             schedulable={schedulable}
             currentIsoDate={post.dayKey}
             item={post.source === "own" ? contentById?.get(post.id) : undefined}
+            campaign={post.source === "campaign" ? campaignById?.get(post.id) : undefined}
             videoOptions={videoOptions}
+            brandOptions={brandOptions}
           />
         ))}
       </CardContent>

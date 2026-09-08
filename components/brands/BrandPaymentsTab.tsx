@@ -12,20 +12,21 @@ import {
 import Link from "next/link";
 import {
   buildInvoiceNumber,
-  findInvoiceByCampaignInvoiceId,
   formatMoney,
   invoicePaymentMismatch,
+  resolveCampaignInvoice,
 } from "@/lib/invoice";
 import {
   computePaymentReliability,
   paymentTiming,
   RELIABILITY_RATING_LABELS,
+  RELIABILITY_RATING_TONES,
   type PaymentPunctuality,
   type PaymentReliability,
-  type ReliabilityRating,
 } from "@/lib/paymentReliability";
+import { paymentDisplayStatus, type PaymentDisplayStatus } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
-import type { BrandCampaignPaymentStatus, BrandCampaignRecord } from "@/repositories/brandCampaigns";
+import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { selectBrandPaymentRows, type BrandStats } from "@/lib/brandCampaignStats";
 import type { Invoice } from "@/repositories/invoices";
 
@@ -40,8 +41,13 @@ interface StatusStyle {
   className?: string;
 }
 
-function paymentStatusStyle(status: BrandCampaignPaymentStatus): StatusStyle {
+function paymentStatusStyle(status: PaymentDisplayStatus): StatusStyle {
   switch (status) {
+    // Muted and dashed, matching the campaigns table: a cancelled deal's
+    // payment is moot rather than wrong, and the row says "Cancelled" once
+    // already.
+    case "cancelled":
+      return { variant: "outline", className: "border-dashed text-muted-foreground" };
     case "received":
       return {
         variant: "outline",
@@ -60,20 +66,6 @@ function paymentStatusStyle(status: BrandCampaignPaymentStatus): StatusStyle {
 // The verdict's own colour, so the tile can be read before the words are.
 // Raw palette hues at low opacity, following the destructive-variant
 // convention the app already uses: globals.css has no success token.
-const RATING_TONES: Record<ReliabilityRating, { card: string; value: string }> = {
-  reliable: {
-    card: "bg-emerald-500/5 ring-emerald-500/15",
-    value: "text-emerald-600 dark:text-emerald-400",
-  },
-  "mostly-reliable": {
-    card: "bg-emerald-500/5 ring-emerald-500/15",
-    value: "text-emerald-600 dark:text-emerald-400",
-  },
-  slow: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },
-  unreliable: { card: "bg-destructive/5 ring-destructive/15", value: "text-destructive" },
-  unrated: { card: "", value: "text-muted-foreground" },
-};
-
 const TIMING_TONES: Record<PaymentPunctuality, string> = {
   early: "text-emerald-600 dark:text-emerald-400",
   "on-time": "text-emerald-600 dark:text-emerald-400",
@@ -92,7 +84,7 @@ const TIMING_TONES: Record<PaymentPunctuality, string> = {
  * the worst one was.
  */
 function ReliabilityCard({ reliability }: { reliability: PaymentReliability }) {
-  const tone = RATING_TONES[reliability.rating];
+  const tone = RELIABILITY_RATING_TONES[reliability.rating];
   const facts = [
     `${reliability.onTime}/${reliability.sample} on time`,
     reliability.worstDelayDays && reliability.worstDelayDays > 0
@@ -214,13 +206,17 @@ export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabP
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
-                const status = paymentStatusStyle(row.paymentStatus);
-                // A deal names its invoice in free text and has to be matched
-                // back by number; a renewal was written alongside its invoice
-                // and carries the real id, so it is looked up directly.
-                const matchedInvoice = row.record
-                  ? findInvoiceByCampaignInvoiceId(row.invoiceRef, invoices)
-                  : (invoices.find((invoice) => invoice.id === row.invoiceId) ?? null);
+                // A renewal carries no pipeline status of its own (see
+                // selectBrandPaymentRows), so only deal rows can read as
+                // cancelled, which is right: a renewal bought against a deal
+                // that was later called off was still bought.
+                const paymentState = paymentDisplayStatus(row);
+                const status = paymentStatusStyle(paymentState);
+                // Both kinds of row carry the same pair, so both resolve the
+                // same way: by the real id when one has been written, and by
+                // the typed reference otherwise. A renewal only ever has the
+                // former, a deal that predates reconciliation only the latter.
+                const matchedInvoice = resolveCampaignInvoice(row, invoices);
                 // Checked on renewals as well as deals: a renewal's invoice is
                 // kept in step by the action that collects it, so a
                 // disagreement here means someone moved one side by hand,
@@ -258,10 +254,10 @@ export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabP
                         <span className="block text-[11px] text-amber-600 dark:text-amber-400">{mismatch}</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(row.amount)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatMoney(row.total)}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant} className={status.className}>
-                        {row.paymentStatus === "unknown" ? "-" : row.paymentStatus}
+                        {paymentState === "unknown" ? "-" : paymentState}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">

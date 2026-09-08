@@ -94,7 +94,7 @@ export function ContentFormFields({
                   <span className="text-muted-foreground">
                     {" "}
                     {option.editor}
-                    {option.planned ? " · already planned" : ""}
+                    {option.linked ? " · already linked" : ""}
                   </span>
                 </SelectItem>
               ))}

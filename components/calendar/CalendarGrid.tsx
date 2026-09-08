@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { WEEKDAY_LABELS, formatDayLabel } from "@/lib/day";
 import { cn } from "@/lib/utils";
 import type { CalendarDay, CalendarMonth, ScheduledPost } from "@/lib/contentCalendar";
+import { DayPostsSheet } from "./DayPostsSheet";
 import { NewContentSheet } from "./NewContentSheet";
+import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import type { Campaign } from "@/repositories/campaigns";
+import type { ContentItem } from "@/repositories/contentPlan";
 import { POST_TONES } from "./postTone";
 
 // How many pills fit in a cell before the rest collapse into a count. Four
@@ -27,17 +31,26 @@ function pillClass(post: ScheduledPost): string {
   return post.source === "own" ? tone.pillOwn : tone.pill;
 }
 
-function DayCell({ day, onAdd }: { day: CalendarDay; onAdd: (dayKey: string) => void }) {
+// An empty day adds; a day with something on it opens what is there. Spelled
+// out here because the label a screen reader hears has to say which of the
+// two the cell is about to do.
+function cellLabel(day: CalendarDay): string {
+  const when = formatDayLabel(day.key);
+  if (day.posts.length === 0) return `Add content on ${when}`;
+  return `${day.posts.length} post${day.posts.length === 1 ? "" : "s"} on ${when}`;
+}
+
+function DayCell({ day, onSelect }: { day: CalendarDay; onSelect: (dayKey: string) => void }) {
   const hidden = Math.max(0, day.posts.length - MAX_PILLS);
 
   return (
     <button
       type="button"
-      onClick={() => onAdd(day.key)}
+      onClick={() => onSelect(day.key)}
       // The label carries the whole meaning of the control, because visually
       // the cell is just a date: a screen reader would otherwise announce
       // thirty-odd buttons called "10".
-      aria-label={`Add content on ${formatDayLabel(day.key)}`}
+      aria-label={cellLabel(day)}
       // 56px tall, and as wide as a seventh of the screen allows: 45px at
       // 390px, 35px at 320px. The narrow case is under the 44px this project
       // holds its touch targets to, and cannot not be: seven columns is what
@@ -62,9 +75,9 @@ function DayCell({ day, onAdd }: { day: CalendarDay; onAdd: (dayKey: string) => 
           {day.dayOfMonth}
         </span>
 
-        {/* Phone widths: a pill can't be read in a 40px cell, so each post is
-            a dot and the detail lives in the lists below the grid. A hollow
-            dot is the creator's own, matching the outlined pill below. */}
+        {/* Phone widths: a pill cannot be read in a 40px cell, so each post is
+            a dot and tapping the day opens the list of them. A hollow dot is
+            the creator's own, matching the outlined pill below. */}
         {day.posts.length > 0 && (
           <span className="flex items-center gap-0.5 sm:hidden">
             {day.posts.slice(0, MAX_PILLS).map((post) => (
@@ -79,12 +92,15 @@ function DayCell({ day, onAdd }: { day: CalendarDay; onAdd: (dayKey: string) => 
           </span>
         )}
 
-        {/* Desktop only: a pointer has hover to reveal this, a thumb doesn't,
-            and on a phone the whole cell being tappable is the affordance. */}
-        <Plus
-          aria-hidden
-          className="hidden size-3.5 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100 sm:block"
-        />
+        {/* Desktop only, and only on a day with nothing on it: a pointer has
+            hover to reveal this, a thumb does not, and a day that already has
+            posts opens them rather than adding. */}
+        {day.posts.length === 0 && (
+          <Plus
+            aria-hidden
+            className="hidden size-3.5 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100 sm:block"
+          />
+        )}
       </div>
 
       <div className="mt-1 hidden space-y-0.5 sm:block">
@@ -108,25 +124,73 @@ function DayCell({ day, onAdd }: { day: CalendarDay; onAdd: (dayKey: string) => 
   );
 }
 
-// The interactive half of the month view: every cell adds content on its own
-// day. One client component for the whole grid rather than one per cell, so
-// there is a single sheet on the page instead of forty-two.
+// The interactive half of the month view: a day with nothing on it adds
+// content there, a day with something on it opens what is there so it can be
+// edited, moved or removed. One client component for the whole grid rather
+// than one per cell, so there is a single pair of sheets on the page instead
+// of eighty-four.
 //
 // `month` is already computed by the server (see buildCalendarMonth) and is
 // plain data, so nothing about the calendar's rules crosses into the client.
 export function CalendarGrid({
   month,
+  contentItems = [],
+  campaigns = [],
   videoOptions = [],
+  brandOptions = [],
 }: {
   month: CalendarMonth;
+  /** The creator's own records, so a row in the day sheet can be edited. */
+  contentItems?: ContentItem[];
+  /** The deals behind the brand rows, for the same reason. */
+  campaigns?: Campaign[];
   videoOptions?: EditorVideoOption[];
+  brandOptions?: CampaignBrandOption[];
 }) {
-  const [day, setDay] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [dayKey, setDayKey] = useState<string | null>(null);
+  const [dayOpen, setDayOpen] = useState(false);
+  const [addDate, setAddDate] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
-  function addOn(dayKey: string) {
-    setDay(dayKey);
-    setOpen(true);
+  // Keyed here rather than on the server, because a Map does not survive the
+  // crossing into a client component: the rows are handed over as the arrays
+  // they are stored as, the same way `month` is.
+  const contentById = useMemo(
+    () => new Map(contentItems.map((item) => [item.id, item])),
+    [contentItems]
+  );
+  const campaignById = useMemo(
+    () => new Map(campaigns.map((campaign) => [campaign.id, campaign])),
+    [campaigns]
+  );
+
+  // Read back out of `month` on every render rather than held as a snapshot,
+  // so a write made from inside the sheet (a move, a delete) empties the row
+  // out of the list under it as soon as the page revalidates.
+  const selected = useMemo(() => {
+    if (dayKey === null) return null;
+    for (const week of month.weeks) {
+      for (const cell of week) if (cell.key === dayKey) return cell;
+    }
+    return null;
+  }, [month, dayKey]);
+
+  function openAdd(day: string) {
+    setAddDate(day);
+    setAddOpen(true);
+  }
+
+  function selectDay(day: string) {
+    setDayKey(day);
+    // A day with nothing on it has only one thing it can mean, so it skips
+    // the list and goes straight to the form: the one-tap add the grid had
+    // before it could open a day at all.
+    const cell = month.weeks.flat().find((entry) => entry.key === day);
+    if (!cell || cell.posts.length === 0) {
+      openAdd(day);
+      return;
+    }
+    setDayOpen(true);
   }
 
   return (
@@ -147,17 +211,29 @@ export function CalendarGrid({
             </div>
           ))}
           {month.weeks.map((week) =>
-            week.map((cell) => <DayCell key={cell.key} day={cell} onAdd={addOn} />)
+            week.map((cell) => <DayCell key={cell.key} day={cell} onSelect={selectDay} />)
           )}
         </div>
       </div>
 
-      {/* Closing leaves `day` alone so the exit animation isn't cut short by a
-          re-render; the next open overwrites it before the form is reseeded. */}
+      {/* Closing leaves `dayKey` alone so the exit animation is not cut short
+          by a re-render; the next open overwrites it first. */}
+      <DayPostsSheet
+        open={dayOpen}
+        onOpenChange={setDayOpen}
+        dayKey={dayKey ?? ""}
+        posts={selected?.posts ?? []}
+        contentById={contentById}
+        campaignById={campaignById}
+        videoOptions={videoOptions}
+        brandOptions={brandOptions}
+        onAdd={openAdd}
+      />
+
       <NewContentSheet
-        open={open}
-        onOpenChange={setOpen}
-        initialDate={day ?? ""}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        initialDate={addDate}
         videoOptions={videoOptions}
       />
     </>

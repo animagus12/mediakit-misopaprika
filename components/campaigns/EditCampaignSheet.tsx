@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { updateCampaign } from "@/app/(dashboard)/actions";
 import { Separator } from "@/components/ui/separator";
-import { CampaignFormFields, type CampaignFormState } from "./CampaignFormFields";
+import { CampaignFormFields, campaignAmounts, type CampaignFormState } from "./CampaignFormFields";
 import { UsageRightsPanel } from "./UsageRightsPanel";
 import {
   REEL_OPTIONS,
@@ -24,6 +24,7 @@ import {
   toIsoDate,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
+import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
@@ -43,10 +44,11 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     paymentStatus: campaign.paymentStatus,
     date: toIsoDate(campaign.date) || new Date().toISOString().slice(0, 10),
     uploadDate: toIsoDate(campaign.uploadDate),
-    invoiceId: campaign.invoiceId,
+    invoiceRef: campaign.invoiceRef,
     paymentDue: toIsoDate(campaign.paymentDue),
     paidDate: toIsoDate(campaign.paidDate),
     paymentMethod: campaign.paymentMethod,
+    editorTransactionId: campaign.editorTransactionId,
     usageMonths: campaign.usage.months > 0 ? String(campaign.usage.months) : "",
   };
 }
@@ -55,10 +57,12 @@ export function EditCampaignSheet({
   campaign,
   trigger,
   brandOptions = [],
+  videoOptions = [],
 }: {
   campaign: Campaign;
   trigger: ReactNode;
   brandOptions?: CampaignBrandOption[];
+  videoOptions?: EditorVideoOption[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -81,15 +85,15 @@ export function EditCampaignSheet({
         reels: form.reels,
         story: form.story,
         status: form.status,
-        amount: Number(form.amount) || 0,
-        barterValue: Number(form.barterValue) || 0,
+        ...campaignAmounts(form),
         paymentStatus: form.paymentStatus,
         date: form.date,
         uploadDate: form.uploadDate,
-        invoiceId: form.invoiceId.trim(),
+        invoiceRef: form.invoiceRef.trim(),
         paymentDue: form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
+        editorTransactionId: form.editorTransactionId,
         usageMonths: Number(form.usageMonths) || 0,
       });
       if (!result.success) {
@@ -130,6 +134,7 @@ export function EditCampaignSheet({
               form={form}
               setForm={setForm}
               brandOptions={brandOptions}
+              videoOptions={videoOptions}
             />
             {error && <p className="text-xs text-destructive">{error}</p>}
           </form>

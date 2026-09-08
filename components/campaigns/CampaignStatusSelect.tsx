@@ -62,7 +62,7 @@ export function CampaignStatusSelect({
         paymentStatus: campaign.paymentStatus,
         date: toIsoDate(campaign.date) || new Date().toISOString().slice(0, 10),
         uploadDate: toIsoDate(campaign.uploadDate),
-        invoiceId: campaign.invoiceId,
+        invoiceRef: campaign.invoiceRef,
         paymentDue: toIsoDate(campaign.paymentDue),
         paidDate: toIsoDate(campaign.paidDate),
         paymentMethod: campaign.paymentMethod,

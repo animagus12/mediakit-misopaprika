@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EditCampaignSheet } from "@/components/campaigns/EditCampaignSheet";
 import { CampaignStatusSelect } from "@/components/campaigns/CampaignStatusSelect";
 import type { CampaignBrandOption } from "@/lib/campaigns";
+import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 
 // An active-pipeline card: most of it is a stretched hit target that opens
@@ -12,9 +13,11 @@ import type { Campaign } from "@/repositories/campaigns";
 export function ActiveCampaignCard({
   campaign,
   brandOptions = [],
+  videoOptions = [],
 }: {
   campaign: Campaign;
   brandOptions?: CampaignBrandOption[];
+  videoOptions?: EditorVideoOption[];
 }) {
   return (
     <Card size="sm" className="relative">
@@ -39,6 +42,7 @@ export function ActiveCampaignCard({
       <EditCampaignSheet
         campaign={campaign}
         brandOptions={brandOptions}
+        videoOptions={videoOptions}
         trigger={
           <button
             type="button"

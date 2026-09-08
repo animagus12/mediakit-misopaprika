@@ -4,7 +4,7 @@ import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
-import { emptyUsage, nextSequenceId, toCampaign, toUsage } from "./campaigns";
+import { emptyUsage, nextSequenceId, toCampaign, toInvoiceLink, toUsage } from "./campaigns";
 import type {
   Campaign,
   CampaignPaymentStatus,
@@ -23,11 +23,14 @@ const CAMPAIGNS_KEY = "campaigns";
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = campaignsSeed as CampaignRecord[];
 
+// Every record is put through toInvoiceLink on the way out, so the rest of
+// this module (and everything downstream of it) only ever sees the split
+// invoiceRef/invoiceId shape, never the pre-split one a stored record may
+// still be in. Healed for good on that record's next write.
 async function readRecords(): Promise<CampaignRecord[]> {
   const redis = getRedis();
-  if (!redis) return SEED;
-  const stored = await redis.get<CampaignRecord[]>(CAMPAIGNS_KEY);
-  return stored ?? SEED;
+  const stored = redis ? await redis.get<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
+  return (stored ?? SEED).map((record) => ({ ...record, ...toInvoiceLink(record) }));
 }
 
 // Falls back to the bundled data/campaigns.json seed until the first write,
@@ -43,7 +46,7 @@ export async function getCampaigns(): Promise<Campaign[]> {
 // renewals the form never sees. addCampaign and updateCampaign compose it.
 function normalize(
   input: NewCampaignInput
-): Omit<CampaignRecord, "id" | "invoiceId" | "usage"> {
+): Omit<CampaignRecord, "id" | "invoiceRef" | "invoiceId" | "usage"> {
   return {
     date: input.date,
     brand: input.brand.trim(),
@@ -60,6 +63,7 @@ function normalize(
     paymentDue: input.paymentDue?.trim() ?? "",
     paidDate: input.paidDate?.trim() ?? "",
     paymentMethod: input.paymentMethod?.trim() ?? "",
+    editorTransactionId: input.editorTransactionId?.trim() || null,
   };
 }
 
@@ -69,10 +73,11 @@ function usageMonths(input: NewCampaignInput): number {
   return Math.max(0, Math.round(Number(input.usageMonths) || 0));
 }
 
-// MC (monetary campaign) gets an auto-assigned invoice id; BC (barter
+// MC (monetary campaign) gets an auto-assigned invoice reference; BC (barter
 // campaign) doesn't: matches the sheet's original "MSP-BC0001" /
-// "MSP-MC0001" + "MSP-INV-0001" convention. A caller-supplied invoiceId
-// (e.g. entered by hand for a barter deal) always wins.
+// "MSP-MC0001" + "MSP-INV-0001" convention. A caller-supplied invoiceRef
+// (e.g. entered by hand for a barter deal) always wins. The invoiceId foreign
+// key stays null: no invoice record exists to point at yet.
 export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
@@ -83,13 +88,14 @@ export async function addCampaign(input: NewCampaignInput): Promise<CampaignReco
     records.map((r) => r.id),
     hasPaidComponent ? "MSP-MC" : "MSP-BC"
   );
-  const invoiceId =
-    input.invoiceId?.trim() ||
-    (hasPaidComponent ? nextSequenceId(records.map((r) => r.invoiceId), "MSP-INV-") : "");
+  const invoiceRef =
+    input.invoiceRef?.trim() ||
+    (hasPaidComponent ? nextSequenceId(records.map((r) => r.invoiceRef), "MSP-INV-") : "");
 
   const record: CampaignRecord = {
     id,
-    invoiceId,
+    invoiceRef,
+    invoiceId: null,
     ...normalize(input),
     usage: { ...emptyUsage(), months: usageMonths(input) },
   };
@@ -112,7 +118,11 @@ export async function updateCampaign(
   const after: CampaignRecord = {
     ...before,
     ...normalize(input),
-    invoiceId: input.invoiceId?.trim() ?? before.invoiceId,
+    invoiceRef: input.invoiceRef?.trim() ?? before.invoiceRef,
+    // Not form-settable: the foreign key is written by linkCampaignInvoice
+    // once a saved invoice is matched to the deal, and an edit of the
+    // reference must not silently drop it.
+    invoiceId: before.invoiceId,
     // Only the term length comes from the form; the licence's status, its
     // pause accounting and its renewals are moved by their own actions and
     // are carried through untouched.
@@ -326,6 +336,33 @@ export async function setUsageRenewalPayment(
   });
   await redis.set(CAMPAIGNS_KEY, written.records);
   return { before, after: written.after };
+}
+
+/**
+ * Points a deal at the invoice record that bills it, or clears the link with
+ * "".
+ *
+ * Writes only the foreign key: the typed `invoiceRef` is what the creator
+ * entered and is left exactly as it is, so reconciling never rewrites the
+ * thing being reconciled. Answers the record it wrote, or null when the id
+ * matched nothing.
+ */
+export async function setCampaignInvoice(
+  id: string,
+  invoiceId: string
+): Promise<CampaignRecord | null> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before) return null;
+
+  const linked = invoiceId.trim() || null;
+  if (before.invoiceId === linked) return before;
+
+  const after: CampaignRecord = { ...before, invoiceId: linked };
+  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
+  return after;
 }
 
 /**

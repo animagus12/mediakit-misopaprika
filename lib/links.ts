@@ -1,10 +1,12 @@
 import type {
+  LinkAnimation,
   LinkItem,
   LinkKind,
   LinkProfile,
   LinkSection,
   LinkVariant,
   LinksData,
+  SectionLayout,
 } from "@/repositories/links";
 import type { SocialStats } from "@/repositories/socialStats";
 
@@ -185,6 +187,23 @@ export const LINK_KIND_LABELS: Record<LinkKind, string> = {
   code: "Creator code",
 };
 
+export const LINK_ANIMATION_LABELS: Record<LinkAnimation, string> = {
+  none: "None",
+  wiggle: "Wiggle",
+  pop: "Pop",
+  shimmer: "Shimmer",
+  glitch: "Glitch",
+  electric: "Electricity",
+  orbit: "Orbit",
+};
+
+export const SECTION_LAYOUT_LABELS: Record<SectionLayout, string> = {
+  list: "List",
+  grid: "Grid",
+  carousel: "Carousel",
+  showcase: "Showcase",
+};
+
 // crypto.randomUUID needs a secure context; the editor runs on https or
 // localhost, both of which qualify. The fallback keeps a hostile environment
 // from throwing mid-edit rather than guaranteeing uniqueness.
@@ -207,6 +226,7 @@ export function blankItem(kind: LinkKind = "link"): LinkItem {
     image: "",
     badge: "",
     code: "",
+    animation: "none",
     enabled: true,
     startsAt: null,
     endsAt: null,
@@ -214,7 +234,7 @@ export function blankItem(kind: LinkKind = "link"): LinkItem {
 }
 
 export function blankSection(): LinkSection {
-  return { id: newId("section"), title: "New section", enabled: true, items: [] };
+  return { id: newId("section"), title: "New section", layout: "list", enabled: true, items: [] };
 }
 
 /** Immutable move used by every drag-to-reorder handler in the editor. */

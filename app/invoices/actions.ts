@@ -24,7 +24,9 @@ function toActionError(err: unknown, fallback: string): { success: false; error:
 /**
  * The mirror of syncLinkedInvoiceStatus in app/(dashboard)/actions.ts: moving
  * an invoice to "paid" in the editor marks the deal it bills for as received,
- * and moving it back off "paid" returns the deal to pending.
+ * and moving it back off "paid" returns the deal to pending. Saving an
+ * invoice is also where the deal's invoiceId foreign key gets written, since
+ * it is the moment both records exist and are known to be the same billing.
  *
  * Without this the two records drift in the opposite direction from the
  * dashboard bug: the invoice reads Paid while "Payments due" still lists the
@@ -34,13 +36,31 @@ function toActionError(err: unknown, fallback: string): { success: false; error:
  * A deal already in the target state is left alone, so this never overwrites a
  * "unknown" payment status that nobody asked it to touch.
  */
-async function syncLinkedCampaignPayment(invoiceNo: string, status: InvoiceStatus): Promise<void> {
-  if (status !== "paid" && status !== "sent") return;
-
-  const ref = buildInvoiceNumber(invoiceNo);
+async function syncLinkedCampaignPayment(
+  invoiceId: string,
+  invoiceNo: string,
+  status: InvoiceStatus
+): Promise<void> {
+  const ref = buildInvoiceNumber(invoiceNo).toUpperCase();
   const campaigns = await campaignRepository.getAll();
-  const campaign = campaigns.find((entry) => entry.invoiceId.trim().toUpperCase() === ref.toUpperCase());
+  // By key first, so a deal already reconciled keeps its invoice even after
+  // that invoice is renumbered; by the typed reference otherwise, which is
+  // the only handle a deal that predates the link has.
+  const campaign =
+    campaigns.find((entry) => entry.invoiceId === invoiceId) ??
+    campaigns.find((entry) => entry.invoiceRef.trim().toUpperCase() === ref);
   if (!campaign) return;
+
+  // Written before the status check below, and regardless of what that status
+  // is: saving the invoice is the one moment the app knows which record the
+  // typed reference meant, and a draft names its deal just as well as a paid
+  // one does. Matching the number back on every later read is work this write
+  // makes unnecessary.
+  if (campaign.invoiceId !== invoiceId) {
+    await campaignRepository.linkInvoice(campaign.id, invoiceId);
+  }
+
+  if (status !== "paid" && status !== "sent") return;
 
   const target = status === "paid" ? "received" : "pending";
   if (campaign.paymentStatus === target) return;
@@ -73,7 +93,7 @@ export async function createInvoice(
     // An invoice can be raised already marked paid against a deal that already
     // references its number, so creation syncs the same way an edit does.
     try {
-      await syncLinkedCampaignPayment(record.invoiceNo, record.status);
+      await syncLinkedCampaignPayment(record.id, record.invoiceNo, record.status);
     } catch {
       // The invoice is saved; the deal not following is not worth failing on.
     }
@@ -96,7 +116,7 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
     // Outside the write above for the same reason as the dashboard's mark
     // received: the invoice edit stands even if the deal couldn't follow.
     try {
-      await syncLinkedCampaignPayment(input.invoiceNo, input.status);
+      await syncLinkedCampaignPayment(input.id, input.invoiceNo, input.status);
     } catch {
       // Reported through the pages below rather than failing a saved invoice.
     }
@@ -130,7 +150,16 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
 export async function removeInvoice(id: string): Promise<ActionResult> {
   try {
     const removed = await deleteInvoice(id);
-    revalidateStores("invoices");
+    // A deal pointing at an invoice that no longer exists would resolve to
+    // nothing on every read; clearing the key returns it to its typed
+    // reference, which is where it was before the invoice was raised.
+    if (removed) {
+      const linked = (await campaignRepository.getAll()).find(
+        (campaign) => campaign.invoiceId === removed.id
+      );
+      if (linked) await campaignRepository.linkInvoice(linked.id, "");
+    }
+    revalidateStores("invoices", "campaigns");
     if (removed) {
       await recordActivity({
         action: "invoice.deleted",

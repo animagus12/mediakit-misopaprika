@@ -76,3 +76,50 @@ export function computeMonthTrend(
     label: `${monthOnly(latestKey)} vs ${monthOnly(priorKey)}`,
   };
 }
+
+export interface MonthMargin {
+  month: string; // "YYYY-MM"
+  /** Cash received that month. Never the total: an editor cannot be paid in barter. */
+  cash: number;
+  editorCost: number;
+  margin: number;
+  /** margin as a share of cash; null when nothing came in to take a share of. */
+  marginPercent: number | null;
+}
+
+/**
+ * Cash received each month, net of what the editing cost.
+ *
+ * The dashboard reported gross income and, separately, running payout totals,
+ * which leaves "earned" reading as "kept" on every month where a share of it
+ * was always going out again. Netting the two is the whole of this.
+ *
+ * Cash, not Total: barter cannot pay an editor, so counting a parcel toward
+ * the income a cash cost is subtracted from would report a margin the creator
+ * cannot spend. It is the same reason computeEditorPayouts exists at all.
+ *
+ * A month with no editing recorded nets to its cash rather than being dropped.
+ * That is the honest reading, since nothing was spent, and it keeps the series
+ * defined across the whole window instead of leaving holes wherever the
+ * creator cut a month's videos themselves. `marginPercent` stays null in that
+ * case only when no cash came in either, so a caller can tell "kept all of it"
+ * apart from "there was nothing to keep".
+ *
+ * Order follows `monthly`, which is newest-first.
+ */
+export function computeMarginSeries(
+  monthly: MonthlyEarnings[],
+  editorCostByMonth: Map<string, number>
+): MonthMargin[] {
+  return monthly.map((month) => {
+    const editorCost = editorCostByMonth.get(month.month) ?? 0;
+    const margin = month.paid - editorCost;
+    return {
+      month: month.month,
+      cash: month.paid,
+      editorCost,
+      margin,
+      marginPercent: month.paid > 0 ? (margin / month.paid) * 100 : null,
+    };
+  });
+}

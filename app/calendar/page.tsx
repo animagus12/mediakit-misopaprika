@@ -13,10 +13,12 @@ import {
   selectWeekAhead,
 } from "@/lib/contentCalendar";
 import { buildEditorVideoOptions } from "@/lib/contentPlan";
+import { buildCampaignBrandOptions } from "@/lib/campaigns";
 import { monthKeyOf, todayKey } from "@/lib/day";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import { getContentItems } from "@/repositories/contentPlan.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
+import { getBrands } from "@/repositories/brands.writer.server";
 import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
@@ -55,20 +57,33 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     error = err instanceof Error ? err.message : "Something went wrong";
   }
 
-  // The editing workspace is a convenience here, not the page's subject: a
-  // failure to read it costs the picker, not the calendar, so it is caught
-  // separately rather than joining the two above.
-  const editorTransactions: EditorTransaction[] = await getEditorTransactions().catch(() => []);
+  // The editing workspace and the brand book are conveniences here, not the
+  // page's subject: a failure to read either costs a picker inside a form,
+  // not the calendar, so both are caught separately rather than joining the
+  // two above.
+  const [editorTransactions, brands] = await Promise.all([
+    getEditorTransactions().catch((): EditorTransaction[] => []),
+    getBrands().catch(() => []),
+  ]);
 
   const scheduled = selectScheduledPosts(campaigns, contentItems, now);
   const monthView = buildCalendarMonth(resolveMonthKey(month, now), scheduled, now);
   // Rows carry ids, not records; the editable ones look themselves up here so
   // the view models stay flat and free of the whole stored object.
   const contentById = new Map(contentItems.map((item) => [item.id, item]));
+  const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
   // Built once for the page: every sheet on it offers the same list, and the
   // "already planned" marks are computed against the same content items the
   // rest of the page is rendering.
-  const videoOptions = buildEditorVideoOptions(editorTransactions, contentItems);
+  // Both stores that can claim a cut are counted, so a job already on the
+  // plan or on a deal is offered marked rather than as free.
+  const videoOptions = buildEditorVideoOptions(editorTransactions, [
+    ...contentItems,
+    ...campaigns,
+  ]);
+  // Every sheet on this page that can edit a deal offers the same brand list
+  // /campaigns does, so the two cannot disagree about what a brand is called.
+  const brandOptions = buildCampaignBrandOptions(brands);
 
   return (
     <AppShell>
@@ -94,7 +109,9 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
             <WeekAheadCard
               posts={selectWeekAhead(scheduled)}
               contentById={contentById}
+              campaignById={campaignById}
               videoOptions={videoOptions}
+              brandOptions={brandOptions}
               schedulable
               emptyState="card"
             />
@@ -102,13 +119,18 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
             <CalendarMonthGrid
               month={monthView}
               currentMonthKey={monthKeyOf(todayKey(now))}
+              contentItems={contentItems}
+              campaigns={campaigns}
               videoOptions={videoOptions}
+              brandOptions={brandOptions}
             />
 
             <UnscheduledPostsCard
               posts={selectUnscheduledPosts(campaigns, contentItems, now)}
               contentById={contentById}
+              campaignById={campaignById}
               videoOptions={videoOptions}
+              brandOptions={brandOptions}
             />
           </div>
         )}

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { computeCampaignStats, type CampaignBrandOption } from "@/lib/campaigns";
+import type { EditorVideoOption } from "@/lib/contentPlan";
 import { formatMoney } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
@@ -8,6 +9,7 @@ import type { EarningsSummary } from "@/repositories/earnings";
 import { selectExpiringUsage, selectOwedRenewals } from "@/lib/usageRights";
 import { NewCampaignButton } from "./NewCampaignButton";
 import { CampaignsTable } from "./CampaignsTable";
+import { MonthlyEarningsLedger } from "./MonthlyEarningsLedger";
 import { UsageRenewalsCard } from "./UsageRenewalsCard";
 
 // Same tone system as the invoices list's stat cards, so money/count tiles
@@ -24,6 +26,7 @@ interface CampaignsListSectionProps {
   earnings: EarningsSummary | null;
   error?: string | null;
   brandOptions?: CampaignBrandOption[];
+  videoOptions?: EditorVideoOption[];
 }
 
 export function CampaignsListSection({
@@ -31,6 +34,7 @@ export function CampaignsListSection({
   earnings,
   error,
   brandOptions = [],
+  videoOptions = [],
 }: CampaignsListSectionProps) {
   const stats = computeCampaignStats(campaigns);
 
@@ -43,7 +47,7 @@ export function CampaignsListSection({
             Every brand campaign on record, in one table.
           </p>
         </div>
-        <NewCampaignButton brandOptions={brandOptions} />
+        <NewCampaignButton brandOptions={brandOptions} videoOptions={videoOptions} />
       </div>
 
       {error ? (
@@ -103,8 +107,17 @@ export function CampaignsListSection({
           />
 
           <Suspense fallback={<div className="h-64 rounded-md border border-border" />}>
-            <CampaignsTable campaigns={campaigns} brandOptions={brandOptions} />
+            <CampaignsTable
+              campaigns={campaigns}
+              brandOptions={brandOptions}
+              videoOptions={videoOptions}
+            />
           </Suspense>
+
+          {/* Below the table, not above it: the table is what the page is for,
+              and the ledger answers "what came in when", which is a question
+              you go looking for rather than one you land on. */}
+          <MonthlyEarningsLedger monthly={earnings?.monthly ?? []} />
         </>
       )}
     </section>

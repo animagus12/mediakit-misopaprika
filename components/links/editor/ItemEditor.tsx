@@ -27,10 +27,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatClickRate, type LinkPerformance } from "@/lib/linkStats";
-import { LINK_KIND_LABELS, LINK_VARIANT_LABELS } from "@/lib/links";
+import { LINK_ANIMATION_LABELS, LINK_KIND_LABELS, LINK_VARIANT_LABELS } from "@/lib/links";
 import {
+  LINK_ANIMATIONS,
   LINK_KINDS,
   LINK_VARIANTS,
+  type LinkAnimation,
   type LinkItem,
   type LinkKind,
   type LinkVariant,
@@ -182,6 +184,31 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`${item.id}-animation`}>Animation</Label>
+            <Select
+              value={item.animation}
+              onValueChange={(value) => patch({ animation: value as LinkAnimation })}
+            >
+              <SelectTrigger id={`${item.id}-animation`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LINK_ANIMATIONS.map((animation) => (
+                  <SelectItem key={animation} value={animation}>
+                    {LINK_ANIMATION_LABELS[animation]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {item.animation === "none" ? null : (
+              <p className="text-muted-foreground text-xs">
+                Runs a short burst every five seconds. Worth using on one card: a page where
+                everything moves has nothing that stands out.
+              </p>
+            )}
           </div>
         </div>
 
