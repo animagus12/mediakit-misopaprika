@@ -7,6 +7,13 @@ export type BrandStatus =
   | "Worked With"
   | "Active"
   | "Dormant"
+  // The two ways a conversation ends before it is ever a deal, kept apart
+  // because the record already tells them apart: "Passed" is a reply that was
+  // a no, "Went Cold" is a reply that never came. Neither is "Cancelled",
+  // which means a deal was agreed and then killed and which the fallthrough
+  // rate in lib/dealFlow.ts counts on meaning exactly that.
+  | "Passed"
+  | "Went Cold"
   | "Cancelled"
   | "Do Not Contact";
 

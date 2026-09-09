@@ -25,8 +25,10 @@ export function recordsForBrand(
 }
 
 // Sheet dates are DD/MM/YYYY; unparsable/blank dates sort as "never happened".
-function parseSheetDate(date: string): number {
-  const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+// Exported because BrandRow.lastCollabDate is one of these strings verbatim,
+// so /brands has to order by the same rule the stats were built with.
+export function parseSheetDate(date: string | null): number {
+  const match = date?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return Number.NEGATIVE_INFINITY;
   const [, day, month, year] = match;
   return new Date(Number(year), Number(month) - 1, Number(day)).getTime();

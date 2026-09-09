@@ -10,6 +10,7 @@ import { getAgencies } from "@/repositories/agencies.writer.server";
 import { getBrand } from "@/repositories/brands.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { getBrandNotes } from "@/repositories/brandNotes.writer.server";
+import { getCheckIns } from "@/repositories/brandCheckIns.writer.server";
 import { getCampaignContacts } from "@/repositories/campaignContacts.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
@@ -20,7 +21,8 @@ import { computeBrandStats, recordsForBrand } from "@/lib/brandCampaignStats";
 import { buildInvoiceEditorJobOptions, invoicesForBrand, type InvoiceEditorJobOption } from "@/lib/invoice";
 import { sortPayoutsByPeriod } from "@/lib/affiliates";
 import { contactsForBrand } from "@/lib/contacts";
-import { missingBrandDetails } from "@/lib/brands";
+import { isBrandInPursuit, missingBrandDetails } from "@/lib/brands";
+import { checkInsForSubject } from "@/lib/outreach";
 import type { Invoice } from "@/repositories/invoices";
 
 export const metadata: Metadata = {
@@ -35,12 +37,13 @@ interface BrandDetailPageProps {
 export default async function BrandDetailPage({ params }: BrandDetailPageProps) {
   const { id } = await params;
 
-  const [brand, agencies, contacts, notes, campaignContacts] = await Promise.all([
+  const [brand, agencies, contacts, notes, campaignContacts, checkIns] = await Promise.all([
     getBrand(id),
     getAgencies(),
     getContacts(),
     getBrandNotes(),
     getCampaignContacts(),
+    getCheckIns().catch(() => []),
   ]);
 
   if (!brand) notFound();
@@ -94,6 +97,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
   const agency = brand.agencyId ? (agencies.find((a) => a.id === brand.agencyId) ?? null) : null;
   const brandContacts = contactsForBrand(brand, contacts);
   const brandNotes = notes.filter((note) => note.brandId === brand.id);
+  const brandCheckIns = checkInsForSubject(checkIns, "brand", brand.id);
   const brandCampaignContacts = campaignContacts.filter((cc) => cc.brandId === brand.id);
   const stats = computeBrandStats(records);
   const missingDetails = missingBrandDetails(brand, brandContacts.length > 0);
@@ -127,6 +131,8 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
           campaignContacts={brandCampaignContacts}
           stats={stats}
           notes={brandNotes}
+          checkIns={brandCheckIns}
+          inPursuit={isBrandInPursuit(brand)}
           invoices={brandInvoices}
           editorJobs={editorJobs}
           affiliates={affiliates}

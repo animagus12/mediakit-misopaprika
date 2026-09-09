@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,37 +17,119 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { brandStatusStyle, missingBrandDetailsLabel, type BrandRow } from "@/lib/brands";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  BRAND_FILTER_TABS,
+  DEFAULT_BRAND_SORT,
+  brandStatusStyle,
+  filterBrandRows,
+  isBrandFilter,
+  missingBrandDetailsLabel,
+  sortBrandRows,
+  type BrandFilter,
+  type BrandRow,
+  type BrandSort,
+  type BrandSortColumn,
+} from "@/lib/brands";
 import { formatMoney } from "@/lib/invoice";
-
-type SortColumn = "name" | "revenue" | "lastCollabDate";
-type SortDirection = "asc" | "desc";
-
-interface SortState {
-  column: SortColumn;
-  direction: SortDirection;
-}
-
-const DEFAULT_SORT: SortState = { column: "name", direction: "asc" };
-
-// Sheet dates are DD/MM/YYYY; unparsable/blank dates sort last.
-function parseSheetDate(date: string | null): number {
-  const match = date?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return Number.NEGATIVE_INFINITY;
-  const [, day, month, year] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day)).getTime();
-}
+import { cn } from "@/lib/utils";
 
 interface BrandsTableProps {
   rows: BrandRow[];
 }
 
+function campaignsLabel(count: number): string {
+  return count === 1 ? "1 campaign" : `${count} campaigns`;
+}
+
+function SortIcon({ active, direction }: { active: boolean; direction: BrandSort["direction"] }) {
+  const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
+  return <Icon className="size-3" />;
+}
+
+/** The amber dot marking a brand still missing a photo or a contact. */
+function MissingDetailsDot({ label }: { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          aria-label={label}
+          className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-background"
+        />
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function BrandIdentity({ row }: { row: BrandRow }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative shrink-0">
+        <Avatar size="sm">
+          <AvatarImage src={row.logoUrl ?? undefined} alt="" />
+          <AvatarFallback>{row.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+        </Avatar>
+        {row.missingDetails && <MissingDetailsDot label={missingBrandDetailsLabel(row.missingDetails)} />}
+      </div>
+      {/* The agency sits under the name rather than in a column of its own:
+          it qualifies who the brand is, and as a column it was the word
+          "Direct" repeated down the page. */}
+      <div className="min-w-0">
+        <p className="truncate font-medium">{row.name}</p>
+        {row.agencyName && <p className="truncate text-muted-foreground">via {row.agencyName}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function BrandsTable({ rows }: BrandsTableProps) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  function toggleSort(column: SortColumn) {
+  // Tab and search live in the URL so a stat tile can link straight into a
+  // view and the view survives a round-trip through a brand's detail page.
+  // Same wiring as CampaignsTable.
+  const tabParam = searchParams.get("tab");
+  const tab: BrandFilter = isBrandFilter(tabParam) ? tabParam : "all";
+  const queryParam = searchParams.get("q") ?? "";
+
+  const [query, setQuery] = useState(queryParam);
+  const [sort, setSort] = useState<BrandSort>(DEFAULT_BRAND_SORT);
+
+  // Adopt the URL value when it changes from the outside (a tab click,
+  // browser back/forward): the sanctioned "reset state on prop change" pattern.
+  const [lastQueryParam, setLastQueryParam] = useState(queryParam);
+  if (queryParam !== lastQueryParam) {
+    setLastQueryParam(queryParam);
+    setQuery(queryParam);
+  }
+
+  // Push local edits back to the URL, debounced so typing isn't one history
+  // entry per keystroke.
+  useEffect(() => {
+    if (query === queryParam) return;
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (query.trim()) params.set("q", query);
+      else params.delete("q");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, queryParam, pathname, router, searchParams]);
+
+  function setTab(next: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("tab");
+    else params.set("tab", next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  function toggleSort(column: BrandSortColumn) {
     setSort((current) =>
       current.column === column
         ? { column, direction: current.direction === "asc" ? "desc" : "asc" }
@@ -53,138 +137,204 @@ export function BrandsTable({ rows }: BrandsTableProps) {
     );
   }
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return needle ? rows.filter((row) => row.searchText.includes(needle)) : rows;
-  }, [rows, query]);
+  const visible = sortBrandRows(filterBrandRows(rows, { filter: tab, query }), sort);
+  const filtersActive = tab !== "all" || query.trim().length > 0;
 
-  const sorted = useMemo(() => {
-    const direction = sort.direction === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => {
-      if (sort.column === "name") return direction * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-      if (sort.column === "revenue") return direction * (a.revenue - b.revenue);
-      return direction * (parseSheetDate(a.lastCollabDate) - parseSheetDate(b.lastCollabDate));
-    });
-  }, [filtered, sort]);
+  function clearFilters() {
+    setQuery("");
+    setTab("all");
+  }
 
-  const NameSortIcon = sort.column !== "name" ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
-  const RevenueSortIcon = sort.column !== "revenue" ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
-  const LastCollabSortIcon =
-    sort.column !== "lastCollabDate" ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+  if (rows.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-xs text-muted-foreground">
+          No brands yet. Add one to start tracking the relationship.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search brands, agencies, contacts..."
-          className="pl-7"
-        />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabsList>
+            {BRAND_FILTER_TABS.map((entry) => (
+              <TabsTrigger key={entry.value} value={entry.value}>
+                {entry.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search brands, agencies, contacts..."
+            className="pl-7"
+          />
+        </div>
       </div>
 
-      {rows.length === 0 ? (
+      {visible.length === 0 ? (
         <Card>
-          <CardContent className="py-6 text-xs text-muted-foreground">
-            No brands yet. Add one to start tracking the relationship.
-          </CardContent>
-        </Card>
-      ) : sorted.length === 0 ? (
-        <Card>
-          <CardContent className="py-6 text-xs text-muted-foreground">
-            No brands match &quot;{query}&quot;.
+          <CardContent className="flex flex-col items-start gap-3 py-6 text-xs text-muted-foreground">
+            No brands match this view.
+            {filtersActive && (
+              <Button size="sm" variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead>
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("name")}
-                    className="inline-flex items-center gap-1 hover:text-foreground"
-                  >
-                    Brand
-                    <NameSortIcon className="size-3" />
-                  </button>
-                </TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Campaigns</TableHead>
-                <TableHead className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("revenue")}
-                    className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
-                  >
-                    Revenue
-                    <RevenueSortIcon className="size-3" />
-                  </button>
-                </TableHead>
-                <TableHead>
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("lastCollabDate")}
-                    className="inline-flex items-center gap-1 hover:text-foreground"
-                  >
-                    Last collab
-                    <LastCollabSortIcon className="size-3" />
-                  </button>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sorted.map((row) => {
-                const status = brandStatusStyle(row.status);
-                return (
-                  <TableRow
-                    key={row.id}
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/brands/${row.id}`)}
-                  >
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <div className="relative shrink-0">
-                          <Avatar size="sm">
-                            <AvatarImage src={row.logoUrl ?? undefined} alt="" />
-                            <AvatarFallback>{row.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          {row.missingDetails && (
-                            <span
-                              title={missingBrandDetailsLabel(row.missingDetails)}
-                              className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-background"
-                            />
-                          )}
+        <>
+          {/* Seven columns became five: the agency moved under the brand name
+              and the campaign count under the revenue it produced, so each
+              column now holds a fact and its qualifier instead of spreading
+              one thought across two headers. Nothing is hidden. */}
+          <div className="hidden overflow-x-auto rounded-md border border-border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-border bg-muted/40 hover:bg-muted/40 [&>th]:text-muted-foreground">
+                  <TableHead>
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("name")}
+                      className="inline-flex items-center gap-1 hover:text-foreground"
+                    >
+                      Brand
+                      <SortIcon active={sort.column === "name"} direction={sort.direction} />
+                    </button>
+                  </TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("revenue")}
+                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
+                    >
+                      Revenue
+                      <SortIcon active={sort.column === "revenue"} direction={sort.direction} />
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("lastCollabDate")}
+                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
+                    >
+                      Last collab
+                      <SortIcon active={sort.column === "lastCollabDate"} direction={sort.direction} />
+                    </button>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visible.map((row) => {
+                  const status = brandStatusStyle(row.status);
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/brands/${row.id}`)}
+                    >
+                      <TableCell className="max-w-56">
+                        <BrandIdentity row={row} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {row.contactName ? <span className="text-foreground">{row.contactName}</span> : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={status.variant} className={status.className}>
+                          {row.status}
+                        </Badge>
+                        {/* Only ever set for a brand still being chased, so the
+                            column stays a status for everything else. */}
+                        {row.outreachState && (
+                          <p className="mt-1 text-muted-foreground">{row.outreachLabel}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.campaignCount === 0 ? (
+                          // No deals on the sheet: a dash says it, and "0
+                          // campaigns" under it would only say it twice.
+                          <span className="text-muted-foreground">-</span>
+                        ) : (
+                          <>
+                            {row.revenue > 0 ? formatMoney(row.revenue) : <span className="text-muted-foreground">-</span>}
+                            <span className="block text-muted-foreground">{campaignsLabel(row.campaignCount)}</span>
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {row.lastCollabDate ?? "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile: stacked cards. The table needs five columns to say
+              anything, and five columns do not fit a phone: scrolled sideways
+              it showed the brand name and nothing that qualifies it. */}
+          <ul className="space-y-2 md:hidden">
+            {visible.map((row) => {
+              const status = brandStatusStyle(row.status);
+              return (
+                <li key={row.id}>
+                  <Card size="sm">
+                    <CardContent>
+                      <Link href={`/brands/${row.id}`} className="block space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <BrandIdentity row={row} />
+                          <Badge variant={status.variant} className={cn("shrink-0", status.className)}>
+                            {row.status}
+                          </Badge>
                         </div>
-                        <span className="max-w-40 truncate">{row.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {row.contactName ? <span className="truncate text-foreground">{row.contactName}</span> : "-"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {row.agencyName ? `Agency · ${row.agencyName}` : "Direct"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={status.variant} className={status.className}>
-                        {row.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {row.campaignCount}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{formatMoney(row.revenue)}</TableCell>
-                    <TableCell className="text-muted-foreground">{row.lastCollabDate ?? "-"}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                        {row.outreachState && (
+                          <p className="text-muted-foreground">{row.outreachLabel}</p>
+                        )}
+                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular-nums text-muted-foreground">
+                          <span>
+                            {row.contactName ?? "No contact"}
+                          </span>
+                          {row.campaignCount > 0 && (
+                            <span>
+                              {/* A dash for zero would read as missing data
+                                  inline; a barter deal billed nothing and the
+                                  campaign count is the whole fact. */}
+                              {row.revenue > 0 && (
+                                <>
+                                  <span className="text-foreground">{formatMoney(row.revenue)}</span>{" "}
+                                  ·{" "}
+                                </>
+                              )}
+                              {campaignsLabel(row.campaignCount)}
+                            </span>
+                          )}
+                          {row.lastCollabDate && <span>Last {row.lastCollabDate}</span>}
+                        </div>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+
+          <p className="text-xs text-muted-foreground">
+            {visible.length === rows.length
+              ? `${rows.length} brand${rows.length === 1 ? "" : "s"}`
+              : `${visible.length} of ${rows.length} brands`}
+          </p>
+        </>
       )}
     </div>
   );

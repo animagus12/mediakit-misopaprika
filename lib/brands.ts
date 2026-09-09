@@ -5,8 +5,10 @@ import type { Brand, BrandStatus } from "@/repositories/brands";
 import type { Contact } from "@/repositories/contacts";
 import type { MediaKitLogo } from "@/repositories/mediakit";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
-import { EMPTY_STATS, recordsForBrand, type BrandStats } from "./brandCampaignStats";
+import type { CheckIn } from "@/repositories/brandCheckIns";
+import { EMPTY_STATS, parseSheetDate, recordsForBrand, type BrandStats } from "./brandCampaignStats";
 import { primaryContactForBrand } from "./contacts";
+import { checkInsForSubject, outreachStatus, type OutreachState } from "./outreach";
 import { BLANK_LOGO } from "./mediakit";
 
 // Kept client-safe (no "server-only") since forms render these as <Select>
@@ -18,6 +20,8 @@ export const BRAND_STATUS_OPTIONS: BrandStatus[] = [
   "Worked With",
   "Active",
   "Dormant",
+  "Passed",
+  "Went Cold",
   "Cancelled",
   "Do Not Contact",
 ];
@@ -56,6 +60,15 @@ export function brandStatusStyle(status: BrandStatus): StatusStyle {
       };
     case "Dormant":
       return { variant: "outline", className: "border-dashed text-muted-foreground/70" };
+    // A lead that ended, which is not the same as a deal that was killed:
+    // muted rose reads as a loss without borrowing the destructive variant
+    // that Cancelled and Do Not Contact need to stay louder than.
+    case "Passed":
+    case "Went Cold":
+      return {
+        variant: "outline",
+        className: "border-rose-500/25 bg-rose-500/5 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400",
+      };
     case "Cancelled":
     case "Do Not Contact":
       return { variant: "destructive" };
@@ -67,10 +80,37 @@ export function brandStatusStyle(status: BrandStatus): StatusStyle {
 
 const LEAD_STATUSES = new Set<BrandStatus>(["Lead", "Contacted", "Negotiating"]);
 
+// A relationship that actually happened, as opposed to one still being
+// negotiated or one that ended. "Active" is a brand currently running work,
+// "Worked With" is one that has and could again: both are real collaborations,
+// which is the same test the media kit's past-collabs grid applies (see
+// brandLogosForMediaKit below).
+const WORKING_STATUSES = new Set<BrandStatus>(["Active", "Worked With"]);
+
+/**
+ * A conversation that has not become a deal and has not been closed: the only
+ * brands worth chasing with a check-in, and the only ones lib/outreach.ts
+ * raises alerts for.
+ *
+ * Reuses LEAD_STATUSES rather than listing the closed statuses, so a status
+ * added later is excluded by default. Dormant is deliberately not in it: a
+ * dormant brand is one already worked with and gone quiet, which is a
+ * different problem from a lead that never landed.
+ */
+export function isBrandInPursuit(brand: Brand): boolean {
+  return LEAD_STATUSES.has(brand.status);
+}
+
 // Statuses where an incomplete profile isn't worth nagging about: a Lead
-// hasn't been worked with yet (no contact is normal), and Cancelled/Do Not
-// Contact are dead ends: nothing left to fill in for either.
-const STATUSES_EXEMPT_FROM_DETAILS_NUDGE = new Set<BrandStatus>(["Lead", "Cancelled", "Do Not Contact"]);
+// hasn't been worked with yet (no contact is normal), and the four closed
+// statuses are dead ends: nothing left to fill in for any of them.
+const STATUSES_EXEMPT_FROM_DETAILS_NUDGE = new Set<BrandStatus>([
+  "Lead",
+  "Passed",
+  "Went Cold",
+  "Cancelled",
+  "Do Not Contact",
+]);
 
 export interface MissingBrandDetails {
   photo: boolean;
@@ -96,38 +136,6 @@ export function missingBrandDetailsLabel(missing: MissingBrandDetails): string {
   return `Missing ${parts.join(" & ")}`;
 }
 
-export interface BrandPipelineStats {
-  totalBrands: number;
-  activeBrands: number;
-  workedWith: number;
-  leads: number;
-  totalRevenue: number;
-  pendingPayments: number;
-}
-
-// Drives the /brands stat cards: pipeline counts come from Brand.status,
-// money figures roll up each brand's sheet-linked BrandStats (see
-// lib/brandCampaignStats.ts) keyed by name.
-export function computePipelineStats(brands: Brand[], statsByBrand: Map<string, BrandStats>): BrandPipelineStats {
-  const result: BrandPipelineStats = {
-    totalBrands: brands.length,
-    activeBrands: 0,
-    workedWith: 0,
-    leads: 0,
-    totalRevenue: 0,
-    pendingPayments: 0,
-  };
-  for (const brand of brands) {
-    if (brand.status === "Active") result.activeBrands += 1;
-    if (brand.status === "Worked With") result.workedWith += 1;
-    if (LEAD_STATUSES.has(brand.status)) result.leads += 1;
-    const stats = statsByBrand.get(brand.name) ?? EMPTY_STATS;
-    result.totalRevenue += stats.totalReceived;
-    result.pendingPayments += stats.pending;
-  }
-  return result;
-}
-
 export interface BrandRow {
   id: string;
   name: string;
@@ -139,6 +147,13 @@ export interface BrandRow {
   revenue: number;
   lastCollabDate: string | null;
   missingDetails: MissingBrandDetails | null;
+  /**
+   * Where the pre-deal conversation stands, for the brands the check-in
+   * counter applies to. null for everything else, which is most of the table:
+   * a brand already worked with has no pursuit to report on.
+   */
+  outreachState: OutreachState | null;
+  outreachLabel: string;
   searchText: string; // lowercase and pre-joined, which is what the search bar filters against
 }
 
@@ -157,7 +172,8 @@ export function buildBrandRows(
   agencies: Agency[],
   contacts: Contact[],
   statsByBrand: Map<string, BrandStats>,
-  records: BrandCampaignRecord[]
+  records: BrandCampaignRecord[],
+  checkIns: CheckIn[] = []
 ): BrandRow[] {
   const agencyById = new Map(agencies.map((agency) => [agency.id, agency]));
   return brands.map((brand) => {
@@ -165,6 +181,12 @@ export function buildBrandRows(
     const contact = primaryContactForBrand(brand, contacts);
     const stats = statsByBrand.get(brand.name) ?? EMPTY_STATS;
     const status: BrandStatus = isCancelledOnly(recordsForBrand(brand, records)) ? "Cancelled" : brand.status;
+    // Computed against the brand's own status rather than the derived one
+    // above: a pursuit is about the conversation, and a brand with no deals
+    // on the sheet is exactly the case the counter exists for.
+    const outreach = isBrandInPursuit(brand)
+      ? outreachStatus(checkInsForSubject(checkIns, "brand", brand.id))
+      : null;
     const searchText = [brand.name, agency?.name, contact?.name, contact?.phone]
       .filter((part): part is string => Boolean(part))
       .join(" ")
@@ -180,14 +202,133 @@ export function buildBrandRows(
       revenue: stats.totalBilled,
       lastCollabDate: stats.lastCollabDate,
       missingDetails: missingBrandDetails(brand, Boolean(contact)),
+      outreachState: outreach && outreach.label !== "" ? outreach.state : null,
+      outreachLabel: outreach?.label ?? "",
       searchText,
     };
   });
 }
 
-// A real collaboration on record, not just a lead in the pipeline: mirrors
-// what "past collaborations" is supposed to mean on the media kit.
-const MEDIA_KIT_ELIGIBLE_STATUSES = new Set<BrandStatus>(["Worked With", "Active"]);
+export type BrandSortColumn = "name" | "revenue" | "lastCollabDate";
+export type SortDirection = "asc" | "desc";
+
+export interface BrandSort {
+  column: BrandSortColumn;
+  direction: SortDirection;
+}
+
+export const DEFAULT_BRAND_SORT: BrandSort = { column: "name", direction: "asc" };
+
+// Here rather than in the table for the same reason filterBrandRows is: what
+// the list can be ordered by is the list's rule, not its markup. Mirrors
+// sortCampaigns in lib/campaigns.ts.
+export function sortBrandRows(rows: BrandRow[], { column, direction }: BrandSort): BrandRow[] {
+  const sign = direction === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (column === "revenue") return sign * (a.revenue - b.revenue);
+    if (column === "lastCollabDate") {
+      return sign * (parseSheetDate(a.lastCollabDate) - parseSheetDate(b.lastCollabDate));
+    }
+    return sign * a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+}
+
+/**
+ * The three things a brand can be, from the creator's point of view: a
+ * conversation worth chasing, a relationship that is live, or one there is
+ * nothing to do about.
+ *
+ * Coarser than BrandStatus on purpose. Ten status pills are the right
+ * vocabulary for one row, and the wrong one for a tab strip: the question a
+ * tab answers is "which part of the list am I looking at", and there are only
+ * three parts. The Status column still names the exact status.
+ */
+export type BrandFilter = "all" | "pipeline" | "working" | "inactive";
+
+export const BRAND_FILTER_TABS: { value: BrandFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "pipeline", label: "Pipeline" },
+  { value: "working", label: "Working" },
+  { value: "inactive", label: "Inactive" },
+];
+
+export function isBrandFilter(value: string | null | undefined): value is BrandFilter {
+  return BRAND_FILTER_TABS.some((tab) => tab.value === value);
+}
+
+// Matched against BrandRow.status, not Brand.status, so a brand the table is
+// already showing as "Cancelled" (every deal on the sheet called off, see
+// isCancelledOnly) files under Closed rather than under whatever it was
+// imported as.
+function matchesBrandFilter(row: BrandRow, filter: BrandFilter): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "pipeline":
+      return LEAD_STATUSES.has(row.status);
+    case "working":
+      return WORKING_STATUSES.has(row.status);
+    // Everything that is neither: the four closed statuses plus Dormant,
+    // which is not closed but is not asking for anything either. Written as
+    // the complement so a status added later lands here instead of vanishing
+    // from every tab.
+    case "inactive":
+      return !LEAD_STATUSES.has(row.status) && !WORKING_STATUSES.has(row.status);
+  }
+}
+
+export function filterBrandRows(
+  rows: BrandRow[],
+  { filter, query }: { filter: BrandFilter; query: string }
+): BrandRow[] {
+  const needle = query.trim().toLowerCase();
+  return rows.filter(
+    (row) => matchesBrandFilter(row, filter) && (!needle || row.searchText.includes(needle))
+  );
+}
+
+export interface BrandPipelineStats {
+  totalBrands: number;
+  /** Lead/Contacted/Negotiating: conversations that could still become deals. */
+  pipeline: number;
+  /** Active/Worked With: relationships that are live or have been. */
+  working: number;
+  totalRevenue: number;
+  pendingPayments: number;
+}
+
+/**
+ * Drives the /brands stat tiles: counts come from the rows, money figures roll
+ * up each brand's sheet-linked BrandStats (see lib/brandCampaignStats.ts)
+ * keyed by name.
+ *
+ * Takes rows rather than brands so the counts run through matchesBrandFilter,
+ * the one rule the tabs also use. Counting Brand.status here instead would
+ * disagree with the tab a tile links to for any brand the table is showing
+ * under a derived status: a brand imported as "Worked With" whose only deals
+ * were all cancelled sits in Inactive but would have been counted as working,
+ * and the three groups would sum to more brands than exist.
+ */
+export function computePipelineStats(
+  rows: BrandRow[],
+  statsByBrand: Map<string, BrandStats>
+): BrandPipelineStats {
+  const result: BrandPipelineStats = {
+    totalBrands: rows.length,
+    pipeline: 0,
+    working: 0,
+    totalRevenue: 0,
+    pendingPayments: 0,
+  };
+  for (const row of rows) {
+    if (matchesBrandFilter(row, "pipeline")) result.pipeline += 1;
+    if (matchesBrandFilter(row, "working")) result.working += 1;
+    const stats = statsByBrand.get(row.name) ?? EMPTY_STATS;
+    result.totalRevenue += stats.totalReceived;
+    result.pendingPayments += stats.pending;
+  }
+  return result;
+}
 
 // Feeds the media kit generator's "Sync from brands" button (MediaKitLogoGrid.tsx)
 //: brand logo becomes the media kit collab logo image, brand website becomes
@@ -200,7 +341,7 @@ export function brandLogosForMediaKit(
 ): MediaKitLogo[] {
   return brands
     .filter((brand): brand is Brand & { logoUrl: string } =>
-      (MEDIA_KIT_ELIGIBLE_STATUSES.has(brand.status) || paidBrandIds.has(brand.id)) && Boolean(brand.logoUrl)
+      (WORKING_STATUSES.has(brand.status) || paidBrandIds.has(brand.id)) && Boolean(brand.logoUrl)
     )
     .map((brand) => ({ src: brand.logoUrl, url: brand.website }));
 }
