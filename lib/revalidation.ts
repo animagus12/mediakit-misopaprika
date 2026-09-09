@@ -23,6 +23,10 @@ const ROUTES = {
   agencies: ["/", "/brands", "/brands/[id]"],
   editors: ["/", "/workspace"],
   editorTransactions: ["/", "/workspace", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
+  // Commission is income, so every page that reads the earnings summary is
+  // invalidated by an affiliate write, not just /affiliates itself.
+  affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
+  affiliatePayouts: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
   brandNotes: ["/brands/[id]"],
   campaignContacts: ["/brands/[id]"],
   invoiceDefaults: ["/invoices/new", "/invoices/[id]"],

@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { selectBrandPaymentRows, type BrandStats } from "@/lib/brandCampaignStats";
 import type { Invoice } from "@/repositories/invoices";
+import { BrandAffiliateCommission, type BrandAffiliateProgram } from "./BrandAffiliateCommission";
 
 const STAT_TONES = {
   neutral: { card: "", value: "" },
@@ -122,9 +123,15 @@ interface BrandPaymentsTabProps {
   stats: BrandStats;
   records: BrandCampaignRecord[];
   invoices: Invoice[]; // this brand's saved invoices, for reconciling each record's Invoice ID field
+  affiliates: BrandAffiliateProgram[]; // affiliate programs run by this brand, already scoped
 }
 
-export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabProps) {
+export function BrandPaymentsTab({
+  stats,
+  records,
+  invoices,
+  affiliates,
+}: BrandPaymentsTabProps) {
   // Rows first, verdict from the rows: renewals are money owed on a schedule
   // like any other, so they belong in both or neither.
   const rows = selectBrandPaymentRows(records);
@@ -276,6 +283,8 @@ export function BrandPaymentsTab({ stats, records, invoices }: BrandPaymentsTabP
           </Table>
         </div>
       )}
+
+      <BrandAffiliateCommission programs={affiliates} />
     </div>
   );
 }

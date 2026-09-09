@@ -56,6 +56,7 @@ export const config = {
     "/links",
     "/links-editor/:path*",
     "/workspace/:path*",
+    "/affiliates/:path*",
     "/brands/:path*",
     "/activity",
   ],

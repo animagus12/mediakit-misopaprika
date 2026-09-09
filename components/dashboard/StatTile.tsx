@@ -32,6 +32,13 @@ export const STAT_TONES = {
     value: "text-emerald-600 dark:text-emerald-400",
   },
   barter: { card: "bg-sky-500/5 ring-sky-500/15", value: "text-sky-600 dark:text-sky-400" },
+  // Affiliate commission gets a hue of its own rather than sharing cash's:
+  // it is the one income source that recurs without a new deal, and the
+  // whole point of charting it separately is being able to pick it out.
+  commission: {
+    card: "bg-violet-500/5 ring-violet-500/15",
+    value: "text-violet-600 dark:text-violet-400",
+  },
   audience: { card: "bg-sky-500/5 ring-sky-500/15", value: "text-sky-600 dark:text-sky-400" },
   pending: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },
   owed: { card: "bg-amber-500/5 ring-amber-500/15", value: "text-amber-600 dark:text-amber-400" },

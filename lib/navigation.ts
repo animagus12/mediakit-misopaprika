@@ -1,4 +1,4 @@
-import { Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
+import { BadgePercent, Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Sidebar sections. Grouping lives here rather than in the sidebar component
@@ -82,6 +82,14 @@ export const navEntries: NavEntry[] = [
     title: "Editor workspace",
     description: "Track video editing transactions and editor payouts.",
     Icon: Clapperboard,
+    access: "protected",
+    group: "manage",
+  },
+  {
+    href: "/affiliates",
+    title: "Affiliates",
+    description: "Creator codes, commission periods, and how well each code converts.",
+    Icon: BadgePercent,
     access: "protected",
     group: "manage",
   },

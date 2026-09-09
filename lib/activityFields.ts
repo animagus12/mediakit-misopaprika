@@ -1,5 +1,7 @@
 import { formatMoney } from "@/lib/invoice";
 import { countOf, type DiffField } from "@/lib/activityDiff";
+import type { AffiliatePartner } from "@/repositories/affiliatePartners";
+import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
 import type { Agency } from "@/repositories/agencies";
 import type { Brand } from "@/repositories/brands";
 import type { CampaignRecord } from "@/repositories/campaigns";
@@ -24,6 +26,13 @@ import type { InvoiceRecord } from "@/repositories/invoices";
 
 function money(value: unknown): string {
   return typeof value === "number" ? formatMoney(value) : "";
+}
+
+// The unit depends on the partner's commissionModel (percent of sales, or
+// rupees per sale), which a single field's diff cannot see. Rendered bare, so
+// the log never asserts a unit it cannot know.
+function rate(value: unknown): string {
+  return typeof value === "number" && value > 0 ? String(value) : "";
 }
 
 // 0 is "no licence recorded" rather than a zero-month one, so it reads as
@@ -120,4 +129,29 @@ export const editorTransactionFields: readonly DiffField<EditorTransactionRecord
   { label: "video", value: (record) => record.video },
   { label: "delivery date", value: (record) => record.deliveryDate },
   { label: "video date", value: (record) => record.videoDate },
+];
+
+export const affiliatePartnerFields: readonly DiffField<AffiliatePartner>[] = [
+  { label: "status", value: (partner) => partner.status },
+  { label: "code", value: (partner) => partner.code },
+  { label: "commission", value: (partner) => partner.commissionRate, format: rate },
+  { label: "name", value: (partner) => partner.name },
+  { label: "payout schedule", value: (partner) => partner.payoutSchedule },
+  { label: "start date", value: (partner) => partner.startDate },
+  // Ids and long URLs say nothing to a reader, so only the fact is recorded.
+  { label: "brand", value: (partner) => partner.brandId, redact: true },
+  { label: "links card", value: (partner) => partner.linkItemId, redact: true },
+  { label: "tracking link", value: (partner) => partner.trackingUrl, redact: true },
+  { label: "dashboard", value: (partner) => partner.dashboardUrl, redact: true },
+];
+
+export const affiliatePayoutFields: readonly DiffField<AffiliatePayout>[] = [
+  { label: "payment", value: (payout) => payout.paymentStatus },
+  { label: "commission", value: (payout) => payout.commissionAmount, format: money },
+  { label: "gross sales", value: (payout) => payout.grossSales, format: money },
+  { label: "sales", value: (payout) => payout.salesCount },
+  { label: "paid on", value: (payout) => payout.paidDate },
+  { label: "period end", value: (payout) => payout.periodEnd },
+  { label: "period start", value: (payout) => payout.periodStart },
+  { label: "payment method", value: (payout) => payout.paymentMethod },
 ];

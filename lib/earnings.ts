@@ -79,7 +79,10 @@ export function computeMonthTrend(
 
 export interface MonthMargin {
   month: string; // "YYYY-MM"
-  /** Cash received that month. Never the total: an editor cannot be paid in barter. */
+  /**
+   * Spendable money received that month: deal cash plus affiliate commission.
+   * Never the total, because an editor cannot be paid in barter.
+   */
   cash: number;
   editorCost: number;
   margin: number;
@@ -98,6 +101,10 @@ export interface MonthMargin {
  * the income a cash cost is subtracted from would report a margin the creator
  * cannot spend. It is the same reason computeEditorPayouts exists at all.
  *
+ * Affiliate commission is added to deal cash here, because it spends exactly
+ * the same way. summarizeEarnings keeps the two apart so each stays readable
+ * on its own; a margin is the one read that wants them together.
+ *
  * A month with no editing recorded nets to its cash rather than being dropped.
  * That is the honest reading, since nothing was spent, and it keeps the series
  * defined across the whole window instead of leaving holes wherever the
@@ -113,13 +120,14 @@ export function computeMarginSeries(
 ): MonthMargin[] {
   return monthly.map((month) => {
     const editorCost = editorCostByMonth.get(month.month) ?? 0;
-    const margin = month.paid - editorCost;
+    const cash = month.paid + month.commission;
+    const margin = cash - editorCost;
     return {
       month: month.month,
-      cash: month.paid,
+      cash,
       editorCost,
       margin,
-      marginPercent: month.paid > 0 ? (margin / month.paid) * 100 : null,
+      marginPercent: cash > 0 ? (margin / cash) * 100 : null,
     };
   });
 }

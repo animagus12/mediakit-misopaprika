@@ -21,6 +21,8 @@ export type ActivityEntityType =
   | "invoice"
   | "editor"
   | "editorTransaction"
+  | "affiliatePartner"
+  | "affiliatePayout"
   | "links"
   | "mediakit";
 
@@ -65,6 +67,12 @@ export type ActivityAction =
   | "editorTransaction.created"
   | "editorTransaction.updated"
   | "editorTransaction.deleted"
+  | "affiliatePartner.created"
+  | "affiliatePartner.updated"
+  | "affiliatePayout.created"
+  | "affiliatePayout.updated"
+  | "affiliatePayout.paid"
+  | "affiliatePayout.deleted"
   | "links.published"
   | "mediakit.published";
 

@@ -1,4 +1,5 @@
 import {
+  BadgePercent,
   Building2,
   Clapperboard,
   FileText,
@@ -74,6 +75,12 @@ const TITLES: Record<ActivityAction, (label: string) => string> = {
   "editorTransaction.created": (label) => `Editing job ${label} added`,
   "editorTransaction.updated": (label) => `Editing job ${label} updated`,
   "editorTransaction.deleted": (label) => `Editing job ${label} deleted`,
+  "affiliatePartner.created": (label) => `Affiliate program ${label} added`,
+  "affiliatePartner.updated": (label) => `Affiliate program ${label} updated`,
+  "affiliatePayout.created": (label) => `Commission period ${label} recorded`,
+  "affiliatePayout.updated": (label) => `Commission period ${label} updated`,
+  "affiliatePayout.paid": (label) => `Commission received for ${label}`,
+  "affiliatePayout.deleted": (label) => `Commission period ${label} deleted`,
   "links.published": () => "Links page published",
   "mediakit.published": () => "Media kit published",
 };
@@ -87,10 +94,12 @@ const TONES: Partial<Record<ActivityAction, ActivityTone>> = {
   "campaign.usage_payment_received": "positive",
   "campaign.usage_renewed": "positive",
   "invoice.paid": "positive",
+  "affiliatePayout.paid": "positive",
   "brand.deleted": "destructive",
   "contact.deleted": "destructive",
   "invoice.deleted": "destructive",
   "editorTransaction.deleted": "destructive",
+  "affiliatePayout.deleted": "destructive",
   "content.deleted": "destructive",
 };
 
@@ -106,6 +115,8 @@ const ICONS: Record<ActivityEntityType, LucideIcon> = {
   invoice: FileText,
   editor: Clapperboard,
   editorTransaction: Clapperboard,
+  affiliatePartner: BadgePercent,
+  affiliatePayout: BadgePercent,
   links: Link2,
   mediakit: Sparkles,
 };
@@ -122,6 +133,8 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   invoice: { detail: (id) => `/invoices/${id}`, list: "/invoices" },
   editor: { detail: null, list: "/workspace" },
   editorTransaction: { detail: null, list: "/workspace" },
+  affiliatePartner: { detail: null, list: "/affiliates" },
+  affiliatePayout: { detail: null, list: "/affiliates" },
   links: { detail: null, list: "/links-editor" },
   mediakit: { detail: null, list: "/mediakit-generator" },
 };
@@ -149,6 +162,7 @@ export const activityFilters: readonly ActivityFilter[] = [
   { id: "content", label: "Content", types: ["content"] },
   { id: "invoices", label: "Invoices", types: ["invoice"] },
   { id: "workspace", label: "Workspace", types: ["editor", "editorTransaction"] },
+  { id: "affiliates", label: "Affiliates", types: ["affiliatePartner", "affiliatePayout"] },
   { id: "publishing", label: "Publishing", types: ["links", "mediakit"] },
 ];
 
