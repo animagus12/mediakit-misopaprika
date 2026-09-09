@@ -14,28 +14,44 @@ const CHART_HEIGHT = 112;
 const SERIES = [
   { key: "paid", label: "Cash", swatch: "bg-emerald-500 dark:bg-emerald-600" },
   { key: "barter", label: "Barter", swatch: "bg-sky-500 dark:bg-sky-600" },
+  { key: "commission", label: "Commission", swatch: "bg-violet-500 dark:bg-violet-600" },
   { key: "pending", label: "Pending", swatch: "bg-amber-500 dark:bg-amber-600" },
 ] as const;
+
+type Series = (typeof SERIES)[number];
+
+// Commission is the one series that is absent rather than zero for a creator
+// running no affiliate programs, so it is dropped from the stack, the legend
+// and the tooltip until a payout exists. The other three are structural: cash,
+// barter and pending are always meaningful questions to ask of a month, and a
+// legend that changes shape as deals come and go is harder to read than one
+// empty row.
+function visibleSeries(monthly: MonthlyEarnings[]): readonly Series[] {
+  const hasCommission = monthly.some((month) => month.commission > 0);
+  return hasCommission ? SERIES : SERIES.filter((s) => s.key !== "commission");
+}
 
 function EarningsBar({
   month,
   isCurrent,
   maxValue,
   side,
+  series,
 }: {
   month: MonthlyEarnings;
   isCurrent: boolean;
   maxValue: number;
   side: "left" | "right";
+  series: readonly Series[];
 }) {
   // The height of the stacked bar, which is what this tooltip describes: all
   // three series, pending included. Deliberately not month.total, which counts
   // received money only and would name a number the bar does not draw. The
   // monthly ledger on /campaigns shows that one, under its own heading.
-  const grandTotal = month.paid + month.barter + month.pending;
+  const grandTotal = month.paid + month.barter + month.commission + month.pending;
 
   let topVisible = -1;
-  SERIES.forEach((s, i) => {
+  series.forEach((s, i) => {
     if (month[s.key] > 0) topVisible = i;
   });
 
@@ -62,7 +78,7 @@ function EarningsBar({
       >
         <p className="mb-1.5 text-[0.65rem] font-medium text-muted-foreground">{monthLabel(month.month)}</p>
         <div className="space-y-1">
-          {SERIES.map((s) => (
+          {series.map((s) => (
             <div key={s.key} className="flex items-center justify-between gap-2 text-[0.7rem]">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <span className={cn("h-0.5 w-2.5 shrink-0 rounded-full", s.swatch)} />
@@ -82,7 +98,7 @@ function EarningsBar({
         className="flex w-6 flex-col-reverse gap-[2px] border-b border-border/60"
         style={{ height: CHART_HEIGHT }}
       >
-        {SERIES.map((s, i) => {
+        {series.map((s, i) => {
           const value = month[s.key];
           if (value <= 0) return null;
           const heightPct = maxValue > 0 ? (value / maxValue) * 100 : 0;
@@ -109,7 +125,8 @@ export function EarningsChart({ monthly }: { monthly: MonthlyEarnings[] }) {
   // `monthly` is newest-first (matching the table below); a trend chart
   // reads oldest-to-newest left to right.
   const ascending = [...monthly].reverse();
-  const maxValue = Math.max(...ascending.map((m) => m.paid + m.barter + m.pending), 1);
+  const series = visibleSeries(monthly);
+  const maxValue = Math.max(...ascending.map((m) => m.paid + m.barter + m.commission + m.pending), 1);
   const thisMonth = currentMonthKey();
 
   return (
@@ -128,11 +145,12 @@ export function EarningsChart({ monthly }: { monthly: MonthlyEarnings[] }) {
             isCurrent={month.month === thisMonth}
             maxValue={maxValue}
             side={index < ascending.length / 2 ? "right" : "left"}
+            series={series}
           />
         ))}
       </div>
       <div className="flex items-center gap-4">
-        {SERIES.map((s) => (
+        {series.map((s) => (
           <div key={s.key} className="flex items-center gap-1.5 text-[0.7rem] text-muted-foreground">
             <span className={cn("size-2 rounded-sm", s.swatch)} />
             {s.label}

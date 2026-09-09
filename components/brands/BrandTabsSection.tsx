@@ -5,6 +5,7 @@ import { BrandInvoicesTab } from "./BrandInvoicesTab";
 import { BrandNotesTab } from "./BrandNotesTab";
 import { BrandOverviewTab } from "./BrandOverviewTab";
 import { BrandPaymentsTab } from "./BrandPaymentsTab";
+import type { BrandAffiliateProgram } from "./BrandAffiliateCommission";
 import type { BrandStats } from "@/lib/brandCampaignStats";
 import type { InvoiceEditorJobOption } from "@/lib/invoice";
 import type { Agency } from "@/repositories/agencies";
@@ -25,6 +26,7 @@ interface BrandTabsSectionProps {
   notes: BrandNote[];
   invoices: Invoice[]; // already scoped to this brand
   editorJobs: InvoiceEditorJobOption[];
+  affiliates: BrandAffiliateProgram[]; // already scoped to this brand
 }
 
 export function BrandTabsSection({
@@ -37,6 +39,7 @@ export function BrandTabsSection({
   notes,
   invoices,
   editorJobs,
+  affiliates,
 }: BrandTabsSectionProps) {
   return (
     <Tabs defaultValue="overview">
@@ -64,7 +67,12 @@ export function BrandTabsSection({
         <BrandCampaignsTab brandId={brand.id} records={records} contacts={contacts} campaignContacts={campaignContacts} />
       </TabsContent>
       <TabsContent value="payments" className="pt-4">
-        <BrandPaymentsTab stats={stats} records={records} invoices={invoices} />
+        <BrandPaymentsTab
+          stats={stats}
+          records={records}
+          invoices={invoices}
+          affiliates={affiliates}
+        />
       </TabsContent>
       <TabsContent value="invoices" className="pt-4">
         <BrandInvoicesTab brandId={brand.id} invoices={invoices} editorJobs={editorJobs} />

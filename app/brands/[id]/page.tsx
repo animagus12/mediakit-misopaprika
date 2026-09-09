@@ -4,6 +4,7 @@ import AppShell from "@/components/common/AppShell";
 import { BrandDetailHeader } from "@/components/brands/BrandDetailHeader";
 import { BrandSummaryCards } from "@/components/brands/BrandSummaryCards";
 import { BrandTabsSection } from "@/components/brands/BrandTabsSection";
+import type { BrandAffiliateProgram } from "@/components/brands/BrandAffiliateCommission";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAgencies } from "@/repositories/agencies.writer.server";
 import { getBrand } from "@/repositories/brands.writer.server";
@@ -12,9 +13,12 @@ import { getBrandNotes } from "@/repositories/brandNotes.writer.server";
 import { getCampaignContacts } from "@/repositories/campaignContacts.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
+import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.server";
+import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
 import { fetchBrandCampaignRecords, type BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { computeBrandStats, recordsForBrand } from "@/lib/brandCampaignStats";
 import { buildInvoiceEditorJobOptions, invoicesForBrand, type InvoiceEditorJobOption } from "@/lib/invoice";
+import { sortPayoutsByPeriod } from "@/lib/affiliates";
 import { contactsForBrand } from "@/lib/contacts";
 import { missingBrandDetails } from "@/lib/brands";
 import type { Invoice } from "@/repositories/invoices";
@@ -66,6 +70,27 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
     // keep the fallbacks
   }
 
+  // Affiliate programs this brand runs, with their payouts. Best-effort for
+  // the same reason invoices are: a Redis hiccup here costs one block on the
+  // Payments tab rather than the brand page. Joined on brandId only, with no
+  // name fallback: a program is linked explicitly in the partner form, so an
+  // unlinked one is unlinked on purpose.
+  let affiliates: BrandAffiliateProgram[] = [];
+  try {
+    const [partners, payouts] = await Promise.all([
+      getAffiliatePartners(),
+      getAffiliatePayouts(),
+    ]);
+    affiliates = partners
+      .filter((partner) => partner.brandId === brand.id)
+      .map((partner) => ({
+        partner,
+        payouts: sortPayoutsByPeriod(payouts.filter((payout) => payout.partnerId === partner.id)),
+      }));
+  } catch {
+    // keep the fallback
+  }
+
   const agency = brand.agencyId ? (agencies.find((a) => a.id === brand.agencyId) ?? null) : null;
   const brandContacts = contactsForBrand(brand, contacts);
   const brandNotes = notes.filter((note) => note.brandId === brand.id);
@@ -104,6 +129,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
           notes={brandNotes}
           invoices={brandInvoices}
           editorJobs={editorJobs}
+          affiliates={affiliates}
         />
       </div>
     </AppShell>

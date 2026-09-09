@@ -11,6 +11,7 @@ import { RevenueMixCard } from "@/components/dashboard/RevenueMixCard";
 import { DealEconomicsCard } from "@/components/dashboard/DealEconomicsCard";
 import { PaymentReliabilityCard } from "@/components/dashboard/PaymentReliabilityCard";
 import { AudienceCard } from "@/components/dashboard/AudienceCard";
+import { AffiliateAlertsCard } from "@/components/dashboard/AffiliateAlertsCard";
 import { RecentActivityCard } from "@/components/dashboard/RecentActivityCard";
 import { WeekAheadCard } from "@/components/calendar/WeekAheadCard";
 import { UsageRenewalsCard } from "@/components/campaigns/UsageRenewalsCard";
@@ -43,6 +44,9 @@ import { computeRevenueMix } from "@/lib/revenueMix";
 import { mediakitRepository } from "@/repositories/mediakit";
 import { linksSummary } from "@/lib/linkStats";
 import { selectAttentionItems } from "@/lib/dashboardAttention";
+import { selectAffiliateAlerts } from "@/lib/affiliates";
+import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.server";
+import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
 import {
   selectScheduledPosts,
   selectUnscheduledPosts,
@@ -73,6 +77,10 @@ export default function HomePage() {
 
       <Suspense fallback={<Skeleton className="mb-8 h-32 w-full rounded-lg" />}>
         <UsageRenewalsSection />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <AffiliateAlertsSection />
       </Suspense>
 
       <Suspense fallback={<Skeleton className="mb-8 h-40 w-full rounded-lg" />}>
@@ -254,6 +262,25 @@ async function MoneyFlowSection() {
       invoices={computeInvoiceStats(invoices)}
       payouts={computeEditorPayouts(editorTransactions)}
       margins={computeInvoiceMarginTotals(invoices, buildInvoiceEditorJobOptions(editorTransactions))}
+      className="mb-8"
+    />
+  );
+}
+
+// Late commission and codes that have stopped selling. Every store degrades
+// to empty rather than taking the section down, and the card renders nothing
+// when there is nothing to chase, which is why its fallback is null rather
+// than a skeleton: a placeholder for a card that usually does not appear
+// would make the dashboard flicker on every load.
+async function AffiliateAlertsSection() {
+  const [partners, payouts, analytics] = await Promise.all([
+    getAffiliatePartners().catch(() => []),
+    getAffiliatePayouts().catch(() => []),
+    getLinksAnalytics().catch(() => ({ views: 0, uniqueVisitors: 0, clicksByItem: {} })),
+  ]);
+  return (
+    <AffiliateAlertsCard
+      alerts={selectAffiliateAlerts(partners, payouts, analytics.clicksByItem)}
       className="mb-8"
     />
   );

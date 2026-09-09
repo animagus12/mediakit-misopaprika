@@ -21,6 +21,7 @@ const EMPTY_MONTH: Omit<MonthlyEarnings, "month"> = {
   total: 0,
   paid: 0,
   barter: 0,
+  commission: 0,
   pending: 0,
   deals: [],
 };
@@ -48,11 +49,17 @@ export function EarningsOverview({
   const thisMonthKey = currentMonthKey();
   const thisMonth = summary.monthly.find((m) => m.month === thisMonthKey) ?? EMPTY_MONTH;
 
+  // Commission earns a tile only in a month that had some. It is a fifth
+  // figure on a row built for four, and a permanent zero would cost every
+  // other tile a quarter of its width to say nothing.
   const stats: Array<{ label: string; value: number; tone: StatTone }> = [
     { label: "Received", value: thisMonth.total, tone: "neutral" },
     { label: "Cash", value: thisMonth.paid, tone: "cash" },
     { label: "Barter value", value: thisMonth.barter, tone: "barter" },
-    { label: "Pending", value: thisMonth.pending, tone: "pending" },
+    ...(thisMonth.commission > 0
+      ? [{ label: "Commission", value: thisMonth.commission, tone: "commission" as StatTone }]
+      : []),
+    { label: "Pending", value: thisMonth.pending, tone: "pending" as StatTone },
   ];
 
   const trend = computeMonthTrend(summary.monthly);
@@ -86,7 +93,7 @@ export function EarningsOverview({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className={cn("grid grid-cols-2 gap-4", stats.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
         {stats.map(({ label, value, tone }) => (
           <StatTile key={label} label={label} value={formatMoney(value)} tone={tone} />
         ))}

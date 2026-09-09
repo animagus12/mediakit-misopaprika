@@ -12,9 +12,26 @@ import type { MonthlyEarnings } from "@/repositories/earnings";
 // The dashboard keeps the chart and the trend.
 
 const RECENT_MONTHS = 6;
-const MONTH_GRID = "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[30rem]";
 
-function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: boolean }) {
+// The commission column is dropped entirely when the book has none, rather
+// than standing empty: this table already scrolls sideways on a phone, and a
+// column of zeroes would cost that scroll another 4.5rem to say nothing.
+function monthGrid(showCommission: boolean): string {
+  return showCommission
+    ? "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[34.5rem]"
+    : "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[30rem]";
+}
+
+function MonthRow({
+  month,
+  highlight,
+  showCommission,
+}: {
+  month: MonthlyEarnings;
+  highlight?: boolean;
+  showCommission: boolean;
+}) {
+  const MONTH_GRID = monthGrid(showCommission);
   const summaryRow = (
     <div
       className={
@@ -41,6 +58,11 @@ function MonthRow({ month, highlight }: { month: MonthlyEarnings; highlight?: bo
       </span>
       <span className="text-right tabular-nums">{formatMoney(month.paid)}</span>
       <span className="text-right tabular-nums">{formatMoney(month.barter)}</span>
+      {showCommission && (
+        <span className="text-right tabular-nums text-violet-600 dark:text-violet-400">
+          {formatMoney(month.commission)}
+        </span>
+      )}
       <span className="text-right tabular-nums text-muted-foreground">{formatMoney(month.pending)}</span>
       <span className={highlight ? "text-right font-semibold tabular-nums" : "text-right font-medium tabular-nums"}>
         {formatMoney(month.total)}
@@ -90,6 +112,8 @@ export function MonthlyEarningsLedger({ monthly }: { monthly: MonthlyEarnings[] 
   const recent = monthly.filter((m) => m.month >= cutoff);
   const older = monthly.filter((m) => m.month < cutoff);
   const thisMonth = currentMonthKey();
+  const showCommission = monthly.some((m) => m.commission > 0);
+  const MONTH_GRID = monthGrid(showCommission);
 
   return (
     <Card>
@@ -101,12 +125,18 @@ export function MonthlyEarningsLedger({ monthly }: { monthly: MonthlyEarnings[] 
             <span>Month</span>
             <span className="text-right">Cash</span>
             <span className="text-right">Barter</span>
+            {showCommission && <span className="text-right">Commission</span>}
             <span className="text-right">Pending</span>
             <span className="text-right">Received</span>
           </div>
           <div className="space-y-0.5 pt-1">
             {recent.map((m) => (
-              <MonthRow key={m.month} month={m} highlight={m.month === thisMonth} />
+              <MonthRow
+                key={m.month}
+                month={m}
+                highlight={m.month === thisMonth}
+                showCommission={showCommission}
+              />
             ))}
           </div>
         </div>
@@ -122,7 +152,7 @@ export function MonthlyEarningsLedger({ monthly }: { monthly: MonthlyEarnings[] 
             <CollapsibleContent className="-mx-4 mt-2 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
               <div className="space-y-0.5">
                 {older.map((m) => (
-                  <MonthRow key={m.month} month={m} />
+                  <MonthRow key={m.month} month={m} showCommission={showCommission} />
                 ))}
               </div>
             </CollapsibleContent>
