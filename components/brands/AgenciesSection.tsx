@@ -14,9 +14,16 @@ interface AgenciesSectionProps {
 export function AgenciesSection({ agencies, brands, contacts }: AgenciesSectionProps) {
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-heading text-sm font-semibold">Agencies</h2>
-        <NewAgencyButton />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="font-heading text-sm font-semibold">Agencies</h2>
+          <p className="text-xs text-muted-foreground">
+            Each pill shows how many brands it reps. Open one to edit it or manage its contacts.
+          </p>
+        </div>
+        <div className="shrink-0">
+          <NewAgencyButton />
+        </div>
       </div>
 
       {agencies.length === 0 ? (

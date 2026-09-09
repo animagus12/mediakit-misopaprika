@@ -28,6 +28,9 @@ const ROUTES = {
   affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
   affiliatePayouts: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
   brandNotes: ["/brands/[id]"],
+  // The dashboard card and the brands table both read the check-in log, so a
+  // logged check-in invalidates more than the brand's own page.
+  brandCheckIns: ["/", "/brands", "/brands/[id]"],
   campaignContacts: ["/brands/[id]"],
   invoiceDefaults: ["/invoices/new", "/invoices/[id]"],
 } as const satisfies Record<string, readonly string[]>;

@@ -294,11 +294,10 @@ a.card:hover {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* Basis auto, not the row's 0: in a column that 0 is a HEIGHT, which collapses
-   the caption to nothing. Growing is wanted here, because tiles in a grid row
-   are stretched to the tallest of them and the caption is what takes up the
-   difference: centred in it, so a tile with no picture reads as a caption in a
-   card rather than one pinned to its ceiling above a void. */
+/* Growing is wanted here, because tiles in a grid row are stretched to the
+   tallest of them and the caption is what takes up the difference: centred in
+   it, so a tile with no picture reads as a caption in a card rather than one
+   pinned to its ceiling above a void. */
 .tileCard .cardBody {
   display: flex;
   flex: 1 1 auto;
@@ -434,24 +433,34 @@ a.card:hover {
 }
 
 /* Keeps the label optically centred when only one side has a thumbnail or
-   action: the spacer matches .thumb's footprint. */
+   action: the spacer matches .thumb's footprint.
+
+   Shrinkable, and by a factor large enough that it is always the first thing
+   the row gives up: centring a short label is worth 52px, but holding that
+   reserve while the label wraps beside an empty half-card is not. Flexbox
+   freezes an item that shrinks past its floor and redistributes what is left
+   from the base sizes again, so the spacer collapses to nothing before
+   .cardBody loses a single pixel, and the label only wraps once the card has
+   genuinely run out of room. */
 .spacer {
   width: 52px;
-  flex: 0 0 52px;
+  flex: 0 200 52px;
 }
 
 .cardBody {
-  /* Basis 0, not auto: an auto basis makes the hypothetical main size the
-     text's max-content width, which on a 320px phone overflows the line and
-     wraps the thumbnail onto a row of its own. */
-  flex: 1 1 0;
+  /* Basis auto, so the text's max-content width is what the row measures
+     itself against: with basis 0 the row always fits, which leaves the spacer
+     no reason to shrink and the label wrapping against a reserve it can't
+     reach. min-width 0 is what keeps that measurement from overflowing a
+     320px card, and grow 1 is what centres a short label between the slots. */
+  flex: 1 1 auto;
   min-width: 0;
   text-align: center;
 }
 
 .cardLabel {
   display: block;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   overflow-wrap: anywhere;
 }

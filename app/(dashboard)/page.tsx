@@ -12,6 +12,7 @@ import { DealEconomicsCard } from "@/components/dashboard/DealEconomicsCard";
 import { PaymentReliabilityCard } from "@/components/dashboard/PaymentReliabilityCard";
 import { AudienceCard } from "@/components/dashboard/AudienceCard";
 import { AffiliateAlertsCard } from "@/components/dashboard/AffiliateAlertsCard";
+import { OutreachCard } from "@/components/dashboard/OutreachCard";
 import { RecentActivityCard } from "@/components/dashboard/RecentActivityCard";
 import { WeekAheadCard } from "@/components/calendar/WeekAheadCard";
 import { UsageRenewalsCard } from "@/components/campaigns/UsageRenewalsCard";
@@ -45,6 +46,9 @@ import { mediakitRepository } from "@/repositories/mediakit";
 import { linksSummary } from "@/lib/linkStats";
 import { selectAttentionItems } from "@/lib/dashboardAttention";
 import { selectAffiliateAlerts } from "@/lib/affiliates";
+import { selectOutreachAlerts, type OutreachSubject } from "@/lib/outreach";
+import { isBrandInPursuit } from "@/lib/brands";
+import { getCheckIns } from "@/repositories/brandCheckIns.writer.server";
 import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.server";
 import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
 import {
@@ -77,6 +81,10 @@ export default function HomePage() {
 
       <Suspense fallback={<Skeleton className="mb-8 h-32 w-full rounded-lg" />}>
         <UsageRenewalsSection />
+      </Suspense>
+
+      <Suspense fallback={null}>
+        <OutreachSection />
       </Suspense>
 
       <Suspense fallback={null}>
@@ -265,6 +273,28 @@ async function MoneyFlowSection() {
       className="mb-8"
     />
   );
+}
+
+// Conversations that never became deals: the ones due another message, and
+// the ones that have run out of messages worth sending. Only brands still in
+// pursuit are offered up, so a brand already worked with or already closed
+// never appears. Agencies carry no status, so every agency with an open loop
+// is fair game. Null fallback for the same reason the affiliate section has
+// one: the card usually renders nothing, and a skeleton for a card that
+// rarely appears makes the dashboard flicker on every load.
+async function OutreachSection() {
+  const [brands, agencies, checkIns] = await Promise.all([
+    getBrands().catch(() => []),
+    getAgencies().catch(() => []),
+    getCheckIns().catch(() => []),
+  ]);
+  const subjects: OutreachSubject[] = [
+    ...brands
+      .filter(isBrandInPursuit)
+      .map((brand): OutreachSubject => ({ kind: "brand", id: brand.id, name: brand.name })),
+    ...agencies.map((agency): OutreachSubject => ({ kind: "agency", id: agency.id, name: agency.name })),
+  ];
+  return <OutreachCard alerts={selectOutreachAlerts(checkIns, subjects)} className="mb-8" />;
 }
 
 // Late commission and codes that have stopped selling. Every store degrades
