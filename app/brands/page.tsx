@@ -11,7 +11,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getAgencies } from "@/repositories/agencies.writer.server";
 import { getBrands } from "@/repositories/brands.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
-import { getCheckIns } from "@/repositories/brandCheckIns.writer.server";
 import { getMediaKitData } from "@/repositories/mediakit.writer.server";
 import { fetchBrandCampaignRecords, type BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { computeStatsByBrand } from "@/lib/brandCampaignStats";
@@ -23,14 +22,11 @@ export const metadata: Metadata = {
 };
 
 export default async function BrandsPage() {
-  const [brands, agencies, contacts, mediaKitData, checkIns] = await Promise.all([
+  const [brands, agencies, contacts, mediaKitData] = await Promise.all([
     getBrands(),
     getAgencies(),
     getContacts(),
     getMediaKitData(),
-    // Best-effort: the check-in log only annotates the Status column, so a
-    // Redis hiccup here costs a hint rather than the page.
-    getCheckIns().catch(() => []),
   ]);
 
   let records: BrandCampaignRecord[] = [];
@@ -44,7 +40,7 @@ export default async function BrandsPage() {
   const statsByBrand = computeStatsByBrand(brands, records);
   // Rows first: the tiles count the same derived statuses the table shows, so
   // a tile and the tab it links to never disagree.
-  const rows = buildBrandRows(brands, agencies, contacts, statsByBrand, records, checkIns);
+  const rows = buildBrandRows(brands, agencies, contacts, statsByBrand, records);
   const pipelineStats = computePipelineStats(rows, statsByBrand);
   const unassignedLogos = unassignedMediaKitLogos(mediaKitData.collabs.logos, brands);
   const brandsWithoutLogo = brands

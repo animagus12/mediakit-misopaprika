@@ -8,7 +8,6 @@ import { addAgency, updateAgency as updateAgencyRecord } from "@/repositories/ag
 import type { AgencyUpdate, NewAgency } from "@/repositories/agencies";
 import {
   addBrand,
-  getBrand,
   getBrands,
   setBrandLogo,
   updateBrand as updateBrandRecord,
@@ -29,15 +28,6 @@ import {
   deleteBrandNotesForBrand,
 } from "@/repositories/brandNotes.writer.server";
 import type { NewBrandNote } from "@/repositories/brandNotes";
-import {
-  addCheckIn,
-  updateCheckIn as updateCheckInRecord,
-  deleteCheckIn as deleteCheckInRecord,
-  deleteCheckInsForSubject,
-  getCheckIns,
-} from "@/repositories/brandCheckIns.writer.server";
-import type { CheckInUpdate, NewCheckIn } from "@/repositories/brandCheckIns";
-import { checkInsForSubject, outreachStatus } from "@/lib/outreach";
 import { setCampaignContact, deleteCampaignContactsForBrand } from "@/repositories/campaignContacts.writer.server";
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -137,10 +127,9 @@ export async function removeBrand(id: string): Promise<ActionResult> {
       deleteContactsForBrand(id),
       deleteBrandNotesForBrand(id),
       deleteCampaignContactsForBrand(id),
-      deleteCheckInsForSubject("brand", id),
     ]);
     const removed = await deleteBrandRecord(id);
-    revalidateStores("brands", "contacts", "brandNotes", "campaignContacts", "brandCheckIns");
+    revalidateStores("brands", "contacts", "brandNotes", "campaignContacts");
     if (removed) {
       await recordActivity({
         action: "brand.deleted",
@@ -300,88 +289,5 @@ export async function removeBrandNote(id: string): Promise<ActionResult> {
     return { success: true };
   } catch (err) {
     return toActionError(err, "Couldn't remove the note");
-  }
-}
-
-// A check-in is the message going out. Logging one never marks it answered:
-// see logCheckInReply for the edit that does.
-export async function logCheckIn(input: NewCheckIn): Promise<ActionResult> {
-  try {
-    await addCheckIn(input);
-    revalidateStores("brandCheckIns");
-    return { success: true };
-  } catch (err) {
-    return toActionError(err, "Couldn't log the check-in");
-  }
-}
-
-// Marking a reply, or recording a date the brand has since promised. An edit
-// rather than a new record on purpose: a second record would read as another
-// unanswered attempt and close the pursuit a check-in early.
-export async function logCheckInReply(input: CheckInUpdate): Promise<ActionResult> {
-  try {
-    await updateCheckInRecord(input);
-    revalidateStores("brandCheckIns");
-    return { success: true };
-  } catch (err) {
-    return toActionError(err, "Couldn't update the check-in");
-  }
-}
-
-export async function removeCheckIn(id: string): Promise<ActionResult> {
-  try {
-    await deleteCheckInRecord(id);
-    revalidateStores("brandCheckIns");
-    return { success: true };
-  } catch (err) {
-    return toActionError(err, "Couldn't remove the check-in");
-  }
-}
-
-/**
- * Closes a pursuit the check-in counter has run out on.
- *
- * The only producer of "Went Cold": it means the streak ended in silence, and
- * that is a fact the log establishes rather than a judgement the creator makes
- * twice. "Passed" stays a manual pick in the brand form, for a reply that was
- * a no, because a reply is not a silence and the counter must never guess it.
- *
- * The reason is written to the brand's notes as well as the activity feed, so
- * a brand read months later still says why it was dropped without the reader
- * having to reconstruct it from the check-in dates.
- */
-export async function closeBrandAsWentCold(brandId: string): Promise<ActionResult> {
-  try {
-    const [brand, checkIns] = await Promise.all([getBrand(brandId), getCheckIns()]);
-    if (!brand) return { success: false, error: "That brand is no longer on file" };
-
-    const status = outreachStatus(checkInsForSubject(checkIns, "brand", brandId));
-    const change = await updateBrandRecord({
-      id: brand.id,
-      name: brand.name,
-      logoUrl: brand.logoUrl,
-      website: brand.website,
-      instagram: brand.instagram,
-      agencyId: brand.agencyId,
-      primaryContactId: brand.primaryContactId,
-      status: "Went Cold",
-    });
-
-    const reason = `Closed as Went Cold after ${status.unanswered} unanswered check-in${
-      status.unanswered === 1 ? "" : "s"
-    }.`;
-    await addBrandNote({ brandId, body: reason });
-    revalidateStores("brands", "brandNotes");
-
-    if (change) {
-      await recordActivity({
-        action: "brand.updated",
-        entity: { type: "brand", id: change.after.id, label: change.after.name },
-        detail: reason,
-      });
-    }
-    return { success: true };
-  } catch (err) {
-    return toActionError(err, "Couldn't close the brand");
   }
 }
