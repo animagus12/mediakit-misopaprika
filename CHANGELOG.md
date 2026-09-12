@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+## [1.21.2] - 2026-09-13
 ### Removed
 - **Check-ins are gone, along with everything built on them.** The logging flow, the reply and promised-date edits, and the close-as-cold button did not fit how outreach is actually tracked, so the feature is removed outright rather than left half-used.
   - Deleted `components/brands/BrandCheckInsTab.tsx`, `components/dashboard/OutreachCard.tsx`, `lib/outreach.ts`, `repositories/brandCheckIns.ts`, `repositories/brandCheckIns.writer.server.ts` and the `data/brand-check-ins.json` seed.
