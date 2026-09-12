@@ -253,11 +253,6 @@ export function BrandsTable({ rows }: BrandsTableProps) {
                         <Badge variant={status.variant} className={status.className}>
                           {row.status}
                         </Badge>
-                        {/* Only ever set for a brand still being chased, so the
-                            column stays a status for everything else. */}
-                        {row.outreachState && (
-                          <p className="mt-1 text-muted-foreground">{row.outreachLabel}</p>
-                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {row.campaignCount === 0 ? (
@@ -298,9 +293,6 @@ export function BrandsTable({ rows }: BrandsTableProps) {
                             {row.status}
                           </Badge>
                         </div>
-                        {row.outreachState && (
-                          <p className="text-muted-foreground">{row.outreachLabel}</p>
-                        )}
                         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 tabular-nums text-muted-foreground">
                           <span>
                             {row.contactName ?? "No contact"}

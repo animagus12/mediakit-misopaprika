@@ -5,10 +5,8 @@ import type { Brand, BrandStatus } from "@/repositories/brands";
 import type { Contact } from "@/repositories/contacts";
 import type { MediaKitLogo } from "@/repositories/mediakit";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
-import type { CheckIn } from "@/repositories/brandCheckIns";
 import { EMPTY_STATS, parseSheetDate, recordsForBrand, type BrandStats } from "./brandCampaignStats";
 import { primaryContactForBrand } from "./contacts";
-import { checkInsForSubject, outreachStatus, type OutreachState } from "./outreach";
 import { BLANK_LOGO } from "./mediakit";
 
 // Kept client-safe (no "server-only") since forms render these as <Select>
@@ -87,20 +85,6 @@ const LEAD_STATUSES = new Set<BrandStatus>(["Lead", "Contacted", "Negotiating"])
 // brandLogosForMediaKit below).
 const WORKING_STATUSES = new Set<BrandStatus>(["Active", "Worked With"]);
 
-/**
- * A conversation that has not become a deal and has not been closed: the only
- * brands worth chasing with a check-in, and the only ones lib/outreach.ts
- * raises alerts for.
- *
- * Reuses LEAD_STATUSES rather than listing the closed statuses, so a status
- * added later is excluded by default. Dormant is deliberately not in it: a
- * dormant brand is one already worked with and gone quiet, which is a
- * different problem from a lead that never landed.
- */
-export function isBrandInPursuit(brand: Brand): boolean {
-  return LEAD_STATUSES.has(brand.status);
-}
-
 // Statuses where an incomplete profile isn't worth nagging about: a Lead
 // hasn't been worked with yet (no contact is normal), and the four closed
 // statuses are dead ends: nothing left to fill in for any of them.
@@ -147,13 +131,6 @@ export interface BrandRow {
   revenue: number;
   lastCollabDate: string | null;
   missingDetails: MissingBrandDetails | null;
-  /**
-   * Where the pre-deal conversation stands, for the brands the check-in
-   * counter applies to. null for everything else, which is most of the table:
-   * a brand already worked with has no pursuit to report on.
-   */
-  outreachState: OutreachState | null;
-  outreachLabel: string;
   searchText: string; // lowercase and pre-joined, which is what the search bar filters against
 }
 
@@ -172,8 +149,7 @@ export function buildBrandRows(
   agencies: Agency[],
   contacts: Contact[],
   statsByBrand: Map<string, BrandStats>,
-  records: BrandCampaignRecord[],
-  checkIns: CheckIn[] = []
+  records: BrandCampaignRecord[]
 ): BrandRow[] {
   const agencyById = new Map(agencies.map((agency) => [agency.id, agency]));
   return brands.map((brand) => {
@@ -181,12 +157,6 @@ export function buildBrandRows(
     const contact = primaryContactForBrand(brand, contacts);
     const stats = statsByBrand.get(brand.name) ?? EMPTY_STATS;
     const status: BrandStatus = isCancelledOnly(recordsForBrand(brand, records)) ? "Cancelled" : brand.status;
-    // Computed against the brand's own status rather than the derived one
-    // above: a pursuit is about the conversation, and a brand with no deals
-    // on the sheet is exactly the case the counter exists for.
-    const outreach = isBrandInPursuit(brand)
-      ? outreachStatus(checkInsForSubject(checkIns, "brand", brand.id))
-      : null;
     const searchText = [brand.name, agency?.name, contact?.name, contact?.phone]
       .filter((part): part is string => Boolean(part))
       .join(" ")
@@ -202,8 +172,6 @@ export function buildBrandRows(
       revenue: stats.totalBilled,
       lastCollabDate: stats.lastCollabDate,
       missingDetails: missingBrandDetails(brand, Boolean(contact)),
-      outreachState: outreach && outreach.label !== "" ? outreach.state : null,
-      outreachLabel: outreach?.label ?? "",
       searchText,
     };
   });

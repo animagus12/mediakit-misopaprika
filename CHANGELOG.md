@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Removed
+- **Check-ins are gone, along with everything built on them.** The logging flow, the reply and promised-date edits, and the close-as-cold button did not fit how outreach is actually tracked, so the feature is removed outright rather than left half-used.
+  - Deleted `components/brands/BrandCheckInsTab.tsx`, `components/dashboard/OutreachCard.tsx`, `lib/outreach.ts`, `repositories/brandCheckIns.ts`, `repositories/brandCheckIns.writer.server.ts` and the `data/brand-check-ins.json` seed.
+  - The brand detail page loses its Check-ins tab, the dashboard loses the outreach card, and the `/brands` table no longer prints an outreach line under the Status badge.
+  - `logCheckIn`, `logCheckInReply`, `removeCheckIn` and `closeBrandAsWentCold` are removed from `app/brands/actions.ts`; deleting a brand no longer touches the check-in store. `isBrandInPursuit` and the `outreachState`/`outreachLabel` row fields are removed from `lib/brands.ts`, and the `brandCheckIns` entry from `lib/revalidation.ts`.
+  - `Passed` and `Went Cold` stay as brand statuses, now both picked by hand in the brand form.
+
 ## [1.21.1] - 2026-09-10
 ### Added
 - **Check-ins, so a conversation that never becomes a deal ends on a count rather than on a hunch.** Brands and agencies still in discussion had nowhere to record that they had been chased, so the only measure of a stalling lead was memory, and the usual outcome was a lead neither pursued nor closed sitting in the pipeline forever. A new store logs one outreach at a time (date, channel, whether it was answered, an optional date the brand promised, a line of note), and `lib/outreach.ts` turns that log into one of five states: ready to close, deadline passed, due a nudge, holding, or quiet.
