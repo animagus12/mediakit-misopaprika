@@ -143,7 +143,7 @@ export function EditContentSheet({ item, trigger, videoOptions = [] }: EditConte
           </div>
           {/* Deleting is the one thing here that can't be undone from the UI,
               so it sits apart from the pair above and asks first. Shelving
-              rather than removing is what the "Dropped" status is for. */}
+              rather than removing is what the "Cancelled" status is for. */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" variant="ghost" size="sm" disabled={isPending}>
@@ -156,7 +156,7 @@ export function EditContentSheet({ item, trigger, videoOptions = [] }: EditConte
                 <AlertDialogTitle>Delete {contentLabel(item.title)}?</AlertDialogTitle>
                 <AlertDialogDescription>
                   This removes it from the plan for good. To keep the record but take it off the
-                  calendar, set its status to Dropped instead.
+                  calendar, set its status to Cancelled instead.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -7,7 +7,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { CampaignBrandOption } from "@/lib/campaigns";
-import type { UnscheduledPost } from "@/lib/contentCalendar";
+import { statusNoteOf, type UnscheduledPost } from "@/lib/contentCalendar";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
@@ -64,10 +64,9 @@ export function NeedsDateCard({
       id={post.id}
       title={post.title}
       detail={post.detail}
+      status={post.status}
       stage={post.stage}
-      statusNote={
-        post.status.trim().toLowerCase() !== post.stage.toLowerCase() ? post.status : undefined
-      }
+      statusNote={statusNoteOf(post)}
       dayKey=""
       today={today}
       meta={waitingLabel(post)}

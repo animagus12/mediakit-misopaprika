@@ -1,6 +1,7 @@
 import { isCampaignCalledOff } from "@/lib/campaigns";
 import { computePaymentReliability, type PaymentReliability } from "@/lib/paymentReliability";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
+import type { CampaignStatus } from "@/repositories/campaigns";
 
 // Client-safe aggregation over BrandCampaignRecord[]: kept out of
 // repositories/brandCampaigns.ts (which is "server-only", since it fetches
@@ -253,7 +254,7 @@ export interface BrandPaymentRow {
   key: string;
   kind: "deal" | "renewal";
   label: string; // "IG Page", or "IG Page · usage renewal"
-  status: string; // the deal's pipeline status; "" for a renewal
+  status: CampaignStatus | null; // the deal's pipeline status; null for a renewal
   /** What the Amount column shows: a deal's Total, a renewal's fee. */
   total: number;
   /**
@@ -311,7 +312,7 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
         kind: "renewal",
         label: name ? `${name} · usage renewal` : "Ad usage renewal",
         // No pipeline status of its own: a renewal is agreed or it is not.
-        status: "",
+        status: null,
         // Always cash: a licence extension is never bartered for, so the two
         // are the same figure.
         total: renewal.amount,

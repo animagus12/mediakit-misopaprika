@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import {
   PIPELINE_STAGES,
   movePostOnBoard,
+  statusNoteOf,
   type BoardColumn,
   type BoardPost,
   type BoardTarget,
@@ -38,10 +39,6 @@ interface CalendarBoardProps {
 
 function badgeOf(post: BoardPost): string {
   return post.source === "campaign" ? "Deal" : post.detail;
-}
-
-function statusNote(post: BoardPost): string | undefined {
-  return post.status.trim().toLowerCase() !== post.stage.toLowerCase() ? post.status : undefined;
 }
 
 function BoardColumnView({
@@ -246,8 +243,9 @@ export function CalendarBoard({
                 <PostCardBody
                   title={post.title}
                   badge={badgeOf(post)}
+                  status={post.status}
                   stage={post.stage}
-                  statusNote={statusNote(post)}
+                  statusNote={statusNoteOf(post)}
                   label={post.label}
                   labelClassName={post.state ? POST_TONES[post.state].text : undefined}
                 />
@@ -263,6 +261,7 @@ export function CalendarBoard({
             <PostCardBody
               title={activePost.title}
               badge={badgeOf(activePost)}
+              status={activePost.status}
               stage={activePost.stage}
               label={activePost.label}
               labelClassName={activePost.state ? POST_TONES[activePost.state].text : undefined}

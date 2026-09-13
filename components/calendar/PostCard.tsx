@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { CircleCheck, MoreHorizontal } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EditCampaignSheet } from "@/components/campaigns/EditCampaignSheet";
 import { cn } from "@/lib/utils";
-import { PIPELINE_STAGES, stageStep, type PipelineStage } from "@/lib/contentCalendar";
+import { PIPELINE_STAGES, stageProgress, type PipelineStage } from "@/lib/contentCalendar";
 import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
+import type { WorkflowStatus } from "@/repositories/workflowStatus";
 import { EditContentSheet } from "./EditContentSheet";
 import { stopDragPropagation } from "./useScheduleDrag";
 
@@ -24,12 +25,16 @@ import { stopDragPropagation } from "./useScheduleDrag";
  * How far along a post is, as five dots filled up to its stage.
  *
  * Position rather than colour: on a phone a tint is hard to tell apart at a
- * glance, but "three of five" reads instantly. Ready and Posted fill green,
- * since both mean there is nothing left to make.
+ * glance, but "three of five" reads instantly. A deal in Discussion or In
+ * Route fills none, since nothing can be made yet. Ready fills all five in
+ * green, since there is nothing left to make; Posted swaps the dots for a
+ * check, a different shape rather than only a different word, because the
+ * post has gone out and five green dots would say it is still waiting to.
  */
-export function StageSteps({ stage }: { stage: PipelineStage | null }) {
-  const step = stage ? stageStep(stage) : PIPELINE_STAGES.length;
-  const done = stage === null || stage === "Ready";
+export function StageSteps({ status }: { status: WorkflowStatus }) {
+  const { filled, posted } = stageProgress(status);
+  if (posted) return <CircleCheck className="size-3 shrink-0 text-emerald-500" aria-hidden />;
+  const done = filled === PIPELINE_STAGES.length;
   return (
     <span className="flex items-center gap-0.5" aria-hidden>
       {PIPELINE_STAGES.map((entry, index) => (
@@ -37,7 +42,7 @@ export function StageSteps({ stage }: { stage: PipelineStage | null }) {
           key={entry}
           className={cn(
             "size-1.5 rounded-full",
-            index < step
+            index < filled
               ? done
                 ? "bg-emerald-500"
                 : "bg-foreground/70"
@@ -53,8 +58,10 @@ interface PostCardBodyProps {
   title: string;
   /** "Deal" for a brand deal, the format for an own post. */
   badge: string;
+  /** The record's status, which decides the step dots. */
+  status: WorkflowStatus;
   stage: PipelineStage | null;
-  /** The record's own status when it isn't the stage's name ("Todo"). */
+  /** The record's own status when it isn't the stage's name ("Discussion"). */
   statusNote?: string;
   /** "In 3 days", "Overdue by 1 day", "No date". */
   label: string;
@@ -65,6 +72,7 @@ interface PostCardBodyProps {
 export function PostCardBody({
   title,
   badge,
+  status,
   stage,
   statusNote,
   label,
@@ -81,7 +89,7 @@ export function PostCardBody({
           {badge}
         </Badge>
         <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-          <StageSteps stage={stage} />
+          <StageSteps status={status} />
           <span className="truncate">
             {stage ?? "Posted"}
             {statusNote && <span className="text-muted-foreground/70"> · {statusNote}</span>}

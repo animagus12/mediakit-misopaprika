@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-09-13
+### Changed
+- **Brand deals and your own posts now use the same statuses.** The campaigns page used the old spreadsheet's words (Brainstorming, Todo, Ready to Upload, Completed) and the content calendar used its own (Scripting, Filming, Ready, Posted, Dropped). The calendar had to translate one into the other, and a deal's card showed two words for one step ("Filming · Todo"). Both now use one ordered list, `WorkflowStatus` in `repositories/workflowStatus.ts`: Discussion, In Route, Idea, Scripting, Filming, Editing, Ready, Posted, Cancelled, Redacted.
+  - **Idea through Cancelled are shared.** A deal can now be at Idea or Editing, which it had no word for before. Discussion, In Route and Redacted are for deals only, so the content form doesn't offer them.
+  - **Old names are renamed by meaning:** Brainstorming is Scripting, Todo is Filming, Ready to Upload is Ready, Completed is Posted, and Dropped is Cancelled. These are the same matches the calendar already made, so no post moves to a different stage.
+  - **Existing records need no migration.** Both stores convert old names when they read a record, the same way the invoice link split is handled, and save the new name on the next write. An unknown or blank status reads as Discussion for a deal and Idea for a post, so a typo can never make something count as ready or delivered. `data/campaigns.json` uses the new names.
+  - **`Campaign.status` is now a closed type** (`CampaignStatus`) instead of any string. `createCampaign` and `updateCampaign` reject a status that isn't on the list, as `setContentStatus` already did. The status select no longer needs to keep an unrecognised value selectable.
+  - **The calendar's translation layer is gone.** `CAMPAIGN_PIPELINE_STAGE` and the separate "posted" and "ready" sets for deals are removed. One rule now reads a deal's status the same way as a post's. `statusNoteOf` replaces four copies of the "status differs from stage" check, and only Discussion and In Route, both shown under Idea, still show a note.
+  - **The /campaigns filter tab "Completed" is now "Posted"** (`?filter=posted`). The dashboard's untracked-payment item reads "Posted, payment not tracked".
+  - **Status badges share one style map,** `CAMPAIGN_STATUS_STYLES`. It is keyed on the status type, so the campaigns table and the brand page's Campaigns tab show the same colours. Before, the brand tab only coloured three statuses. Editing gets a pink badge.
+  - **The step dots now show real progress for every status.** They used to follow the stage. That put a deal in Discussion or In Route at 1 of 5, as far along as a post with its idea written down, and drew Ready and Posted as the same five green dots. `stageProgress` in `lib/contentCalendar.ts` reads the status instead: Discussion and In Route fill no dots, Idea through Ready fill 1 to 5, and Posted replaces the dots with a green check. Ready and Posted now differ in shape, not only in the word next to them. `StageSteps`, `PostCardBody` and `PostListRow` take the record's `status`, and `stageStep` is removed.
+  - Called-off checks that were spelled out by hand in `lib/usageRights.ts`, `lib/brands.ts`, `app/brands/[id]/page.tsx` and the calendar now go through `isCampaignCalledOff` and `isCampaignCancelled`.
+
+Checked against the live store with reads only. It still holds Completed, Brainstorming, Todo and Ready to Upload, and `/campaigns`, `/calendar?view=board` and `/brands` show them as Posted, Scripting, Filming and Ready, with no old names left on the page. Unit checks cover old-name conversion, fallbacks, stage placement, the behind warning, board columns, the Posted and Cancelled filters and status sorting. `tsc` and `eslint` pass.
+
 ## [1.22.0] - 2026-09-13
 ### Added
 - **The calendar reads three ways: Month, Week and Board.** A month grid is the right shape for planning ahead and the wrong one at 390px, where a post shrinks to a dot and neither its title nor its stage can be read. A switcher in the calendar card's header picks the view, and the calendar now leads the page, above the week list.

@@ -7,7 +7,13 @@
 // app (lib/campaigns.ts, lib/brandCampaignStats.ts, ...) keeps working
 // unchanged: same choice already made for data/editor-transactions.json.
 
+import { toWorkflowStatus, type WorkflowStatus } from "./workflowStatus";
+
 export type CampaignPaymentStatus = "received" | "pending" | "unknown";
+
+// A deal uses the whole shared vocabulary (see ./workflowStatus), including
+// the pre-production and Redacted statuses an own post never has.
+export type CampaignStatus = WorkflowStatus;
 
 // Full stored vocabulary, including "Scam": inherited from the original
 // spreadsheet's data. Not every value is offered when adding a new deal (see
@@ -18,7 +24,19 @@ export type CampaignType = "Barter" | "Paid" | "Barter+Paid" | "Scam";
 // Anything not yet wrapped up is still "active": whitelisting the terminal
 // statuses is more robust than listing every pipeline stage, since new
 // pipeline stages (e.g. "In Route") show up more often than new terminal ones.
-const PAST_STATUSES = new Set(["completed", "cancelled", "redacted"]);
+const PAST_STATUSES = new Set<CampaignStatus>(["Posted", "Cancelled", "Redacted"]);
+
+/**
+ * The status a stored deal carries, in the shared vocabulary.
+ *
+ * Rows still spelled the sheet's old way ("Completed", "Todo") are read as
+ * their shared name. Anything else unrecognised, a blank included, reads as
+ * Discussion: not started is the safe direction, since it can't quietly count
+ * a deal as delivered or ready.
+ */
+export function toCampaignStatus(raw: string | null | undefined): CampaignStatus {
+  return toWorkflowStatus(raw) ?? "Discussion";
+}
 export type CampaignStage = "active" | "past";
 
 // --- Usage rights --------------------------------------------------------
@@ -151,13 +169,9 @@ export interface CampaignRecord extends CampaignInvoiceLink {
   type: CampaignType;
   reels: string; // e.g. "1 Reel" (see REEL_OPTIONS)
   story: string; // e.g. "1 Story" (see STORY_OPTIONS)
-  // Pipeline stage (see STATUS_OPTIONS). Deliberately left as a plain string
-  // rather than a union: unlike `type`, an off-list value is a normal state
-  // here: the status <Select> keeps whatever's already on the record
-  // selectable even when it's not one of STATUS_OPTIONS (see
-  // components/campaigns/CampaignStatusSelect.tsx): so widening the pipeline
-  // never requires a type change.
-  status: string;
+  // Pipeline stage (see STATUS_OPTIONS). Coerced on read (see
+  // toCampaignStatus), so a legacy spelling never reaches past the store.
+  status: CampaignStatus;
   amount: number;
   barterValue: number;
   paymentStatus: CampaignPaymentStatus;
@@ -204,7 +218,7 @@ export interface NewCampaignInput {
   type: CampaignType;
   reels: string;
   story: string;
-  status: string;
+  status: CampaignStatus;
   amount: number;
   barterValue: number;
   paymentStatus: CampaignPaymentStatus;
@@ -224,13 +238,13 @@ export interface CampaignUpdate extends NewCampaignInput {
 }
 
 export function toCampaign(record: CampaignRecord): Campaign {
-  const status = record.status.trim() || "Unknown";
+  const status = toCampaignStatus(record.status);
   return {
     ...record,
     ...toInvoiceLink(record),
     status,
     total: record.amount + record.barterValue,
-    stage: PAST_STATUSES.has(status.toLowerCase()) ? "past" : "active",
+    stage: PAST_STATUSES.has(status) ? "past" : "active",
     paidDate: record.paidDate?.trim() ?? "",
     // An empty string is what a cleared <Select> leaves behind and a row
     // written before the field existed has nothing at all; both mean the same

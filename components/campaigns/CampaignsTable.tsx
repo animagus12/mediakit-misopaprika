@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
-import { Badge, type badgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -23,7 +23,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { VariantProps } from "class-variance-authority";
 import {
   CAMPAIGN_FILTER_TABS,
   CAMPAIGN_SORT_GROUPS,
@@ -46,61 +45,17 @@ import { paymentTiming, type PaymentPunctuality } from "@/lib/paymentReliability
 import { usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
+import { CAMPAIGN_STATUS_STYLES, type StatusStyle } from "./campaignStatusStyle";
 import { EditCampaignSheet } from "./EditCampaignSheet";
 
 const PAGE_SIZE = 25;
-
-interface StatusStyle {
-  variant: VariantProps<typeof badgeVariants>["variant"];
-  className?: string;
-}
-
-// Same pipeline vocabulary/coloring as components/dashboard/DashboardCampaignsSection.tsx
-// and components/brands/BrandCampaignsTab.tsx: duplicated rather than
-// imported cross-feature, matching how this styling is already duplicated
-// per-surface elsewhere in the app.
-function statusStyle(status: string): StatusStyle {
-  switch (status.toLowerCase()) {
-    case "completed":
-      return {
-        variant: "outline",
-        className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
-      };
-    case "cancelled":
-      return { variant: "destructive" };
-    case "todo":
-      return {
-        variant: "outline",
-        className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
-      };
-    case "brainstorming":
-      return {
-        variant: "outline",
-        className: "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
-      };
-    case "ready to upload":
-      return {
-        variant: "outline",
-        className: "border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-400",
-      };
-    case "in route":
-      return {
-        variant: "outline",
-        className: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400",
-      };
-    case "redacted":
-      return { variant: "outline", className: "border-dashed text-muted-foreground/70" };
-    default:
-      return { variant: "secondary" };
-  }
-}
 
 // Same convention as components/brands/BrandPaymentsTab.tsx's paymentStatusStyle.
 function paymentStatusStyle(status: PaymentDisplayStatus): StatusStyle {
   switch (status) {
     // Dashed and muted, not another red pill: the Status column already says
     // "Cancelled" in destructive, and saying it twice in one row shouts a fact
-    // the row has stated. Same treatment "Redacted" gets in statusStyle above,
+    // the row has stated. Same treatment "Redacted" gets in CAMPAIGN_STATUS_STYLES,
     // and for the same reason: it marks a row as moot, not as wrong.
     case "cancelled":
       return { variant: "outline", className: "border-dashed text-muted-foreground" };
@@ -430,7 +385,7 @@ export function CampaignsTable({
               </TableHeader>
               <TableBody>
                 {pageRows.map((campaign) => {
-                  const status = statusStyle(campaign.status);
+                  const status = CAMPAIGN_STATUS_STYLES[campaign.status];
                   const paymentState = paymentDisplayStatus(campaign);
                   const payment = paymentStatusStyle(paymentState);
                   // A cancelled deal is owed nothing, so the days since its

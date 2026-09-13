@@ -1,6 +1,6 @@
 import { daysBetween, todayKey } from "@/lib/day";
 import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
-import type { CampaignPaymentStatus } from "@/repositories/campaigns";
+import type { CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 
 // How well a brand keeps to the dates it agrees to.
 //
@@ -17,7 +17,7 @@ import type { CampaignPaymentStatus } from "@/repositories/campaigns";
 
 /** The fields a reliability read needs, common to Campaign and BrandCampaignRecord. */
 export interface PaymentTimingSource {
-  status: string; // pipeline status, so cancelled deals can be dropped
+  status: CampaignStatus | null; // pipeline status, so cancelled deals can be dropped; null for a renewal
   /**
    * The cash half of the deal, never the total.
    *
@@ -213,7 +213,7 @@ export function computePaymentReliability(
   const lateness: number[] = [];
 
   for (const record of records) {
-    if (isCampaignCalledOff(record.status)) continue;
+    if (record.status !== null && isCampaignCalledOff(record.status)) continue;
     if (record.amount <= 0) continue;
 
     const timing = paymentTiming(record, now);

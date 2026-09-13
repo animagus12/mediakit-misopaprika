@@ -30,7 +30,7 @@ export interface PipelineValue {
  * Committed but not delivered.
  *
  * Defined as every deal still in an active stage rather than by naming
- * Brainstorming and Todo, which is what the current book happens to hold.
+ * Scripting and Filming, which is what the current book happens to hold.
  * repositories/campaigns.ts settles this once, by whitelisting the three
  * terminal statuses and calling everything else active, on the stated grounds
  * that new pipeline stages appear far more often than new terminal ones. A

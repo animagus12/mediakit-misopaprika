@@ -1,5 +1,4 @@
-import type { VariantProps } from "class-variance-authority";
-import { Badge, type badgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -13,34 +12,8 @@ import { formatMoney } from "@/lib/invoice";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { CampaignContact } from "@/repositories/campaignContacts";
 import type { Contact } from "@/repositories/contacts";
+import { CAMPAIGN_STATUS_STYLES } from "@/components/campaigns/campaignStatusStyle";
 import { CampaignContactSheet } from "./CampaignContactSheet";
-
-interface StatusStyle {
-  variant: VariantProps<typeof badgeVariants>["variant"];
-  className?: string;
-}
-
-// Same pipeline vocabulary as components/dashboard/DashboardCampaignsSection.tsx
-//: duplicated rather than imported cross-feature, matching how that status
-// styling is already duplicated per-surface elsewhere in the app.
-function statusStyle(status: string): StatusStyle {
-  switch (status.toLowerCase()) {
-    case "completed":
-      return {
-        variant: "outline",
-        className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
-      };
-    case "cancelled":
-      return { variant: "destructive" };
-    case "todo":
-      return {
-        variant: "outline",
-        className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
-      };
-    default:
-      return { variant: "secondary" };
-  }
-}
 
 interface BrandCampaignsTabProps {
   brandId: string;
@@ -77,7 +50,7 @@ export function BrandCampaignsTab({ brandId, records, contacts, campaignContacts
         </TableHeader>
         <TableBody>
           {records.map((record) => {
-            const status = statusStyle(record.status);
+            const status = CAMPAIGN_STATUS_STYLES[record.status];
             const key = record.campaignId || `${record.campaign}-${record.date}`;
             return (
               <TableRow key={key}>

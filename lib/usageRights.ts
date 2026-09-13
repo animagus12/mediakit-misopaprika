@@ -1,5 +1,5 @@
 import { addDays, addMonthsToDay, daysBetween, todayKey } from "@/lib/day";
-import { toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import type { Campaign, CampaignUsage } from "@/repositories/campaigns";
 
 // When a brand's right to keep running the content as an ad runs out, and
@@ -201,11 +201,6 @@ export interface UsageAlert {
   term: UsageTerm;
 }
 
-// A deal that was called off never granted anything. "Redacted" is the
-// sheet's own word for a row written out of the record; both are dropped
-// here, matching selectDuePayments, selectAttentionItems and the calendar.
-const DROPPED_STATUSES = new Set(["cancelled", "redacted"]);
-
 /**
  * Licences at the point where a decision is owed: inside the alert window, or
  * already past their term and never closed off.
@@ -217,7 +212,9 @@ const DROPPED_STATUSES = new Set(["cancelled", "redacted"]);
  */
 export function selectExpiringUsage(campaigns: Campaign[], now: Date = new Date()): UsageAlert[] {
   return campaigns
-    .filter((campaign) => !DROPPED_STATUSES.has(campaign.status.trim().toLowerCase()))
+    // A deal that was called off never granted anything, matching
+    // selectDuePayments, selectAttentionItems and the calendar.
+    .filter((campaign) => !isCampaignCalledOff(campaign.status))
     .map((campaign) => ({
       campaignId: campaign.id,
       brand: campaign.brand,
@@ -280,7 +277,7 @@ export function selectOwedRenewals(campaigns: Campaign[], now: Date = new Date()
   const owed: OwedRenewal[] = [];
 
   for (const campaign of campaigns) {
-    if (DROPPED_STATUSES.has(campaign.status.trim().toLowerCase())) continue;
+    if (isCampaignCalledOff(campaign.status)) continue;
     for (const renewal of campaign.usage.renewals) {
       if (renewal.paymentStatus !== "pending" || renewal.amount <= 0) continue;
 

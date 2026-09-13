@@ -1,7 +1,12 @@
 import { AlarmClock, CalendarCheck } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { WEEK_AHEAD_DAYS, type AgendaGroup, type ScheduledPost } from "@/lib/contentCalendar";
+import {
+  WEEK_AHEAD_DAYS,
+  statusNoteOf,
+  type AgendaGroup,
+  type ScheduledPost,
+} from "@/lib/contentCalendar";
 import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
@@ -21,12 +26,6 @@ interface UpNextCardProps {
   className?: string;
 }
 
-// A deal's own status, when the stage it is filed under uses another word.
-function statusNote(post: ScheduledPost): string | undefined {
-  return post.stage && post.status.trim().toLowerCase() !== post.stage.toLowerCase()
-    ? post.status
-    : undefined;
-}
 
 // Under a day heading the day is already said, so a row repeats nothing. A
 // missed post's heading names no day, so its row carries how late it is.
@@ -108,8 +107,9 @@ export function UpNextCard({
                     id={post.id}
                     title={post.title}
                     detail={post.detail}
+                    status={post.status}
                     stage={post.stage}
-                    statusNote={statusNote(post)}
+                    statusNote={statusNoteOf(post)}
                     dayKey={post.dayKey}
                     today={today}
                     meta={rowMeta(group, post)}

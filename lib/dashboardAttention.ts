@@ -26,7 +26,7 @@ function normalized(value: string): string {
 }
 
 function isDelivered(record: BrandCampaignRecord): boolean {
-  return normalized(record.status) === "completed" || record.uploadDate.trim() !== "";
+  return record.status === "Posted" || record.uploadDate.trim() !== "";
 }
 
 // Whether an invoice exists for this deal: it has been reconciled to a saved
@@ -80,11 +80,11 @@ export function selectAttentionItems(
       continue;
     }
 
-    // Completed work where the Payment column was never set either way and
+    // Posted work where the Payment column was never set either way and
     // there's no due date scheduling it: it would otherwise fall through
     // every reminder.
     if (
-      normalized(record.status) === "completed" &&
+      record.status === "Posted" &&
       record.paymentStatus === "unknown" &&
       record.paymentDue === ""
     ) {
@@ -94,7 +94,7 @@ export function selectAttentionItems(
         brand: record.brand,
         campaign: record.campaign,
         amount: record.total,
-        label: "Completed, payment not tracked",
+        label: "Posted, payment not tracked",
       });
     }
   }

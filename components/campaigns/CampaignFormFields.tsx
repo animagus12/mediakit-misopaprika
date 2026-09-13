@@ -27,7 +27,7 @@ import {
 } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
 import type { EditorVideoOption } from "@/lib/contentPlan";
-import type { CampaignPaymentStatus, CampaignType } from "@/repositories/campaigns";
+import type { CampaignPaymentStatus, CampaignStatus, CampaignType } from "@/repositories/campaigns";
 
 const NO_BRAND_LINK = "__none__";
 const NO_VIDEO = "__none__";
@@ -39,7 +39,7 @@ export interface CampaignFormState {
   type: CampaignType;
   reels: string;
   story: string;
-  status: string;
+  status: CampaignStatus;
   amount: string;
   barterValue: string;
   paymentStatus: CampaignPaymentStatus;
@@ -88,7 +88,7 @@ export function campaignInitialForm(): CampaignFormState {
     type: "Barter",
     reels: REEL_OPTIONS[0],
     story: STORY_OPTIONS[0],
-    status: "Brainstorming",
+    status: "Scripting",
     amount: "",
     barterValue: "",
     paymentStatus: "unknown",
@@ -272,7 +272,10 @@ export function CampaignFormFields({
 
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-status`}>Status</Label>
-        <Select value={form.status} onValueChange={(value) => setForm((f) => ({ ...f, status: value }))}>
+        <Select
+          value={form.status}
+          onValueChange={(value) => setForm((f) => ({ ...f, status: value as CampaignStatus }))}
+        >
           <SelectTrigger id={`${idPrefix}-status`} className="w-full">
             <SelectValue />
           </SelectTrigger>

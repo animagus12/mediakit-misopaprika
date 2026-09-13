@@ -12,7 +12,7 @@ import {
 import { updateCampaign } from "@/app/(dashboard)/actions";
 import { STATUS_OPTIONS, CAMPAIGN_TYPES, toIsoDate } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
-import type { Campaign } from "@/repositories/campaigns";
+import type { Campaign, CampaignStatus } from "@/repositories/campaigns";
 
 interface CampaignStatusSelectProps {
   campaign: Campaign;
@@ -25,8 +25,8 @@ interface CampaignStatusSelectProps {
 // Undo that moves it back. Writes the same CampaignFormUpdate the sheet does
 // (every other field carried through unchanged), so the two stay
 // interchangeable. Type is coerced to a valid option the same way
-// EditCampaignSheet does it; an off-list status is kept selectable so the
-// control never shows blank.
+// EditCampaignSheet does it. The status needs no such care: the store reads
+// every record into the shared vocabulary, so it is always one of the options.
 export function CampaignStatusSelect({
   campaign,
   className,
@@ -34,11 +34,7 @@ export function CampaignStatusSelect({
   const [isPending, startTransition] = useTransition();
   const [status, setOptimisticStatus] = useOptimistic(campaign.status);
 
-  const options = STATUS_OPTIONS.includes(status)
-    ? STATUS_OPTIONS
-    : [status, ...STATUS_OPTIONS];
-
-  function move(nextStatus: string, previousStatus: string, isUndo: boolean) {
+  function move(nextStatus: CampaignStatus, previousStatus: CampaignStatus, isUndo: boolean) {
     startTransition(async () => {
       setOptimisticStatus(nextStatus);
 
@@ -86,7 +82,7 @@ export function CampaignStatusSelect({
 
   function handleChange(nextStatus: string) {
     if (nextStatus === status) return;
-    move(nextStatus, status, false);
+    move(nextStatus as CampaignStatus, status, false);
   }
 
   return (
@@ -95,7 +91,7 @@ export function CampaignStatusSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {options.map((option) => (
+        {STATUS_OPTIONS.map((option) => (
           <SelectItem key={option} value={option}>
             {option}
           </SelectItem>

@@ -1,4 +1,10 @@
-import type { Campaign, CampaignPaymentStatus, CampaignType } from "@/repositories/campaigns";
+import type {
+  Campaign,
+  CampaignPaymentStatus,
+  CampaignStatus,
+  CampaignType,
+} from "@/repositories/campaigns";
+import { WORKFLOW_STATUSES } from "@/repositories/workflowStatus";
 import type { Brand } from "@/repositories/brands";
 
 // View-model for the "Link to brand" picker: same "flat option list, never
@@ -21,16 +27,15 @@ export function buildCampaignBrandOptions(brands: Brand[]): CampaignBrandOption[
 export const CAMPAIGN_TYPES: CampaignType[] = ["Barter", "Paid", "Barter+Paid"];
 export const REEL_OPTIONS = ["1 Reel", "2 Reels", "5 Reels"];
 export const STORY_OPTIONS = ["1 Story", "2 Story", "5 Stories", "None"];
-export const STATUS_OPTIONS = [
-  "Discussion",
-  "In Route",
-  "Brainstorming",
-  "Todo",
-  "Ready to Upload",
-  "Completed",
-  "Cancelled",
-  "Redacted",
-];
+// Every shared status is open to a deal, in pipeline order. The content form
+// offers the same list less the deal-only ones (see CONTENT_STATUSES).
+export const STATUS_OPTIONS: CampaignStatus[] = WORKFLOW_STATUSES;
+
+// A Server Action is reachable by direct POST, so the status is checked at
+// the boundary rather than trusted from the <Select> that produced it.
+export function isCampaignStatus(value: string): value is CampaignStatus {
+  return (STATUS_OPTIONS as string[]).includes(value);
+}
 
 // Manually settable from the campaign form (unlike the dashboard's
 // "Mark received" quick actions, this covers barter-only deals too, which
@@ -44,30 +49,28 @@ export function paymentStatusLabel(status: CampaignPaymentStatus): string {
 
 // The one terminal status that means the money question is closed rather than
 // answered. Its own function because four files were each spelling out the
-// same trim/lowercase comparison, and every one of them is making this same
-// call.
+// same comparison, and every one of them is making this same call.
 //
 // Narrower than isCampaignCalledOff below, and deliberately: this one decides
 // what a badge *says*, and a row whose Status column reads "Redacted" must not
 // have its payment column reading "cancelled".
-export function isCampaignCancelled(status: string): boolean {
-  return status.trim().toLowerCase() === "cancelled";
+export function isCampaignCancelled(status: CampaignStatus): boolean {
+  return status === "Cancelled";
 }
 
 // Both terminal statuses that mean the deal never happened commercially.
 // "Redacted" is the sheet's own word for a row written out of the record: the
-// content calendar and the usage-rights selectors have always dropped it
-// alongside "Cancelled", and the campaigns list files it under the Cancelled
-// tab. The money figures were the one place that did not, so a redacted deal
+// content calendar and the usage-rights selectors drop it alongside
+// "Cancelled", and the campaigns list files it under the Cancelled tab. The money figures were the one place that did not, so a redacted deal
 // still counted toward lifetime earnings, toward a brand's total received, and
 // toward the payment-reliability score.
 //
 // Every one of those now reads through here, so what "called off" means is
 // settled in one place rather than in five copies that were already drifting.
-const CALLED_OFF_STATUSES = new Set(["cancelled", "redacted"]);
+const CALLED_OFF_STATUSES = new Set<CampaignStatus>(["Cancelled", "Redacted"]);
 
-export function isCampaignCalledOff(status: string): boolean {
-  return CALLED_OFF_STATUSES.has(status.trim().toLowerCase());
+export function isCampaignCalledOff(status: CampaignStatus): boolean {
+  return CALLED_OFF_STATUSES.has(status);
 }
 
 /**
@@ -93,11 +96,14 @@ export function isCampaignCalledOff(status: string): boolean {
 export type PaymentDisplayStatus = CampaignPaymentStatus | "cancelled";
 
 export function paymentDisplayStatus(deal: {
-  status: string;
+  /** Null for a row with no pipeline status of its own, a usage renewal. */
+  status: CampaignStatus | null;
   paymentStatus: CampaignPaymentStatus;
 }): PaymentDisplayStatus {
   if (deal.paymentStatus === "received") return "received";
-  return isCampaignCancelled(deal.status) ? "cancelled" : deal.paymentStatus;
+  return deal.status !== null && isCampaignCancelled(deal.status)
+    ? "cancelled"
+    : deal.paymentStatus;
 }
 
 // Sheet dates are entered as "DD/MM/YYYY"; undated rows sort last.
@@ -179,12 +185,12 @@ export function computeCampaignStats(items: Campaign[]): CampaignStats {
 // stay testable and out of the UI, per the project's architecture guide: 
 // same split as lib/invoice.ts's filterInvoices/sortInvoices.
 
-export type CampaignFilter = "all" | "active" | "completed" | "pending-payment" | "cancelled";
+export type CampaignFilter = "all" | "active" | "posted" | "pending-payment" | "cancelled";
 
 export const CAMPAIGN_FILTER_TABS: { value: CampaignFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "active", label: "Active" },
-  { value: "completed", label: "Completed" },
+  { value: "posted", label: "Posted" },
   { value: "pending-payment", label: "Pending payment" },
   { value: "cancelled", label: "Cancelled" },
 ];
@@ -194,18 +200,17 @@ export function isCampaignFilter(value: string | null | undefined): value is Cam
 }
 
 function matchesCampaignFilter(item: Campaign, filter: CampaignFilter): boolean {
-  const status = item.status.trim().toLowerCase();
   switch (filter) {
     case "all":
       return true;
     case "active":
       return item.stage === "active";
-    case "completed":
-      return status === "completed";
+    case "posted":
+      return item.status === "Posted";
     case "pending-payment":
       return item.paymentStatus === "pending";
     case "cancelled":
-      return status === "cancelled" || status === "redacted";
+      return isCampaignCalledOff(item.status);
   }
 }
 
@@ -245,7 +250,7 @@ export interface CampaignSort {
 }
 
 // Pipeline order, so ascending reads roughly left-to-right through a deal's life.
-const STATUS_ORDER = new Map(STATUS_OPTIONS.map((status, index) => [status.toLowerCase(), index]));
+const STATUS_ORDER = new Map(STATUS_OPTIONS.map((status, index) => [status, index]));
 
 export function sortCampaigns(
   items: Campaign[],
@@ -276,8 +281,8 @@ export function sortCampaigns(
         break;
       case "status":
         delta =
-          (STATUS_ORDER.get(a.status.trim().toLowerCase()) ?? STATUS_OPTIONS.length) -
-          (STATUS_ORDER.get(b.status.trim().toLowerCase()) ?? STATUS_OPTIONS.length);
+          (STATUS_ORDER.get(a.status) ?? STATUS_OPTIONS.length) -
+          (STATUS_ORDER.get(b.status) ?? STATUS_OPTIONS.length);
         break;
       default:
         delta = parseSheetDate(a.date) - parseSheetDate(b.date);

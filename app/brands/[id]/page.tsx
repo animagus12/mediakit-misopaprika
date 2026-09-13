@@ -17,6 +17,7 @@ import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.se
 import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
 import { fetchBrandCampaignRecords, type BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { computeBrandStats, recordsForBrand } from "@/lib/brandCampaignStats";
+import { isCampaignCancelled } from "@/lib/campaigns";
 import { buildInvoiceEditorJobOptions, invoicesForBrand, type InvoiceEditorJobOption } from "@/lib/invoice";
 import { sortPayoutsByPeriod } from "@/lib/affiliates";
 import { contactsForBrand } from "@/lib/contacts";
@@ -52,7 +53,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
     // lib/brandCampaignStats.ts's computeBrandStats, but applied here too
     // so cancelled rows don't show up in the Campaigns/Payments tabs either.
     records = recordsForBrand(brand, await fetchBrandCampaignRecords()).filter(
-      (record) => record.status.trim().toLowerCase() !== "cancelled"
+      (record) => !isCampaignCancelled(record.status)
     );
   } catch (err) {
     sheetError = err instanceof Error ? err.message : "Something went wrong";

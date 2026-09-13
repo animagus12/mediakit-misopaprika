@@ -1,7 +1,7 @@
 import { daysBetween, monthKeyOf } from "@/lib/day";
 import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
 import { currentMonthKey } from "@/lib/earnings";
-import type { Campaign, CampaignPaymentStatus } from "@/repositories/campaigns";
+import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 
 // When money arrives, as opposed to whether it arrives on time.
 //
@@ -24,7 +24,7 @@ import type { Campaign, CampaignPaymentStatus } from "@/repositories/campaigns";
  * the campaign records a second time to learn one number about them.
  */
 export interface CollectionTimingSource {
-  status: string;
+  status: CampaignStatus;
   /** The cash half. A barter parcel has no collection to be waiting on. */
   amount: number;
   paymentStatus: CampaignPaymentStatus;
