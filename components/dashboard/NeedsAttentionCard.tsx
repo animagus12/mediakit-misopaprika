@@ -28,7 +28,7 @@ function newInvoiceHref(brand: string, campaign: string): string {
   return query ? `/invoices/new?${query}` : "/invoices/new";
 }
 
-// Operational open loops: delivered work with no invoice, completed deals
+// Operational open loops: delivered work with no invoice, posted deals
 // with untracked payment: each with the one action that closes it. Sits
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
 // due date, so the two lists don't overlap. Renders nothing when clear.

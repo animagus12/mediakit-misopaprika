@@ -1,6 +1,6 @@
 import "server-only";
 import { getCampaigns } from "./campaigns.writer.server";
-import type { Campaign, CampaignPaymentStatus, CampaignUsage } from "./campaigns";
+import type { Campaign, CampaignPaymentStatus, CampaignStatus, CampaignUsage } from "./campaigns";
 
 export type BrandCampaignPaymentStatus = CampaignPaymentStatus;
 
@@ -15,7 +15,7 @@ export interface BrandCampaignRecord {
   deliverables: string; // e.g. "1 Reel, 1 Story"
   date: string; // DD/MM/YYYY, deal date
   uploadDate: string; // DD/MM/YYYY, actual delivery date, often blank until posted
-  status: string; // pipeline status: Discussion/Todo/Completed/Cancelled/...
+  status: CampaignStatus; // pipeline status: Discussion/Filming/Posted/Cancelled/...
   amount: number;
   barterValue: number;
   total: number;

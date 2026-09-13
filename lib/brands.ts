@@ -5,6 +5,7 @@ import type { Brand, BrandStatus } from "@/repositories/brands";
 import type { Contact } from "@/repositories/contacts";
 import type { MediaKitLogo } from "@/repositories/mediakit";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
+import { isCampaignCancelled } from "./campaigns";
 import { EMPTY_STATS, parseSheetDate, recordsForBrand, type BrandStats } from "./brandCampaignStats";
 import { primaryContactForBrand } from "./contacts";
 import { BLANK_LOGO } from "./mediakit";
@@ -138,7 +139,7 @@ export interface BrandRow {
 // column should surface that plainly rather than keep showing whatever
 // pipeline status (e.g. "Worked With") it was given on import.
 function isCancelledOnly(records: BrandCampaignRecord[]): boolean {
-  return records.length > 0 && records.every((record) => record.status.trim().toLowerCase() === "cancelled");
+  return records.length > 0 && records.every((record) => isCampaignCancelled(record.status));
 }
 
 // View-model for the /brands table: joins in the agency name and primary

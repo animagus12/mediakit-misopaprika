@@ -27,6 +27,7 @@ import type { PipelineStage, PostSource } from "@/lib/contentCalendar";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
+import type { WorkflowStatus } from "@/repositories/workflowStatus";
 import { PostEditSheet, StageSteps } from "./PostCard";
 import { schedulePostWithToast } from "./useScheduleDrag";
 
@@ -61,8 +62,10 @@ interface PostListRowProps {
   title: string;
   /** "Reel", or "Summer drop · 1 Reel · ₹6,685". */
   detail: string;
+  /** The record's status, which decides the step dots. */
+  status: WorkflowStatus;
   stage: PipelineStage | null;
-  /** The record's own status when the stage uses another word ("Todo"). */
+  /** The record's own status when the stage uses another word ("Discussion"). */
   statusNote?: string;
   /** yyyy-mm-dd the post sits on, or "" when it has none. */
   dayKey: string;
@@ -93,6 +96,7 @@ export function PostListRow({
   id,
   title,
   detail,
+  status,
   stage,
   statusNote,
   dayKey,
@@ -138,7 +142,7 @@ export function PostListRow({
           )}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-          <StageSteps stage={stage} />
+          <StageSteps status={status} />
           <span className="truncate">
             {stage ?? "Posted"}
             {statusNote && <span className="text-muted-foreground/70"> · {statusNote}</span>}

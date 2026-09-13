@@ -4,6 +4,7 @@ import type {
   ContentItem,
   ContentStatus,
 } from "@/repositories/contentPlan";
+import type { WorkflowStatus } from "@/repositories/workflowStatus";
 import type { EditorTransactionRecord } from "@/repositories/editorTransactions";
 
 // The fixed option lists for the content form, kept client-safe (no
@@ -14,7 +15,8 @@ import type { EditorTransactionRecord } from "@/repositories/editorTransactions"
 export const CONTENT_FORMATS: ContentFormat[] = ["Reel", "Story", "Post", "Long-form"];
 
 // In pipeline order, so a <Select> reads top to bottom the way the work
-// actually moves. "Dropped" sits last because it is the exit, not a stage.
+// actually moves: the shared vocabulary's order, less the deal-only statuses.
+// "Cancelled" sits last because it is the exit, not a stage.
 export const CONTENT_STATUSES: ContentStatus[] = [
   "Idea",
   "Scripting",
@@ -22,15 +24,18 @@ export const CONTENT_STATUSES: ContentStatus[] = [
   "Editing",
   "Ready",
   "Posted",
-  "Dropped",
+  "Cancelled",
 ];
 
 // Statuses at which the thing is actually shootable-and-done enough to go out
 // on its day. Anything short of this with a day approaching is work that has
 // not been started, which is the one warning a planner owes its reader.
-const READY_STATUSES = new Set<ContentStatus>(["Ready", "Posted"]);
+//
+// Typed on the shared vocabulary because the rule is the same for a brand
+// deal: the calendar asks it of both.
+const READY_STATUSES = new Set<WorkflowStatus>(["Ready", "Posted"]);
 
-export function isProductionReady(status: ContentStatus): boolean {
+export function isProductionReady(status: WorkflowStatus): boolean {
   return READY_STATUSES.has(status);
 }
 

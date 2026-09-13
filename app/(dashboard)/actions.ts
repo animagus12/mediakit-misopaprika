@@ -11,6 +11,7 @@ import type {
   CampaignFormValues,
   CampaignPaymentStatus,
   CampaignRecord,
+  CampaignStatus,
   UsageRenewalFormValues,
   UsageTransition,
 } from "@/repositories/campaignRepository";
@@ -25,7 +26,7 @@ import { buildInvoiceNumber, computeSubtotal, todayISO } from "@/lib/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
 import { resolveCampaignInvoice } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
-import { campaignLabel, toIsoDate } from "@/lib/campaigns";
+import { campaignLabel, isCampaignStatus, toIsoDate } from "@/lib/campaigns";
 
 export interface CreatedBrand {
   id: string;
@@ -42,7 +43,7 @@ export interface CreatedBrand {
 async function resolveOrCreateBrandId(
   brandId: string | null,
   brandName: string,
-  campaignStatus: string
+  campaignStatus: CampaignStatus
 ): Promise<{ brandId: string | null; createdBrand: CreatedBrand | null }> {
   const name = brandName.trim();
   if (brandId || !name) return { brandId, createdBrand: null };
@@ -53,8 +54,8 @@ async function resolveOrCreateBrandId(
   if (existing) return { brandId: existing.id, createdBrand: null };
 
   // A freshly-created brand is "Active" by default; only a campaign added as
-  // already-Completed implies a finished collaboration ("Worked With").
-  const status = campaignStatus.trim().toLowerCase() === "completed" ? "Worked With" : "Active";
+  // already Posted implies a finished collaboration ("Worked With").
+  const status = campaignStatus === "Posted" ? "Worked With" : "Active";
   const created = await addBrand({
     name,
     logoUrl: null,
@@ -75,6 +76,7 @@ function revalidateCampaignPaths(): void {
 export async function createCampaign(
   input: CampaignFormValues
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
+  if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
   try {
     const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
     const record = await campaignRepository.create({ ...input, brandId });
@@ -97,6 +99,7 @@ export async function createCampaign(
 export async function updateCampaign(
   input: CampaignFormUpdate
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
+  if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
   try {
     const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
     const change = await campaignRepository.update({ ...input, brandId });

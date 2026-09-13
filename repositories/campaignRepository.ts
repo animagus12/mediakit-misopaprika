@@ -12,12 +12,18 @@ import {
   updateCampaign as writeCampaignUpdate,
 } from "./campaigns.writer.server";
 import type { UsageTransition } from "./campaigns.writer.server";
-import type { Campaign, CampaignPaymentStatus, CampaignRecord, CampaignType } from "./campaigns";
+import type {
+  Campaign,
+  CampaignPaymentStatus,
+  CampaignRecord,
+  CampaignStatus,
+  CampaignType,
+} from "./campaigns";
 import { toSheetDate } from "@/lib/campaigns";
 import { todayKey } from "@/lib/day";
 import type { RecordChange } from "@/lib/activityDiff";
 
-export type { Campaign, CampaignPaymentStatus, CampaignRecord, CampaignType };
+export type { Campaign, CampaignPaymentStatus, CampaignRecord, CampaignStatus, CampaignType };
 export type { UsageTransition };
 
 // The creator's civil day, in the format the store keeps dates in. Every
@@ -40,7 +46,7 @@ export interface CampaignFormValues {
   type: CampaignType;
   reels: string; // one of REEL_OPTIONS
   story: string; // one of STORY_OPTIONS
-  status: string; // one of STATUS_OPTIONS
+  status: CampaignStatus;
   amount: number;
   barterValue: number;
   paymentStatus: CampaignPaymentStatus;

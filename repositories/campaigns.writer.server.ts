@@ -4,7 +4,14 @@ import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
-import { emptyUsage, nextSequenceId, toCampaign, toInvoiceLink, toUsage } from "./campaigns";
+import {
+  emptyUsage,
+  nextSequenceId,
+  toCampaign,
+  toCampaignStatus,
+  toInvoiceLink,
+  toUsage,
+} from "./campaigns";
 import type {
   Campaign,
   CampaignPaymentStatus,
@@ -23,14 +30,21 @@ const CAMPAIGNS_KEY = "campaigns";
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = campaignsSeed as CampaignRecord[];
 
-// Every record is put through toInvoiceLink on the way out, so the rest of
-// this module (and everything downstream of it) only ever sees the split
-// invoiceRef/invoiceId shape, never the pre-split one a stored record may
-// still be in. Healed for good on that record's next write.
+// Every record is put through toInvoiceLink and toCampaignStatus on the way
+// out, so the rest of this module (and everything downstream of it) only ever
+// sees the split invoiceRef/invoiceId shape and the shared status vocabulary,
+// never the older forms a stored record may still be in. Healed for good on
+// the next write, which writes the whole list back. Coercing here rather than
+// only in toCampaign also keeps an update's before and after in the same
+// vocabulary, so a legacy "Completed" never logs as a change to "Posted".
 async function readRecords(): Promise<CampaignRecord[]> {
   const redis = getRedis();
   const stored = redis ? await redis.get<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
-  return (stored ?? SEED).map((record) => ({ ...record, ...toInvoiceLink(record) }));
+  return (stored ?? SEED).map((record) => ({
+    ...record,
+    ...toInvoiceLink(record),
+    status: toCampaignStatus(record.status),
+  }));
 }
 
 // Falls back to the bundled data/campaigns.json seed until the first write,

@@ -13,28 +13,34 @@
 // rows are client components. Reading and writing lives in
 // ./contentPlan.writer.server.
 
+import { toWorkflowStatus, type WorkflowStatus } from "./workflowStatus";
+
 export type ContentFormat = "Reel" | "Story" | "Post" | "Long-form";
 
 // The production pipeline, in order: an idea becomes a script, gets shot, cut,
-// queued, and goes out. "Dropped" is the shelf, so an idea can be abandoned
-// without being deleted, the same role "Cancelled" plays for a campaign.
+// queued, and goes out. "Cancelled" is the shelf, so an idea can be abandoned
+// without being deleted, the same role it plays for a campaign.
 //
-// Unlike Campaign.status, this is a closed union rather than a free string.
-// That field inherited an open vocabulary from a spreadsheet and has to keep
-// accepting off-list values; this store is new and has no such history, so
-// the compiler can be made to check it.
-export type ContentStatus =
-  | "Idea"
-  | "Scripting"
-  | "Filming"
-  | "Editing"
-  | "Ready"
-  | "Posted"
-  | "Dropped";
+// The shared vocabulary (see ./workflowStatus) less the three statuses only a
+// deal can be at: there is no brand to be in Discussion with, no product In
+// Route, and no sheet row to be Redacted.
+export type ContentStatus = Exclude<WorkflowStatus, "Discussion" | "In Route" | "Redacted">;
 
 // Nothing further happens to these two, so they leave the planning views the
-// way "Completed" and "Cancelled" take a campaign out of the active stage.
-const PAST_STATUSES = new Set<ContentStatus>(["Posted", "Dropped"]);
+// same way they take a campaign out of the active stage.
+const PAST_STATUSES = new Set<ContentStatus>(["Posted", "Cancelled"]);
+
+/**
+ * The status a stored entry carries, in the shared vocabulary. A legacy
+ * "Dropped" reads as Cancelled; anything a post can't be at, a deal-only
+ * status included, reads as Idea, the not-started end of the pipeline.
+ */
+export function toContentStatus(raw: string | null | undefined): ContentStatus {
+  const status = toWorkflowStatus(raw);
+  return status === null || status === "Discussion" || status === "In Route" || status === "Redacted"
+    ? "Idea"
+    : status;
+}
 export type ContentStage = "active" | "past";
 
 export interface ContentItemRecord {

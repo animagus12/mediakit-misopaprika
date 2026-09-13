@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { WEEKDAY_LABELS, addDays } from "@/lib/day";
 import { cn } from "@/lib/utils";
-import { countStages } from "@/lib/contentCalendar";
+import { countStages, statusNoteOf } from "@/lib/contentCalendar";
 import type {
   CalendarDay,
   CalendarPeriod,
@@ -42,12 +42,6 @@ function badgeOf(post: ScheduledPost): string {
   return post.source === "campaign" ? "Deal" : post.detail;
 }
 
-// A deal's own status, when the stage it is filed under uses another word.
-function statusNote(post: ScheduledPost): string | undefined {
-  return post.stage && post.status.trim().toLowerCase() !== post.stage.toLowerCase()
-    ? post.status
-    : undefined;
-}
 
 function WeekPostCard({
   post,
@@ -107,8 +101,9 @@ function WeekPostCard({
       <PostCardBody
         title={post.title}
         badge={badgeOf(post)}
+        status={post.status}
         stage={post.stage}
-        statusNote={statusNote(post)}
+        statusNote={statusNoteOf(post)}
         // A posted card's stage line already says "Posted".
         label={post.state === "posted" ? "" : post.label}
         labelClassName={POST_TONES[post.state].text}
@@ -274,6 +269,7 @@ export function CalendarWeekView({
             <PostCardBody
               title={drag.activePost.title}
               badge={badgeOf(drag.activePost)}
+              status={drag.activePost.status}
               stage={drag.activePost.stage}
               label={drag.activePost.label}
               labelClassName={POST_TONES[drag.activePost.state].text}

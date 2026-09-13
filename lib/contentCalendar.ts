@@ -14,11 +14,12 @@ import {
   todayKey,
   weekdayIndex,
 } from "@/lib/day";
-import { toIsoDate } from "@/lib/campaigns";
-import { contentLabel, isContentStatus, isProductionReady } from "@/lib/contentPlan";
+import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
+import { contentLabel, isProductionReady } from "@/lib/contentPlan";
 import { formatMoney } from "@/lib/invoice";
 import type { Campaign } from "@/repositories/campaigns";
-import type { ContentItem, ContentStatus } from "@/repositories/contentPlan";
+import type { ContentItem } from "@/repositories/contentPlan";
+import type { WorkflowStatus } from "@/repositories/workflowStatus";
 
 // The content calendar's view models. Two stores feed it and it renders one
 // timeline: brand deals from ./campaigns, and the creator's own reels from
@@ -32,7 +33,9 @@ import type { ContentItem, ContentStatus } from "@/repositories/contentPlan";
 // A campaign's posting day is its Upload date, the field the creator already
 // fills in for "when does this go live". An own reel's is its postDate. Which
 // of "planned" or "posted" a day means is answered by the status in both
-// cases, not by a second date field (see postState below).
+// cases, not by a second date field (see postState below). Both stores speak
+// the same status vocabulary (repositories/workflowStatus.ts), so every rule
+// below reads a deal's status and a reel's the same way.
 //
 // Client-safe on purpose: the page is a server component, but the controls
 // that schedule and edit are not, and both render the same rows.
@@ -45,15 +48,6 @@ export const WEEK_AHEAD_DAYS = 7;
 // this" stops being a plan and starts being a problem.
 const BEHIND_DAYS = 2;
 
-// Deals that were called off never belonged on a schedule. "Redacted" is the
-// sheet's own word for a row written out of the record; both are dropped
-// everywhere here, matching selectDuePayments and selectAttentionItems.
-const DROPPED_CAMPAIGN_STATUSES = new Set(["cancelled", "redacted"]);
-const POSTED_CAMPAIGN_STATUS = "completed";
-// Campaign.status is an open string, so this is a lookup rather than a type:
-// a status nobody recognises counts as not ready, which is the safe direction
-// for a warning.
-const READY_CAMPAIGN_STATUSES = new Set(["ready to upload", "completed"]);
 const NO_STORY = "none";
 
 export type PostState = "posted" | "overdue" | "due" | "upcoming";
@@ -61,28 +55,31 @@ export type PostState = "posted" | "overdue" | "due" | "upcoming";
 /** Which store a row came from. Decides where an edit or a schedule is sent. */
 export type PostSource = "campaign" | "own";
 
-/** The working stages, in order. Posted and Dropped have left the pipeline. */
-export type PipelineStage = Exclude<ContentStatus, "Posted" | "Dropped">;
+/** The working stages, in order. Everything from Posted on has left the pipeline. */
+export type PipelineStage = Extract<
+  WorkflowStatus,
+  "Idea" | "Scripting" | "Filming" | "Editing" | "Ready"
+>;
 
 export const PIPELINE_STAGES: PipelineStage[] = ["Idea", "Scripting", "Filming", "Editing", "Ready"];
 
-// Campaign.status is the spreadsheet's own vocabulary, so a deal is placed on
-// the content pipeline by what its status means for the work: a deal still
-// being negotiated or waiting on product has nothing to shoot yet, and "Todo"
-// is the sheet's word for "agreed, now make it". A status nobody recognises
-// lands in Idea, the safe direction: it reads as not started rather than
-// quietly counting as ready.
-const CAMPAIGN_PIPELINE_STAGE: Record<string, PipelineStage> = {
-  discussion: "Idea",
-  "in route": "Idea",
-  brainstorming: "Scripting",
-  todo: "Filming",
-  "ready to upload": "Ready",
-};
+// A working stage is its own status, for a deal and a reel alike. The two
+// deal-only statuses before it, Discussion and In Route, have nothing to shoot
+// yet, so they file under Idea: not started, the safe direction.
+function pipelineStageOf(status: WorkflowStatus): PipelineStage {
+  return (PIPELINE_STAGES as WorkflowStatus[]).includes(status) ? (status as PipelineStage) : "Idea";
+}
 
-function pipelineStageOf(source: PostSource, status: string): PipelineStage {
-  if (source === "campaign") return CAMPAIGN_PIPELINE_STAGE[normalized(status)] ?? "Idea";
-  return (PIPELINE_STAGES as string[]).includes(status) ? (status as PipelineStage) : "Idea";
+/**
+ * The record's own status when its stage shows another word, which is only a
+ * deal in Discussion or In Route, filed under Idea. Undefined whenever the
+ * stage already says it, so a card never repeats itself.
+ */
+export function statusNoteOf(post: {
+  status: WorkflowStatus;
+  stage: PipelineStage | null;
+}): WorkflowStatus | undefined {
+  return post.stage && post.status !== post.stage ? post.status : undefined;
 }
 
 export interface ScheduledPost {
@@ -95,12 +92,12 @@ export interface ScheduledPost {
   title: string;
   /** "Summer drop · 1 Reel, 1 Story", or "Reel". */
   detail: string;
-  /** The pipeline stage, shown as-is: "Ready to Upload", "Filming". */
-  status: string;
+  /** The record's status, shown as-is: "Discussion", "Filming". */
+  status: WorkflowStatus;
   /**
-   * `status` placed on the shared pipeline, so a deal's "Todo" and a reel's
-   * "Filming" read as the same step on the grid. Null once posted: `state`
-   * already says so, and a finished post has no stage left to be at.
+   * `status` placed on the shared pipeline: the status itself for a working
+   * stage, Idea for a deal not yet started. Null once posted: `state` already
+   * says so, and a finished post has no stage left to be at.
    */
   stage: PipelineStage | null;
   /** yyyy-mm-dd, the day this posts on. */
@@ -128,7 +125,7 @@ export interface UnscheduledPost {
   title: string;
   /** "Summer drop · 1 Reel, 1 Story · ₹6,685", or "Reel". */
   detail: string;
-  status: string;
+  status: WorkflowStatus;
   /** `status` placed on the shared pipeline, the same way a scheduled post's is. */
   stage: PipelineStage;
   /** Days it has gone without a day: since the deal date, or since created. */
@@ -179,22 +176,10 @@ function isBehind(state: PostState, daysAway: number, ready: boolean): boolean {
   return daysAway <= BEHIND_DAYS;
 }
 
-// Whether a status means the work is done, or done enough to go out, for
-// either store. Read from the status string a ScheduledPost already carries,
-// so a post can be re-timed after a move without the record behind it.
-function isStatusPosted(source: PostSource, status: string): boolean {
-  return source === "campaign"
-    ? normalized(status) === POSTED_CAMPAIGN_STATUS
-    : status === "Posted";
-}
-
-function isStatusReady(source: PostSource, status: string): boolean {
-  if (source === "campaign") return READY_CAMPAIGN_STATUSES.has(normalized(status));
-  return isContentStatus(status) && isProductionReady(status);
-}
-
-function stageOfPost(source: PostSource, status: string): PipelineStage | null {
-  return isStatusPosted(source, status) ? null : pipelineStageOf(source, status);
+// Read from the status a ScheduledPost already carries, so a post can be
+// re-timed after a move without the record behind it.
+function stageOfPost(status: WorkflowStatus): PipelineStage | null {
+  return status === "Posted" ? null : pipelineStageOf(status);
 }
 
 type PostTiming =Pick<ScheduledPost, "dayKey" | "daysAway" | "state" | "label" | "behind">;
@@ -202,20 +187,22 @@ type PostTiming =Pick<ScheduledPost, "dayKey" | "daysAway" | "state" | "label" |
 // Everything about a post that follows from its day. One function for both
 // stores and for a move, so a post dragged to another day is toned by exactly
 // the rule the server would have used.
-function timingOf(source: PostSource, status: string, dayKey: string, today: string): PostTiming {
+function timingOf(status: WorkflowStatus, dayKey: string, today: string): PostTiming {
   const daysAway = daysBetween(today, dayKey);
-  const state = stateOf(isStatusPosted(source, status), daysAway);
+  const state = stateOf(status === "Posted", daysAway);
   return {
     dayKey,
     daysAway,
     state,
     label: postLabel(state, daysAway),
-    behind: isBehind(state, daysAway, isStatusReady(source, status)),
+    behind: isBehind(state, daysAway, isProductionReady(status)),
   };
 }
 
 function scheduledFromCampaign(campaign: Campaign, today: string): ScheduledPost | null {
-  if (DROPPED_CAMPAIGN_STATUSES.has(normalized(campaign.status))) return null;
+  // A deal that was called off never belonged on a schedule, matching
+  // selectDuePayments and selectAttentionItems.
+  if (isCampaignCalledOff(campaign.status)) return null;
   const dayKey = toIsoDate(campaign.uploadDate);
   // toIsoDate answers "" for a blank or malformed date; both mean the deal has
   // no day to sit on, and the unscheduled list picks it up instead.
@@ -228,14 +215,14 @@ function scheduledFromCampaign(campaign: Campaign, today: string): ScheduledPost
     title: campaign.brand.trim() || campaign.campaign.trim() || "Untitled deal",
     detail: joinDetail([campaign.campaign, deliverablesLabel(campaign)]),
     status: campaign.status,
-    stage: stageOfPost("campaign", campaign.status),
+    stage: stageOfPost(campaign.status),
     date: campaign.uploadDate,
-    ...timingOf("campaign", campaign.status, dayKey, today),
+    ...timingOf(campaign.status, dayKey, today),
   };
 }
 
 function scheduledFromContent(item: ContentItem, today: string): ScheduledPost | null {
-  if (item.status === "Dropped") return null;
+  if (item.status === "Cancelled") return null;
   const dayKey = toIsoDate(item.postDate);
   if (dayKey === "") return null;
 
@@ -246,9 +233,9 @@ function scheduledFromContent(item: ContentItem, today: string): ScheduledPost |
     title: contentLabel(item.title),
     detail: item.format,
     status: item.status,
-    stage: stageOfPost("own", item.status),
+    stage: stageOfPost(item.status),
     date: item.postDate,
-    ...timingOf("own", item.status, dayKey, today),
+    ...timingOf(item.status, dayKey, today),
   };
 }
 
@@ -290,7 +277,7 @@ function comparePosts(a: ScheduledPost, b: ScheduledPost): number {
  *
  * Only active-stage records qualify. A finished or cancelled deal with no
  * upload date is a gap in the record rather than something to schedule, and
- * NeedsAttentionCard is where those already surface; a Posted or Dropped idea
+ * NeedsAttentionCard is where those already surface; a Posted or Cancelled idea
  * is simply done with.
  */
 export function selectUnscheduledPosts(
@@ -315,7 +302,7 @@ export function selectUnscheduledPosts(
           campaign.total > 0 ? formatMoney(campaign.total) : null,
         ]),
         status: campaign.status,
-        stage: pipelineStageOf("campaign", campaign.status),
+        stage: pipelineStageOf(campaign.status),
         // Aged from the deal date: how long ago the creator agreed to make
         // this is the only clock available, and the right one.
         ageDays: dealDayKey === "" ? null : daysBetween(dealDayKey, today),
@@ -331,7 +318,7 @@ export function selectUnscheduledPosts(
       title: contentLabel(item.title),
       detail: item.format,
       status: item.status,
-      stage: pipelineStageOf("own", item.status),
+      stage: pipelineStageOf(item.status),
       // An idea has no deal date, so it is aged from when it was written
       // down. createdAt is a full ISO instant and these ages are whole civil
       // days, so it is reduced to a day first.
@@ -636,7 +623,7 @@ export function movePostInPeriod(
   if (!moved || moved.dayKey === toDayKey) return period;
 
   const post: ScheduledPost | null = toDayKey
-    ? { ...moved, ...timingOf(moved.source, moved.status, toDayKey, period.today) }
+    ? { ...moved, ...timingOf(moved.status, toDayKey, period.today) }
     : null;
 
   const weeks = period.weeks.map((week) =>
@@ -677,9 +664,24 @@ function emptyStageCounts(): Record<PipelineStage, number> {
   >;
 }
 
-/** 1 for Idea through 5 for Ready, for the step dots; 0 once posted. */
-export function stageStep(stage: PipelineStage | null): number {
-  return stage ? PIPELINE_STAGES.indexOf(stage) + 1 : 0;
+/** How far along a status is, for the step dots on cards and list rows. */
+export interface StageProgress {
+  /** Dots filled: 0 before Idea, 1 for Idea through 5 for Ready and Posted. */
+  filled: number;
+  /** Out, rather than only ready to go out: drawn differently from Ready. */
+  posted: boolean;
+}
+
+/**
+ * Read from the status rather than the stage, because the stage files a deal
+ * still in Discussion or In Route under Idea, and a deal with nothing agreed
+ * or no product yet is not as far along as a post whose idea is written down.
+ * Cancelled and Redacted never reach the calendar, and read as not started.
+ */
+export function stageProgress(status: WorkflowStatus): StageProgress {
+  if (status === "Posted") return { filled: PIPELINE_STAGES.length, posted: true };
+  const index = (PIPELINE_STAGES as WorkflowStatus[]).indexOf(status);
+  return { filled: index + 1, posted: false };
 }
 
 // --- Board ----------------------------------------------------------------------
@@ -695,11 +697,11 @@ export interface BoardPost {
   /** "Reel" for an own post; the campaign name for a deal. */
   detail: string;
   /**
-   * The record's own status, which for a deal can differ from its stage
-   * ("Todo" under Filming). Shown so the column never hides the word the
-   * creator actually picked.
+   * The record's own status, which for a deal not yet started differs from
+   * its stage ("Discussion" under Idea). Shown so the column never hides the
+   * word the creator actually picked.
    */
-  status: string;
+  status: WorkflowStatus;
   stage: PipelineStage;
   /** yyyy-mm-dd, or "" for work with no day yet. */
   dayKey: string;
@@ -711,9 +713,9 @@ export interface BoardPost {
   behind: boolean;
   /**
    * Whether the card can be dragged to another stage. Only the creator's own
-   * posts: a deal's status is the spreadsheet's vocabulary, and a stage does
-   * not map back to one status ("Idea" is both Discussion and In Route), so a
-   * deal changes stage from its edit sheet, where the real status is picked.
+   * posts: a deal's Idea column also holds Discussion and In Route, so a stage
+   * does not map back to one status for every deal, and a deal changes stage
+   * from its edit sheet, where the real status is picked.
    */
   movable: boolean;
 }
@@ -808,7 +810,7 @@ export function movePostOnBoard(
           behind:
             moved.state !== null &&
             moved.daysAway !== null &&
-            isBehind(moved.state, moved.daysAway, isStatusReady(moved.source, target)),
+            isBehind(moved.state, moved.daysAway, isProductionReady(target)),
         };
 
   return columns.map((column) => {

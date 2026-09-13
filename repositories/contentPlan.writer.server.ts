@@ -2,7 +2,7 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import contentPlanSeed from "@/data/content-plan.json";
 import type { RecordChange } from "@/lib/activityDiff";
-import { toContentItem } from "./contentPlan";
+import { toContentItem, toContentStatus } from "./contentPlan";
 import type {
   ContentItem,
   ContentItemRecord,
@@ -19,11 +19,13 @@ const CONTENT_PLAN_KEY = "content_plan";
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = contentPlanSeed as ContentItemRecord[];
 
+// Statuses are coerced on the way out, the way the campaigns store coerces
+// its own, so an entry saved as "Dropped" before the vocabularies were merged
+// reads as Cancelled everywhere and is healed on the next write.
 async function readRecords(): Promise<ContentItemRecord[]> {
   const redis = getRedis();
-  if (!redis) return SEED;
-  const stored = await redis.get<ContentItemRecord[]>(CONTENT_PLAN_KEY);
-  return stored ?? SEED;
+  const stored = redis ? await redis.get<ContentItemRecord[]>(CONTENT_PLAN_KEY) : null;
+  return (stored ?? SEED).map((record) => ({ ...record, status: toContentStatus(record.status) }));
 }
 
 // Falls back to the bundled data/content-plan.json seed (an empty list: unlike
