@@ -1,20 +1,34 @@
 import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
+import { userAgent } from "next/server";
 import AppShell from "@/components/common/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
-import { CalendarMonthGrid } from "@/components/calendar/CalendarMonthGrid";
-import { NewContentButton } from "@/components/calendar/NewContentButton";
-import { UnscheduledPostsCard } from "@/components/calendar/UnscheduledPostsCard";
-import { WeekAheadCard } from "@/components/calendar/WeekAheadCard";
 import {
+  CalendarViewCard,
+  type CalendarViewData,
+} from "@/components/calendar/CalendarViewCard";
+import { CalendarStats } from "@/components/calendar/CalendarStats";
+import { NeedsDateCard } from "@/components/calendar/NeedsDateCard";
+import { NewContentButton } from "@/components/calendar/NewContentButton";
+import { UpNextCard } from "@/components/calendar/UpNextCard";
+import {
+  CALENDAR_VIEW_COOKIE,
   buildCalendarMonth,
-  resolveMonthKey,
+  buildCalendarWeek,
+  groupAgenda,
+  hasExplicitCalendarView,
+  resolveCalendarAnchors,
+  resolveCalendarView,
+  selectBoard,
   selectScheduledPosts,
   selectUnscheduledPosts,
   selectWeekAhead,
+  summarizeCalendar,
+  type CalendarView,
 } from "@/lib/contentCalendar";
+import { formatDayLabel, todayKey } from "@/lib/day";
 import { buildEditorVideoOptions } from "@/lib/contentPlan";
 import { buildCampaignBrandOptions } from "@/lib/campaigns";
-import { monthKeyOf, todayKey } from "@/lib/day";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import { getContentItems } from "@/repositories/contentPlan.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
@@ -36,11 +50,15 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 interface CalendarPageProps {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ view?: string; month?: string; week?: string }>;
 }
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
-  const { month } = await searchParams;
+  const [{ view: viewParam, month, week }, cookieStore, headerList] = await Promise.all([
+    searchParams,
+    cookies(),
+    headers(),
+  ]);
   // One clock for the whole render, so the grid's "today", the reminder labels
   // and the waiting counts can't disagree by a millisecond across midnight.
   const now = new Date();
@@ -66,8 +84,52 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     getBrands().catch(() => []),
   ]);
 
+  const today = todayKey(now);
   const scheduled = selectScheduledPosts(campaigns, contentItems, now);
-  const monthView = buildCalendarMonth(resolveMonthKey(month, now), scheduled, now);
+  const unscheduled = selectUnscheduledPosts(campaigns, contentItems, now);
+
+  // A phone opens on the week, since a month grid there can show a post only
+  // as a dot. Read from the user agent, and from the mobile client hint
+  // Chromium sends even when its user agent string is reduced. A phone either
+  // misses (a "desktop site" request, say) is caught in the browser by width:
+  // see CalendarViewSwitcher.
+  const mobile =
+    userAgent({ headers: headerList }).device.type === "mobile" ||
+    headerList.get("sec-ch-ua-mobile") === "?1";
+  const view = resolveCalendarView({
+    view: viewParam,
+    month,
+    week,
+    remembered: cookieStore.get(CALENDAR_VIEW_COOKIE)?.value,
+    mobile,
+  });
+  const explicitView = hasExplicitCalendarView({ view: viewParam, month, week });
+  const { monthKey, weekKey } = resolveCalendarAnchors({ month, week }, now);
+  // Only the view on screen is built: the other two are a link away.
+  const viewData: CalendarViewData =
+    view === "board"
+      ? { view, columns: selectBoard(scheduled, unscheduled) }
+      : {
+          view,
+          period:
+            view === "week"
+              ? buildCalendarWeek(weekKey, scheduled, now)
+              : buildCalendarMonth(monthKey, scheduled, now),
+        };
+  const viewHrefs: Record<CalendarView, string> = {
+    month: `/calendar?view=month&month=${monthKey}`,
+    week: `/calendar?view=week&week=${weekKey}`,
+    board: `/calendar?view=board`,
+  };
+  // Each tile opens where its posts are listed. The two that span weeks (what
+  // was missed, and the next seven days) go to the agenda, which rolls with
+  // today; the undated go to the board, the only view that holds them all.
+  const statHrefs = {
+    dueSoon: "#up-next",
+    missed: "#up-next",
+    needsDate: viewHrefs.board,
+    posted: `/calendar?view=month&month=${today.slice(0, 7)}`,
+  };
   // Rows carry ids, not records; the editable ones look themselves up here so
   // the view models stay flat and free of the whole stored object.
   const contentById = new Map(contentItems.map((item) => [item.id, item]));
@@ -88,9 +150,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   return (
     <AppShell>
       <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-8 px-4 py-10">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-end justify-between gap-3">
           <div className="space-y-1">
-            <h1 className="font-heading text-lg font-semibold">Content calendar</h1>
+            <p className="text-xs font-medium text-primary">Today is {formatDayLabel(today)}</p>
+            <h1 className="font-heading text-xl font-semibold tracking-tight">Content calendar</h1>
             <p className="text-xs text-muted-foreground">
               Your own posts and every brand deal on one plan.
             </p>
@@ -105,33 +168,45 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-8">
-            <WeekAheadCard
-              posts={selectWeekAhead(scheduled)}
-              contentById={contentById}
-              campaignById={campaignById}
-              videoOptions={videoOptions}
-              brandOptions={brandOptions}
-              schedulable
-              emptyState="card"
+          <div className="space-y-6">
+            <CalendarStats
+              summary={summarizeCalendar(scheduled, unscheduled, now)}
+              hrefs={statHrefs}
             />
 
-            <CalendarMonthGrid
-              month={monthView}
-              currentMonthKey={monthKeyOf(todayKey(now))}
+            {/* The calendar leads: it carries both what is planned and the
+                stage each post is at, which is what this page is opened for. */}
+            <CalendarViewCard
+              data={viewData}
+              viewHrefs={viewHrefs}
+              explicitView={explicitView}
               contentItems={contentItems}
               campaigns={campaigns}
               videoOptions={videoOptions}
               brandOptions={brandOptions}
             />
 
-            <UnscheduledPostsCard
-              posts={selectUnscheduledPosts(campaigns, contentItems, now)}
-              contentById={contentById}
-              campaignById={campaignById}
-              videoOptions={videoOptions}
-              brandOptions={brandOptions}
-            />
+            {/* Side by side from lg: the "act on it now" list and the backlog
+                are read together, and stacked they ran to a screen and a half
+                below the calendar. */}
+            <div className="grid items-start gap-6 lg:grid-cols-2">
+              <UpNextCard
+                groups={groupAgenda(selectWeekAhead(scheduled))}
+                today={today}
+                contentById={contentById}
+                campaignById={campaignById}
+                videoOptions={videoOptions}
+                brandOptions={brandOptions}
+              />
+              <NeedsDateCard
+                posts={unscheduled}
+                today={today}
+                contentById={contentById}
+                campaignById={campaignById}
+                videoOptions={videoOptions}
+                brandOptions={brandOptions}
+              />
+            </div>
           </div>
         )}
       </div>

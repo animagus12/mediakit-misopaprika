@@ -120,6 +120,10 @@ export function PostRow({
       {schedulable && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <SchedulePostControl
+            // Keyed by the stored day so the field resets when the post is
+            // moved from somewhere else on the page (a drag, a menu), rather
+            // than holding the old date and offering a "Move" back to it.
+            key={currentIsoDate}
             source={source}
             id={id}
             label={title}

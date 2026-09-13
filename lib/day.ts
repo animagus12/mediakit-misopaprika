@@ -150,3 +150,27 @@ export function formatDayLabel(dayKey: string): string {
 export function formatMonthLabel(monthKey: string): string {
   return MONTH_LABEL.format(new Date(toUtcMs(`${monthKey}-01`)));
 }
+
+const WEEK_RANGE = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** The Monday of the week `dayKey` falls in. */
+export function startOfWeek(dayKey: string): string {
+  return addDays(dayKey, -weekdayIndex(dayKey));
+}
+
+/**
+ * "14 – 20 Sept 2026", or "28 Sept – 4 Oct 2026" across a month edge.
+ * formatRange drops whichever parts the two ends share, so the label stays as
+ * short as the week allows.
+ */
+export function formatWeekLabel(mondayKey: string): string {
+  return WEEK_RANGE.formatRange(
+    new Date(toUtcMs(mondayKey)),
+    new Date(toUtcMs(addDays(mondayKey, 6)))
+  );
+}
