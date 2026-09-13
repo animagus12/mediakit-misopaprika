@@ -1,4 +1,4 @@
-import type { PostState } from "@/lib/contentCalendar";
+import type { PipelineStage, PostState } from "@/lib/contentCalendar";
 
 // globals.css has no success/warning/info token, so the meaning-carrying
 // colours here follow the destructive variant's shape: a raw palette hue at
@@ -32,6 +32,8 @@ export interface PostTone {
   dotOwn: string;
   /** Text only, for the label in a list row. */
   text: string;
+  /** A card's left edge, so a column of cards can be scanned by state. */
+  accent: string;
 }
 
 export const POST_TONES: Record<PostState, PostTone> = {
@@ -41,6 +43,8 @@ export const POST_TONES: Record<PostState, PostTone> = {
     dot: "bg-emerald-500",
     dotOwn: "ring-1 ring-inset ring-emerald-500",
     text: "text-emerald-600 dark:text-emerald-400",
+
+    accent: "border-l-emerald-500",
   },
   overdue: {
     pill: "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400",
@@ -48,6 +52,8 @@ export const POST_TONES: Record<PostState, PostTone> = {
     dot: "bg-rose-500",
     dotOwn: "ring-1 ring-inset ring-rose-500",
     text: "text-rose-600 dark:text-rose-400",
+
+    accent: "border-l-rose-500",
   },
   due: {
     pill: "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
@@ -55,6 +61,8 @@ export const POST_TONES: Record<PostState, PostTone> = {
     dot: "bg-amber-500",
     dotOwn: "ring-1 ring-inset ring-amber-500",
     text: "text-amber-600 dark:text-amber-400",
+
+    accent: "border-l-amber-500",
   },
   upcoming: {
     pill: "bg-muted text-muted-foreground",
@@ -62,5 +70,19 @@ export const POST_TONES: Record<PostState, PostTone> = {
     dot: "bg-muted-foreground/50",
     dotOwn: "ring-1 ring-inset ring-muted-foreground/50",
     text: "text-muted-foreground",
+
+    accent: "border-l-muted-foreground/30",
   },
+};
+
+// A sequential ramp, one step per stage, so "how far along" reads without a
+// legend: the further along, the darker, and Ready takes the posted green
+// because it is the one stage with nothing left to do but publish. Only a dot
+// carries it: the pill's colour is already spoken for by the state.
+export const STAGE_DOTS: Record<PipelineStage, string> = {
+  Idea: "bg-muted-foreground/25",
+  Scripting: "bg-muted-foreground/45",
+  Filming: "bg-muted-foreground/65",
+  Editing: "bg-muted-foreground/85",
+  Ready: "bg-emerald-500",
 };

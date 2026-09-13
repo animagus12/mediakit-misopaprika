@@ -5,6 +5,7 @@ import {
   addContentItem,
   deleteContentItem as removeContentItem,
   setContentItemDate,
+  setContentItemStatus,
   updateContentItem as writeContentItem,
 } from "@/repositories/contentPlan.writer.server";
 import { recordActivity } from "@/repositories/activity.writer.server";
@@ -127,6 +128,38 @@ export async function schedulePost(
     return { success: true };
   } catch (err) {
     return failure(err, "Couldn't save the posting date");
+  }
+}
+
+/**
+ * Moves one of the creator's own posts to another production status: the
+ * board's drag between stages, and its "Move to" menu.
+ *
+ * Writes only the status, like schedulePost writes only the day. Deals are
+ * not accepted: a stage does not map back to one campaign status, so a deal
+ * changes stage from its own edit sheet (see BoardPost.movable).
+ */
+export async function setContentStatus(id: string, status: string): Promise<CalendarResult> {
+  if (!isContentStatus(status)) return { success: false, error: "Pick a status" };
+
+  try {
+    const change = await setContentItemStatus(id, status);
+    if (!change) return { success: false, error: "That entry no longer exists" };
+    revalidateStores("contentPlan");
+
+    const detail = describeChanges(change, contentFields);
+    // Setting the status it already had is a no-op, and logs nothing, for
+    // the same reason a move to the same day doesn't.
+    if (detail) {
+      await recordActivity({
+        action: "content.updated",
+        entity: { type: "content", id: change.after.id, label: contentLabel(change.after.title) },
+        detail,
+      });
+    }
+    return { success: true };
+  } catch (err) {
+    return failure(err, "Couldn't save the status");
   }
 }
 

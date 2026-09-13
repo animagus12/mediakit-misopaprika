@@ -7,6 +7,7 @@ import type {
   ContentItem,
   ContentItemRecord,
   ContentItemUpdate,
+  ContentStatus,
   NewContentItem,
 } from "./contentPlan";
 
@@ -104,6 +105,26 @@ export async function setContentItemDate(
   const before = records.find((record) => record.id === id);
   if (!before) return null;
   const after: ContentItemRecord = { ...before, postDate: postDate.trim() };
+  await redis.set(
+    CONTENT_PLAN_KEY,
+    records.map((record) => (record.id === id ? after : record))
+  );
+  return { before, after };
+}
+
+// Writes just the production status: the board's drag between stages. The
+// counterpart of setContentItemDate, and for the same reason: a card moved
+// from a list must not be able to overwrite the fields the list doesn't show.
+export async function setContentItemStatus(
+  id: string,
+  status: ContentStatus
+): Promise<RecordChange<ContentItemRecord> | null> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before) return null;
+  const after: ContentItemRecord = { ...before, status };
   await redis.set(
     CONTENT_PLAN_KEY,
     records.map((record) => (record.id === id ? after : record))

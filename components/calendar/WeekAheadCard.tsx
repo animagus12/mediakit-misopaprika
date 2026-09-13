@@ -3,13 +3,8 @@ import { AlarmClock, ArrowUpRight, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDayLabel } from "@/lib/day";
-import { WEEK_AHEAD_DAYS } from "@/lib/contentCalendar";
 import { cn } from "@/lib/utils";
-import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { ScheduledPost } from "@/lib/contentCalendar";
-import type { EditorVideoOption } from "@/lib/contentPlan";
-import type { Campaign } from "@/repositories/campaigns";
-import type { ContentItem } from "@/repositories/contentPlan";
 import { PostRow } from "./PostRow";
 import { POST_TONES } from "./postTone";
 
@@ -17,27 +12,10 @@ interface WeekAheadCardProps {
   /** Already filtered to overdue + due, soonest first: see selectWeekAhead. */
   posts: ScheduledPost[];
   /**
-   * The creator's own records, keyed by id, so an own row can be edited in
-   * place. Omitted on the dashboard, where the card is a pointer rather than
-   * a workspace.
-   */
-  contentById?: Map<string, ContentItem>;
-  /** The deals behind the brand rows, keyed by id, for the same reason. */
-  campaignById?: Map<string, Campaign>;
-  /** Passed through to an own row's edit sheet. */
-  videoOptions?: EditorVideoOption[];
-  /** Passed through to a brand row's edit sheet. */
-  brandOptions?: CampaignBrandOption[];
-  /** Renders each row with the date field that can move it. */
-  schedulable?: boolean;
-  /**
-   * What a clear week looks like.
-   *
-   * "card" is /calendar's: a section that silently vanished there would read
-   * as a page that failed to load. "line" is the dashboard's, where the news
+   * What a clear week looks like. "line" is the dashboard's, where the news
    * is worth one row and not a panel. "hidden" renders nothing.
    */
-  emptyState?: "hidden" | "line" | "card";
+  emptyState?: "hidden" | "line";
   /**
    * How many posts have no day at all, for the one-liner.
    *
@@ -51,16 +29,12 @@ interface WeekAheadCardProps {
   className?: string;
 }
 
-// The reminder the calendar exists for: what has to go out in the next week,
-// and what should already have gone out. Overdue rows lead, because a post
-// that was missed is the only thing here that can't be fixed by waiting.
+// The dashboard's pointer at the calendar: what has to go out in the next
+// week, and what should already have gone out. Overdue rows lead, because a
+// post that was missed is the only thing here that can't be fixed by waiting.
+// /calendar itself lays the same posts out as an agenda: see UpNextCard.
 export function WeekAheadCard({
   posts,
-  contentById,
-  campaignById,
-  videoOptions,
-  brandOptions,
-  schedulable = false,
   emptyState = "hidden",
   waitingCount = 0,
   href,
@@ -69,68 +43,53 @@ export function WeekAheadCard({
   if (posts.length === 0) {
     if (emptyState === "hidden") return null;
 
-    if (emptyState === "line") {
-      // Nothing due is only good news when there is also nothing waiting to be
-      // given a day, so the two cases get different words and different
-      // colour: a clear week earns the positive tone, an unplanned one stays
-      // muted and names the backlog it is quietly sitting on.
-      const clear = waitingCount === 0;
-      return (
-        <Card className={className}>
-          <CardContent className="flex items-center justify-between gap-3 py-3">
-            {/* Wraps rather than truncating: at 390px the line needs 341px,
-                and the half that would be cut is the half that says anything
-                ("3 waiting for a date"). Two lines on a phone is still a row,
-                not a panel. */}
-            <p className="flex min-w-0 items-start gap-2 text-sm">
-              <CalendarCheck
-                className={cn(
-                  // mt-0.5 against items-start, so the icon sits on the first
-                  // line when the text wraps: same trick ActivityRow uses.
-                  "mt-0.5 size-4 shrink-0",
-                  clear ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-                )}
-              />
-              <span>
-                {clear ? (
-                  <>
-                    <span className="font-medium">All caught up.</span>{" "}
-                    <span className="text-muted-foreground">
-                      Nothing to publish this week.
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="font-medium">Nothing planned this week.</span>{" "}
-                    <span className="text-muted-foreground">
-                      {waitingCount} waiting for a date.
-                    </span>
-                  </>
-                )}
-              </span>
-            </p>
-            {href && (
-              <Button asChild size="sm" variant="ghost" className="shrink-0">
-                <Link href={href}>
-                  Calendar
-                  <ArrowUpRight />
-                </Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      );
-    }
-
+    // Nothing due is only good news when there is also nothing waiting to be
+    // given a day, so the two cases get different words and different
+    // colour: a clear week earns the positive tone, an unplanned one stays
+    // muted and names the backlog it is quietly sitting on.
+    const clear = waitingCount === 0;
     return (
       <Card className={className}>
-        <CardContent className="flex flex-col items-center gap-2 py-8 text-center">
-          <CalendarCheck className="size-5 text-muted-foreground" />
-          <p className="text-sm font-medium">Nothing due this week</p>
-          <p className="max-w-sm text-xs text-muted-foreground">
-            Nothing is scheduled in the next {WEEK_AHEAD_DAYS} days, and nothing scheduled earlier
-            is still waiting to go out.
+        <CardContent className="flex items-center justify-between gap-3 py-3">
+          {/* Wraps rather than truncating: at 390px the line needs 341px,
+              and the half that would be cut is the half that says anything
+              ("3 waiting for a date"). Two lines on a phone is still a row,
+              not a panel. */}
+          <p className="flex min-w-0 items-start gap-2 text-sm">
+            <CalendarCheck
+              className={cn(
+                // mt-0.5 against items-start, so the icon sits on the first
+                // line when the text wraps: same trick ActivityRow uses.
+                "mt-0.5 size-4 shrink-0",
+                clear ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+              )}
+            />
+            <span>
+              {clear ? (
+                <>
+                  <span className="font-medium">All caught up.</span>{" "}
+                  <span className="text-muted-foreground">
+                    Nothing to publish this week.
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">Nothing planned this week.</span>{" "}
+                  <span className="text-muted-foreground">
+                    {waitingCount} waiting for a date.
+                  </span>
+                </>
+              )}
+            </span>
           </p>
+          {href && (
+            <Button asChild size="sm" variant="ghost" className="shrink-0">
+              <Link href={href}>
+                Calendar
+                <ArrowUpRight />
+              </Link>
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -185,12 +144,6 @@ export function WeekAheadCard({
             secondaryMeta={formatDayLabel(post.dayKey)}
             metaClassName={POST_TONES[post.state].text}
             behind={post.behind}
-            schedulable={schedulable}
-            currentIsoDate={post.dayKey}
-            item={post.source === "own" ? contentById?.get(post.id) : undefined}
-            campaign={post.source === "campaign" ? campaignById?.get(post.id) : undefined}
-            videoOptions={videoOptions}
-            brandOptions={brandOptions}
           />
         ))}
       </CardContent>
