@@ -8,7 +8,7 @@ import type {
   EditorTransactionUpdate,
   NewEditorTransaction,
 } from "./editorTransactions";
-import { toSheetDate } from "@/lib/editorTransactions";
+import { applyRevisionChange, toNonNegativeInt, toSheetDate } from "@/lib/editorTransactions";
 import type { RecordChange } from "@/lib/activityDiff";
 
 // server-only, and never imported from a client component: the server
@@ -46,6 +46,7 @@ export async function addEditorTransaction(input: NewEditorTransaction): Promise
     amount: input.amount,
     editor: input.editor.trim(),
     status: input.status,
+    ...revisionFields(input),
   };
   await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
 }
@@ -82,19 +83,42 @@ export async function renameEditorOnTransactions(from: string, to: string): Prom
   return moved;
 }
 
-// Answers the record either side of the write, or null when the id matched
-// nothing, so the caller can say what actually changed without re-reading the
-// list this already holds. Comparing against the caller's input instead would
-// be wrong: the normalising below means a trailing space would read as an edit.
-export async function updateEditorTransaction(
-  input: EditorTransactionUpdate
+// The form sends the count and the rate its stepper charged at; a rate is
+// only kept while there are revisions for it to describe.
+function revisionFields(input: { revisions: number; revisionRate: number | null }) {
+  const revisions = toNonNegativeInt(input.revisions);
+  return {
+    revisions,
+    revisionRate: revisions > 0 && input.revisionRate != null ? toNonNegativeInt(input.revisionRate) : null,
+  };
+}
+
+// Rewrites one record through `update`. Answers the record either side of the
+// write, or null when the id matched nothing, so the caller can say what
+// actually changed without re-reading the list this already holds. Comparing
+// against the caller's input instead would be wrong: the normalising in each
+// update means a trailing space would read as an edit.
+async function replaceRecord(
+  id: string,
+  update: (before: EditorTransactionRecord) => EditorTransactionRecord
 ): Promise<RecordChange<EditorTransactionRecord> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  const before = records.find((record) => record.id === input.id);
+  const before = records.find((record) => record.id === id);
   if (!before) return null;
-  const after: EditorTransactionRecord = {
+  const after = update(before);
+  await redis.set(
+    EDITOR_TRANSACTIONS_KEY,
+    records.map((record) => (record.id === id ? after : record))
+  );
+  return { before, after };
+}
+
+export async function updateEditorTransaction(
+  input: EditorTransactionUpdate
+): Promise<RecordChange<EditorTransactionRecord> | null> {
+  return replaceRecord(input.id, (before) => ({
     id: before.id,
     video: input.video.trim(),
     videoDate: toSheetDate(input.videoDate),
@@ -102,12 +126,33 @@ export async function updateEditorTransaction(
     amount: input.amount,
     editor: input.editor.trim(),
     status: input.status,
-  };
-  await redis.set(
-    EDITOR_TRANSACTIONS_KEY,
-    records.map((record) => (record.id === input.id ? after : record))
-  );
-  return { before, after };
+    ...revisionFields(input),
+  }));
+}
+
+// Status only, for the table's inline select: nothing else on the record is
+// read from the client, so a stale row can't write back old values.
+export async function setEditorTransactionStatus(
+  id: string,
+  status: string
+): Promise<RecordChange<EditorTransactionRecord> | null> {
+  return replaceRecord(id, (before) => ({ ...before, status }));
+}
+
+/**
+ * Adds or takes back revisions, moving the amount with them (see
+ * applyRevisionChange). The rate is looked up here, from the record's own
+ * editor at the time of the write, rather than trusted from the client.
+ */
+export async function changeEditorTransactionRevisions(
+  id: string,
+  delta: number,
+  rateForEditor: (editorName: string) => number
+): Promise<RecordChange<EditorTransactionRecord> | null> {
+  return replaceRecord(id, (before) => {
+    const current = toEditorTransaction(before);
+    return { ...before, ...applyRevisionChange(current, delta, rateForEditor(before.editor)) };
+  });
 }
 
 // Returns the transaction it removed, or null when the id matched nothing:

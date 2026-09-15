@@ -14,7 +14,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { createEditorTransaction } from "@/app/workspace/actions";
-import { EditorTransactionFormFields, editorTransactionInitialForm } from "./EditorTransactionFormFields";
+import {
+  EditorTransactionFormFields,
+  editorTransactionInitialForm,
+  editorTransactionInputFromForm,
+} from "./EditorTransactionFormFields";
 import type { Editor } from "@/repositories/editors";
 
 interface NewEditorTransactionButtonProps {
@@ -35,14 +39,7 @@ export function NewEditorTransactionButton({ editors, variant = "default" }: New
     event.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await createEditorTransaction({
-        video: form.video.trim(),
-        videoDate: form.videoDate,
-        deliveryDate: form.deliveryDate,
-        amount: form.amount === "" ? null : Number(form.amount),
-        editor: form.editor.trim(),
-        status: form.status,
-      });
+      const result = await createEditorTransaction(editorTransactionInputFromForm(form));
       if (!result.success) {
         setError(result.error);
         return;

@@ -4,7 +4,6 @@ import { EarningsOverview } from "@/components/dashboard/EarningsOverview";
 import { PaymentsDueCard } from "@/components/dashboard/PaymentsDueCard";
 import { NeedsAttentionCard } from "@/components/dashboard/NeedsAttentionCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { LastRefreshed } from "@/components/dashboard/LastRefreshed";
 import { DashboardCampaignsSection } from "@/components/dashboard/DashboardCampaignsSection";
 import { MoneyFlowCard } from "@/components/dashboard/MoneyFlowCard";
 import { RevenueMixCard } from "@/components/dashboard/RevenueMixCard";
@@ -56,26 +55,36 @@ import { selectExpiringUsage, selectOwedRenewals } from "@/lib/usageRights";
 import { listActivities } from "@/repositories/activity.writer.server";
 import { getContentItems } from "@/repositories/contentPlan.writer.server";
 
-// The shell (title, sync status, quick actions) paints immediately; each
+// The shell (title, quick actions) paints immediately; each
 // data-backed section streams in behind its own <Suspense> so the slowest
 // fetch (the campaign records) never holds up the rest of the page.
 export default function HomePage() {
   return (
     <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] px-4 py-10">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="font-heading text-lg font-semibold">Dashboard</h1>
-        <LastRefreshed loadedAtISO={new Date().toISOString()} />
-      </div>
+      <h1 className="mb-6 font-heading text-lg font-semibold">Dashboard</h1>
 
       <Suspense fallback={<QuickActionsSkeleton />}>
         <QuickActionsSection />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="mb-8 h-36 w-full rounded-lg" />}>
-        <PaymentsAttentionSection />
+      {/* The two short queues, money owed and posts due, side by side on a
+          wide screen so neither pushes the other below the fold. When one of
+          them renders nothing, the other takes the full row. Stretched, so two
+          cards with the same number of rows end level. */}
+      <div className="mb-6 grid gap-3 lg:grid-cols-2 lg:[&>*:only-child]:col-span-2">
+        <Suspense fallback={<Skeleton className="h-36 w-full rounded-lg" />}>
+          <PaymentsDueSection />
+        </Suspense>
+        <Suspense fallback={<Skeleton className="h-40 w-full rounded-lg" />}>
+          <WeekAheadSection />
+        </Suspense>
+      </div>
+
+      <Suspense fallback={null}>
+        <NeedsAttentionSection />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="mb-8 h-32 w-full rounded-lg" />}>
+      <Suspense fallback={<Skeleton className="mb-6 h-32 w-full rounded-lg" />}>
         <UsageRenewalsSection />
       </Suspense>
 
@@ -83,11 +92,7 @@ export default function HomePage() {
         <AffiliateAlertsSection />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="mb-8 h-40 w-full rounded-lg" />}>
-        <WeekAheadSection />
-      </Suspense>
-
-      <Suspense fallback={<Skeleton className="mb-8 h-72 w-full rounded-lg" />}>
+      <Suspense fallback={<Skeleton className="mb-6 h-72 w-full rounded-lg" />}>
         <EarningsSection />
       </Suspense>
 
@@ -102,11 +107,11 @@ export default function HomePage() {
         <BusinessMixSection />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="mb-8 h-32 w-full rounded-lg" />}>
+      <Suspense fallback={<Skeleton className="mb-6 h-32 w-full rounded-lg" />}>
         <PaymentReliabilitySection />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="mb-8 h-48 w-full rounded-lg" />}>
+      <Suspense fallback={<Skeleton className="mb-6 h-48 w-full rounded-lg" />}>
         <DashboardCampaignsContainer />
       </Suspense>
 
@@ -114,7 +119,7 @@ export default function HomePage() {
         <AudienceSection />
       </Suspense>
 
-      <Suspense fallback={<Skeleton className="mb-8 h-64 w-full rounded-lg" />}>
+      <Suspense fallback={<Skeleton className="mb-6 h-64 w-full rounded-lg" />}>
         <RecentActivitySection />
       </Suspense>
     </div>
@@ -134,7 +139,7 @@ async function QuickActionsSection() {
       contacts={contacts}
       editors={editors}
       campaignBrandOptions={buildCampaignBrandOptions(brands)}
-      className="mb-8"
+      className="mb-6"
     />
   );
 }
@@ -142,21 +147,19 @@ async function QuickActionsSection() {
 // The lag comes out of the same records the due list does: it is the history
 // behind those timers, and reading the campaigns a second time to compute one
 // number about rows already in hand would be a fetch to save an import.
-async function PaymentsAttentionSection() {
+async function PaymentsDueSection() {
+  const records = await fetchBrandCampaignRecords().catch(() => []);
+  return <PaymentsDueCard due={selectDuePayments(records)} lag={computeCollectionLag(records)} />;
+}
+
+// Its own boundary now that the payments card shares a row with the week
+// ahead: a third card in that grid would wrap onto a half-width row of its own.
+async function NeedsAttentionSection() {
   const [records, invoices] = await Promise.all([
     fetchBrandCampaignRecords().catch(() => []),
     getInvoices().catch(() => []),
   ]);
-  return (
-    <>
-      <PaymentsDueCard
-        due={selectDuePayments(records)}
-        lag={computeCollectionLag(records)}
-        className="mb-8"
-      />
-      <NeedsAttentionCard items={selectAttentionItems(records, invoices)} className="mb-8" />
-    </>
-  );
+  return <NeedsAttentionCard items={selectAttentionItems(records, invoices)} className="mb-6" />;
 }
 
 // Licences about to run out, and the renewal money they brought in that is
@@ -172,7 +175,7 @@ async function UsageRenewalsSection() {
       alerts={selectExpiringUsage(campaigns, now)}
       owed={selectOwedRenewals(campaigns, now)}
       href="/campaigns"
-      className="mb-8"
+      className="mb-6"
     />
   );
 }
@@ -194,7 +197,7 @@ async function WeekAheadSection() {
       waitingCount={selectUnscheduledPosts(campaigns, contentItems, now).length}
       emptyState="line"
       href="/calendar"
-      className="mb-8"
+      campaigns={campaigns}
     />
   );
 }
@@ -237,13 +240,13 @@ async function BusinessMixSection() {
   return (
     <>
       {earnings && (
-        <RevenueMixCard mix={computeRevenueMix(campaigns, earnings)} className="mb-8" />
+        <RevenueMixCard mix={computeRevenueMix(campaigns, earnings)} className="mb-6" />
       )}
       <DealEconomicsCard
         realization={computeRateRealization(campaigns, toRateCard(mediakitRepository.get()))}
         pipeline={computePipelineValue(campaigns)}
         fallthrough={computeFallthroughRate(campaigns)}
-        className="mb-8"
+        className="mb-6"
       />
     </>
   );
@@ -262,7 +265,7 @@ async function MoneyFlowSection() {
       invoices={computeInvoiceStats(invoices)}
       payouts={computeEditorPayouts(editorTransactions)}
       margins={computeInvoiceMarginTotals(invoices, buildInvoiceEditorJobOptions(editorTransactions))}
-      className="mb-8"
+      className="mb-6"
     />
   );
 }
@@ -281,7 +284,7 @@ async function AffiliateAlertsSection() {
   return (
     <AffiliateAlertsCard
       alerts={selectAffiliateAlerts(partners, payouts, analytics.clicksByItem)}
-      className="mb-8"
+      className="mb-6"
     />
   );
 }
@@ -290,7 +293,7 @@ async function AffiliateAlertsSection() {
 // book is not handed a verdict it has not earned.
 async function PaymentReliabilitySection() {
   const records = await fetchBrandCampaignRecords().catch(() => []);
-  return <PaymentReliabilityCard portfolio={selectPortfolioReliability(records)} className="mb-8" />;
+  return <PaymentReliabilityCard portfolio={selectPortfolioReliability(records)} className="mb-6" />;
 }
 
 // The counters behind both public pages. linksSummary needs the published
@@ -307,7 +310,7 @@ async function AudienceSection() {
     <AudienceCard
       mediaKit={{ views: mediaKitViews, uniqueVisitors: mediaKitVisitors }}
       links={linksSummary(linksData, linksAnalytics)}
-      className="mb-8"
+      className="mb-6"
     />
   );
 }
@@ -339,13 +342,13 @@ async function DashboardCampaignsContainer() {
 // no catch of its own, and the card renders nothing on an empty log.
 async function RecentActivitySection() {
   const { items } = await listActivities({ limit: 6 });
-  return <RecentActivityCard activities={items} className="mb-8" />;
+  return <RecentActivityCard activities={items} className="mb-6" />;
 }
 
 // One row of stat tiles, at the two column counts the tile grids use.
 function StatRowSkeleton() {
   return (
-    <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
       {Array.from({ length: 4 }).map((_, index) => (
         <Skeleton key={index} className="h-20 rounded-lg" />
       ))}
@@ -355,7 +358,7 @@ function StatRowSkeleton() {
 
 function QuickActionsSkeleton() {
   return (
-    <div className="mb-8 flex flex-wrap gap-2">
+    <div className="mb-6 flex flex-wrap gap-2">
       {Array.from({ length: 4 }).map((_, index) => (
         <Skeleton key={index} className="h-6 w-32 rounded-md" />
       ))}

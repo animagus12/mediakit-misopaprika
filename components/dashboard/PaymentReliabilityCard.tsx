@@ -86,11 +86,11 @@ export function PaymentReliabilityCard({ portfolio, className }: PaymentReliabil
         <h2 className="font-heading text-sm font-semibold">Payment reliability</h2>
       </div>
 
-      {/* Two columns whether or not there is a second card: one verdict and
-          four short lines stretched the full width of the page read as a
-          banner rather than as the tile it is. */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className={tone.card}>
+      {/* On the stat rows' four-column grid, so the verdict is a tile the size
+          of the ones above it rather than half the page, and the slowest
+          payers take the rest of the row when there are any. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Card size="sm" className={tone.card}>
           <CardHeader>
             <CardDescription>Across every brand</CardDescription>
             <CardTitle className={cn("text-base", tone.value)}>
@@ -99,13 +99,14 @@ export function PaymentReliabilityCard({ portfolio, className }: PaymentReliabil
                 {overall.score}/100
               </span>
             </CardTitle>
-            <p className="text-xs text-muted-foreground">{overall.label}</p>
-            <p className="text-[11px] text-muted-foreground">{facts(overall)}</p>
+            <p className="text-[11px] text-muted-foreground">
+              {overall.label} · {facts(overall)}
+            </p>
           </CardHeader>
         </Card>
 
         {worst.length > 0 && (
-          <Card>
+          <Card size="sm" className="lg:col-span-3">
             <CardHeader>
               <CardDescription>
                 {worst.length === 1 ? "Slowest payer" : `Slowest ${worst.length} payers`}

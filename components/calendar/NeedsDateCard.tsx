@@ -11,7 +11,7 @@ import { statusNoteOf, type UnscheduledPost } from "@/lib/contentCalendar";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
-import { PostListRow } from "./PostListRow";
+import { NeedsDateRow } from "./NeedsDateRow";
 
 // Enough to see what has waited longest without the card outgrowing Up next
 // beside it. The rest are a tap away, and all of them are on the Board.
@@ -45,7 +45,8 @@ function waitingLabel(post: UnscheduledPost): string {
 
 // Work that is committed to but has no day yet, so it appears on neither the
 // month nor the week. Deals and the creator's own ideas share one list because
-// they raise the same question, and each row's menu answers it in a tap.
+// they raise the same question, and each row's menu answers it in a tap. Beside
+// the month or week, a row can also be dragged onto a day (see NeedsDateRow).
 export function NeedsDateCard({
   posts,
   today,
@@ -58,8 +59,9 @@ export function NeedsDateCard({
   const deals = posts.filter((post) => post.source === "campaign").length;
 
   const row = (post: UnscheduledPost) => (
-    <PostListRow
+    <NeedsDateRow
       key={post.key}
+      post={post}
       source={post.source}
       id={post.id}
       title={post.title}

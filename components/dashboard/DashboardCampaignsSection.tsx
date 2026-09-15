@@ -23,7 +23,7 @@ export function DashboardCampaignsSection({
 }: DashboardCampaignsSectionProps) {
   if (error) {
     return (
-      <section className="mb-8">
+      <section className="mb-6">
         <SectionHeader />
         <Card>
           <CardContent className="py-6 text-xs text-muted-foreground">
@@ -35,7 +35,7 @@ export function DashboardCampaignsSection({
   }
 
   return (
-    <section className="mb-8 space-y-4">
+    <section className="mb-6 space-y-3">
       <SectionHeader />
 
       {active.length === 0 ? (

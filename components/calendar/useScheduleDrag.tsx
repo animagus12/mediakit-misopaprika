@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  createContext,
+  use,
   useOptimistic,
   useRef,
   useState,
@@ -10,6 +12,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  DndContext,
   DragOverlay,
   MouseSensor,
   TouchSensor,
@@ -23,8 +26,12 @@ import {
 import { toast } from "sonner";
 import { schedulePost } from "@/app/calendar/actions";
 import { formatDayLabel } from "@/lib/day";
-import { movePostInPeriod } from "@/lib/contentCalendar";
-import type { CalendarPeriod, ScheduledPost } from "@/lib/contentCalendar";
+import {
+  movePostInPeriod,
+  placePostInPeriod,
+  scheduleUnscheduledPost,
+} from "@/lib/contentCalendar";
+import type { CalendarPeriod, ScheduledPost, UnscheduledPost } from "@/lib/contentCalendar";
 
 function subscribeNever(): () => void {
   return () => {};
@@ -106,25 +113,44 @@ interface MoveOptions {
 }
 
 /**
- * Moving scheduled posts between days, for any view laid out in days.
+ * What a draggable hands the calendar's context on pickup: a post already on
+ * a day, or one out of Needs a date.
+ */
+export type ScheduleDragData =
+  | { kind: "scheduled"; post: ScheduledPost }
+  | { kind: "unscheduled"; post: UnscheduledPost };
+
+type PeriodChange =
+  | { kind: "move"; postKey: string; toDayKey: string }
+  | { kind: "place"; post: ScheduledPost };
+
+const NO_KEYS: readonly string[] = [];
+
+/**
+ * Moving posts onto and between days, for any view laid out in days.
  *
  * A move shows at once through useOptimistic and is replaced by the server's
  * render when the write lands. A failed write ends the transition without a
- * new render, and the optimistic period falls back to `period` on its own,
+ * new render, and the optimistic state falls back to the server's on its own,
  * which is the undo a failed move needs.
  *
  * Every move writes through schedulePost, the action the date field uses, so
  * a drag, a menu pick and a typed date are one operation with one activity
  * entry.
  */
-export function useScheduleDrag(period: CalendarPeriod) {
-  const [optimisticPeriod, applyMove] = useOptimistic(
+function useScheduleDragState(period: CalendarPeriod) {
+  const [optimisticPeriod, applyChange] = useOptimistic(
     period,
-    (current, move: { postKey: string; toDayKey: string }) =>
-      movePostInPeriod(current, move.postKey, move.toDayKey)
+    (current, change: PeriodChange) =>
+      change.kind === "move"
+        ? movePostInPeriod(current, change.postKey, change.toDayKey)
+        : placePostInPeriod(current, change.post)
   );
+  // Undated posts given a day by a drag, hidden from Needs a date until the
+  // server's render drops them from it.
+  const [placedKeys, markPlaced] = useOptimistic(NO_KEYS, (keys, key: string) => [...keys, key]);
   const [, startTransition] = useTransition();
-  const [activePost, setActivePost] = useState<ScheduledPost | null>(null);
+  const [active, setActive] = useState<ScheduleDragData | null>(null);
   // A drag that ends back over the element it started on still fires a click
   // there, which would open whatever that element opens the moment it is let
   // go.
@@ -134,7 +160,7 @@ export function useScheduleDrag(period: CalendarPeriod) {
   function moveTo(post: ScheduledPost, toDayKey: string, { undoable = true }: MoveOptions = {}) {
     if (post.dayKey === toDayKey) return;
     startTransition(async () => {
-      applyMove({ postKey: post.key, toDayKey });
+      applyChange({ kind: "move", postKey: post.key, toDayKey });
       await schedulePostWithToast(post, toDayKey, {
         undo: undoable
           ? () => moveTo({ ...post, dayKey: toDayKey }, post.dayKey, { undoable: false })
@@ -143,26 +169,38 @@ export function useScheduleDrag(period: CalendarPeriod) {
     });
   }
 
+  function schedule(post: UnscheduledPost, toDayKey: string) {
+    const scheduled = scheduleUnscheduledPost(post, toDayKey, period.today);
+    startTransition(async () => {
+      applyChange({ kind: "place", post: scheduled });
+      markPlaced(post.key);
+      await schedulePostWithToast(post, toDayKey, {
+        undo: () => moveTo(scheduled, "", { undoable: false }),
+      });
+    });
+  }
+
   function handleDragStart(event: DragStartEvent) {
     justDragged.current = true;
-    setActivePost((event.active.data.current?.post as ScheduledPost | undefined) ?? null);
+    setActive((event.active.data.current as ScheduleDragData | undefined) ?? null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    setActivePost(null);
+    setActive(null);
     // Cleared once the click the drop may have produced has been dispatched.
     setTimeout(() => {
       justDragged.current = false;
     });
 
-    const post = event.active.data.current?.post as ScheduledPost | undefined;
+    const data = event.active.data.current as ScheduleDragData | undefined;
     const toDayKey = event.over ? String(event.over.id) : null;
-    if (!post || !toDayKey) return;
-    moveTo(post, toDayKey);
+    if (!data || !toDayKey) return;
+    if (data.kind === "scheduled") moveTo(data.post, toDayKey);
+    else schedule(data.post, toDayKey);
   }
 
   function handleDragCancel() {
-    setActivePost(null);
+    setActive(null);
     justDragged.current = false;
   }
 
@@ -176,10 +214,59 @@ export function useScheduleDrag(period: CalendarPeriod) {
 
   return {
     period: optimisticPeriod,
-    activePost,
+    /** What is being dragged, for the overlay. */
+    active,
     moveTo,
     contextProps,
+    /** Whether an undated post has just been given a day and should leave its list. */
+    isPlaced: (postKey: string) => placedKeys.includes(postKey),
     /** True for the click a drop produces, so a handler can ignore it. */
     wasJustDragged: () => justDragged.current,
   };
+}
+
+type ScheduleDrag = Omit<ReturnType<typeof useScheduleDragState>, "contextProps">;
+
+const ScheduleDragContext = createContext<ScheduleDrag | null>(null);
+
+/**
+ * One drag context for the month or week and the Needs a date list under it,
+ * so an undated post can be dropped straight onto a day. It spans both cards
+ * because a drag can only land on a droppable in its own context.
+ *
+ * `period` is null on the board, which has no days to drop on and runs its
+ * own context; the list's rows then stay put.
+ */
+export function ScheduleDragProvider({
+  period,
+  children,
+}: {
+  period: CalendarPeriod | null;
+  children: ReactNode;
+}) {
+  if (!period) return children;
+  return <PeriodDragProvider period={period}>{children}</PeriodDragProvider>;
+}
+
+function PeriodDragProvider({ period, children }: { period: CalendarPeriod; children: ReactNode }) {
+  const { contextProps, ...drag } = useScheduleDragState(period);
+  return (
+    <ScheduleDragContext value={drag}>
+      <DndContext id="calendar-schedule" {...contextProps}>
+        {children}
+      </DndContext>
+    </ScheduleDragContext>
+  );
+}
+
+/** The shared drag state, for a month or week inside ScheduleDragProvider. */
+export function useScheduleDrag(): ScheduleDrag {
+  const drag = use(ScheduleDragContext);
+  if (!drag) throw new Error("useScheduleDrag must be used inside a ScheduleDragProvider");
+  return drag;
+}
+
+/** The shared drag state, or null where there are no days to drop on. */
+export function useOptionalScheduleDrag(): ScheduleDrag | null {
+  return use(ScheduleDragContext);
 }

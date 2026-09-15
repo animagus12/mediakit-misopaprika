@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { createEditor } from "@/app/workspace/actions";
+import { toNonNegativeInt } from "@/lib/editorTransactions";
 import { EditorFormFields, editorInitialForm } from "./EditorFormFields";
 
 export function NewEditorButton() {
@@ -32,6 +33,7 @@ export function NewEditorButton() {
         email: form.email.trim(),
         upi: form.upi.trim(),
         qrImage: form.qrImage,
+        revisionRate: toNonNegativeInt(form.revisionRate),
       });
       if (!result.success) {
         setError(result.error);

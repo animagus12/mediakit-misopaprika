@@ -25,6 +25,7 @@ import type { CampaignInvoiceOption } from "@/lib/invoice";
 import {
   CampaignFormFields,
   campaignAmounts,
+  type CampaignDueInvoice,
   type CampaignFormState,
   type CampaignLicenceContext,
 } from "./CampaignFormFields";
@@ -113,6 +114,16 @@ export function EditCampaignSheet({
     (option) => !option.linkedCampaignId || option.linkedCampaignId === campaign.id
   );
   const pickedInvoice = invoiceId ? availableInvoices.find((option) => option.id === invoiceId) : undefined;
+  // The invoice the due date will be read from once saved. The picked one when
+  // the sheet has a picker, so switching invoices shows the new date before
+  // saving; otherwise the link already saved, which the read has applied.
+  const dueInvoice: CampaignDueInvoice | null = pickedInvoice
+    ? pickedInvoice.dueDate
+      ? { number: pickedInvoice.number, dueDate: pickedInvoice.dueDate }
+      : null
+    : invoiceId && invoiceId === campaign.invoiceId && campaign.paymentDueFromInvoice
+      ? { number: campaign.invoiceRef || "the linked invoice", dueDate: toIsoDate(campaign.paymentDue) }
+      : null;
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isUnlinking, startUnlinkTransition] = useTransition();
@@ -161,7 +172,7 @@ export function EditCampaignSheet({
         paymentStatus: form.paymentStatus,
         date: form.date,
         uploadDate: form.uploadDate,
-        paymentDue: form.paymentDue,
+        paymentDue: dueInvoice ? dueInvoice.dueDate : form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
         editorTransactionId: form.editorTransactionId,
@@ -220,6 +231,7 @@ export function EditCampaignSheet({
               setForm={setForm}
               brandOptions={brandOptions}
               videoOptions={videoOptions}
+              dueInvoice={dueInvoice}
             />
             {error && <p className="text-xs text-destructive">{error}</p>}
           </form>

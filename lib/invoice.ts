@@ -7,7 +7,7 @@ import type { Brand } from "@/repositories/brands";
 import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
-import { isCampaignCalledOff } from "./campaigns";
+import { isCampaignCalledOff, toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
@@ -181,6 +181,45 @@ export function withLinkedBrand<T extends { id: string; brandId: string | null }
   return brandId === invoice.brandId ? invoice : { ...invoice, brandId };
 }
 
+/**
+ * Each invoice's due date as DD/MM/YYYY, keyed by invoice id, for
+ * withInvoiceDueDate. A void invoice bills nothing, so it sets no date, and
+ * neither does one saved without a due date.
+ */
+export function invoiceDueDates(
+  invoices: Pick<Invoice, "id" | "status" | "dueDate">[]
+): Map<string, string> {
+  const dueDates = new Map<string, string>();
+  for (const invoice of invoices) {
+    if (invoice.status === "void" || !invoice.dueDate) continue;
+    dueDates.set(invoice.id, toSheetDate(invoice.dueDate));
+  }
+  return dueDates;
+}
+
+/**
+ * The deal with its payment due dates taken from the invoices billing it.
+ *
+ * The invoice is where the due date is agreed and sent to the brand, so a
+ * linked deal reads it from there rather than asking for it to be typed a
+ * second time, and a date changed on the invoice moves the dashboard's timer
+ * with it. The deal's own date only stands when no invoice sets one. The same
+ * goes for each renewal and the invoice raised for it.
+ */
+export function withInvoiceDueDate(campaign: Campaign, dueDates: ReadonlyMap<string, string>): Campaign {
+  const dealDue = campaign.invoiceId ? dueDates.get(campaign.invoiceId) : undefined;
+  const renewals = campaign.usage.renewals.map((renewal) => {
+    const renewalDue = renewal.invoiceId ? dueDates.get(renewal.invoiceId) : undefined;
+    return renewalDue ? { ...renewal, paymentDue: renewalDue } : renewal;
+  });
+  return {
+    ...campaign,
+    paymentDue: dealDue ?? campaign.paymentDue,
+    paymentDueFromInvoice: dealDue !== undefined,
+    usage: { ...campaign.usage, renewals },
+  };
+}
+
 /** The deal a linked invoice bills, as the invoice editor names it. */
 export interface InvoiceLinkedCampaign {
   label: string;
@@ -210,6 +249,8 @@ export interface CampaignInvoiceOption {
   detail: string;
   /** The deal linked to it now, or null. Another deal's invoice is not offered. */
   linkedCampaignId: string | null;
+  /** yyyy-mm-dd the deal's payment falls due once linked, or "" when this invoice sets none. */
+  dueDate: string;
 }
 
 /**
@@ -222,7 +263,7 @@ export interface CampaignInvoiceOption {
  * another deal already holds: one invoice bills one deal.
  */
 export function buildCampaignInvoiceOptions(
-  invoices: Pick<Invoice, "id" | "invoiceNo" | "campaignName" | "client">[],
+  invoices: Pick<Invoice, "id" | "invoiceNo" | "campaignName" | "client" | "status" | "dueDate">[],
   campaigns: Pick<Campaign, "id" | "invoiceId" | "usage">[]
 ): CampaignInvoiceOption[] {
   const renewalInvoiceIds = new Set(
@@ -237,6 +278,9 @@ export function buildCampaignInvoiceOptions(
         number: buildInvoiceNumber(invoice.invoiceNo),
         detail: invoice.campaignName.trim() || invoice.client.name.trim(),
         linkedCampaignId: holder?.id ?? null,
+        // Same rule as invoiceDueDates, so the sheet locks exactly the dates
+        // the read will override.
+        dueDate: invoice.status === "void" ? "" : invoice.dueDate,
       };
     })
     .sort((a, b) => b.number.localeCompare(a.number, undefined, { numeric: true }));

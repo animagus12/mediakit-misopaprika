@@ -130,11 +130,15 @@ export const editorFields: readonly DiffField<Editor>[] = [
   // A UPI id is a payment handle; recorded as changed, never quoted.
   { label: "UPI", value: (editor) => editor.upi, redact: true },
   { label: "QR", value: (editor) => editor.qrImage, redact: true },
+  { label: "revision rate", value: (editor) => editor.revisionRate, format: money },
 ];
 
 export const editorTransactionFields: readonly DiffField<EditorTransactionRecord>[] = [
   { label: "status", value: (record) => record.status },
   { label: "amount", value: (record) => record.amount, format: money },
+  // ?? 0: a record from before revisions existed has no count, and reading
+  // that as a change to 0 would log an edit nobody made.
+  { label: "revisions", value: (record) => record.revisions ?? 0 },
   { label: "editor", value: (record) => record.editor },
   { label: "video", value: (record) => record.video },
   { label: "delivery date", value: (record) => record.deliveryDate },

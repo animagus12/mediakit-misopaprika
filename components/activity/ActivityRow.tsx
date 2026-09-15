@@ -58,7 +58,7 @@ export function ActivityRow({ activity, stamp = "time", now, className }: Activi
   // A row whose record still exists is a link; one describing something
   // deleted is not, rather than being a link to a 404.
   const shared = cn(
-    "flex items-start gap-2.5 rounded-md px-2 py-2 text-sm",
+    "flex items-start gap-2.5 rounded-md px-2 py-1.5 text-sm",
     href && "transition-colors hover:bg-muted/50",
     className
   );

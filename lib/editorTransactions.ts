@@ -7,6 +7,53 @@ export const EDITOR_TRANSACTION_STATUS_OPTIONS = ["Paid", "Pending", "Cancelled"
 // in the roster if this one isn't in it.
 export const DEFAULT_EDITOR_NAME = "Divyanshu Raj";
 
+// A new transaction is logged when the cut is assigned, so it starts unpaid
+// at the current flat per-video rate. Both stay editable in the form.
+export const DEFAULT_EDITOR_TRANSACTION_STATUS = "Pending";
+export const DEFAULT_EDITOR_TRANSACTION_AMOUNT = 400;
+
+export function isEditorTransactionStatus(value: string): boolean {
+  return EDITOR_TRANSACTION_STATUS_OPTIONS.includes(value);
+}
+
+export interface RevisionState {
+  amount: number | null;
+  revisions: number;
+  /** The per-revision rate this transaction's revisions were charged at. */
+  revisionRate: number | null;
+}
+
+/**
+ * Adds (or, with a negative delta, takes back) revisions on one transaction,
+ * moving its amount by the per-revision rate.
+ *
+ * The amount stays the total owed, so payouts, invoice margins and the
+ * activity feed keep reading one number. The rate is pinned on the
+ * transaction when its first revision is charged: raising an editor's rate
+ * later leaves work already agreed at the old one alone, and taking a
+ * revision back subtracts exactly what adding it added.
+ *
+ * The count never goes below zero, and the amount only moves by the
+ * revisions actually applied.
+ */
+export function applyRevisionChange(current: RevisionState, delta: number, editorRate: number): RevisionState {
+  const rate = current.revisions > 0 && current.revisionRate != null ? current.revisionRate : editorRate;
+  const revisions = Math.max(0, current.revisions + Math.trunc(delta));
+  const charged = (revisions - current.revisions) * rate;
+  return {
+    amount: current.amount == null && charged === 0 ? null : (current.amount ?? 0) + charged,
+    revisions,
+    revisionRate: revisions > 0 ? rate : null,
+  };
+}
+
+// A count or rate typed into a form, or read from a record written before the
+// field existed: anything that isn't a non-negative number becomes 0.
+export function toNonNegativeInt(value: unknown): number {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
+}
+
 // Sheet-style dates are DD/MM/YYYY; <input type="date"> gives/needs yyyy-mm-dd.
 export function toSheetDate(isoDate: string): string {
   const [year, month, day] = isoDate.split("-");
@@ -36,30 +83,38 @@ export function parseSheetDate(date: string): number {
 
 // Turnaround time in days between the assigned date and the delivered date.
 // Derived rather than stored so it can never drift out of sync with the
-// two dates it's computed from.
-export function computeEtaDays(videoDate: string, deliveryDate: string): number {
+// two dates it's computed from. Null when either date is missing, which is
+// normal for a cut that hasn't been delivered yet.
+export function computeEtaDays(videoDate: string, deliveryDate: string): number | null {
   const start = parseSheetDate(videoDate);
   const end = parseSheetDate(deliveryDate);
-  if (Number.isNaN(start) || Number.isNaN(end)) return 0;
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
   return Math.round((end - start) / 86_400_000);
 }
 
 export interface EditorTransactionStats {
   count: number;
-  totalAmount: number;
-  editorCount: number;
+  /** Assigned, not yet delivered, and not cancelled. */
+  inProgressCount: number;
   avgEtaDays: number;
+  /** How many delivered cuts the average is taken over. */
+  etaSample: number;
 }
 
 export function computeEditorTransactionStats(
-  items: { amount: number | null; editor: string; etaDays: number }[]
+  items: { deliveryDate: string; status: string; etaDays: number | null }[]
 ): EditorTransactionStats {
-  const totalAmount = items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
-  const editorCount = new Set(items.map((item) => item.editor.trim().toLowerCase())).size;
-  const avgEtaDays = items.length
-    ? Math.round((items.reduce((sum, item) => sum + item.etaDays, 0) / items.length) * 10) / 10
+  const inProgressCount = items.filter(
+    (item) =>
+      Number.isNaN(parseSheetDate(item.deliveryDate)) && item.status.trim().toLowerCase() !== "cancelled"
+  ).length;
+  // Undelivered cuts have no turnaround yet; counting them as 0d would
+  // flatter the average.
+  const etas = items.flatMap((item) => (item.etaDays == null ? [] : [item.etaDays]));
+  const avgEtaDays = etas.length
+    ? Math.round((etas.reduce((sum, eta) => sum + eta, 0) / etas.length) * 10) / 10
     : 0;
-  return { count: items.length, totalAmount, editorCount, avgEtaDays };
+  return { count: items.length, inProgressCount, avgEtaDays, etaSample: etas.length };
 }
 
 export interface EditorPayoutSummary {

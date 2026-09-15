@@ -155,6 +155,14 @@ interface CampaignFormFieldsProps {
   brandOptions?: CampaignBrandOption[];
   /** Videos already sent to an editor, for the picker. Empty hides it. */
   videoOptions?: EditorVideoOption[];
+  /** The invoice setting this deal's payment due date (yyyy-mm-dd), which locks the field. */
+  dueInvoice?: CampaignDueInvoice | null;
+}
+
+export interface CampaignDueInvoice {
+  /** "MSP-INV-0014" */
+  number: string;
+  dueDate: string;
 }
 
 // Shared by NewCampaignButton (create) and EditCampaignSheet (edit) so the
@@ -168,6 +176,7 @@ export function CampaignFormFields({
   setForm,
   brandOptions = [],
   videoOptions = [],
+  dueInvoice = null,
 }: CampaignFormFieldsProps) {
   const linkedBrand = form.brandId ? brandOptions.find((option) => option.id === form.brandId) : undefined;
   const linkedVideo = form.editorTransactionId
@@ -501,7 +510,8 @@ export function CampaignFormFields({
                   <Input
                     id={`${idPrefix}-paymentDue`}
                     type="date"
-                    value={form.paymentDue}
+                    value={dueInvoice ? dueInvoice.dueDate : form.paymentDue}
+                    disabled={dueInvoice !== null}
                     onChange={(event) => setForm((f) => ({ ...f, paymentDue: event.target.value }))}
                   />
                 </div>
@@ -520,6 +530,7 @@ export function CampaignFormFields({
                   left to be inferred, because a blank "Paid on" is what makes a
                   settled deal count for nothing either way. */}
               <p className="text-[11px] text-muted-foreground">
+                {dueInvoice && `Payment due comes from ${dueInvoice.number}; change it on the invoice. `}
                 The gap between these two is what the brand&apos;s payment record is built from.
               </p>
 

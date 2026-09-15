@@ -1,10 +1,10 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
-import invoicesSeed from "@/data/invoices.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { buildInvoiceNumber, invoiceNoKey, isInvoiceNoTaken, withLinkedBrand } from "@/lib/invoice";
 import { getCampaigns } from "./campaigns.writer.server";
 import type { Campaign } from "./campaigns";
+import { INVOICES_KEY, readInvoiceRecords as readRecords } from "./invoiceRecords.server";
 import { toInvoice } from "./invoices";
 import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
 
@@ -12,16 +12,7 @@ import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice }
 // actions and pages that need it import it directly. Reading/writing
 // invoices goes through Redis (Vercel's serverless filesystem is read-only),
 // so that logic lives here rather than in ./invoices.
-const INVOICES_KEY = "invoices";
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
-const SEED = invoicesSeed as InvoiceRecord[];
-
-async function readRecords(): Promise<InvoiceRecord[]> {
-  const redis = getRedis();
-  if (!redis) return SEED;
-  const stored = await redis.get<InvoiceRecord[]>(INVOICES_KEY);
-  return stored ?? SEED;
-}
 
 // Every invoice read carries the brand of the deal it bills (withLinkedBrand),
 // so the brand page, the invoices list and the media kit agree on it without

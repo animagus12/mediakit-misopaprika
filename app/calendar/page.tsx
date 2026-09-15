@@ -10,6 +10,7 @@ import {
 import { CalendarStats } from "@/components/calendar/CalendarStats";
 import { NeedsDateCard } from "@/components/calendar/NeedsDateCard";
 import { NewContentButton } from "@/components/calendar/NewContentButton";
+import { ScheduleDragProvider } from "@/components/calendar/useScheduleDrag";
 import { UpNextCard } from "@/components/calendar/UpNextCard";
 import {
   CALENDAR_VIEW_COOKIE,
@@ -174,39 +175,43 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               hrefs={statHrefs}
             />
 
-            {/* The calendar leads: it carries both what is planned and the
-                stage each post is at, which is what this page is opened for. */}
-            <CalendarViewCard
-              data={viewData}
-              viewHrefs={viewHrefs}
-              explicitView={explicitView}
-              contentItems={contentItems}
-              campaigns={campaigns}
-              videoOptions={videoOptions}
-              brandOptions={brandOptions}
-            />
+            {/* One drag context around the calendar and Needs a date, so an
+                undated post can be dragged straight onto a day. */}
+            <ScheduleDragProvider period={viewData.view === "board" ? null : viewData.period}>
+              {/* The calendar leads: it carries both what is planned and the
+                  stage each post is at, which is what this page is opened for. */}
+              <CalendarViewCard
+                data={viewData}
+                viewHrefs={viewHrefs}
+                explicitView={explicitView}
+                contentItems={contentItems}
+                campaigns={campaigns}
+                videoOptions={videoOptions}
+                brandOptions={brandOptions}
+              />
 
-            {/* Side by side from lg: the "act on it now" list and the backlog
-                are read together, and stacked they ran to a screen and a half
-                below the calendar. */}
-            <div className="grid items-start gap-6 lg:grid-cols-2">
-              <UpNextCard
-                groups={groupAgenda(selectWeekAhead(scheduled))}
-                today={today}
-                contentById={contentById}
-                campaignById={campaignById}
-                videoOptions={videoOptions}
-                brandOptions={brandOptions}
-              />
-              <NeedsDateCard
-                posts={unscheduled}
-                today={today}
-                contentById={contentById}
-                campaignById={campaignById}
-                videoOptions={videoOptions}
-                brandOptions={brandOptions}
-              />
-            </div>
+              {/* Side by side from lg: the "act on it now" list and the backlog
+                  are read together, and stacked they ran to a screen and a half
+                  below the calendar. */}
+              <div className="grid items-start gap-6 lg:grid-cols-2">
+                <UpNextCard
+                  groups={groupAgenda(selectWeekAhead(scheduled))}
+                  today={today}
+                  contentById={contentById}
+                  campaignById={campaignById}
+                  videoOptions={videoOptions}
+                  brandOptions={brandOptions}
+                />
+                <NeedsDateCard
+                  posts={unscheduled}
+                  today={today}
+                  contentById={contentById}
+                  campaignById={campaignById}
+                  videoOptions={videoOptions}
+                  brandOptions={brandOptions}
+                />
+              </div>
+            </ScheduleDragProvider>
           </div>
         )}
       </div>

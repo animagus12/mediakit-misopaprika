@@ -70,7 +70,7 @@ export function EarningsOverview({
   const recentMargins = margins.filter((m) => m.month >= cutoff);
 
   return (
-    <section className="mb-8 space-y-3">
+    <section className="mb-6 space-y-3">
       <div className="space-y-0.5">
         <h2 className="font-heading text-sm font-semibold">Earnings</h2>
         {/* The tiles below are one month wide, so the month is named rather
@@ -93,14 +93,14 @@ export function EarningsOverview({
         </p>
       </div>
 
-      <div className={cn("grid grid-cols-2 gap-4", stats.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
+      <div className={cn("grid grid-cols-2 gap-3", stats.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
         {stats.map(({ label, value, tone }) => (
           <StatTile key={label} label={label} value={formatMoney(value)} tone={tone} />
         ))}
       </div>
 
       {recent.length > 0 && (
-        <Card>
+        <Card size="sm">
           <CardHeader className="gap-3">
             <div className="flex items-baseline justify-between gap-3">
               <CardDescription>Last {RECENT_MONTHS} months</CardDescription>

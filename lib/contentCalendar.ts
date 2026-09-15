@@ -14,7 +14,7 @@ import {
   todayKey,
   weekdayIndex,
 } from "@/lib/day";
-import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
+import { isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { contentLabel, isProductionReady } from "@/lib/contentPlan";
 import { formatMoney } from "@/lib/invoice";
 import type { Campaign } from "@/repositories/campaigns";
@@ -638,6 +638,48 @@ export function movePostInPeriod(
     })
   );
 
+  return { ...period, weeks, postCount: countInPeriod(weeks) };
+}
+
+/**
+ * An undated post as it reads once given a day, for a view showing the move
+ * before the server's render does. Timed against `today` the same way
+ * movePostInPeriod re-times a moved post.
+ */
+export function scheduleUnscheduledPost(
+  post: UnscheduledPost,
+  toDayKey: string,
+  today: string
+): ScheduledPost {
+  return {
+    key: post.key,
+    id: post.id,
+    source: post.source,
+    title: post.title,
+    detail: post.detail,
+    status: post.status,
+    stage: stageOfPost(post.status),
+    date: toSheetDate(toDayKey),
+    ...timingOf(post.status, toDayKey, today),
+  };
+}
+
+/**
+ * The period with a post that wasn't on it added to its day, as dragging one
+ * out of Needs a date leaves it. A day outside the period leaves the period
+ * unchanged, the same as a move past its edge.
+ */
+export function placePostInPeriod(period: CalendarPeriod, post: ScheduledPost): CalendarPeriod {
+  const weeks = period.weeks.map((week) =>
+    week.map((day) =>
+      day.key === post.dayKey
+        ? {
+            ...day,
+            posts: [...day.posts.filter((entry) => entry.key !== post.key), post].sort(comparePosts),
+          }
+        : day
+    )
+  );
   return { ...period, weeks, postCount: countInPeriod(weeks) };
 }
 

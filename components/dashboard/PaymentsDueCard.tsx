@@ -1,15 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { AlarmClock, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlarmClock, Check, ChevronDown, FileText } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatMoney, newInvoiceHref } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import { summarizeDuePayments, type DuePayment } from "@/lib/brandCampaignStats";
 import type { CollectionLag } from "@/lib/cashTiming";
-import { MarkReceivedButton } from "./MarkReceivedButton";
 import { useMarkReceived } from "./useMarkReceived";
+
+// Enough to see what is overdue and what lands next; the rest fold away
+// behind "Show N more" so a long book doesn't push the dashboard down.
+const MAX_ROWS = 5;
 
 // A paid deal gets an invoice reference auto-assigned when added through the
 // app; "" or "-" means nothing was ever raised, so the row offers a shortcut.
@@ -44,8 +50,15 @@ interface PaymentsDueCardProps {
 export function PaymentsDueCard({ due, lag, className }: PaymentsDueCardProps) {
   const { hiddenIds, isPending, markReceived } = useMarkReceived();
 
+  const [expanded, setExpanded] = useState(false);
+
   const visible = due.filter(({ record }) => !hiddenIds.includes(record.campaignId));
   if (visible.length === 0) return null;
+
+  // Most overdue first, so the rows folded away are the ones due furthest out.
+  const shown = visible.slice(0, MAX_ROWS);
+  const rest = visible.slice(MAX_ROWS);
+  const rowActions = { isPending, onMarkReceived: markReceived };
 
   // Summed over the visible rows, so marking one received optimistically
   // takes it out of the header as well as out of the list.
@@ -85,56 +98,117 @@ export function PaymentsDueCard({ due, lag, className }: PaymentsDueCardProps) {
             pending deals, which is owed and is not money. */}
         {aggregate && <p className="text-[11px] text-muted-foreground">{aggregate}</p>}
       </CardHeader>
-      <CardContent className="space-y-0.5">
-        {visible.map(({ record, dueDate, daysUntilDue, overdue, label }) => (
-          <div
-            key={record.campaignId || `${record.brand}-${dueDate}-${record.campaign}`}
-            className="rounded-md px-2 py-2 text-sm odd:bg-muted/30"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{record.brand}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {record.campaign || "-"} · {formatMoney(record.total)}
-                </p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p
-                  className={cn(
-                    "font-medium tabular-nums",
-                    overdue
-                      ? "text-destructive"
-                      : daysUntilDue <= 3
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-muted-foreground"
-                  )}
-                >
-                  {label}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">{dueDate}</p>
-              </div>
-            </div>
-            {(record.campaignId || needsInvoice(record.invoiceRef)) && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                {record.campaignId && (
-                  <MarkReceivedButton
-                    pending={isPending}
-                    onClick={() => markReceived(record.campaignId, record.brand)}
+      <Collapsible open={expanded} onOpenChange={setExpanded}>
+        <CardContent className="space-y-0.5">
+          {shown.map((payment, index) => (
+            <DuePaymentRow key={rowKey(payment)} payment={payment} striped={index % 2 === 0} {...rowActions} />
+          ))}
+          {rest.length > 0 && (
+            <>
+              <CollapsibleContent className="space-y-0.5">
+                {rest.map((payment, index) => (
+                  <DuePaymentRow
+                    key={rowKey(payment)}
+                    payment={payment}
+                    striped={(shown.length + index) % 2 === 0}
+                    {...rowActions}
                   />
-                )}
-                {needsInvoice(record.invoiceRef) && (
-                  <Button asChild size="sm" variant="ghost">
-                    <Link href={newInvoiceHref(record.brand, record.campaign, record.campaignId)}>
-                      <FileText />
-                      Invoice
-                    </Link>
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </CardContent>
+                ))}
+              </CollapsibleContent>
+              <CollapsibleTrigger asChild>
+                <Button type="button" size="sm" variant="ghost" className="w-full text-muted-foreground">
+                  {expanded ? "Show less" : `Show ${rest.length} more`}
+                  <ChevronDown className={cn("transition-transform", expanded && "rotate-180")} />
+                </Button>
+              </CollapsibleTrigger>
+            </>
+          )}
+        </CardContent>
+      </Collapsible>
     </Card>
+  );
+}
+
+function rowKey({ record, dueDate }: DuePayment): string {
+  return record.campaignId || `${record.brand}-${dueDate}-${record.campaign}`;
+}
+
+interface DuePaymentRowProps {
+  payment: DuePayment;
+  /** Striped by position in the whole list, since the rows sit in two parents. */
+  striped: boolean;
+  isPending: boolean;
+  onMarkReceived: (campaignId: string, brand: string) => void;
+}
+
+// One line of the queue. The actions are icon buttons at the row's end rather
+// than a row of their own, which is what made four payments take a screen.
+function DuePaymentRow({ payment, striped, isPending, onMarkReceived }: DuePaymentRowProps) {
+  const { record, dueDate, daysUntilDue, overdue, label } = payment;
+  return (
+    <div className={cn("flex items-center gap-3 rounded-md px-2 py-1.5 text-sm", striped && "bg-muted/30")}>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium">{record.brand}</p>
+        {/* Only the campaign name gives way on a narrow row; the amount is
+            the half of this line worth reading. */}
+        <p className="flex min-w-0 gap-1 text-xs text-muted-foreground">
+          <span className="truncate">{record.campaign || "-"}</span>
+          <span className="shrink-0 tabular-nums">· {formatMoney(record.total)}</span>
+        </p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p
+          className={cn(
+            "font-medium tabular-nums",
+            overdue
+              ? "text-destructive"
+              : daysUntilDue <= 3
+                ? "text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground"
+          )}
+        >
+          {label}
+        </p>
+        <p className="text-xs text-muted-foreground tabular-nums">{dueDate}</p>
+      </div>
+      {/* Two buttons wide, so the due column lines up whether a row has one
+          action or two; icon-sm grows to 44px on touch screens. Tooltips open
+          left: the card clips anything that pops out past its edge.
+
+          The triggers are styled with buttonVariants rather than wrapping
+          <Button>: a TooltipTrigger slotted onto <Button> fails to server
+          render ("Primitive.button failed to slot onto its children"), which
+          throws the whole payments boundary over to client rendering. */}
+      <div className="flex min-w-13 shrink-0 items-center justify-end gap-1 pointer-coarse:min-w-23">
+        {needsInvoice(record.invoiceRef) && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={newInvoiceHref(record.brand, record.campaign, record.campaignId)}
+                aria-label="Create invoice"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              >
+                <FileText />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="left">Create invoice</TooltipContent>
+          </Tooltip>
+        )}
+        {record.campaignId && (
+          <Tooltip>
+            <TooltipTrigger
+              type="button"
+              aria-label="Mark received"
+              disabled={isPending}
+              onClick={() => onMarkReceived(record.campaignId, record.brand)}
+              className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+            >
+              <Check />
+            </TooltipTrigger>
+            <TooltipContent side="left">Mark received</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </div>
   );
 }

@@ -145,8 +145,10 @@ export function CalendarViewCard({
       </CardHeader>
 
       <CardContent>
-        {data.view === "month" && <CalendarGrid month={data.period} {...shared} />}
-        {data.view === "week" && <CalendarWeekView period={data.period} {...shared} />}
+        {/* The month and week read their period from ScheduleDragProvider,
+            which the page wraps around this card and Needs a date. */}
+        {data.view === "month" && <CalendarGrid {...shared} />}
+        {data.view === "week" && <CalendarWeekView {...shared} />}
         {data.view === "board" && <CalendarBoard columns={data.columns} {...shared} />}
 
         {data.view !== "board" && (

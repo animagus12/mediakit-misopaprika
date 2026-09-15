@@ -9,7 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
 import { parseSheetDate } from "@/lib/editorTransactions";
+import { cn } from "@/lib/utils";
 import { EditEditorTransactionSheet } from "./EditEditorTransactionSheet";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
 import type { Editor } from "@/repositories/editors";
@@ -43,48 +45,42 @@ export function EditorTransactionsTable({ transactions, editors }: EditorTransac
 
   const sorted = useMemo(() => {
     const direction = sort.direction === "asc" ? 1 : -1;
-    return [...transactions].sort((a, b) =>
-      sort.column === "editor"
-        ? direction * a.editor.localeCompare(b.editor, undefined, { sensitivity: "base" })
-        : direction * (parseSheetDate(a.deliveryDate) - parseSheetDate(b.deliveryDate))
-    );
+    return [...transactions].sort((a, b) => {
+      if (sort.column === "editor") {
+        return direction * a.editor.localeCompare(b.editor, undefined, { sensitivity: "base" });
+      }
+      // Undelivered cuts are the work still in progress, so they stay on top
+      // whichever way the column is sorted, newest assigned first.
+      const aDelivered = parseSheetDate(a.deliveryDate);
+      const bDelivered = parseSheetDate(b.deliveryDate);
+      const aPending = Number.isNaN(aDelivered);
+      const bPending = Number.isNaN(bDelivered);
+      if (aPending !== bPending) return aPending ? -1 : 1;
+      if (aPending) return (parseSheetDate(b.videoDate) || 0) - (parseSheetDate(a.videoDate) || 0);
+      return direction * (aDelivered - bDelivered);
+    });
   }, [transactions, sort]);
 
-  const DeliveryDateSortIcon =
-    sort.column !== "deliveryDate" ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
-  const EditorSortIcon = sort.column !== "editor" ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
-
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <Card size="sm" className="py-0">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableHead>Video</TableHead>
-            <TableHead>Assigned date</TableHead>
-            <TableHead>
-              <button
-                type="button"
-                onClick={() => toggleSort("deliveryDate")}
-                className="inline-flex items-center gap-1 hover:text-foreground"
-              >
-                Date delivered
-                <DeliveryDateSortIcon className="size-3" />
-              </button>
+            <TableHead className="h-9">Video</TableHead>
+            <TableHead className="hidden h-9 md:table-cell">Assigned</TableHead>
+            <SortableHead column="deliveryDate" sort={sort} onSort={toggleSort}>
+              Delivered
+            </SortableHead>
+            <TableHead className="hidden h-9 text-right md:table-cell">ETA</TableHead>
+            <TableHead className="h-9 text-right">Revisions</TableHead>
+            <TableHead className="h-9 text-right">Amount</TableHead>
+            <SortableHead column="editor" sort={sort} onSort={toggleSort}>
+              Editor
+            </SortableHead>
+            <TableHead className="h-9">Status</TableHead>
+            <TableHead className="h-9 w-8">
+              <span className="sr-only">Actions</span>
             </TableHead>
-            <TableHead className="text-right">ETA</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-            <TableHead>
-              <button
-                type="button"
-                onClick={() => toggleSort("editor")}
-                className="inline-flex items-center gap-1 hover:text-foreground"
-              >
-                Editor
-                <EditorSortIcon className="size-3" />
-              </button>
-            </TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="w-8" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -93,6 +89,35 @@ export function EditorTransactionsTable({ transactions, editors }: EditorTransac
           ))}
         </TableBody>
       </Table>
-    </div>
+    </Card>
+  );
+}
+
+interface SortableHeadProps {
+  column: SortColumn;
+  sort: SortState;
+  onSort: (column: SortColumn) => void;
+  children: React.ReactNode;
+}
+
+// aria-sort goes on the header cell, not the button, so a screen reader
+// announces the order when moving through the column as well as on the click.
+function SortableHead({ column, sort, onSort, children }: SortableHeadProps) {
+  const active = sort.column === column;
+  const Icon = !active ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead
+      className="h-9"
+      aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(column)}
+        className="-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        {children}
+        <Icon className={cn("size-3", active ? "text-foreground" : "text-muted-foreground")} />
+      </button>
+    </TableHead>
   );
 }
