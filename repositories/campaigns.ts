@@ -308,6 +308,8 @@ export interface Campaign extends CampaignRecord {
   paidDate: string; // "" rather than absent: see toCampaign
   editorTransactionId: string | null; // null rather than absent: see toCampaign
   usage: CampaignUsage; // whole rather than absent: see toUsage
+  /** True when `paymentDue` is the linked invoice's due date: see withInvoiceDueDate in lib/invoice.ts. */
+  paymentDueFromInvoice: boolean;
 }
 
 export interface NewCampaignInput {
@@ -363,6 +365,8 @@ export function toCampaign(record: CampaignRecord): Campaign {
     // two kinds of absence.
     editorTransactionId: record.editorTransactionId?.trim() || null,
     usage,
+    // Set by withInvoiceDueDate once the invoices are read alongside.
+    paymentDueFromInvoice: false,
   };
 }
 

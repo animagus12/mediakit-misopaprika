@@ -87,7 +87,7 @@ export function MoneyFlowCard({ invoices, payouts, margins, className }: MoneyFl
         <h2 className="font-heading text-sm font-semibold">Money in and out</h2>
         <p className="text-xs text-muted-foreground">To date</p>
       </div>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {tiles.map((tile) => (
           <StatTile key={tile.label} {...tile} />
         ))}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,9 @@ import { SchedulePostControl } from "./SchedulePostControl";
 // backlog can't drift apart on layout, and both handle a brand deal and an own
 // reel identically. A server component: the two controls it can render are
 // their own client islands.
+
+/** A post whose day is nearly here and whose work isn't finished. */
+export const BEHIND_TONE = "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400";
 
 interface PostRowProps {
   source: PostSource;
@@ -58,6 +62,12 @@ interface PostRowProps {
   videoOptions?: EditorVideoOption[];
   /** Passed to the campaign edit sheet, for its brand picker. */
   brandOptions?: CampaignBrandOption[];
+  /**
+   * A control that changes the status, shown at the row's end in place of the
+   * status badge. The dashboard's week ahead passes one, so a post can be
+   * moved along without leaving for the calendar.
+   */
+  statusControl?: ReactNode;
 }
 
 export function PostRow({
@@ -76,6 +86,7 @@ export function PostRow({
   campaign,
   videoOptions,
   brandOptions,
+  statusControl,
 }: PostRowProps) {
   // One affordance for both stores: which sheet it opens is the only thing
   // that differs, and a row that edits its own kind of record is the whole
@@ -88,33 +99,34 @@ export function PostRow({
   );
 
   return (
-    <div className="rounded-md px-2 py-2 text-sm odd:bg-muted/30">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className={cn("rounded-md px-2 text-sm odd:bg-muted/30", statusControl ? "py-1.5" : "py-2")}>
+      <div className={cn("flex gap-3", statusControl ? "items-center" : "items-start justify-between")}>
+        <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{title}</p>
           <p className="truncate text-xs text-muted-foreground">{detail || "-"}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
+        <div className="flex shrink-0 flex-col items-end">
           {primaryMeta && <p className={cn("font-medium", metaClassName)}>{primaryMeta}</p>}
-          <div className="flex items-center gap-1.5">
+          <div className={cn("flex items-center gap-1.5", primaryMeta && !statusControl && "mt-1")}>
             {/* The status is the planner's whole point: "three reels this
                 week" reads very differently when none of them are shot, so a
                 row whose day is nearly here and whose work isn't finished
-                says so in the status itself rather than in a separate icon. */}
-            <Badge
-              variant={behind ? "outline" : "secondary"}
-              className={cn(
-                "text-[10px]",
-                behind && "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
-              )}
-            >
-              {status}
-            </Badge>
+                says so in the status itself rather than in a separate icon.
+                A row with a status control says it there instead. */}
+            {!statusControl && (
+              <Badge
+                variant={behind ? "outline" : "secondary"}
+                className={cn("text-[10px]", behind && BEHIND_TONE)}
+              >
+                {status}
+              </Badge>
+            )}
             {secondaryMeta && (
               <span className="text-xs tabular-nums text-muted-foreground">{secondaryMeta}</span>
             )}
           </div>
         </div>
+        {statusControl && <div className="shrink-0">{statusControl}</div>}
       </div>
 
       {schedulable && (

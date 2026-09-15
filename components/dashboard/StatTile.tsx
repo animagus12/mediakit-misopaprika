@@ -71,7 +71,9 @@ export function StatTile({
   tone = "neutral",
 }: StatTileProps) {
   const card = (
-    <Card className={cn("h-full", STAT_TONES[tone].card)} title={title}>
+    // size="sm": a tile holds one figure and a line under it, and the default
+    // card padding made each stat row twice the height of what it says.
+    <Card size="sm" className={cn("h-full", STAT_TONES[tone].card)} title={title}>
       <CardHeader>
         <CardDescription className={cn(Icon && "flex items-center gap-1.5")}>
           {Icon && <Icon className="size-3.5" />}

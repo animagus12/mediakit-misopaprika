@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DndContext, useDraggable, useDroppable } from "@dnd-kit/core";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Plus } from "lucide-react";
 import { WEEKDAY_LABELS, formatDayLabel } from "@/lib/day";
 import { cn } from "@/lib/utils";
 import { countStages } from "@/lib/contentCalendar";
 import type {
   CalendarDay,
-  CalendarPeriod,
   PipelineStage,
   ScheduledPost,
 } from "@/lib/contentCalendar";
@@ -20,7 +19,8 @@ import { DayPostsSheet } from "./DayPostsSheet";
 import { NewContentSheet } from "./NewContentSheet";
 import { POST_TONES, STAGE_DOTS } from "./postTone";
 import { StageFilter } from "./StageFilter";
-import { CalendarDragOverlay, useScheduleDrag } from "./useScheduleDrag";
+import { NeedsDateDragPreview } from "./NeedsDateRow";
+import { CalendarDragOverlay, useScheduleDrag, type ScheduleDragData } from "./useScheduleDrag";
 
 // How many pills fit in a cell before the rest collapse into a count. Four
 // posts on one day is already an unusual day for a solo creator.
@@ -218,7 +218,8 @@ function DraggablePill({
   dimmed: boolean;
   onSelect: () => void;
 }) {
-  const { setNodeRef, listeners, isDragging } = useDraggable({ id: post.key, data: { post } });
+  const data: ScheduleDragData = { kind: "scheduled", post };
+  const { setNodeRef, listeners, isDragging } = useDraggable({ id: post.key, data });
 
   return (
     <button
@@ -248,16 +249,16 @@ function DraggablePill({
 // there is a single pair of sheets and a single drag context on the page
 // instead of eighty-four.
 //
-// `month` is already computed by the server (see buildCalendarMonth) and is
-// plain data, so nothing about the calendar's rules crosses into the client.
+// The month comes from ScheduleDragProvider, which the server hands the period
+// it computed (see buildCalendarMonth) as plain data, so nothing about the
+// calendar's rules crosses into the client. The provider also owns the drag
+// context, shared with Needs a date so its rows drop onto a day here.
 export function CalendarGrid({
-  month,
   contentItems = [],
   campaigns = [],
   videoOptions = [],
   brandOptions = [],
 }: {
-  month: CalendarPeriod;
   /** The creator's own records, so a row in the day sheet can be edited. */
   contentItems?: ContentItem[];
   /** The deals behind the brand rows, for the same reason. */
@@ -265,7 +266,7 @@ export function CalendarGrid({
   videoOptions?: EditorVideoOption[];
   brandOptions?: CampaignBrandOption[];
 }) {
-  const drag = useScheduleDrag(month);
+  const drag = useScheduleDrag();
   const optimisticMonth = drag.period;
   const [highlight, setHighlight] = useState<PipelineStage | null>(null);
   // From the optimistic month, so a drag across the month's edge moves the
@@ -317,7 +318,7 @@ export function CalendarGrid({
   }
 
   return (
-    <DndContext id="calendar-grid" {...drag.contextProps}>
+    <>
       {/* The pipeline, read off the month in view: how much of what is
           scheduled here sits at each stage. Picking one fades everything else
           on the grid, which answers "what still has to be shot this month"
@@ -355,9 +356,10 @@ export function CalendarGrid({
       </div>
 
       <CalendarDragOverlay>
-        {drag.activePost && (
-          <Pill post={drag.activePost} className="w-32 cursor-grabbing bg-background shadow-md" />
+        {drag.active?.kind === "scheduled" && (
+          <Pill post={drag.active.post} className="w-32 cursor-grabbing bg-background shadow-md" />
         )}
+        {drag.active?.kind === "unscheduled" && <NeedsDateDragPreview post={drag.active.post} />}
       </CalendarDragOverlay>
 
       {/* Closing leaves `dayKey` alone so the exit animation is not cut short
@@ -380,6 +382,6 @@ export function CalendarGrid({
         initialDate={addDate}
         videoOptions={videoOptions}
       />
-    </DndContext>
+    </>
   );
 }

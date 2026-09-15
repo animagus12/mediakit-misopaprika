@@ -1,11 +1,17 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { AlarmClock, ArrowUpRight, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CampaignStatusSelect } from "@/components/campaigns/CampaignStatusSelect";
 import { formatDayLabel } from "@/lib/day";
+import { isContentStatus } from "@/lib/contentPlan";
 import { cn } from "@/lib/utils";
 import type { ScheduledPost } from "@/lib/contentCalendar";
-import { PostRow } from "./PostRow";
+import type { Campaign } from "@/repositories/campaigns";
+import { WORKFLOW_STATUSES } from "@/repositories/workflowStatus";
+import { ContentStatusSelect } from "./ContentStatusSelect";
+import { BEHIND_TONE, PostRow } from "./PostRow";
 import { POST_TONES } from "./postTone";
 
 interface WeekAheadCardProps {
@@ -26,7 +32,28 @@ interface WeekAheadCardProps {
   waitingCount?: number;
   /** Adds a link out of the card header, for the dashboard's copy of it. */
   href?: string;
+  /**
+   * The deals behind the brand rows. Passed, every row gets a status select
+   * in place of its badge, so a post can be moved along from the card; a deal
+   * missing from the list keeps its badge.
+   */
+  campaigns?: Campaign[];
   className?: string;
+}
+
+// Wide enough for "Discussion", and fixed so the date column lines up.
+const STATUS_SELECT_WIDTH = "w-28 max-w-none";
+
+function statusControlFor(post: ScheduledPost, campaignById: Map<string, Campaign> | null): ReactNode {
+  if (!campaignById) return undefined;
+  const className = cn(STATUS_SELECT_WIDTH, post.behind && BEHIND_TONE);
+  if (post.source === "own") {
+    return isContentStatus(post.status) ? (
+      <ContentStatusSelect id={post.id} title={post.title} status={post.status} className={className} />
+    ) : undefined;
+  }
+  const campaign = campaignById.get(post.id);
+  return campaign ? <CampaignStatusSelect campaign={campaign} className={className} /> : undefined;
 }
 
 // The dashboard's pointer at the calendar: what has to go out in the next
@@ -38,6 +65,7 @@ export function WeekAheadCard({
   emptyState = "hidden",
   waitingCount = 0,
   href,
+  campaigns,
   className,
 }: WeekAheadCardProps) {
   if (posts.length === 0) {
@@ -49,7 +77,9 @@ export function WeekAheadCard({
     // muted and names the backlog it is quietly sitting on.
     const clear = waitingCount === 0;
     return (
-      <Card className={className}>
+      // self-start: a one-line card beside the payments card stays one line
+      // rather than stretching to that card's height.
+      <Card className={cn("self-start", className)}>
         <CardContent className="flex items-center justify-between gap-3 py-3">
           {/* Wraps rather than truncating: at 390px the line needs 341px,
               and the half that would be cut is the half that says anything
@@ -99,6 +129,14 @@ export function WeekAheadCard({
   // Counted separately from "overdue": a post can be on time and still be
   // unshot, which is the warning the creator can still act on.
   const behind = posts.filter((post) => post.behind && post.state !== "overdue").length;
+  const statusMix = WORKFLOW_STATUSES.map((status) => ({
+    status,
+    count: posts.filter((post) => post.status === status).length,
+  }))
+    .filter(({ count }) => count > 0)
+    .map(({ status, count }) => `${count} ${status}`)
+    .join(" · ");
+  const campaignById = campaigns ?new Map(campaigns.map((campaign) => [campaign.id, campaign])) : null;
 
   return (
     <Card className={cn("bg-amber-500/5 ring-amber-500/15", className)}>
@@ -109,7 +147,9 @@ export function WeekAheadCard({
             <CardDescription>This week</CardDescription>
           </div>
           {href && (
-            <Button asChild size="sm" variant="ghost">
+            // -my-1.5 keeps the button from making this line taller than the
+            // payments card's, which sits beside it on a wide screen.
+            <Button asChild size="sm" variant="ghost" className="-my-1.5">
               <Link href={href}>
                 Calendar
                 <ArrowUpRight />
@@ -130,6 +170,9 @@ export function WeekAheadCard({
             </span>
           )}
         </CardTitle>
+        {/* How far along the week's posts are, in the same summary line the
+            payments card has, so the two headers match side by side. */}
+        <p className="text-[11px] text-muted-foreground">{statusMix}</p>
       </CardHeader>
       <CardContent className="space-y-0.5">
         {posts.map((post) => (
@@ -144,6 +187,7 @@ export function WeekAheadCard({
             secondaryMeta={formatDayLabel(post.dayKey)}
             metaClassName={POST_TONES[post.state].text}
             behind={post.behind}
+            statusControl={statusControlFor(post, campaignById)}
           />
         ))}
       </CardContent>

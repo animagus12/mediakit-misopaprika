@@ -1,7 +1,8 @@
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { Invoice } from "@/repositories/invoices";
 import { isInvoiceOverdue } from "@/lib/invoice";
-import { isCampaignCalledOff } from "@/lib/campaigns";
+import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
+import { todayKey } from "@/lib/day";
 
 // Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
 // with an open loop the creator still has to close: the operational
@@ -20,8 +21,20 @@ export interface AttentionItem {
   label: string; // what's unresolved, in a few words
 }
 
-function isDelivered(record: BrandCampaignRecord): boolean {
-  return record.status === "Posted" || record.uploadDate.trim() !== "";
+// Whether the creator's side of the deal is actually done.
+//
+// The upload date doubles as the *planned* post date: the content calendar
+// writes it when a deal is dragged onto a day, and selectUnscheduledPosts
+// treats a blank one as "still needs a date". So a date alone says only that
+// the post is on the schedule, and treating any date as proof of delivery put
+// work that hasn't been filmed yet under "Delivered, no invoice raised".
+//
+// A date that has come round still counts, because a post that went up is
+// regularly logged by its date before anyone remembers to move the status.
+function isDelivered(record: BrandCampaignRecord, today: string): boolean {
+  if (record.status === "Posted") return true;
+  const uploadKey = toIsoDate(record.uploadDate);
+  return uploadKey !== "" && uploadKey <= today;
 }
 
 // Whether this deal has an invoice: one is linked to it, and isn't void (a
@@ -46,13 +59,14 @@ export function selectAttentionItems(
   now: Date = new Date()
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
+  const today = todayKey(now);
 
   for (const record of records) {
     if (isCampaignCalledOff(record.status)) continue;
     // Barter-only deals aren't invoiced or chased for cash here.
     if (record.amount <= 0) continue;
 
-    if (isDelivered(record) && !isInvoiced(record, invoices)) {
+    if (isDelivered(record, today) && !isInvoiced(record, invoices)) {
       items.push({
         kind: "uninvoiced",
         campaignId: record.campaignId,

@@ -41,10 +41,11 @@ export function AudienceCard({ mediaKit, links, className }: AudienceCardProps) 
         <p className="text-xs text-muted-foreground">Since counting began, on your public pages</p>
       </div>
 
-      {/* Four across, matching every other stat row on the page: it also puts
-          both pages' reach on the first row and what the links audience did
-          on the second, rather than splitting a page across a row break. */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Six across on a wide screen, so the section is one row rather than
+          a row of four and two strays. Three across below that keeps each
+          page's figures together: media kit on the first row, links on the
+          second. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile
           icon={Users}
           label="Media kit visitors"

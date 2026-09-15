@@ -4,14 +4,17 @@ import { revalidateStores } from "@/lib/revalidation";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
 import { editorFields, editorTransactionFields } from "@/lib/activityFields";
+import { isEditorTransactionStatus } from "@/lib/editorTransactions";
 import {
   addEditorTransaction,
+  changeEditorTransactionRevisions,
   deleteEditorTransaction,
   renameEditorOnTransactions,
+  setEditorTransactionStatus as setEditorTransactionStatusRecord,
   updateEditorTransaction as updateEditorTransactionRecord,
 } from "@/repositories/editorTransactions.writer.server";
 import type { EditorTransactionUpdate, NewEditorTransaction } from "@/repositories/editorTransactions";
-import { addEditor, updateEditor as updateEditorRecord } from "@/repositories/editors.writer.server";
+import { addEditor, getEditors, updateEditor as updateEditorRecord } from "@/repositories/editors.writer.server";
 import type { EditorUpdate, NewEditor } from "@/repositories/editors";
 
 export async function createEditor(
@@ -107,6 +110,71 @@ export async function updateEditorTransaction(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Couldn't save the transaction",
+    };
+  }
+}
+
+export async function setEditorTransactionStatus(
+  id: string,
+  status: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!isEditorTransactionStatus(status)) return { success: false, error: "Pick a status" };
+  try {
+    const change = await setEditorTransactionStatusRecord(id, status);
+    if (!change) return { success: false, error: "That transaction no longer exists" };
+    revalidateStores("editorTransactions");
+    const detail = describeChanges(change, editorTransactionFields);
+    // Picking the status it already had logs nothing.
+    if (detail) {
+      await recordActivity({
+        action: "editorTransaction.updated",
+        entity: { type: "editorTransaction", id: change.after.id, label: change.after.video },
+        detail,
+        amount: change.after.amount ?? undefined,
+      });
+    }
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Couldn't save the status",
+    };
+  }
+}
+
+/**
+ * One revision more (delta 1) or less (delta -1) on a transaction, charged at
+ * its editor's revision rate. Answers what the amount moved by, so the caller
+ * can say when nothing was charged because the editor has no rate set.
+ */
+export async function changeEditorTransactionRevision(
+  id: string,
+  delta: 1 | -1
+): Promise<{ success: true; charged: number } | { success: false; error: string }> {
+  if (delta !== 1 && delta !== -1) return { success: false, error: "Invalid revision change" };
+  try {
+    const editors = await getEditors();
+    const change = await changeEditorTransactionRevisions(
+      id,
+      delta,
+      (name) => editors.find((editor) => editor.name === name)?.revisionRate ?? 0
+    );
+    if (!change) return { success: false, error: "That transaction no longer exists" };
+    revalidateStores("editorTransactions");
+    const detail = describeChanges(change, editorTransactionFields);
+    if (detail) {
+      await recordActivity({
+        action: "editorTransaction.updated",
+        entity: { type: "editorTransaction", id: change.after.id, label: change.after.video },
+        detail,
+        amount: change.after.amount ?? undefined,
+      });
+    }
+    return { success: true, charged: (change.after.amount ?? 0) - (change.before.amount ?? 0) };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Couldn't save the revision",
     };
   }
 }

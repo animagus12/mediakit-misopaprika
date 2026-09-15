@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { revalidateStores } from "@/lib/revalidation";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
@@ -348,14 +347,6 @@ export async function unmarkCampaignPaymentReceived(
       error: err instanceof Error ? err.message : "Couldn't update the payment status",
     };
   }
-}
-
-// Forces the dashboard's Suspense-streamed sections to re-render on the next
-// navigation, rather than waiting for a natural revalidation: backs the
-// "Refresh" control next to the last-synced time.
-export async function refreshDashboard(): Promise<{ success: true }> {
-  revalidatePath("/");
-  return { success: true };
 }
 
 // --- Ad usage rights ------------------------------------------------------

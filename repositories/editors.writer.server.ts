@@ -2,19 +2,22 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import editorsSeed from "@/data/editors.json";
 import type { RecordChange } from "@/lib/activityDiff";
+import { toNonNegativeInt } from "@/lib/editorTransactions";
 import type { Editor, EditorUpdate, NewEditor } from "./editors";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly.
 const EDITORS_KEY = "editors";
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
-const SEED = editorsSeed as Editor[];
+// Editors saved before revision rates existed carry no rate.
+type StoredEditor = Omit<Editor, "revisionRate"> & { revisionRate?: number };
+
+const SEED = editorsSeed as StoredEditor[];
 
 async function readEditors(): Promise<Editor[]> {
   const redis = getRedis();
-  if (!redis) return SEED;
-  const stored = await redis.get<Editor[]>(EDITORS_KEY);
-  return stored ?? SEED;
+  const stored = redis ? await redis.get<StoredEditor[]>(EDITORS_KEY) : null;
+  return (stored ?? SEED).map((editor) => ({ ...editor, revisionRate: toNonNegativeInt(editor.revisionRate) }));
 }
 
 // Falls back to the bundled data/editors.json seed until the first editor
@@ -44,6 +47,7 @@ export async function addEditor(input: NewEditor): Promise<void> {
     email: input.email.trim(),
     upi: input.upi.trim(),
     qrImage: input.qrImage,
+    revisionRate: toNonNegativeInt(input.revisionRate),
   };
   await redis.set(EDITORS_KEY, [...editors, editor]);
 }
@@ -67,6 +71,7 @@ export async function updateEditor(input: EditorUpdate): Promise<RecordChange<Ed
     email: input.email.trim(),
     upi: input.upi.trim(),
     qrImage: input.qrImage,
+    revisionRate: toNonNegativeInt(input.revisionRate),
   };
   await redis.set(EDITORS_KEY, editors.map((editor) => (editor.id === input.id ? after : editor)));
   return { before, after };

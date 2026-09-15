@@ -4,6 +4,8 @@ import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
+import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
+import { readInvoiceRecords } from "./invoiceRecords.server";
 import {
   emptyUsage,
   nextSequenceId,
@@ -48,10 +50,22 @@ async function readRecords(): Promise<CampaignRecord[]> {
   }));
 }
 
+// Best-effort, like the brand join on invoice reads: invoices that can't be
+// read leave every deal its own due date.
+async function linkedInvoiceDueDates(): Promise<Map<string, string>> {
+  try {
+    return invoiceDueDates(await readInvoiceRecords());
+  } catch {
+    return new Map();
+  }
+}
+
 // Falls back to the bundled data/campaigns.json seed until the first write,
 // or whenever Redis isn't configured (e.g. local dev without KV env vars).
+// A deal linked to an invoice reads its payment due date from that invoice.
 export async function getCampaigns(): Promise<Campaign[]> {
-  return (await readRecords()).map(toCampaign);
+  const [records, dueDates] = await Promise.all([readRecords(), linkedInvoiceDueDates()]);
+  return records.map((record) => withInvoiceDueDate(toCampaign(record), dueDates));
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of

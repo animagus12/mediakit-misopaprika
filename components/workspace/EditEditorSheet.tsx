@@ -13,7 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { computeEditorPayoutSummary } from "@/lib/editorTransactions";
+import { computeEditorPayoutSummary, toNonNegativeInt } from "@/lib/editorTransactions";
 import { formatMoney } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import { updateEditor } from "@/app/workspace/actions";
@@ -39,6 +39,7 @@ function formFromEditor(editor: Editor): EditorFormState {
     email: editor.email,
     upi: editor.upi,
     qrImage: editor.qrImage,
+    revisionRate: editor.revisionRate > 0 ? String(editor.revisionRate) : "",
   };
 }
 
@@ -79,6 +80,7 @@ export function EditEditorSheet({ editor, transactions, colorIndex = 0 }: EditEd
         email: form.email.trim(),
         upi: form.upi.trim(),
         qrImage: form.qrImage,
+        revisionRate: toNonNegativeInt(form.revisionRate),
       });
       if (!result.success) {
         setError(result.error);
@@ -107,6 +109,7 @@ export function EditEditorSheet({ editor, transactions, colorIndex = 0 }: EditEd
         <TooltipContent className="flex-col items-start gap-1 p-3">
           <p className="font-medium">{formatMoney(payout.paid)} paid</p>
           {payout.pending > 0 && <p>{formatMoney(payout.pending)} pending</p>}
+          {editor.revisionRate > 0 && <p>{formatMoney(editor.revisionRate)} per revision</p>}
           {editor.phone && <p>{editor.phone}</p>}
           {editor.email && <p>{editor.email}</p>}
           {editor.upi && <p>{editor.upi}</p>}

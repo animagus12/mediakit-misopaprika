@@ -11,9 +11,11 @@ interface EditorsSectionProps {
 
 export function EditorsSection({ editors, transactions }: EditorsSectionProps) {
   return (
-    <section className="space-y-3">
+    <section aria-labelledby="editors-heading" className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-heading text-sm font-semibold">Editors</h2>
+        <h2 id="editors-heading" className="font-heading text-sm font-semibold">
+          Editors
+        </h2>
         <NewEditorButton />
       </div>
 

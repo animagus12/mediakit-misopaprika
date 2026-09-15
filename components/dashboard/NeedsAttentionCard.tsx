@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { CircleAlert, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, CircleAlert, FileText } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatMoney, newInvoiceHref } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { AttentionItem } from "@/lib/dashboardAttention";
-import { MarkReceivedButton } from "./MarkReceivedButton";
 import { useMarkReceived } from "./useMarkReceived";
 
 interface NeedsAttentionCardProps {
@@ -43,40 +43,22 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
       </CardHeader>
       <CardContent className="space-y-0.5">
         {shown.map((item) => (
+          // One line per loop with its action at the end, the same row the
+          // payments card uses, rather than a line of buttons under each.
           <div
             key={`${item.kind}-${item.campaignId || `${item.brand}-${item.campaign}`}`}
-            className="rounded-md px-2 py-2 text-sm odd:bg-muted/30"
+            className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm odd:bg-muted/30"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{item.brand}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {item.campaign || "-"} · {formatMoney(item.amount)}
-                </p>
-              </div>
-              <p className="shrink-0 pt-0.5 text-right text-xs text-muted-foreground">{item.label}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{item.brand}</p>
+              <p className="flex min-w-0 gap-1 text-xs text-muted-foreground">
+                <span className="truncate">{item.campaign || "-"}</span>
+                <span className="shrink-0 tabular-nums">· {formatMoney(item.amount)}</span>
+              </p>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              {item.kind === "uninvoiced" ? (
-                <Button asChild size="sm" variant="outline">
-                  <Link href={newInvoiceHref(item.brand, item.campaign, item.campaignId)}>
-                    <FileText />
-                    Create invoice
-                  </Link>
-                </Button>
-              ) : item.kind === "overdue-invoice" ? (
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/invoices/${item.campaignId}`}>
-                    <FileText />
-                    View invoice
-                  </Link>
-                </Button>
-              ) : item.campaignId ? (
-                <MarkReceivedButton
-                  pending={isPending}
-                  onClick={() => markReceived(item.campaignId, item.brand)}
-                />
-              ) : null}
+            <p className="shrink-0 text-right text-xs text-muted-foreground">{item.label}</p>
+            <div className="flex min-w-6 shrink-0 justify-end pointer-coarse:min-w-11">
+              <AttentionAction item={item} isPending={isPending} onMarkReceived={markReceived} />
             </div>
           </div>
         ))}
@@ -87,5 +69,55 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface AttentionActionProps {
+  item: AttentionItem;
+  isPending: boolean;
+  onMarkReceived: (campaignId: string, brand: string) => void;
+}
+
+// The one action that closes the loop, as an icon button with its name on
+// hover. Styled with buttonVariants on the trigger rather than wrapping
+// <Button>, which fails to server render (see PaymentsDueCard).
+function AttentionAction({ item, isPending, onMarkReceived }: AttentionActionProps) {
+  const link =
+    item.kind === "uninvoiced"
+      ? { href: newInvoiceHref(item.brand, item.campaign, item.campaignId), label: "Create invoice" }
+      : item.kind === "overdue-invoice"
+        ? { href: `/invoices/${item.campaignId}`, label: "View invoice" }
+        : null;
+
+  if (link) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={link.href}
+            aria-label={link.label}
+            className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+          >
+            <FileText />
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="left">{link.label}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (!item.campaignId) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        type="button"
+        aria-label="Mark received"
+        disabled={isPending}
+        onClick={() => onMarkReceived(item.campaignId, item.brand)}
+        className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+      >
+        <Check />
+      </TooltipTrigger>
+      <TooltipContent side="left">Mark received</TooltipContent>
+    </Tooltip>
   );
 }

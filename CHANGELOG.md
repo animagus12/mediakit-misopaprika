@@ -2,6 +2,60 @@
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-09-16
+
+### Added
+
+- **Revisions are charged per editor.** Each editor carries a revision rate (`Editor.revisionRate`, set in their sheet), and a transaction carries how many revisions it has had. Adding one adds that editor's rate to the amount; taking one back subtracts it (`applyRevisionChange`, `lib/editorTransactions.ts`).
+  - **Two ways in.** The transactions table has a Revisions column with a + button per row, and the transaction sheet has a -/+ stepper that moves the Amount field as you press it, next to a line saying what each revision costs. An editor with no rate set still counts revisions and says so instead of charging nothing silently.
+  - **The amount stays the total owed**, so payouts, the dashboard's Owed and Paid to editors tiles, invoice margins and the activity feed keep reading one number. Revision count and amount both show in the activity detail ("amount ₹ 400 to ₹ 500, revisions 0 to 1").
+  - **The rate is pinned to the transaction** at the first revision (`revisionRate`), so raising an editor's rate later leaves work already agreed alone, and taking a revision back subtracts exactly what adding it added. The write looks the rate up on the server rather than trusting the page.
+- **Status can be changed from the transactions table.** The Status badge is now a select, tinted as the badge was (`EditorTransactionStatusSelect`). It writes through `setEditorTransactionStatus`, which touches the status and nothing else, so a stale row can't write back old values. Picking the status it already has logs nothing.
+  - Both inline edits show at once and settle when the server answers, with Undo on the toast, the same shape `ContentStatusSelect` uses (`useEditorTransactionQuickEdits`).
+
+### Changed
+
+- **A new editor transaction starts as assigned, not finished.** Date delivered is optional and starts blank, Status starts as Pending instead of Paid, and Amount is prefilled with ₹400 (`editorTransactionInitialForm`, `lib/editorTransactions.ts`). The date picker can't go earlier than the assigned date.
+  - **An undelivered cut has no ETA.** `computeEtaDays` answers null when either date is missing, so the table shows "-" for the date and ETA instead of a blank and "0d", and the average ETA on /workspace counts delivered cuts only.
+  - **Undelivered cuts sit at the top of the transactions table** whichever way Date delivered is sorted, newest assigned first (`EditorTransactionsTable`). They used to land wherever the sort put an unparsable date.
+- **/workspace follows the dashboard's layout.** Sections sit 24px apart, and the page title and New transaction sit in a header at the top, so the page's h1 comes before the Editors h2 instead of after it (`app/workspace/page.tsx`).
+  - **The stat row uses the shared `StatTile`** with the dashboard's 12px gap, and says the same things the dashboard's Money in and out row does: Owed to editors, Paid to editors, In progress and Avg. turnaround. "Total paid out" summed every transaction, pending and cancelled included, so it overstated what had gone out. The workspace's own copy of the tone map is gone.
+  - **The table sits in a compact card** with shorter header cells. Assigned and ETA hide below `md`, since the edit sheet shows both, and an undelivered row says "Not yet" in amber.
+  - **Keyboard and screen reader access** (`EditorTransactionsTable`, `EditEditorTransactionSheet`). The video name is a button that opens the edit sheet, so a row can be reached with Tab and not only clicked. Sortable headers carry `aria-sort` and a focus ring, the actions column has a hidden label, and both sections are labelled by their headings.
+  - **Removing a transaction asks in an `AlertDialog`** instead of `window.confirm`, and suggests Cancelled for keeping the record out of payouts (`DeleteEditorTransactionButton`).
+
+- **A deal linked to an invoice takes its payment due date from that invoice.** The due date is agreed and sent on the invoice, so typing it again on the deal was a second copy that could be left blank or disagree. Blinkit X Pokemon was pending with no due date, so "Payments due" on the dashboard dropped it even though invoice MSP-INV-0014 said 15/10/2026.
+  - **Read, not synced.** `getCampaigns` (`repositories/campaigns.writer.server.ts`) reads the invoices alongside and applies `withInvoiceDueDate` (`lib/invoice.ts`), so moving the date on the invoice moves the dashboard timer, the campaigns table and the payment record with it. A renewal with its own invoice follows it the same way. A void invoice, or one with no due date, leaves the deal's own date in place, and invoices that can't be read leave every deal its own date.
+  - **The raw invoice read moved to `repositories/invoiceRecords.server.ts`.** `invoices.writer.server.ts` already reads campaigns for each invoice's brand, so campaigns reading invoices through it would have called each other forever.
+  - **The edit sheet locks Payment due while an invoice sets it** (`CampaignFormFields`, `EditCampaignSheet`), with "Payment due comes from MSP-INV-0014; change it on the invoice." Picking another invoice in the Linked invoice picker shows its date before saving (`CampaignInvoiceOption.dueDate`); unlinking makes the field editable again. `Campaign.paymentDueFromInvoice` says which dates came from an invoice.
+  - **Dates that change on existing deals:** Blinkit X HW 25/09 to 26/09, Fanzai app 06/09 to 26/09 and Batmobile 21/08 to 21/09 (all 2026). The last two are already received, so their on-time record is now measured against the invoice's date.
+- **The dashboard's Payments due card takes a third of the height.** Each payment is one row: its Mark received and Create invoice actions are icon buttons with tooltips at the row's end, not a line of buttons under it (`components/dashboard/PaymentsDueCard.tsx`). Four payments went from about 450px to about 320px. The five most urgent show; the rest fold behind "Show N more", and the header totals still count them all.
+  - The campaign name truncates before the amount does, so a phone row still shows what is owed.
+  - The tooltip triggers are styled with `buttonVariants` instead of wrapping `<Button>`: a `TooltipTrigger` slotted onto `<Button>` failed to server render ("Primitive.button failed to slot onto its children") and pushed the whole payments section to client rendering.
+- **Payments due and This week sit side by side on wide screens** (`app/(dashboard)/page.tsx`), so the two short queues share one row instead of stacking. When one renders nothing, the other takes the full width; phones keep one column. Needs attention moved to its own section under them (`NeedsAttentionSection`), since a third card in that grid would wrap onto a half-width row.
+- **A post's status can be changed from the dashboard's This week card.** Each row has a status select in place of its badge, so a post is moved along without opening the calendar. Optimistic, with Undo on the toast.
+  - A brand deal uses the existing `CampaignStatusSelect`. An own post uses the new `ContentStatusSelect` (`components/calendar/ContentStatusSelect.tsx`), which writes through `setContentStatus`, the same status-only action the calendar board's drag uses, and offers the content statuses only.
+  - A post whose day is nearly here and whose work isn't finished tints its select rose, where it used to tint the badge (`BEHIND_TONE`).
+  - `PostRow` takes an optional `statusControl` and uses the compact single-row layout the payments card has when one is passed. The calendar's day sheet passes none and keeps its badge. `WeekAheadCard` takes `campaigns` to find each deal's record.
+- **Payments due and This week end level when they list the same number of items.** This week gains the payments card's summary line, showing what stage the week's posts are at ("1 Idea · 3 Editing"), and its Calendar link no longer makes the header taller. The grid stretches both cards to the taller one's height. A clear week's one-line card stays one line (`self-start`).
+- **The dashboard is tighter throughout.** About 280px shorter on a wide screen (2,748px to 2,464px) with the same content.
+  - **Stat tiles use the compact card** (`Card size="sm"` in `StatTile`), with 12px between tiles in every stat row: Earnings, Money in and out, Revenue mix, Deal economics and Audience. The stat cards on /links-editor share the tile and tighten with it. The earnings chart card is compact too.
+  - **Sections sit 24px apart instead of 32px** (`app/(dashboard)/page.tsx`, `EarningsOverview`, `DashboardCampaignsSection`), and the Payments due / This week pair has the tiles' 12px gap.
+  - **Audience is one row of six on a wide screen**, not four and two strays; three across on a tablet keeps each page's figures on one row (`AudienceCard`).
+  - **Payment reliability is tile-sized** on the stat rows' four-column grid, rather than a half-width card, and its rating label and counts share one line. The slowest payers, when there are any, take the rest of the row (`PaymentReliabilityCard`).
+  - **Activity rows are tighter** (`ActivityRow`, also on /activity); touch screens keep the 44px row.
+  - **Needs attention uses the payments row**: one line per item with its action as an icon button with a tooltip at the end, instead of a line of buttons under it (`NeedsAttentionCard`). `MarkReceivedButton` had no users left and is removed.
+
+### Removed
+
+- **The dashboard's "Loaded just now" and Refresh button.** They were built for Google Sheets, whose reads were cached for five minutes, so a figure could be stale with no sign of it. Every section now reads Upstash live on each request (the client fetches with `no-store`), and every write revalidates the pages that show it, so the time only ever read "just now" and Refresh did what reloading the page does. `components/dashboard/LastRefreshed.tsx` and the `refreshDashboard` action (`app/(dashboard)/actions.ts`) are deleted; the header is the page title alone.
+
+### Fixed
+
+- **A deal that is only scheduled no longer reads "Delivered, no invoice raised."** Needs attention treated any upload date as proof the post had gone up, but the upload date doubles as the *planned* post date: the content calendar writes it the moment a deal is dragged onto a day, and the unscheduled list treats a blank one as "still needs a date". Anniestore and AnimeWizardry were sitting under Needs attention with nothing filmed. `isDelivered` (`lib/dashboardAttention.ts`) now counts a deal delivered only when its status is Posted or its upload date has come round, so a date in the future says scheduled and a date in the past still covers a post logged before anyone moved the status.
+
+- **The dashboard no longer throws "Primitive.button failed to slot onto its children" on some loads.** It came from the Campaigns section: `ActiveCampaignCard`, a server component, built the `<button>` that opens the edit sheet and handed it to the client `EditCampaignSheet`, where `SheetTrigger` slots onto it. Depending on stream timing that element arrives as a lazy reference, and Radix's Slot (1.3.0) never unwraps one, since its check calls a `use` it doesn't import. About half of page loads showed Next's "1 Issue" error; `ActiveCampaignCard` is now a client component, so the button is created in the browser, and six loads in a row came back clean.
+
 ## [1.22.4] - 2026-09-16
 
 ### Changed
@@ -76,7 +130,9 @@
   - **Existing records need no migration.** A licence without a fee reads as 0, so older licensed deals count once their fee is filled in. An update that leaves the fee out keeps the stored one, and fee changes appear in the activity log as "usage fee".
 
 ## [1.22.1] - 2026-09-13
+
 ### Changed
+
 - **Brand deals and your own posts now use the same statuses.** The campaigns page used the old spreadsheet's words (Brainstorming, Todo, Ready to Upload, Completed) and the content calendar used its own (Scripting, Filming, Ready, Posted, Dropped). The calendar had to translate one into the other, and a deal's card showed two words for one step ("Filming · Todo"). Both now use one ordered list, `WorkflowStatus` in `repositories/workflowStatus.ts`: Discussion, In Route, Idea, Scripting, Filming, Editing, Ready, Posted, Cancelled, Redacted.
   - **Idea through Cancelled are shared.** A deal can now be at Idea or Editing, which it had no word for before. Discussion, In Route and Redacted are for deals only, so the content form doesn't offer them.
   - **Old names are renamed by meaning:** Brainstorming is Scripting, Todo is Filming, Ready to Upload is Ready, Completed is Posted, and Dropped is Cancelled. These are the same matches the calendar already made, so no post moves to a different stage.
@@ -91,7 +147,9 @@
 Checked against the live store with reads only. It still holds Completed, Brainstorming, Todo and Ready to Upload, and `/campaigns`, `/calendar?view=board` and `/brands` show them as Posted, Scripting, Filming and Ready, with no old names left on the page. Unit checks cover old-name conversion, fallbacks, stage placement, the behind warning, board columns, the Posted and Cancelled filters and status sorting. `tsc` and `eslint` pass.
 
 ## [1.22.0] - 2026-09-13
+
 ### Added
+
 - **The calendar reads three ways: Month, Week and Board.** A month grid is the right shape for planning ahead and the wrong one at 390px, where a post shrinks to a dot and neither its title nor its stage can be read. A switcher in the calendar card's header picks the view, and the calendar now leads the page, above the week list.
   - **Week lays every post out in full.** One row per day at every width, each post a card with its title, format or "Deal", how far along it is, and when it goes out. Seven columns were tried on desktop and gave a card about 150px, which cut titles to their first letter; the rows put cards side by side instead once there is room (two from `sm`, three from `xl`). Cards drag between days, open their edit sheet on a tap, and carry a menu (a day earlier, a day later, next week, remove date) as the dependable way to move one on a phone.
   - **Board has no date axis at all.** Five columns, Idea to Ready, holding every live post including the undated ones, so "where are my ideas" is one view rather than a scroll to the bottom of the page. The creator's own posts drag between columns to change stage, or move through their menu, which also offers Mark as posted. On a phone the stage chips act as tabs and one column shows at a time.
@@ -105,7 +163,9 @@ Checked against the live store with reads only. It still holds Completed, Brains
   - **Optimistic, with an Undo on every move.** `movePostInPeriod` and `movePostOnBoard` are pure, so a view renders the move at once and lets the server's render replace it; a failed write falls back on its own. A post dragged into the past turns red immediately, and one dragged to Ready stops reading as behind.
   - **A mouse drags after 4px and a finger after a 250ms hold.** Cards fill a phone's width, so a drag on the first pixel of movement would make the page impossible to scroll. A quick swipe still scrolls.
   - One shared hook, `useScheduleDrag`, carries the sensors, the optimistic period, the toasts and the guard that stops a drop's trailing click from opening a sheet, so month and week can't drift apart.
+
 ### Changed
+
 - **The calendar page opens on four figures and ends a screen sooner.** Below the calendar sat two full-width lists, "This week" and "Needs a date", each row carrying a date field and an Edit button under it. They ran to about 1,300px of inputs at 1440px and repeated what the views above already showed. The month page is now 1,642px tall rather than 2,366px.
   - **Four tiles lead the page** (`CalendarStats`): next 7 days with how many are not ready, missed, needs a date with how many are brand deals, and posted this month with how many are still planned. Each links to where its posts are listed. A zero stays neutral, since "0 missed" in red is an alarm about nothing. The figures come from `summarizeCalendar` in `lib/contentCalendar.ts`, built from the same two lists the views render, so a tile can't count a post the page doesn't show.
   - **The two lists sit side by side from `lg`** as `UpNextCard` and `NeedsDateCard`, and each row is one line (`PostListRow`). A tap opens the record's edit sheet, where the date field already is. A menu beside it offers Today, Tomorrow, A day later and Next Monday, plus Remove date on a dated post. Every pick goes through `schedulePostWithToast`, the helper the drag now uses too, so a menu move reads and undoes exactly like a drag.
@@ -124,6 +184,7 @@ Checked against the live store with reads only. It still holds Completed, Brains
 Checked against the live store with no writes (no POST requests were sent) at 1440px in both themes, and at 390px and 320px. There is no horizontal overflow and no console errors. A dated row's menu offers Tomorrow, A day later, Next Monday and Remove date, with Today left out on a post already dated today. An undated row's menu offers Today, Tomorrow and Next Monday. A tap opens the edit sheet, and "Show 1 more" expands to seven rows and switches to "Show less". The dashboard still renders its week line. `tsc` and `eslint` pass.
 
 ### Fixed
+
 - **A long title no longer pushes a week card out of its day on a phone.** Below `sm` the card grid had no column template, so its one column was sized to the card's content, and a title that can't wrap set that width: the card ran past the row, hid the menu button, and never truncated. The grid now declares `grid-cols-1` (Tailwind's `minmax(0, 1fr)`) and the card is `min-w-0`. Checked with long and unbroken titles at 320, 390, 486 and 1440px across all three views: nothing overflows the calendar card and the titles truncate.
 - **The stage chips no longer show a scrollbar with arrow buttons on Windows.** It rendered under the chips even when a thin one was requested and read as broken, so the row's scrollbar is hidden; the chip cut off at the edge shows the row scrolls.
 - **A reminder row's date field no longer holds a stale date after the post moves elsewhere.** It kept the old day and offered a "Move" back to it once a drag or menu had changed the stored date; the field is now keyed by that date and resets with it.
@@ -131,7 +192,9 @@ Checked against the live store with no writes (no POST requests were sent) at 14
 Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320px, plus unit checks over the period, board, view and anchor functions. The browser checks covered: the default view per device and the remembered cookie; week drag, menu move and tap-to-edit; board drag writing the status and its activity entry; Mark as posted and its Undo; deal cards having no move controls; a touch long-press drag moving a post while a quick swipe didn't; one board column per tab on a phone; and no horizontal overflow or console errors in any view.
 
 ## [1.21.2] - 2026-09-13
+
 ### Removed
+
 - **Check-ins are gone, along with everything built on them.** The logging flow, the reply and promised-date edits, and the close-as-cold button did not fit how outreach is actually tracked, so the feature is removed outright rather than left half-used.
   - Deleted `components/brands/BrandCheckInsTab.tsx`, `components/dashboard/OutreachCard.tsx`, `lib/outreach.ts`, `repositories/brandCheckIns.ts`, `repositories/brandCheckIns.writer.server.ts` and the `data/brand-check-ins.json` seed.
   - The brand detail page loses its Check-ins tab, the dashboard loses the outreach card, and the `/brands` table no longer prints an outreach line under the Status badge.
@@ -139,7 +202,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - `Passed` and `Went Cold` stay as brand statuses, now both picked by hand in the brand form.
 
 ## [1.21.1] - 2026-09-10
+
 ### Added
+
 - **Check-ins, so a conversation that never becomes a deal ends on a count rather than on a hunch.** Brands and agencies still in discussion had nowhere to record that they had been chased, so the only measure of a stalling lead was memory, and the usual outcome was a lead neither pursued nor closed sitting in the pipeline forever. A new store logs one outreach at a time (date, channel, whether it was answered, an optional date the brand promised, a line of note), and `lib/outreach.ts` turns that log into one of five states: ready to close, deadline passed, due a nudge, holding, or quiet.
   - **The count is unanswered check-ins, not check-ins.** Counted from the last reply rather than from the first message ever sent, so a brand that answered the second nudge and then went quiet is on a streak of one. Counting raw attempts would close the conversations that are actually moving, which is the opposite of the point. Two unanswered is the threshold.
   - **A promised date parks the pursuit, including past the closing threshold.** This is the whole reason the date field exists: a brand that said it would answer by the 15th should not appear on the dashboard on the 9th being nudged, and should not be closed on the 9th either. A date still ahead is the freshest thing on the record and outranks the silence that preceded it. Once it passes it stops protecting anything and the streak decides, which makes a missed date the sharpest row on the card rather than a softer one.
@@ -151,6 +216,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - Verified with 16 checks over the state machine (the streak resetting on a reply, the seven-day rule, a future date outranking a two-streak, a passed date falling through to close at two and to overdue at one, and holding and quiet staying off the alert list) and end to end against a stubbed KV: logging a check-in with a promised date moved a brand off the dashboard card, and closing one wrote the status, the note and the activity event.
 
 ### Changed
+
 - **A link card stops reserving room it has nothing to put in.** A row card holds a 52px slot on each side so the label sits in the middle of the card rather than in the room left beside the thumbnail, and that reserve was taken whether or not anything ever went in the right-hand one. On a phone it cost the label a quarter of the line, so a title as ordinary as "My Amazon Storefront" wrapped onto two lines against half a card of empty space.
   - **The reserve is now the first thing the row gives up, and the only thing.** The spacer shrinks, at a factor high enough that it always loses first, and flexbox freezes it at nothing and re-measures before the text is touched: a short label is still centred against a full 52px, and a long one gets every pixel of that slot back before it is allowed to wrap.
   - **The label is 16px rather than 17px.** A card carrying nothing but a title read as oversized next to the ones with a sub-label under them, and the point was moot once the title fit on one line.
@@ -169,7 +235,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - Verified against the live store at 1440px and 390px: no horizontal overflow at either width, the pipeline tab and its tile agreeing on four brands, and the tab and search state surviving a reload through the URL.
 
 ## [1.21.0] - 2026-09-09
+
 ### Added
+
 - **Affiliate programs, and the one number neither side of the deal can produce alone.** A creator code paid commission every month and the app had nowhere to put it: the money was invisible to earnings, and the only record of how the code was doing lived in the brand's own portal. Two stores now mirror the shape `/workspace` already uses, a roster of parties plus a stream of transactions against them. `AffiliatePartner` is the program (code, commission model and rate, status, payout schedule, the portal it is read from); `AffiliatePayout` is one settlement period (gross sales, orders, commission, payment status), entered by hand exactly the way an editor transaction is.
   - **`AffiliatePartner.linkItemId` is the field that earns the model.** `data/links.json` already carried the creator codes as cards, and the click counters already counted per card id. Joining a program to its card gives a conversion rate the brand's dashboard cannot produce, because it knows the sales and not the clicks, and one the click counters cannot produce either. Without the join the partner card says so rather than showing a zero.
   - **The conversion read is lifetime against lifetime, and says so.** The counters are a single running total per card with no period breakdown, so this answers "how well does this code convert" and not "how did it convert in March". Stating the limitation in the type was cheaper than implying a precision the data does not have.
@@ -185,7 +253,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - Verified with 22 checks over the derived reads (commission against both models, the variance flag, overdue arithmetic, conversion, the alert rules including the reporting-lag case) and 17 over the earnings integration (the fields summing to the total, the paid-date and period-end bucketing, pending staying out of received, and every existing caller unchanged by the new argument).
 
 ## [1.20.0] - 2026-09-08
+
 ### Added
+
 - **A card can be given an idle animation, so one of them gets looked at first.** Every card on `/links` had exactly the same amount of attention to spend, which meant the one the creator actually wanted tapped (the live drop, the code that expires on Sunday) had no way to say so short of retyping its label in capitals. `LinkItem.animation` picks one of **Wiggle**, **Pop**, **Shimmer**, **Glitch**, **Electricity** or **Orbit**, alongside the **None** that every existing card keeps.
   - **All six are pure CSS, and that is the constraint that chose them.** `LinkCard` renders a card that ships no client JavaScript at all when clicks are not being tracked, and that is worth more than a longer menu: it is why the text-scrambling and floating-emoji effects the same pickers elsewhere offer are not here, since both need per-card script and one of them needs a second field to hold the emoji.
   - **Each is a burst, not a loop.** A 5s cycle that sits still for four and a half of them, the same shape as the nudge on the creator-code chip and for the same reason: a page where everything moves is a page where nothing stands out, which is the exact opposite of what choosing an animation is for. The editor says so under the picker rather than leaving it to be discovered.
@@ -252,6 +322,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - **The activity log records that it moved, never the id.** An id says nothing to a reader; `contentFields` already made that call about the same link, and `campaignFields` now matches it.
 
 ### Fixed
+
 - **An animated card no longer renders soft.** Picking any of the moving animations visibly blurred that card's image and text, and kept them blurred: not only through the burst but through the four and a half resting seconds either side of it. An infinite transform animation keeps its element on a compositor layer for the life of the animation, and the browser picks the resolution to rasterise that layer at by reading the largest scale out of the keyframes. That heuristic is implemented for the `transform` property and does not fire for the individual `rotate` / `scale` / `translate` ones, so the layer was rasterised at 1x and then rotated and scaled on the GPU, which is exactly a blur.
   - **The fix inverts which side owns `transform`.** Wiggle, Pop and Glitch were written against the individual properties specifically so `a.card:hover`'s `translateY(-2px)` would still compose with them. That reasoning was right and the assignment was backwards: the hover lift is now `translate: 0 -2px` and the keyframes take the shorthand, which composes exactly as well and puts the animation where the rasteriser can read it.
   - **`will-change: transform` is declared on the three, and released under `prefers-reduced-motion`.** The layer exists for the animation's whole life regardless, so naming it costs nothing and lets the compositor prepare it rather than discover it mid-burst. Left standing under reduced motion it would promote a layer for a card with nothing to composite, which is this same softening held over the readers who explicitly asked for less of it.
@@ -284,12 +355,14 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - **`isCampaignCancelled` replaces four hand-rolled copies** of the same trim-and-lowercase comparison.
 
 ### Removed
+
 - **The dashboard's nav-card grid, ten cards of it, roughly the bottom two fifths of the page.** The sidebar on `AppSideBar.tsx` already lists every one of those entries, grouped, above the fold and on every page; the grid was the same menu a second time, in card form, where it could only be reached by scrolling past everything the dashboard is actually for. The one thing it carried that the sidebar did not was the live counter on each link, so that moved onto the sidebar rows and the grid is gone.
   - **A sidebar row is one line wide, so the badge is the count and the phrase is its title.** "3 overdue" does not fit beside "Invoices"; **3** does, in the same amber it had on the card, with the full phrase as the row's `title` and its accessible name. `lib/dashboardNav.ts` is now `lib/navBadges.ts` and returns `{ count, label }`, since nothing about it was ever specific to the dashboard.
   - **The counts stream in; the nav does not wait for them.** They are read from six stores and the sidebar renders on every page, so `AppShell` passes the unresolved promise down and each badge resolves behind its own boundary. The nav paints on the first byte exactly as it did before.
 - **"Total campaigns" and "Highest-value campaign" from the dashboard.** The first is printed verbatim on `/campaigns`, from the same `computeCampaignStats` call, one click away. The second is a lifetime record that moves perhaps twice a year and carries nothing to do about it: a fact worth knowing once, not a tile worth a quarter of the campaigns section every time the page opens. `DashboardCampaignsSection` now takes only the active deals, since the full history was fetched solely to compute those two figures.
 
 ### Changed
+
 - **A creator code is its own card now, not a row with a pill wedged into it.** Codes were rendering through the shared link row, which centres its label between a 52px thumbnail column and a 52px spacer: on a phone that stranded a short brand name in the middle of a card that was mostly empty, and left the code itself as small centred text inside a full-width dashed outline. The code card stacks instead. The brand text runs left-aligned beside its mark with nothing to pad around, the discount sits on the headline rather than taking a line under it, and the code is a coupon strip below reading **CODE | MISO10** with a Copy chip on its end.
   - **The whole strip is the button, not the chip.** A code is read and tapped as one object, and a 60px chip is a poor target beside a 44px-tall strip that spans the card. The chip stays as the affordance and carries the copied state, which is also why it is what the periodic nudge moves now: on the strip, the animation shunted the code around with it.
   - **The strip is darker than the card, not lighter.** It reads as a slot cut into the card rather than a second raised surface competing with the card it sits in.
@@ -319,7 +392,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - **The two invoice matchers were one matcher too many.** `findInvoiceByCampaignRef` accepted only the full "MSP-INV-0007" label and `findInvoiceByCampaignInvoiceId` accepted "7" and "0007" as well, so the dashboard and the brand Payments tab could disagree about the same deal. Consolidated onto the lenient rule and the duplicate is gone.
 
 ## [1.19.0] - 2026-09-08
+
 ### Added
+
 - **The day a payment actually landed, and what that says about the brand.** The app knew when money was *due* and whether it had arrived, and could not answer the question that decides whether to take the next deal: does this brand pay when it says it will. `CampaignRecord` now carries a **Paid on** date beside Payment due, and the gap between the two is the whole of the evidence. A brand's Payments tab shows the verdict, and every campaign row shows its own ("On time", "8 days late", "12 days overdue").
   - **The score counts what has not been paid, not just what has.** Scoring settled payments alone would hand a brand that has never paid at all a perfect record, which is exactly backwards: the deals it has gone quiet on are the evidence. An unpaid payment past its due date is counted, measured against today, and it outranks any average in the label.
   - **60% how often they paid on time, 40% how late they are when they do not.** A brand four days late every single time is a different problem from one that pays instantly nine times and then disappears for two months, and a pure on-time rate calls those identical. A month late scores zero on the second half. Paying early earns no bonus over paying on time, since money arriving before it was promised is pleasant rather than more trustworthy.
@@ -381,6 +456,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - **`Date.UTC` rolls out-of-range parts forward instead of rejecting them, and rolls the two parts differently.** `2026-02-31` lands on 3 March, where a round-trip on the day catches it; `2026-13-01` lands on 1 January 2027, where a round-trip does not. The month is bounds-checked separately. This is what stops a hand-crafted POST to the scheduling action writing a thirteenth month.
 
 ### Changed
+
 - **Collecting a renewal fee moves its invoice too.** Marking a deal received had always re-stamped the invoice it references, and the renewal path did not: a renewal read "received" while the document billing for it still said draft, which is exactly the drift `invoicePaymentMismatch` exists to complain about. Reverting puts the invoice back to a draft rather than to "sent", since an auto-raised one was never sent. The brand Payments tab now runs that mismatch check on renewal rows as well, so a hand-edited status still surfaces.
 - **Renewing from the dashboard card drops the row it came from.** `RenewUsageSheet` had an `onRenewed` callback that nothing supplied, so pausing and ending cleared their row optimistically and renewing sat there until the revalidation landed. Renewing is a decision like the other two and now leaves the queue the moment it is made.
 - **The Notes field is gone from campaigns**, along with its table column, its form field, its place in the search index and its line in the activity diff. It was free text nobody read back, and the three records that carried any lost it: the payment facts two of them recorded in prose ("50% payment recieved, rest 50% will recieve after 10-15 days") are the kind of thing Paid on and Payment due now hold as data. Stored rows may still carry a stray `notes` key until their next write, which is harmless: nothing reads it, and `normalize` drops it.
@@ -401,14 +477,16 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - **`campaignLabel` moved from `app/(dashboard)/actions.ts` into `lib/campaigns.ts`.** It is the rule for naming a deal that has no name of its own, and the calendar's action needed the same rule rather than a second copy of it.
 
 ### Fixed
+
 - **"100% vs last month" on the dashboard, which had been saying that every day.** The trend compared the month in progress against the last complete one, and a month's figure here counts only money actually *received*: a deal awaiting payment lands in `pending` and never in `total`. Payment arrives weeks after delivery, so the current month's bucket is near-empty for most of every month by construction, and the tile read 100% down almost permanently. Comparing part of a month against all of one is not a comparison in the first place.
   - **It now compares the last two complete months and names them**, so the tile reads "22% Aug vs Jul" rather than asking to be taken on trust. The trade is that it says nothing about the month in progress, which is the honest answer: a metric that lags by weeks cannot judge a week-old month. It still hides itself rather than dividing by zero when the earlier month earned nothing.
   - **Month keys follow IST, not the server's clock.** `currentMonthKey` was `toISOString().slice(0, 7)`, which is UTC: for the first five and a half hours of every month IST has rolled over and UTC has not, so the breakdown highlighted the wrong row as "Current" and the trend compared the wrong pair. It shares `lib/day.ts` with the calendar now.
 - **"Total" meant two different things in the same card.** The monthly breakdown's last column is cash plus barter, sitting immediately beside a Pending column it does not include, so August read ₹21,079 there and ₹31,261 in the chart tooltip directly above, which sums all three because that is the height of the bar it describes. The column is now headed **Received**; the tooltip keeps Total, and both say what they count where they are declared.
 
-
 ## [1.18.0] - 2026-09-07
+
 ### Added
+
 - **The app now records what you did.** Every write went into a store and left no trace of itself: nothing anywhere answered "when did I mark that invoice paid" or "did the links page actually publish". There is now an append-only activity log behind a `/activity` page, a card on the dashboard, and a JSON endpoint at `/api/activity`.
   - **Events are recorded by the server actions, not by the repositories underneath them.** A repository only ever sees "the brands array was written"; the action knows that `importBrandsFromCampaigns` is one thing the creator did rather than twelve, and that renaming an editor plus dragging their transaction history along is a single intent. Same layer, and the same reasoning, as `lib/revalidation.ts`. The cost is the same discipline that file already asks for: a new action declares its event on one line, next to the stores it revalidated.
   - **Structure is stored, never a rendered sentence.** `"Invoice MSP-INV-0014 marked paid"` in Redis is unfilterable, ungroupable, and frozen at whatever wording it had that day. An event carries an action, an entity and an optional detail/amount; `lib/activity.ts` turns that into words, keyed by a `Record<ActivityAction, ...>` so adding an action fails the build until it has been given some.
@@ -424,12 +502,15 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - **`/activity` is `force-dynamic` and narrower than every other page.** An audit view is the one page that must never be served from cache, since it is opened precisely to check whether the thing you just did landed. It is also a single column of sentences rather than a table, and at the 1440px the other pages now use, the timestamp ended up an inch and a half from the row it belonged to.
 
 ### Changed
+
 - **Five writer functions now answer what they touched.** `deleteBrand`, `deleteContact`, `deleteInvoice` and `deleteEditorTransaction` return the record they removed, and `setBrandLogo` the one it changed, because a caller cannot read back a name after the row is gone and the log has to name it. `updateInvoice` answers the record as it stood *before* the write, which is what lets an ordinary edit be told apart from collecting payment without re-reading a store the write already read twice. `setCampaignPaymentStatus` and `campaignRepository.create` return their record for the same reason: the campaign id is generated during the write, so the caller had no other way to learn it.
 - **The update writers answer the record either side of the write**, replacing the void returns on `updateBrand`, `updateContact`, `updateAgency`, `updateEditor`, `updateEditorTransaction`, `updateCampaign` and `updateInvoice`. Diffing the action's input against the stored record would have been wrong: every one of those writers normalises what it is given, so a trailing space would have read as an edit. They also now return early when the id matches nothing, instead of writing the list back unchanged. `updateEditor` answering the previous name is what let `app/workspace/actions.ts` drop a second read of the editors list.
 - Publishing the links page now revalidates `/` as well. It was the one logged action that did not, so the dashboard's activity card would have shown a stale feed straight after it.
 
 ## [1.17.2] - 2026-09-06
+
 ### Changed
+
 - **The theme is no longer greyscale.** Every colour token was `oklch(L 0 0)`, zero chroma, so the app had no brand colour at all: only `destructive` and the unused chart tokens carried any hue. It now runs on a warm paprika palette, picking up the name.
   - **`primary` sits at hue 45 and `destructive` at hue 25**, deliberately apart. One means "go" and the other means "this cannot be undone", so they have to stay tellable apart even though both are warm. The button variants reinforce it: primary is solid, destructive is a tint of itself.
   - **Neutrals carry a trace of the same hue** (chroma 0.004 to 0.012) instead of being pure grey, and dark mode is a warm charcoal rather than neutral black. Flat grey next to a warm accent is what read as clinical.
@@ -438,6 +519,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - **Pages use a full-screen monitor.** Six pages capped content at `max-w-screen-lg`, leaving 46% of a 1920px screen empty. The cap now steps 1024 to 1152 at `xl` to 1440 at `2xl`, and the dashboard's nav-card grid gains a fourth column once there is room. Unused width at 1920 drops from 46% to 24%.
 
 ### Fixed
+
 - **The control sizes were drawn for a mouse and shipped to phones.** `Button` was 28px tall, `Input` 28px, select triggers 28px: fine at a desk, far under the 44px a thumb needs. Every primitive now carries a `pointer-coarse:` size, so the change is invisible on desktop and applies to any touch device regardless of viewport width. Sub-44px targets on a 390px phone: dashboard 17 to 0, `/workspace` 23 to 2, `/invoices` 25 to 9, `/invoices/new` 34 to 4, `/links-editor` 60 to 6.
   - **Inputs are 16px on touch**, not 14px. iOS Safari zooms the whole page when it focuses a field with type smaller than that, and no amount of layout work undoes it.
   - **Only badges that are actually a button or link get a touch target** (`[button&]`, `[a&]`), since a Badge is usually a static label and blowing all of them up to 44px would wreck every table row.
@@ -446,6 +528,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - Removed every em dash from the project (742 of them across 126 files) in favour of colons, commas, parentheses and full stops, and replaced the em dash used as an empty-cell placeholder with a hyphen. The two in `AGENTS.md` are left alone: that file is rewritten by `next dev` on each run, so editing it only recreates the change.
 
 ### Changed
+
 - **The sidebar is grouped, labelled with icons, and marks where you are.** It was a flat, unlabelled list of nine plain-text links in one "Navigate" group, with nothing distinguishing the page you were on from the eight you weren't, and no icon to find a destination by shape rather than by reading.
   - **The taxonomy lives in `lib/navigation.ts`, not in the sidebar.** A `group` field (`manage` / `create` / `public`) on every `NavEntry` and a `navGroups` list give the sections their order and labels, so the dashboard's nav cards and the sidebar can never disagree about what belongs where: and a new destination joins a section by declaring one, rather than by being added to a second list.
   - **The icons were already there.** Every entry has carried a `LucideIcon` for the dashboard's nav cards; the sidebar simply renders it now, so the same destination looks the same in both places for free.
@@ -459,6 +542,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - **Logging out asks first.** It was a single tap, sitting a thumb's width from the theme toggle at 28px, and it ends the session with no undo: the one genuinely destructive control in the shell. It now goes through the same `AlertDialog` pattern the links editor uses for deleting a section. Verified that Cancel closes the dialog and leaves the session intact.
 
 ### Fixed
+
 - **The mobile sidebar could not be closed.** Two independent causes, both fixed: `sheet.tsx` sizes a side sheet `data-[side=left]:w-full`, which outranks the `w-(--sidebar-width)` `sidebar.tsx` sets on it by specificity(so on a phone the sheet covered the entire screen, leaving no overlay to tap) and the sidebar hides the sheet's own close button (`[&>button]:hidden`) without offering a replacement. The panel is now pinned to `--sidebar-width` per side and capped at `max-w-[85vw]`, so a strip of overlay is always reachable (48px at 320px wide), **and** the sidebar header carries its own 36px close button on mobile. One fix alone would have done; the overlay is the affordance people reach for by habit, and the X is the one they can see.
 - **Three of the nine icons in the collapsed rail had no tooltip.** `SidebarGroupLabel` hides itself in the icon rail with `opacity-0` and `-mt-8`, but an `opacity-0` element still takes pointer events: and the negative margin lifts it over the row *above* it, not its own. So the last item before each group heading (Dashboard, Brands, Edit Media kit) was hovering an invisible label instead of the button, and the rail's only means of naming an icon silently failed on exactly those three. `group-data-[collapsible=icon]:pointer-events-none` on the label is the fix. Verified by hit-testing every row's centre and then driving a real pointer over all nine and reading back the tooltip each one produced.
 - **Touch targets follow the pointer, not the viewport width.** Nav rows, the mobile close button and the navbar's sidebar trigger are 44px under `pointer-coarse:` and fall back to the compact 36px/28px desktop sizes otherwise. Width was the wrong signal: a phone in landscape is 844px across, past `md`, so a width-keyed rule handed a thumb the 36px desktop rows. Width describes the layout; `(pointer: coarse)` describes the hand.
@@ -466,7 +550,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - Measured on a real coarse-pointer emulation at 390x844, 320x568 and 844x390 landscape: every one of the 11 interactive elements in the open panel is at least 44px, the nav scrolls rather than clipping when the height is short (320x568 and landscape both), nothing is cut off below the fold, and a tap on the overlay strip dismisses the panel at every size. **The collapsed icon rail is the exception and stays a desktop affordance**: the primitive pins those buttons to 32px with an `!important` rule, and it names them through hover tooltips, which a touch device has no way to trigger, tapping the rail's toggle expands it to the labelled list.
 
 ## [1.17.1] - 2026-09-06
+
 ### Added
+
 - **`/links` now measures itself: views, unique visitors, and per-link clicks with a click rate, read out in the editor.** The media kit has counted views and visitors for a while, but the links page(the one whose entire job is sending people somewhere) could not say whether any link had ever been tapped. Every decision it invites (what to feature, what to retire, whether a creator code is worth the slot) was being made blind.
   - **Clicks are keyed by `LinkItem.id`**, in a single `links_clicks` hash. That id is already stable across relabelling and reordering(the type says so, and this is the per-link state it was reserved for) so a link keeps its history when it is renamed or dragged, and one `HGETALL` fetches every link's total instead of a read per link.
   - **The card stays a real `<a>` with the real destination, with a `sendBeacon` alongside it** (`components/links/TrackedLink.tsx`), rather than routing clicks through a counting redirect. The URL stays copyable, long-pressable and honest in the status bar, and a link still works with JS disabled or the counter down. The trade is deliberate and worth naming: **the count is a floor, not an exact figure.** `sendBeacon` is what survives the navigation the click is about to start, which a `fetch()` from an unloading document does not.
@@ -497,6 +583,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - In `SocialRowNotes`, `"ok"` reads as muted text saying it renews itself and there is nothing to do; `"overdue"` and `"expired"` take amber and destructive tints(raw palette hues at low opacity, since globals.css has no warning token) and each says the one thing to check. `"unknown"` renders nothing: a content editor is the wrong place to raise an infrastructure alarm.
 
 ### Changed
+
 - **The links editor now looks like the rest of the dashboard.** It had drifted into its own visual dialect(a full-bleed `p-4 md:p-6` frame, a `text-2xl` title, and the four new traffic figures crammed into 10px badges) while every other page in the app uses one container, one heading size, and Card-based stat tiles. Nothing about its behaviour changed.
   - **The four figures are stat tiles**, the same shape `/brands` and the editor-transactions section use: `Card` + `CardDescription` + a `text-lg tabular-nums` `CardTitle`, tinted with a raw palette hue at low opacity since globals.css has no success/info token. Tones group them rather than rank them(audience in sky, what the audience did in emerald) and are applied unconditionally, as on `/brands`, so a tile doesn't change colour just because its figure is 0. New `components/links/editor/LinksStatCards.tsx`; the tone map is local to it, matching how the existing stat-card components each carry their own rather than importing across features.
   - **Standard page frame and heading**: `mx-auto max-w-screen-xl space-y-6 px-4 py-10` with a `font-heading text-lg font-semibold` title. `xl` rather than the `lg` the single-column pages use, because this page carries a 390px preview beside the editor and `lg` would leave that column barely 600px.
@@ -519,7 +606,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - Verified at 320px and 390px under CDP device emulation: the pill reads `8.9K followers` against the cards' `6.5K` and `2.4K`, and the header spacing is unchanged, `.followers` keeps its existing style.
 
 ## [1.17.0] - 2026-09-06
+
 ### Added
+
 - **Cron routes fail closed when `CRON_SECRET` is unset.** Both `/api/cron/*` routes compared the incoming header against a template literal built from the env var, so with the variable missing the comparison was against the literal string `“Bearer undefined”`: which any caller can send. A single absent environment variable opened the endpoints instead of closing them; verified by probing both routes with that exact header before and after. Now one `isAuthorizedCron()` in `lib/cron.ts`, shared so the check cannot drift between the two routes, returning false whenever the secret is absent. Production was not exposed(`CRON_SECRET` is set there, which is why the YouTube job has been running) but it was one misconfiguration away.
 - **Live Instagram follower count on `/links`, via an `{instagram_followers}` placeholder.** Slots into the mechanism the YouTube count already uses(one entry in `STAT_TOKENS`, one field on `SocialStats`) so the page, the editor preview and the degraded-output rules needed no changes at all.
   - New `services/instagram.ts` against `graph.instagram.com` (Instagram API with Instagram Login). The graph version is **pinned**, not left off the URL: an unversioned call resolves to the oldest version Meta still serves, which is the one most likely to be withdrawn.
@@ -582,7 +671,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - The seeded YouTube (`@MisoPaprika`) and TikTok (`@misopaprika`) URLs are inferred from the existing Linktree, not confirmed: the channel id lives in `YOUTUBE_CHANNEL_ID`, not the repo. The Overblaze creator code's `url` is deliberately left empty rather than guessed.
 
 ## [1.16.3] - 2026-09-06
+
 ### Fixed
+
 - **The real cause of the shattered `/mediakit` sheet on phones: mobile text autosizing, not the fonts.** 1.16.2's `font-display: block` fix shipped and the sheet still broke on the same device. The tell in the screenshot was that box geometry was perfect(cards, logo row, and tiles all correctly placed and scaled) while only *text* was oversized, and the smallest type was inflated the most (tile stat labels and the booking fine print were enormous; the 47pt wordmark barely changed). That collapse of the type hierarchy toward a readable floor is the signature of WebKit/Blink font boosting, not font substitution, which would have preserved the size ratios.
   - `components/mediakit/mediakit.module.css`(`.stageInner`'s scale-to-fit moved from `zoom` to `transform: scale()`. `zoom` multiplies the *used* font sizes, so at a phone's ~0.44 factor this sheet's 6.6pt fine print computed down to ~3.9px; the browser then boosted that unreadable text back up, independently of the mm-positioned boxes around it, so every string overflowed and got clipped by `.page`'s `overflow: hidden`. A transform scales the finished rendering instead, leaving computed font sizes at their authored pt values with nothing to boost. `.stageInner` now carries `width`/`height: calc(210mm|297mm * var(--mk-scale))` explicitly, since a transform) unlike `zoom`, doesn't shrink the layout box it reserves (the original reason `zoom` was chosen here).
   - The scale factor gained a `100vw`-based baseline with the container-query version applied via `@supports (width: 1cqw)`, so engines without container query support still scale the sheet instead of dropping the declaration entirely.
@@ -590,7 +681,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - `components/mediakit/MediaKitPublicView.tsx`: comment updated to stop pointing at the removed `zoom`.
 
 ## [1.16.2] - 2026-09-06
+
 ### Fixed
+
 - **On slow connections (in-app browsers like WhatsApp's), `/mediakit` painted with fallback fonts and the whole A4 sheet shattered(text overflowing every box and clipped at the sheet edge.** The sheet is a fixed-metric layout (absolute mm positions, pt font sizes, `white-space: nowrap`, `.page`'s `overflow: hidden`), so a substitute font's metrics don't degrade gracefully; next/font's default `display: "swap"` paints exactly that state until the woff2s arrive. The scale-to-fit `zoom` was not at fault) box geometry stayed correct, only text overflowed.
   - `components/mediakit/MediaKitFontsProvider.tsx`, Mulish/Oranienbaum/Sacramento now use `display: "block"`, so text stays invisible for the ~3s block period (preloaded fonts almost always land inside it) instead of painting broken. Deliberately no `fallback` option: passing one makes next/font drop the metric-adjusted fallback faces (`Mulish Fallback` = `local(Arial)` + `size-adjust: 104.08%`, etc.).
   - `components/mediakit/mediakit.module.css`(the generic families moved out of the `var()` fallback slot (only used when the variable is *undefined*) to after it, e.g. `var(--font-mediakit-wordmark, "Oranienbaum"), "Times New Roman", Georgia, serif`. next/font's variable ends at `"Oranienbaum", "Oranienbaum Fallback"`, and that adjusted fallback is `local(Times New Roman)`) absent on Android: so a total miss previously landed on the browser default sans for a serif display face.
@@ -600,7 +693,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - `app/layout.tsx`, added `metadataBase` (`https://misopaprika.vercel.app`) so the new image/URL metadata resolves to absolute URLs, which crawlers require.
 
 ## [1.16.1] - 2026-09-05
+
 ### Changed
+
 - **Dashboard decluttered of data already shown elsewhere, and two blind spots closed.** An audit of every dashboard card found the Campaigns section duplicating `/campaigns`, and two real signals(overdue invoices, outgoing editor payouts) that only ever showed up as a bare nav-badge count.
   - `components/dashboard/DashboardCampaignsSection.tsx`: dropped the "Past campaigns" collapsible table (redundant with the dedicated `/campaigns` page, which already lists every campaign with more detail) and the Paid/Barter count cards (redundant with `EarningsOverview`'s cash/barter dollar figures directly above); kept Total campaigns + Highest-value campaign, still computed over full history (`active` + `past`) even though past campaigns are no longer listed here.
   - `lib/dashboardAttention.ts`: `selectAttentionItems(records, invoices, now?)` gained a third `AttentionKind`, `"overdue-invoice"`, built from the invoices list it already receives (`isInvoiceOverdue` + `balanceDue > 0`); `AttentionItem.campaignId` doubles as the Invoice id for this kind. `components/dashboard/NeedsAttentionCard.tsx` renders it with a **View invoice** link to `/invoices/[id]`.
@@ -608,7 +703,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - **"New campaign" had two identical buttons on the dashboard (`QuickActions` and the Campaigns section header): consolidated into one, promoted to the top.** Campaign creation is the site's most important add-action, so it now leads `components/dashboard/QuickActions.tsx`'s button row instead of sitting only inside `DashboardCampaignsSection.tsx`'s header (which now shows just "View all"). `QuickActionsSection` in `app/(dashboard)/page.tsx` fetches `getBrands()` alongside its existing agencies/contacts/editors calls to feed the campaign form's brand picker (`campaignBrandOptions` prop, `buildCampaignBrandOptions`).
 
 ## [1.16.0] - 2026-09-05
+
 ### Added
+
 - **A new campaign auto-links (or auto-creates) its brand, and incomplete brand profiles are now surfaced instead of sitting silently unfinished.** Previously the "Link to brand" picker only helped if you remembered to use it: typing a brand name and saving left `brandId` null. Now every save resolves it: an exact case-insensitive name match links to that brand; no match creates one on the spot (`status: "Worked With"`, same convention as `importBrandsFromCampaigns`) and links to it. A freshly auto-created brand has no photo or contact, which previously had no visible signal anywhere.
   - `resolveOrCreateBrandId()` in `app/(dashboard)/actions.ts`: cross-repository orchestration (reads `getBrands()`, calls `addBrand()`), same architectural placement as the existing `importBrandsFromCampaigns` in `app/brands/actions.ts`. Wired into both `createCollaboration` and `updateCollaboration`, which now also `revalidatePath("/campaigns")` and `("/brands")` (previously only `"/"`). Both actions return `createdBrand: {id, name} | null`.
   - **Toast on auto-create**(`components/dashboard/createdBrandToast.ts`'s `notifyCreatedBrand()`, shared by `NewCollaborationButton.tsx` and `EditCollaborationSheet.tsx`: "New brand added: {name}) No photo or contact yet" with an "Open brand" action routing straight to it.
@@ -629,7 +726,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - `lib/brandCampaignStats.ts`'s `recordsForBrand`/`computeStatsByBrand` now match by `brandId` first, falling back to name only for older/unlinked records: fixes the rename-orphans-history bug for `/brands` and a brand's detail page. Call sites updated in `app/brands/page.tsx`, `app/brands/[id]/page.tsx`, `lib/brands.ts`.
   - One-time backfill matched all 24 live campaign records to their Brand by name (23/24 linked; `Doorzo` has no CRM entry yet, stays unlinked).
   - **Bug found and fixed along the way:** `CollaborationStatusSelect.tsx`'s quick pipeline-stage dropdown only ever sent the core fields to `updateCollaboration`, so clicking it silently blanked a campaign's `uploadDate`/`invoiceId`/`paymentDue`/`paymentMethod`/`notes` on every use since those fields shipped. Now carries all of them through unchanged, same as `EditCollaborationSheet`.
+
 ### Changed
+
 - **Campaigns/collaborations/earnings moved off Google Sheets onto the same JSON+Redis pattern as invoices/editors/brands.** Three repositories (`brandCampaigns.ts`, `collaborations.ts`, `earnings.ts`) each independently re-parsed the same "Transactions - Campaigns" sheet tab via `services/googleSheets.ts` / `services/campaigns.ts`: now deleted, along with the `GOOGLE_SHEETS_*`/`EARNINGS_SHEET_*` vars in `.env.example`.
   - New canonical store: `data/campaigns.json` (seeded with the sheet's ~24 existing deals, dates kept `DD/MM/YYYY` so every existing date-parsing helper(`lib/collaborations.ts`, `lib/brandCampaignStats.ts`, `lib/earnings.ts`'s `monthKey`) needed no changes), `repositories/campaigns.ts` (`CampaignRecord`/`Campaign` types, `total` derived not stored, `nextSequenceId` for `MSP-BC`/`MSP-MC`/`MSP-INV-` ids), and `repositories/campaigns.writer.server.ts` (Redis-backed `getCampaigns`/`addCampaign`/`updateCampaign`/`setCampaignPaymentStatus`, seed fallback when Redis is unconfigured, same shape as `invoices.writer.server.ts`).
   - `repositories/brandCampaigns.ts`, `collaborations.ts`, `earnings.ts` rewritten as projections over `getCampaigns()` instead of raw sheet rows; their exported types/functions (`BrandCampaignRecord`, `Collaboration`, `EarningsSummary`, `fetchBrandCampaignRecords`, `collaborationRepository`, `earningsRepository`) are unchanged, so every consumer (`app/(dashboard)/page.tsx`, `app/brands/actions.ts`, `app/brands/page.tsx`, `app/brands/[id]/page.tsx`) needed no changes beyond following.
@@ -637,19 +736,25 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - Renamed sheet-specific identifiers now that there's no sheet: `importBrandsFromSheet` → `importBrandsFromCampaigns` (`app/brands/actions.ts`, `ImportBrandsButton.tsx`, button copy "Import from sheet" → "Import from campaigns"), `findInvoiceBySheetId` → `findInvoiceByCampaignInvoiceId` (`lib/invoice.ts`, used by `BrandPaymentsTab.tsx`), plus stale "sheet" comments/error strings across `app/(dashboard)/actions.ts`, `SyncStatus.tsx`, `useMarkReceived.ts`, `BrandCampaignsTab.tsx`, `BrandPaymentsTab.tsx`.
 
 ## [1.15.2] - 2026-08-27
+
 ### Fixed
+
 - **Dashboard "Needs attention" kept flagging "Delivered, no invoice raised" after an invoice was saved from its own link.** `selectAttentionItems` decided this purely from the Campaigns sheet's "Invoice ID" cell, which a `/invoices/new` save never writes to (it goes to the separate Redis/JSON invoices store); the "Create invoice" link carried no brand/campaign context; and `createInvoice`/`updateInvoice` only revalidated `/invoices`, never `/`.
   - `lib/dashboardAttention.ts`: `selectAttentionItems(records, invoices?)` now also treats a deal as invoiced when a saved, non-`void` invoice names the same brand + campaign (`normalizeBrandName(invoice.client.name)` + case-insensitive `campaignName`), not just when the sheet cell is filled. `app/(dashboard)/page.tsx`'s `PaymentsAttentionSection` fetches `getInvoices()` and passes it in.
   - The "Create invoice" (`NeedsAttentionCard.tsx`) and "Invoice" (`PaymentsDueCard.tsx`) links now carry `?client=<brand>&campaign=<campaign>`; `app/invoices/new/page.tsx` reads them and `InvoiceGenerator`'s `buildInitialState` seeds `campaignName` / `clientName` (brand deep-link still wins for the client name), so the saved invoice matches with no extra typing.
   - `app/invoices/actions.ts`: `createInvoice` / `updateInvoice` / `removeInvoice` now also `revalidatePath("/")` so the dashboard reflects the change on save.
   - Known limit: the match needs both a brand and a campaign name; a sheet row with a blank Campaign cell, or an invoice whose Campaign field was edited to something else, still falls back to the sheet's "Invoice ID" cell.
+
 ### Changed
+
 - **Sidebar footer shows the deployed version instead of a static "Quick links" blurb.** The footnote never carried real information; it now surfaces which build is live so a deploy can be confirmed at a glance.
   - `next.config.ts`: new `resolveDeployedVersion()` runs once at build time and is inlined via `env.NEXT_PUBLIC_APP_VERSION`. `CHANGELOG.md`'s top `## [X.Y.Z]` heading is the source of truth (`changelogVersion()` → `vX.Y.Z`), so it works on Vercel's tag-less shallow clone. Precedence: explicit `NEXT_PUBLIC_APP_VERSION`, else an exact reachable git tag (`git describe --tags --exact-match`), else the changelog version, else the highest `vX.Y.Z` git tag, else `VERCEL_GIT_COMMIT_REF`, else `"dev"`.
   - `components/common/AppSideBar.tsx`: `SidebarFooter` renders "Deployed version" + `process.env.NEXT_PUBLIC_APP_VERSION` in a mono font, replacing the "Quick links" / "Jump to any part of the dashboard." text.
 
 ## [1.15.0] - 2026-08-27
+
 ### Added
+
 - **Dashboard payments/attention cards are now act-on-able, not just read-outs.** The two top-of-page cards showed money owed and open loops but every next step lived on another page.
   - **`PaymentsDueCard.tsx`: per-row actions.** Each reverse-timer row keeps its display and gains a **Mark received** button (client `components/dashboard/MarkReceivedButton.tsx`, in-flight + inline-error states; the row drops out on revalidate since it's no longer pending) and, only when the row carries no invoice number (`""`/`"-"`, `needsInvoice()`), an **Invoice** shortcut linking to `/invoices/new`. Row layout went from single-line to a header block + action row.
   - **New `components/dashboard/NeedsAttentionCard.tsx`**: sits under Payments due, rose-toned to distinguish it from the amber payments card, computed from the campaign records the page already fetches (no extra request). Surfaces open loops that carry no due date so they don't overlap Payments due: *delivered, no invoice raised* → **Create invoice**, and *completed, payment not tracked* → **Mark received**. Ranked by deal value, capped at 6 rows with a "+N more" line, renders nothing when clear. Backed by new client-safe `lib/dashboardAttention.ts` (`selectAttentionItems()`, `AttentionItem`/`AttentionKind`).
@@ -666,7 +771,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - **"Synced Xm ago · Refresh"** next to the dashboard `<h1>` (`components/dashboard/SyncStatus.tsx`): the campaigns sheet is cached for 5 min with no visible sign; the relative time comes from the page's render timestamp (interval-updated client-side, seeded so SSR and first client render agree) and **Refresh** fires the new `refreshDashboard` Server Action (`revalidatePath("/")`) to force the cached sheet reads to re-fetch on the spot.
 
 ## [1.14.0] - 2026-08-27
+
 ### Added
+
 - **Invoices linked to the brand CRM and the editor workspace.** A saved invoice used to be an island(`client.name` and `campaignName` were free text with no reference to a `Brand`, and there was nothing tying the amount billed for a video to what the editor was paid for it. Two nullable foreign keys on `InvoiceRecord` (`repositories/invoices.ts`) close both gaps: `brandId` → `Brand`, `editorTransactionId` → `EditorTransaction`. Both default to `null` and are trimmed/coerced in `normalize()` (`repositories/invoices.writer.server.ts`); the `data/invoices.json` seed is `[]`, so no migration. `InvoiceRecord.client` stays the per-invoice snapshot shown on the printed sheet) the link is a back-reference, not a replacement, so changing a brand's name later never rewrites a past invoice
   - **Editor: "Link to brand" and "Editor job (for margin)" pickers** (`components/invoice/InvoiceControls.tsx`, both `<Select>`(shadcn, no new deps; a `__none__` sentinel stands in for "not linked" since a `<Select>` item can't carry an empty value). Picking a brand sets `brandId`, copies the brand name onto the "Billed to" sheet, and) when the brand has exactly one contact and no name's been typed: prefills that too; every field stays editable (`selectBrand`/`selectEditorJob` in `InvoiceGenerator.tsx`, added to `InvoiceFormActions`). Options are flat view-models built server-side (`buildInvoiceBrandOptions`, `buildInvoiceEditorJobOptions` in `lib/invoice.ts`) so the client editor never sees a full `Brand`/`Contact`/`EditorTransaction`. `InvoiceFormState` / the three form-state projections carry both new ids; "Reset fields" clears them alongside the client block
   - **`/invoices/new?brandId=…`** pre-selects the brand and seeds the client name (`searchParams` on the page, `initialBrandId` through to `buildInitialState`). `app/invoices/new/page.tsx` and `app/invoices/[id]/page.tsx` now also load brands + contacts + editor transactions (best-effort: the editor still works without them)
@@ -675,25 +782,35 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - **Payments tab reconciliation** (`BrandPaymentsTab.tsx`): the Campaigns sheet's free-text "Invoice ID" cell now resolves to a saved invoice (`findInvoiceBySheetId`, tolerant of `MSP-INV-0007` / `0007` / `7`) and renders as a link to it. When the sheet's Payment column and the invoice's status disagree, a one-line amber note says so (`invoicePaymentMismatch`)
   - **Media kit "Sync from brands" now also counts a paid invoice as proof of a real collab**: `lib/brands.ts`'s `brandLogosForMediaKit()` takes an optional `paidBrandIds` set; a brand with at least one `paid` invoice qualifies even if its pipeline status was never updated by hand. `app/mediakit-generator/page.tsx` builds the set from `getInvoices()` (best-effort)
   - **The invoice header handle is the media kit's handle**: `app/invoices/new` and `[id]` override `InvoiceData.brandHandle` with `MediaKitData.header.handle` (best-effort) so the two can't drift apart
+
 ### Changed
+
 - `lib/invoice.ts` gained `buildInvoiceBrandOptions`, `buildInvoiceEditorJobOptions`, `computeInvoiceMargin`, `invoicesForBrand`, `findInvoiceBySheetId`, `invoicePaymentMismatch` and the `InvoiceBrandOption`/`InvoiceEditorJobOption`/`InvoiceMargin` types; it now also imports `normalizeBrandName` from `lib/brandCampaignStats.ts` and `parseSheetDate` from `lib/editorTransactions.ts` (both client-safe, no cycle)
 - **Media kit editor: remove any logo, not just the last one.** `MediaKitLogoGrid.tsx`'s single "− Remove last" button is replaced with a per-logo **×** control (top-left of each circle, mirroring the existing drag handle; new `.logoGrid .logoRemove` rule in `mediakit.module.css`, two-class selector so it isn't stretched by the generic `.logoGrid button` style). `MediaKitFormActions.removeLastLogo` → `removeLogo(index)` (`components/mediakit/types.ts`, `MediaKitGenerator.tsx`: `filter` by index instead of `slice(0, -1)`), same "keep at least one" `MIN_LOGOS` guard
+
 ### Added
+
 - **Saved invoices(list + edit** at `/invoices` (renamed from `/invoice-generator`, which is now a list, not the editor). The generator only ever held one Redis "draft" blob (`invoice_draft`, the defaults for the *next* invoice via `repositories/invoice.writer.server.ts`); there was no record of an invoice once its PDF was saved, so none could be reopened or edited. New parallel store, same Redis + JSON-seed pattern as `editorTransactions`: `repositories/invoices.ts` (`InvoiceRecord` persisted shape, `Invoice` view model with derived `subtotal`/`balanceDue` via `toInvoice`, `InvoiceStatus` = draft/sent/paid/void, seeded empty from `data/invoices.json`) and `repositories/invoices.writer.server.ts` (key `invoices`; `getInvoices`/`getInvoice`/`addInvoice`/`updateInvoice`/`deleteInvoice`, seed fallback when Redis is unconfigured, a `normalize()` that trims/coerces every field). Each record carries its own copy of the payee/bank/branding block) snapshotted from the defaults when first saved, then editable per invoice: so changing the defaults later never rewrites a past invoice. `repositories/index.ts` barrel updated with the new sync repo/types (writer excluded, per convention)
   - `app/invoices/page.tsx`, the list: stat cards (count, total billed, outstanding, overdue count(`lib/invoice.ts`'s `computeInvoiceStats`, void invoices excluded), a client `InvoicesTable.tsx` with All/Draft/Sent/Paid/Overdue filter tabs (`components/ui/tabs.tsx` as a segmented control) and a number/campaign/client/email search, most-recent-first, row click → the editor. Columns: number, campaign, client, issued, due, total, balance, status. Duplicate invoice numbers are flagged inline on every copy. Per-row delete (`DeleteInvoiceButton.tsx`) is a red icon that requires a **double-click** followed by a `window.confirm`) deleting an invoice is destructive and the row is otherwise click-to-open
   - `app/invoices/new/page.tsx` and `app/invoices/[id]/page.tsx`(the existing split-pane editor (`InvoiceGenerator` + `InvoiceControls` + live `InvoicePreview`), unchanged in layout/print CSS. `new` seeds from the defaults; `[id]` loads a saved record (`notFound()` if missing). New **Status** `<Select>` and an inline "already used by another invoice" warning under the Number field (`takenInvoiceNumbers` passed from the page). No edit gating) any invoice, including `paid`, is fully editable
   - **New "Campaign" field** (`InvoiceRecord.campaignName`, `InvoiceFormState.campaignName`, and `InvoiceData.campaignNameSeed` for the carried-forward default)(names the brand campaign an invoice bills for. Editable in the Invoice fieldset, rendered on the printed sheet as a `CAMPAIGN:` line under DUE DATE (`InvoicePreview.tsx`), shown as its own list column, searchable, and persisted as the next invoice's default via `toInvoiceDefaults` (same as `invoiceNumberSeed`) no auto-change)
   - **Separate "Save invoice" and "Download PDF" buttons** (previously one "Save as PDF" that did both). Save persists only: `updateInvoice` for an existing record, or `createInvoice` + carry the current form forward as the next invoice's defaults + `router.replace()` to the saved record's URL so a second save updates rather than duplicates. Download PDF just opens `window.print()` for the live preview, untouching the record. New Server Actions `createInvoice`/`updateInvoice`/`removeInvoice` in `app/invoices/actions.ts`, same `{success}`/`revalidatePath` shape as `app/workspace/actions.ts`; invoice number still persists literally as typed (no auto-increment)
   - `lib/invoice.ts` gained the form-state ↔ record projections (`invoiceDefaultsToFormState`, `invoiceRecordToFormState`, `formStateToInvoiceInput`: `buildInitialState` moved out of the component into the first of these), `invoiceStatusStyle` (low-opacity palette colors, same convention as the workspace status badges), `isInvoiceOverdue` (`now` injectable for deterministic SSR), `computeInvoiceStats`, `INVOICE_STATUS_OPTIONS`/`formatInvoiceStatus`. `InvoiceFormState` gained `status` and `campaignName`
+
 ### Changed
+
 - Route `/invoice-generator` → `/invoices` (`app/invoice-generator/` moved to `app/invoices/`). Updated `proxy.ts`'s matcher (`/invoices/:path*`), `lib/navigation.ts` (href + title "Invoices", "Create, revisit, and edit invoices for brand collaborations"), `app/robots.ts`'s disallow list, and `.env.example`'s comment
 
 ## [1.13.0] - 2026-08-27
+
 ### Added
+
 - **Payments due reminder on the dashboard** (`components/dashboard/PaymentsDueCard.tsx`): surfaces brand-campaign rows still marked pending on the sheet's Payment column that now also carry a value in the new **Payment Due** date column, as a reverse-timer feed ("Due in 3 days" / "Overdue by 2 days"), most-overdue first, with the total outstanding and an overdue count in the header. `repositories/brandCampaigns.ts` now projects that column as `BrandCampaignRecord.paymentDue` (normalized to "" for the rows that use the cell as a free-text "Yes"/"No"/"-" flag instead of a date); `lib/brandCampaignStats.ts`'s new client-safe `selectDuePayments()` filters/sorts and computes each timer (cancelled deals and rows with no parseable due date dropped, `now` injectable for deterministic SSR). Wired into `app/(dashboard)/page.tsx` above the earnings overview; renders nothing when nothing is owed on a schedule, and a sheet-fetch failure degrades to hidden rather than erroring the page
 
 ## [1.12.0] - 2026-08-26
+
 ### Added
+
 - **Brand CRM data layer** (no UI yet(first phase of a `/brands` build)) five new domain entities backed by the same Redis + JSON-seed pattern as `editors`/`editorTransactions`: `Agency` (`repositories/agencies.ts`, `agencies.writer.server.ts`, `data/agencies.json`(just a name), `Brand` (`repositories/brands.ts`, `brands.writer.server.ts`, `data/brands.json`) name, logo, website, Instagram, optional `agencyId`, `status` one of Lead/Contacted/Negotiating/Worked With/Active/Dormant/Do Not Contact; name uniqueness enforced since it's also the sheet-matching key below), `Contact` (`repositories/contacts.ts`, `contacts.writer.server.ts`, `data/contacts.json`, name + phone for now, hangs off either `brandId` or `agencyId`, so an agency's contact surfaces on every brand that agency reps without re-entering them per brand), and `BrandNote`/`BrandActivity` (`repositories/brandNotes.ts`, `brandActivity.ts` + writers, `data/brand-notes.json`, `data/brand-activity.json`). All five seeded empty since none of this (agency, contact, logo, lead status) exists in the current Campaigns sheet. New Server Actions for all of it in `app/brands/actions.ts`, same `{success}`/`revalidatePath` shape as `app/workspace/actions.ts`. `repositories/index.ts` barrel updated with the new sync repos/types (writers excluded, per existing convention)
 - **Sheet-linked campaign stats**(`repositories/brandCampaigns.ts` reads the same Campaigns sheet tab as `services/campaigns.ts`/`repositories/earnings.ts`, projecting the invoice/payment columns neither of those needs (`invoiceId`, `paymentStatus`, `paymentMethod`, deliverables string, upload date). `lib/brandCampaignStats.ts` (client-safe) matches a `Brand.name` against sheet rows case-insensitively and rolls up campaign count, billed/received/pending totals, and last-collab date per brand) feeds the future `/brands` list stat cells and a brand's detail-page summary without a manual campaign entity
 - `npx shadcn add tabs avatar alert-dialog`: three components the upcoming brand detail page needs (tabbed Overview/Contacts/Campaigns/Payments/Notes/Activity view, contact avatars, delete confirmation) that nothing existing used yet
@@ -706,7 +823,9 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
   - Deleting a brand (`DeleteBrandButton.tsx`) now cascades to its direct contacts/notes/activity (new `deleteContactsForBrand`/`deleteBrandNotesForBrand`/`deleteBrandActivityForBrand` in each writer, called from `removeBrand` in `app/brands/actions.ts`): agency-scoped contacts are left alone since they still rep that agency's other brands. Deletion confirmation uses `window.confirm`, matching `DeleteEditorTransactionButton.tsx`'s existing convention, rather than the `alert-dialog` component added earlier
   - Fixed a hydration error caught while testing the Contacts tab in a real browser: `ContactCard.tsx` wrapped its whole card in a `<button>` with a nested delete `<Button>` inside, invalid HTML (`<button>` can't contain `<button>`) that broke hydration. The clickable wrapper is now a `<div role="button" tabIndex={0}>` with the same click/keyboard handling
 - **"Import from sheet"** on `/brands` (`ImportBrandsButton.tsx`, `importBrandsFromSheet()` in `app/brands/actions.ts`)(pulls every distinct Brand name out of the Campaigns sheet and creates a `Brand` for any not already in the CRM (matched case-insensitively), skipping the rest; additive and idempotent, so it's safe to re-run whenever the sheet gets new brands rather than being a one-off migration script. Since the sheet carries no relationship status, imported brands default to **Worked With** (there's a real deal on record) for the creator to refine by hand. Run once against the live sheet: imported 18 brands with zero manual entry, stats (campaigns/revenue/pending/last collab) populated immediately via the existing sheet-matching in `lib/brandCampaignStats.ts`. **Known data-quality note**: one imported brand is named "12") a literal artifact of whatever's in that row's Brand cell in the sheet, not an import bug; worth fixing at the source and re-running, or renaming/deleting it directly in the CRM
+
 ### Changed
+
 - Trimmed `Brand` down to name/logo/website/Instagram/agency/status(dropped `linkedin`, `youtube`, `industry`, `location`, and the never-shipped `nextFollowUpDate` (`repositories/brands.ts` + writer, `BrandFormFields.tsx`, `BrandOverviewTab.tsx`, `BrandsTable.tsx`'s Next follow-up column, `lib/brands.ts`'s `BrandRow`)) unused fields the creator wasn't filling in
 - Simplified `Agency` to just a name, and `Contact` to just name + phone "for now": dropped `Agency.website`/`notes` and `Contact.designation`/`email`/`whatsapp`/`linkedin`/`instagram`/`notes`/`isPrimary` (`repositories/agencies.ts`, `contacts.ts` + writers, `AgencyFormFields.tsx`, `ContactFormFields.tsx`, `ContactCard.tsx`). `lib/contacts.ts`'s `primaryContactForBrand()` now just returns the first contact on file for a brand, since there's no `isPrimary` flag to prefer
 - **Agencies can now hold contacts directly**: previously an agency-scoped contact could only be created from a brand's Contacts tab (via the "Agency contact" checkbox); `EditAgencySheet.tsx` now embeds a new `AgencyContactsSection.tsx` (inline name/phone add form + list with per-contact delete) so a creator can log an agency's people without going through a brand first. `AgenciesSection.tsx`/`app/brands/page.tsx` now thread `contacts` down to each agency's edit sheet, pre-filtered by `agencyId`
@@ -715,75 +834,100 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - The `/brands` list table's **Revenue** column now shows each brand's `totalBilled` (the sheet's Total column: Amount + Barter Value, summed across every non-cancelled campaign) instead of `totalReceived` (payment-received only): `lib/brands.ts`'s `buildBrandRows()`
 - The brand detail page's Campaigns/Payments tabs (`app/brands/[id]/page.tsx`) now drop cancelled sheet rows from `records` entirely: previously only the summary stats/list stat cards excluded them (via `computeBrandStats`'s own cancelled-skip), but the two tabs still rendered every raw row including cancelled ones
 - **Per-campaign contact assignment**(a brand's Campaigns tab now has a **Contact** column: since different deals with the same brand can be run through different people (an agency rep changes, a direct contact hands off, etc.), each campaign row can be assigned its own contact instead of one contact standing in for the whole brand relationship. Sheet-linked campaigns are read-only, so this can't live on the sheet row itself) new `CampaignContact` entity (`repositories/campaignContacts.ts` + writer, `data/campaign-contacts.json`, keyed by the sheet's Campaign ID, one contact per campaign) backs a new `assignCampaignContact()` Server Action. The cell shows the current assignment as plain text plus an **Edit** button; `CampaignContactSheet.tsx` opens a `Sheet` with both a `<Select>` over the brand's existing contacts (direct + its agency's) and an inline "add a new contact" mini-form (name + phone) that creates the contact and assigns it to that campaign in one step(`createContact()` now returns the new contact's `id` on success so this flow can immediately assign what it just created. Wired through `BrandTabsSection.tsx` → `BrandCampaignsTab.tsx`; `removeBrand()` also cascades to `deleteCampaignContactsForBrand()`. Verified live on a real brand (temporarily linked to an existing agency to get real contacts to pick from)) assigned an existing contact, used "add & assign" to create and assign a brand-new one, then fully reverted the assignments, deleted the test contact, and reverted the temporary agency link, confirmed via a fresh reload
+
 ### Removed
+
 - The **Activity** tab on a brand's detail page (`BrandTabsSection.tsx`, `BrandActivityTab.tsx` deleted): the backing `BrandActivity` repository/writer/Server Action are left in place (unused by any UI now) rather than deleted outright, since removing them would also drop `removeBrand()`'s cascade-delete safety net for any activity entries already logged
 - **New `BrandStatus` value: `Cancelled`** (`repositories/brands.ts`, styled destructive/red in `lib/brands.ts`'s `brandStatusStyle()`, selectable in the create/edit form same as any other status)(and the `/brands` list table's Status column now shows it automatically, overriding whatever pipeline status the brand record has on file, whenever every one of that brand's sheet-linked deals is cancelled (`buildBrandRows()`'s new `isCancelledOnly()` check against the raw, unfiltered sheet records) a brand with zero sheet-linked deals at all still shows its real status, only an all-cancelled brand gets overridden). Display-only: the underlying `Brand.status` field isn't rewritten, so it's still whatever the creator set it to if they open Edit. Caught via a real example already in the data: "ThisFanon" had a single cancelled deal but was still importing as "Worked With"
 
 ## [1.11.0] - 2026-08-26
+
 ### Added
+
 - **Editor workspace** at `/workspace` (`app/workspace/page.tsx`, `components/workspace/EditorTransactionsSection.tsx`)(migrates the "Transactions - Editors" tracking sheet (video, video date, delivery date, amount, editor, status) into the app, backed by a new Redis-persisted store rather than a static bundled seed. `repositories/editorTransactions.ts` defines the `EditorTransaction` domain model and a JSON-backed default repository seeded from `data/editor-transactions.json` (the migrated rows); `repositories/editorTransactions.writer.server.ts` mirrors `mediakit.writer.server.ts`'s pattern) reads/writes go through the existing Upstash Redis (`KV_REST_API_URL`/`KV_REST_API_TOKEN`, no new env vars) under key `editor_transactions`, falling back to the bundled seed until the first write. Turnaround (`etaDays`) is derived from `videoDate`/`deliveryDate` (`lib/editorTransactions.ts`'s `computeEtaDays`) rather than stored, so it can't drift out of sync. The view shows stat cards (transaction count, total paid out, distinct editors, average turnaround) and a table (status as a colored `Badge`, mirroring `CollaborationsSection.tsx`'s convention) with a **"New transaction"** quick-add `Sheet` form (`components/workspace/NewEditorTransactionButton.tsx`, `EditorTransactionFormFields.tsx`) and a per-row delete (`DeleteEditorTransactionButton.tsx`), both via new Server Actions in `app/workspace/actions.ts`. Added to `lib/navigation.ts` as a protected nav entry and to `proxy.ts`'s matcher so it's gated behind the shared session like the other dashboard routes
 - **Editors roster** on `/workspace` (`components/workspace/EditorsSection.tsx`)(a new `Editor` domain (name/phone/UPI ID) backed by the same Redis pattern as the above (`repositories/editors.ts`, `repositories/editors.writer.server.ts`, key `editors`, seeded from `data/editors.json` with the 4 editors already in the migrated transactions). Editors render as tag `Badge`s with a hover `Tooltip` showing phone/UPI, and a **"Add editor"** quick-add `Sheet` (`components/workspace/NewEditorButton.tsx`, `EditorFormFields.tsx`) rejects duplicate names case-insensitively. The transaction form's free-text Editor field is now a `<Select>` populated from this roster (`EditorTransactionFormFields.tsx`) so transactions can only be tagged to a known editor instead of typed freehand) shows a "No editors yet" hint in place of the select when the roster is empty. New Server Action `createEditor` in `app/workspace/actions.ts`
 - **Click-to-edit** on `/workspace`(clicking a transaction row (`components/workspace/EditEditorTransactionSheet.tsx`) or an editor tag (`EditEditorSheet.tsx`) opens the same quick-add `Sheet` form pre-filled for editing, instead of add-only. Both are Radix `Dialog`s controlled by local `open` state rather than a `SheetTrigger` (the transaction row's delete button, nested inside the clickable row, stops click propagation so it doesn't also open the edit sheet); new `updateEditorTransaction`/`updateEditor` Server Actions in `app/workspace/actions.ts` call new repository functions of the same name (`repositories/editorTransactions.writer.server.ts`, `repositories/editors.writer.server.ts`) the latter's duplicate-name guard now excludes the record being edited). New transactions default their Editor field to **Divyanshu Raj** (`DEFAULT_EDITOR_NAME` in `lib/editorTransactions.ts`, falling back to the first editor in the roster if that name isn't in it) instead of just the first editor alphabetically/by insertion order. **Known limitation**: an editor's transactions still show their name as it was at the time (`EditorTransaction.editor` is a plain string snapshot, not a foreign key), renaming an editor doesn't relabel their past transactions
 - **Email + UPI QR code** on the editor roster(`Editor` gained `email` and `qrImage` (`repositories/editors.ts`, `data/editors.json`, both existing editors seeded with empty/`null`); the add/edit editor form (`EditorFormFields.tsx`) gained an Email input and a new `EditorQrUploadField.tsx` (uploads straight to Vercel Blob via a new `app/api/workspace/upload/route.ts`, mirroring `app/api/invoice/upload`) keeps the QR image out of the Redis JSON payload, same reasoning as the invoice/media-kit uploaders). Hovering an editor tag (`EditEditorSheet.tsx`'s `Tooltip`) now shows phone, email, UPI ID, and a thumbnail of the QR code (on a white backing so it stays scannable against the tooltip's dark chip) instead of just a one-line phone/UPI summary
 - **Sortable transactions table** (`components/workspace/EditorTransactionsTable.tsx`, split out of `EditorTransactionsSection.tsx` so only the interactive table itself is a Client Component)(the "Date delivered" and "Editor" column headers are clickable, each toggling ascending/descending with an arrow icon showing the active sort; sorts client-side over the already-fetched rows, no new fetch. Defaults to **Date delivered, most recent first**, instead of raw insertion order. `parseSheetDate` in `lib/editorTransactions.ts` (previously private, used only for `computeEtaDays`) is now exported for this. Also renamed the "Date"/"Delivery date" columns and form fields to **"Assigned date"**/**"Date delivered"** (`EditorTransactionFormFields.tsx`, `EditorTransactionsTable.tsx`) to name what those two dates actually track) the underlying `videoDate`/`deliveryDate` field names are unchanged
 - **Per-editor paid/pending totals**(new `computeEditorPayoutSummary()` in `lib/editorTransactions.ts` sums an editor's transactions by `status` (`"Paid"` → paid, `"Pending"` → pending, `"Cancelled"` excluded from both) same convention as the earnings overview's handling of cancelled deals). `app/workspace/page.tsx` now passes `transactions` down through `EditorsSection` to `EditEditorSheet.tsx`, which shows both figures in two places: the hover tooltip (paid total always shown, pending only when nonzero, above the existing contact info) and a "Paid so far"/"Pending" stat-card row at the top of the edit sheet itself
+
 ### Changed
+
 - Renamed the "Media kit generator" nav entry and page title to **"Edit Media kit"** (`lib/navigation.ts`, `app/mediakit-generator/page.tsx`) for clarity that the page edits the existing kit rather than generating a new one: route (`/mediakit-generator`) and component/file names unchanged
 
 ## [1.10.1] - 2026-08-26
+
 ### Added
+
 - Dashboard **earnings overview** (`app/(dashboard)/page.tsx`, `components/dashboard/EarningsOverview.tsx`)(total/paid/barter/pending stat cards and a monthly breakdown table (paid/barter/yet-to-be-paid/total columns), sourced live from a Google Sheet (the creator's existing brand-deal tracker) instead of a new manual entry flow. `repositories/earnings.ts` reads the sheet's `Campaigns` tab, drops any row whose `Status` is `"Cancelled"` outright (never happened commercially), then sums the rest into total/paid/barter where `Payment = "Recieved"` (received money/goods in hand, distinct from `Status`, which tracks deliverable progress) or into a separate **pending** figure where `Payment = "No"` (excludes written-off `"Scam"` rows, which are neither received nor expected); the monthly breakdown buckets by the `Upload Dt` column, falling back to the deal's `Date` when upload date is blank, sorts most-recent-first (`repositories/earnings.ts`'s `monthly` is now descending), highlights the current month, and collapses anything older than 6 months behind a "Previous months (N)" toggle (`components/dashboard/EarningsOverview.tsx`, reusing the `Collapsible` from `components/ui/collapsible.tsx`). Each month row is itself now a `Collapsible`) clicking one expands a deal-by-deal breakdown (brand, deliverables, amount) for that month; `repositories/earnings.ts`'s `MonthlyEarnings` gained a `deals: MonthlyDeal[]` array (brand/Reels+Story/Total per row that counted toward that month's bucket, whether received or pending) built alongside the existing totals rather than a second pass over the sheet. Restyled: uppercase column labels, `tabular-nums` on every money figure so digits line up, the current month gets a left accent bar instead of a full ring, and expanded deals show as a small indented list (dot bullet, deliverables as an outline `Badge`, muted amount) inside a shaded panel rather than plain rows. `services/googleSheets.ts` authenticates as a Google service account (JWT bearer flow signed with `node:crypto`, no `googleapis` dependency) and fetches via the Sheets API `values.get` endpoint cached for 5 minutes. New env vars `GOOGLE_SHEETS_CLIENT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `EARNINGS_SHEET_ID`, `EARNINGS_SHEET_TAB` (`.env.example`, `.env.local`)
 - **Collaborations** section on the dashboard home, alongside the earnings overview above (`components/dashboard/CollaborationsSection.tsx`, wired into `app/(dashboard)/page.tsx`)(a top stat row (total / paid / barter collaboration counts, plus the single highest-value deal by `Amount + Barter Value`), active/upcoming brand deals as compact cards (brand, Reels/Story deliverables shown as separate fields, status, date), and past deals collapsed behind a "Past collaborations (N)" toggle rendering a real `<table>` (new `components/ui/collapsible.tsx` and `components/ui/table.tsx`, both added via shadcn CLI) the table replaced an earlier per-row CSS grid whose columns didn't share widths across rows and drifted out of alignment). Reads the same `EARNINGS_SHEET_ID`/`EARNINGS_SHEET_TAB` sheet as the earnings overview, via the same shared `services/googleSheets.ts` client: no new env vars needed. `services/campaigns.ts` parses the tab by header name (now including `Type` and `Total`, alongside `Reels`/`Story`); `repositories/collaborations.ts` maps rows to a `Collaboration` domain model, bucketing Todo/Brainstorming/In Progress as `active` and everything else as `past` (exported from `repositories/index.ts` alongside `earningsRepository`); `lib/collaborations.ts` sorts active soonest-first, past most-recent-first, and `computeCollaborationStats()` derives the stat-row counts (paid/barter counted by `Type` containing "paid"/"barter", so `Barter+Paid` rows count toward both). Degrades to an inline error message instead of crashing if the sheet/env isn't configured
 - **"New collaboration" quick-add** on the dashboard's Collaborations section (`components/dashboard/NewCollaborationButton.tsx`, a shadcn `Sheet` form for Brand/Campaign/Reels/Story/Type/Amount/Barter value/Status/Date)(appends a row straight to the live campaigns sheet instead of requiring the creator to open Sheets manually. Reels/Story/Type/Status render as `<Select>`s populated from `lib/collaborations.ts`'s `REEL_OPTIONS`/`STORY_OPTIONS`/`COLLABORATION_TYPES`/`STATUS_OPTIONS`) the sheet's cells have strict `ONE_OF_LIST` data validation, discovered via `spreadsheets.get`'s `dataValidation` field, so free text isn't an option; those constants live in `lib/` rather than `repositories/collaborations.ts` specifically so the client-side form can import them without pulling in that file's `"server-only"` guard (an earlier version of this put them in the repository and broke the client bundle). `services/googleSheets.ts` gained `appendSheetRow()` (Sheets API `values:append`, now returns the landed range) and `updateSheetRange()` for a follow-up cell write, plus its service-account OAuth scope widened from `spreadsheets.readonly` to `spreadsheets` (read-write); `services/campaigns.ts`'s new `appendCampaign()` places each field by header name (same as reads, so a reordered sheet can't write into the wrong column), auto-assigns **Campaign ID** as `MSP-BC000N`/`MSP-MC000N` (barter vs. has-a-paid-component, matching the sheet's own convention) and **Invoice ID** as the next `MSP-INV-000N` only when there's a paid component (else `"-"`) by scanning the existing columns for the highest sequence number, and patches **Total** in as a live formula (`=SUM(K{row}, L{row})`, matching every existing row exactly) using the row number `values:append` reports back, rather than a static number that would fall out of sync if Amount/Barter Value are edited later. `repositories/collaborations.ts`'s `create()` converts the date picker's `yyyy-mm-dd` to the sheet's `DD/MM/YYYY`. Upload Dt, Invoice, Payment, Payment Method, and Notes are still left blank for the creator to fill in once the deal actually happens. New Server Action `app/(dashboard)/actions.ts`'s `createCollaboration()` calls `revalidatePath("/")` so the new deal appears immediately. Also fixed: appended rows initially took any free text at all in Type/Reels/Story/Status instead of being constrained to the sheet's dropdown list(`values.append`/`values.update` never attach a cell's `ONE_OF_LIST` validation rule to newly-written cells on their own. `services/googleSheets.ts` gained `getSheetGid()` (tab name → numeric grid id, required by `batchUpdate`) and `setOneOfListValidation()` (`spreadsheets.batchUpdate`'s `setDataValidation` request); `appendCampaign()` now applies the exact same validation rule to the new row's Type/Reels/Story/Status cells right after writing them, using the same option lists the form offers (plus `"Scam"` for Type, which the sheet allows but the quick-add form doesn't offer). **Known limitation**: this restores the dropdown *constraint* but not the colored "chip" look those cells have elsewhere) confirmed (by reading an existing colored cell's full `effectiveFormat` back as plain white, and by the color still not appearing after a manual sheet reload) that the color isn't stored data readable/writable via Sheets API v4 at all; it's tied to the newer Insert → Dropdown chip feature rather than classic Data validation. Manually re-picking the same value once in the Sheets UI is the only known way to pick up the color for an API-appended row
 - `/invoice-generator` now persists whatever's in the form when you click **Save as PDF** as the new defaults for the next invoice (invoice number, billed-to placeholder, line items, payee details, barter settings, QR code, stamp/seal): mirrors the media kit's Redis-backed draft (`repositories/invoice.writer.server.ts`, `app/invoice-generator/actions.ts`'s `saveInvoiceDefaults`, `lib/invoice.ts`'s `toInvoiceDefaults`/`daysBetween`); `app/invoice-generator/page.tsx` now reads via the new async `getInvoiceData()` instead of the static, build-time `invoiceRepository.get()`. The invoice number persists literally as typed (no auto-increment)
 - QR code / stamp uploads on `/invoice-generator` (`InvoiceImageUploadField.tsx`) now upload to Vercel Blob via a new `app/api/invoice/upload/route.ts` instead of inlining as base64 `data:` URLs, needed so those images can safely be included in the persisted defaults above without risking the Redis payload-size failure already fixed for the media kit once (1.7.0). Added `InvoicePayee.defaultStampImage` (`repositories/invoice.ts`, `data/invoice.json`) since there was previously no persisted slot for the stamp at all
+
 ### Fixed
+
 - Earnings overview's monthly breakdown table getting clipped on phones: `components/dashboard/EarningsOverview.tsx`'s `MONTH_GRID` used fixed `6rem` columns for Cash/Barter/Pending/Total that didn't fit narrow viewports; narrowed those columns to `4.5rem` and wrapped both the recent-months table and the "Previous months" collapsible in `overflow-x-auto` containers (with a `min-w-[30rem]` floor on the grid) so the table scrolls horizontally on mobile instead of being cut off
 
 ## [1.9.0] - 2026-08-26
+
 ### Fixed
+
 - "Save as PDF" on `/mediakit-generator` and `/invoice-generator` printing the surrounding dashboard sidebar/navbar along with the media kit/invoice sheet: each generator's own `@media print` rules (`components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css`) only hid their own form panel, never the `AppShell` chrome wrapping the page; added a global print rule (`app/globals.css`) hiding `[data-slot="sidebar"]` and a new `data-app-navbar` marker (`components/common/NavBar.tsx`)
 - `/mediakit-generator`'s PDF export printing with wide blank borders around the sheet, `components/mediakit/mediakit.module.css` was missing the `@page { size: A4; margin: 0; }` rule that `invoice.module.css` already had, so the browser fell back to its default page size/margins instead of the fixed 210mm×297mm sheet
 - Printed/PDF output on both generators still showing the sheet shrunk to a fixed 400px width and centered with wide blank margins on either side, the mobile-layout breakpoint `@media (max-width: 900px)` (`components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css`) had no `screen` qualifier, so it also matched during print/PDF (the A4 page's ~793px CSS-pixel width is itself under 900px) and, coming after the `@media print` block without `!important`, silently overrode `.stage`'s print reset with `max-width: 400px; margin: 0 auto;`; scoped both breakpoints to `@media screen and (max-width: 900px)`. Also scoped the on-screen scale-to-fit (`.stageInner { zoom: min(1, calc(100cqw / 210mm)) }`) to `@media screen` so it's never declared for print at all, instead of being declared and then reset with `zoom: normal !important`
 
 ## [1.8.0] - 2026-08-26
+
 ### Added
+
 - **Remember me** on the login form (`components/auth/LoginForm.tsx`): checking it requests a 30-day session (`REMEMBER_ME_DURATION_MS` in `lib/auth.ts`) instead of the default
 - **Drag-and-drop reordering** for past-collab logos on `/mediakit-generator` (`components/mediakit/MediaKitLogoGrid.tsx`): each logo has a grip handle for touch/mouse/keyboard reordering, backed by a new `reorderLogos()` action (`components/mediakit/types.ts`, `components/mediakit/MediaKitGenerator.tsx`); uses `@dnd-kit/core` + `@dnd-kit/sortable` (new dependency) instead of native HTML5 drag-and-drop, since the latter has no touch support
 
 ### Changed
+
 - Renamed the shared-password auth from `invoice-*` to generic names, since it now gates the whole dashboard rather than just the invoice generator: `lib/invoice-auth.ts` → `lib/auth.ts`, `app/api/invoice-auth/route.ts` → `app/api/auth/route.ts`, `components/invoice/InvoiceLoginForm.tsx` → `components/auth/LoginForm.tsx`, cookie `invoice_session` → `app_session`, env vars `INVOICE_PASSWORD` → `APP_PASSWORD` and `INVOICE_SESSION_SECRET` → `SESSION_SECRET` (updated in `.env.example`/`.env.local`); `proxy.ts`, `app/login/page.tsx`, `app/api/mediakit/upload/route.ts`, and `components/common/NavBar.tsx` updated to match, and the login form's post-login redirect default changed from `/invoice-generator` to `/`
 - `lib/auth.ts`: default session lifetime cut from 1 day to 4 hours (`DEFAULT_SESSION_DURATION_MS`); `createSessionToken()` now takes a `durationMs` argument instead of a hardcoded constant, and `app/api/auth/route.ts` picks 4 hours or 30 days based on the login form's `rememberMe` flag
 
 ## [1.7.0] - 2026-08-25
+
 ### Added
+
 - **Vercel Blob** (`@vercel/blob`): `/mediakit-generator`'s image pickers (profile photo, collab logos, tile covers) now upload files directly from the browser to Blob storage via `app/api/mediakit/upload/route.ts`, instead of inlining them as base64 in the saved data; requires `BLOB_READ_WRITE_TOKEN`
 
 ### Changed
+
 - `components/mediakit/MediaKitGenerator.tsx`: `handleFileChange` uploads to Blob and stores the resulting URL, instead of reading the file into a base64 data URL with `FileReader`
 - `next.config.ts`: dropped the `serverActions.bodySizeLimit` override; the draft/published payload no longer carries images, so the default limit is plenty
 - `components/mediakit/mediakit.module.css`, `components/invoice/invoice.module.css`, the A4 preview's scale-to-fit is now a pure CSS container query (`.stage { container-type: inline-size }` + `.stageInner { zoom: min(1, calc(100cqw / 210mm)) }`) instead of a `useEffect`-measured `transform: scale()`; removed the now-unused `lib/useMediaKitStageFit.ts` and the matching JS fit logic in `InvoiceGenerator.tsx`, and simplified `MediaKitPublicView.tsx` back to a Server Component
 
 ### Fixed
+
 - Save/Publish crashing when an image had just been changed: inline base64 images could push the request past the Proxy's `proxyClientMaxBodySize` (10MB default), silently truncating the body and corrupting the Server Action payload instead of failing cleanly
 - Media kit/invoice preview flashing full-size (effectively zoomed in) on load, most noticeable on mobile: the JS-computed scale only applied after the first paint/hydration, so the fixed 210mm-wide sheet briefly rendered unscaled and cropped before snapping to size
 
 ## [1.6.0] - 2026-08-25
+
 ### Changed
+
 - `repositories/mediakit.writer.server.ts`: media kit draft/published data now reads and writes through Upstash Redis (KV) instead of `fs`, falling back to the bundled `data/mediakit.json` as the seed default; `lib/cache.ts` exports `getRedis()` for reuse
 - `app/mediakit-generator/page.tsx` and `components/common/AppShell.tsx`: load the media kit draft via the new async `getMediaKitData()` instead of the old sync, build-time-bundled JSON import
 - `.env.example`: notes that `KV_REST_API_URL`/`KV_REST_API_TOKEN` now also gate Save/Publish, not just the view counter
 
 ### Fixed
+
 - Save/Publish on `/mediakit-generator` failing in production: Vercel's serverless filesystem is read-only, so the previous `fs.writeFile` to `data/mediakit.json`/`data/mediakit.published.json` could only ever succeed in `next dev`
 
 ## [1.5.0] - 2026-08-25
+
 ### Added
+
 - Optional Instagram link on the media kit header, the handle becomes clickable on the published kit when set; the email now links out as a `mailto:` too
 - Optional per-logo and per-tile links on `/mediakit-generator`: each collab logo and top-performing content tile can point to a URL (e.g. an Instagram post) and becomes clickable on the published kit
 - **Vercel Analytics**: `<Analytics />` from `@vercel/analytics/next` wired into the root layout to track page views across the app
 
 ### Changed
+
 - Renamed the invoice-generator login route from `/invoice-generator/login` to `/login`
 - `repositories/mediakit.ts`: `MediaKitCollabs.logos` is now `MediaKitLogo[]` (`{ src, url }`) instead of `string[]`; `MediaKitTileInput` gained a `url` field: `data/mediakit.json` and `data/mediakit.published.json` migrated to the new shape
 - `components/mediakit/MediaKitLogoGrid.tsx`: logo grid now lays out 4 per row (was 6) to make room for each logo's link input
@@ -795,6 +939,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 ## [1.4.0] - 2026-08-25
 
 ### Added
+
 - **Media kit generator** (`/mediakit-generator`): standalone, live-editable one-page media kit (header/stats, services & add-ons, past collabs logo grid, top-performing content tiles) with browser print-to-PDF export; no new dependencies
 - `data/mediakit.json` + `repositories/mediakit.ts`: repository-backed media kit defaults (header, stats, services, add-ons, collabs, tiles)
 - `lib/mediakit.ts`: `computeMediaKitLayout()` fits the logo grid and content tiles onto a single fixed-height A4 page based on logo count and row mode
@@ -816,6 +961,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - `lib/navigation.ts`: shared list of dashboard link entries (href, title, description, icon, access) consumed by both the dashboard home page and the sidebar
 
 ### Changed
+
 - Renamed the invoice generator route from `/invoice` to `/invoice-generator`
 - `/mediakit-generator` now sits behind the same shared password-protected session as `/invoice-generator`
 - Dashboard home page (`/`) replaced the old scroll-anchored landing sections with a grid of link cards to `/mediakit`, `/mediakit-generator`, and `/invoice-generator`
@@ -827,6 +973,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - `lib/invoice-auth.ts`: the HMAC signing key is now imported once and cached instead of being re-imported on every `sign()` call
 
 ### Removed
+
 - `components/sections/` (`Hero`, `Analytics`, `AnalyticsClient`, `Audience`, `Brands`, `Services`, `Videos`, `Contact`) and their backing repositories and data files (`repositories/{hero,analytics,audience,brands,services,videos,contact,sections}.ts`, `data/{hero,analytics,audience,brands,services,videos,contact,sections}.json`): superseded by the dashboard link grid
 - `lib/cache.ts`: `getCachedYouTubeAnalytics()`, unused once the analytics repository was removed
 
@@ -835,6 +982,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 ## [1.3.0] - 2026-08-24
 
 ### Added
+
 - **Invoice generator** (`/invoice`): standalone, live-editable A4 invoice with browser print-to-PDF export; no new dependencies
 - `data/invoice.json` + `repositories/invoice.ts`: repository-backed invoice defaults, deliverable presets, payee details, and barter defaults
 - `lib/invoice.ts`: pure formatting/calculation helpers (money, dates, line totals, balance due)
@@ -851,18 +999,21 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - `.env.example`: documents `INVOICE_PASSWORD` and `INVOICE_SESSION_SECRET`
 
 ### Changed
+
 - `app/layout.tsx`: trimmed to the root shell (fonts + theme provider); sidebar/navbar moved into the new `app/(dashboard)/layout.tsx`
 - `repositories/index.ts`: exports `invoiceRepository` and its types
 - "UGC Ad Reel (unposted)" quick-fill preset now includes an Ad Usage line, matching the other presets
 - Quick-fill presets no longer prefill the line-item sub-line bullet
 
 ### Fixed
+
 - Line-item ids were generated with `Math.random()` during the initial render, causing a React hydration mismatch; switched to deterministic ids for the first render and a counter-based generator for anything added afterward
 - Invoice form fields were missing `htmlFor`/`id` associations between labels and inputs
 - QTY column was center-aligned, which visually drifted between the regular- and bold-weight rows; switched to right-aligned to match the other numeric columns
 - Signature/stamp artwork repositioned to sit flush against the invoice's right edge, matching the source design
 
 ### Removed
+
 - "Copy row for transactions sheet" button and its clipboard handler
 - Unused hint text under the invoice panel's brand bar
 
@@ -871,6 +1022,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 ## [1.1.0] - 2026-06-21
 
 ### Added
+
 - **YouTube API integration**: analytics data is now fetched live from the YouTube Data API v3 instead of being hardcoded
 - **Daily caching via Vercel Cron**: a cron job fires every day at 6 AM UTC, fetches channel stats and recent video metrics, and stores them in Upstash Redis (26-hour TTL)
 - `services/youtube.ts`: fetches channel statistics, uploads playlist, and per-video stats (views, likes, comments); calculates engagement rate and average views
@@ -881,6 +1033,7 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 - `.env.example`: documents required environment variables
 
 ### Changed
+
 - `components/sections/Analytics.tsx`: converted from a client component to an async Server Component; delegates interactive rendering to `AnalyticsClient`
 - `repositories/analytics.ts`: `get()` is now async; overlays live YouTube data from Redis onto the JSON fallback (Instagram data remains in JSON)
 
@@ -889,12 +1042,14 @@ Verified with 32 end-to-end checks against a stubbed KV at 1440px, 390px and 320
 ## [1.0.0] - 2026-06-21
 
 ### Added
+
 - **Repository architecture**: introduced a repository layer between UI components and JSON data files following the `UI → Repository → Service → External API` pattern
 - `repositories/`, added typed repositories for all data domains: analytics, audience, brands, contact, hero, sections, services, videos
 - `repositories/index.ts`: central export for all repositories and their TypeScript interfaces
 - `CLAUDE.md`: project guidelines covering architecture, code style, Next.js conventions, and response format
 
 ### Changed
+
 - All section components (`Analytics`, `Audience`, `Brands`, `Contact`, `Hero`, `Services`, `Videos`) updated to import data via their respective repositories instead of directly from JSON
 - `components/common/AppSideBar.tsx`: sidebar updated to use sections repository
 - `app/page.tsx`: page layout updated to use repository-driven sections

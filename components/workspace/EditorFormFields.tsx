@@ -10,10 +10,11 @@ export interface EditorFormState {
   email: string;
   upi: string;
   qrImage: string | null;
+  revisionRate: string;
 }
 
 export function editorInitialForm(): EditorFormState {
-  return { name: "", phone: "", email: "", upi: "", qrImage: null };
+  return { name: "", phone: "", email: "", upi: "", qrImage: null, revisionRate: "" };
 }
 
 interface EditorFormFieldsProps {
@@ -35,6 +36,23 @@ export function EditorFormFields({ idPrefix, form, setForm, onUploadError }: Edi
           value={form.name}
           onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-revisionRate`}>Revision rate (₹)</Label>
+        <Input
+          id={`${idPrefix}-revisionRate`}
+          type="number"
+          min={0}
+          inputMode="numeric"
+          placeholder="0"
+          aria-describedby={`${idPrefix}-revisionRate-hint`}
+          value={form.revisionRate}
+          onChange={(event) => setForm((f) => ({ ...f, revisionRate: event.target.value }))}
+        />
+        <p id={`${idPrefix}-revisionRate-hint`} className="text-[11px] text-muted-foreground">
+          Added to a video&apos;s amount for each revision.
+        </p>
       </div>
 
       <div className="space-y-2">

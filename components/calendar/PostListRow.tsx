@@ -29,7 +29,7 @@ import type { Campaign } from "@/repositories/campaigns";
 import type { ContentItem } from "@/repositories/contentPlan";
 import type { WorkflowStatus } from "@/repositories/workflowStatus";
 import { PostEditSheet, StageSteps } from "./PostCard";
-import { schedulePostWithToast } from "./useScheduleDrag";
+import { schedulePostWithToast, stopDragPropagation } from "./useScheduleDrag";
 
 interface QuickMove {
   label: string;
@@ -82,6 +82,8 @@ interface PostListRowProps {
   campaign?: Campaign;
   videoOptions?: EditorVideoOption[];
   brandOptions?: CampaignBrandOption[];
+  /** Set for the click a drop produces, so a dragged row doesn't open its sheet. */
+  wasJustDragged?: () => boolean;
 }
 
 // One post in the Up next and Needs a date lists: a single line that opens
@@ -109,6 +111,7 @@ export function PostListRow({
   campaign,
   videoOptions,
   brandOptions,
+  wasJustDragged,
 }: PostListRowProps) {
   const [isPending, startTransition] = useTransition();
   const post = { source, id, title };
@@ -124,6 +127,10 @@ export function PostListRow({
   const trigger = (
     <button
       type="button"
+      onClick={(event) => {
+        // A prevented click is ignored by the sheet's trigger.
+        if (wasJustDragged?.()) event.preventDefault();
+      }}
       className={cn(
         "flex w-full min-w-0 items-center gap-3 rounded-lg border border-l-[3px] bg-card py-2 pr-10 pl-3 text-left transition hover:border-foreground/20 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none pointer-coarse:pr-13",
         accentClassName ?? "border-l-border"
@@ -170,7 +177,7 @@ export function PostListRow({
         brandOptions={brandOptions}
         trigger={trigger}
       />
-      <div className="absolute top-1/2 right-1.5 -translate-y-1/2">
+      <div className="absolute top-1/2 right-1.5 -translate-y-1/2" {...stopDragPropagation}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

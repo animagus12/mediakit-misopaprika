@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DndContext, useDroppable } from "@dnd-kit/core";
+import { useDroppable } from "@dnd-kit/core";
 import {
   CalendarArrowDown,
   CalendarArrowUp,
@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils";
 import { countStages, statusNoteOf } from "@/lib/contentCalendar";
 import type {
   CalendarDay,
-  CalendarPeriod,
   PipelineStage,
   ScheduledPost,
 } from "@/lib/contentCalendar";
@@ -28,10 +27,10 @@ import { NewContentSheet } from "./NewContentSheet";
 import { EditablePostCard, PostCardBody } from "./PostCard";
 import { POST_TONES } from "./postTone";
 import { StageFilter } from "./StageFilter";
-import { CalendarDragOverlay, useScheduleDrag } from "./useScheduleDrag";
+import { NeedsDateDragPreview } from "./NeedsDateRow";
+import { CalendarDragOverlay, useScheduleDrag, type ScheduleDragData } from "./useScheduleDrag";
 
 interface CalendarWeekViewProps {
-  period: CalendarPeriod;
   contentItems?: ContentItem[];
   campaigns?: Campaign[];
   videoOptions?: EditorVideoOption[];
@@ -65,7 +64,7 @@ function WeekPostCard({
   return (
     <EditablePostCard
       dragId={post.key}
-      dragData={{ post }}
+      dragData={{ kind: "scheduled", post } satisfies ScheduleDragData}
       draggable
       wasJustDragged={wasJustDragged}
       item={item}
@@ -200,15 +199,15 @@ function WeekDay({
 // The week laid out in full: every post as a card with its stage, its day and
 // everything that can be done to it, which the month grid has no room for on
 // a phone. Cards drag between days (a hold on a touch screen), and each has a
-// menu of moves as the dependable path on a small screen.
+// menu of moves as the dependable path on a small screen. The week and its
+// drag context come from ScheduleDragProvider, shared with Needs a date.
 export function CalendarWeekView({
-  period,
   contentItems = [],
   campaigns = [],
   videoOptions = [],
   brandOptions = [],
 }: CalendarWeekViewProps) {
-  const drag = useScheduleDrag(period);
+  const drag = useScheduleDrag();
   const [highlight, setHighlight] = useState<PipelineStage | null>(null);
   const [addDate, setAddDate] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -233,7 +232,7 @@ export function CalendarWeekView({
   const days = drag.period.weeks[0] ?? [];
 
   return (
-    <DndContext id="calendar-week" {...drag.contextProps}>
+    <>
       <StageFilter
         className="mb-2"
         counts={stageCounts}
@@ -264,18 +263,19 @@ export function CalendarWeekView({
       </div>
 
       <CalendarDragOverlay>
-        {drag.activePost && (
+        {drag.active?.kind === "scheduled" && (
           <div className="w-72 max-w-[80vw] cursor-grabbing rounded-md border bg-card p-2.5 shadow-lg">
             <PostCardBody
-              title={drag.activePost.title}
-              badge={badgeOf(drag.activePost)}
-              status={drag.activePost.status}
-              stage={drag.activePost.stage}
-              label={drag.activePost.label}
-              labelClassName={POST_TONES[drag.activePost.state].text}
+              title={drag.active.post.title}
+              badge={badgeOf(drag.active.post)}
+              status={drag.active.post.status}
+              stage={drag.active.post.stage}
+              label={drag.active.post.label}
+              labelClassName={POST_TONES[drag.active.post.state].text}
             />
           </div>
         )}
+        {drag.active?.kind === "unscheduled" && <NeedsDateDragPreview post={drag.active.post} />}
       </CalendarDragOverlay>
 
       <NewContentSheet
@@ -284,6 +284,6 @@ export function CalendarWeekView({
         initialDate={addDate}
         videoOptions={videoOptions}
       />
-    </DndContext>
+    </>
   );
 }

@@ -215,7 +215,7 @@ export function formatActivityTime(at: string): string {
   return Number.isNaN(date.getTime()) ? "" : TIME.format(date);
 }
 
-/** Matches the wording LastRefreshed already uses on the dashboard. */
+/** "just now", "5m ago", "3h ago", "2d ago", then the date past a week. */
 export function formatActivityAge(at: string, now: Date = new Date()): string {
   const then = new Date(at).getTime();
   if (Number.isNaN(then)) return "";
