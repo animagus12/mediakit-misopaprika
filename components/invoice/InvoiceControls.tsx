@@ -18,6 +18,7 @@ import {
   formatInvoiceStatus,
   formatMoney,
   INVOICE_STATUS_OPTIONS,
+  isInvoiceNoTaken,
   type InvoiceBrandOption,
   type InvoiceEditorJobOption,
 } from "@/lib/invoice";
@@ -58,7 +59,7 @@ export function InvoiceControls({
   isExisting,
   onImageUploadError,
 }: InvoiceControlsProps) {
-  const numberClash = Boolean(state.invoiceNo.trim()) && takenInvoiceNumbers.includes(state.invoiceNo.trim());
+  const numberClash = isInvoiceNoTaken(state.invoiceNo, takenInvoiceNumbers);
   const linkedBrand = state.brandId ? brandOptions.find((option) => option.id === state.brandId) : undefined;
   const editorJobLabel = (job: InvoiceEditorJobOption) =>
     `${job.video || "Untitled"}: ${job.editor || "?"}${job.amount != null ? ` · ${formatMoney(job.amount)}` : ""}`;

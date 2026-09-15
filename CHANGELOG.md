@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.22.3] - 2026-09-15
+
+### Fixed
+
+- **An invoice can no longer be saved under a number another invoice already uses.** `addInvoice` refuses it, and so does `updateInvoice` when the number changes, with "MSP-INV-0012 is already used by another invoice". The editor's warning used to compare raw strings, so "12" passed while "0012" was saved; every comparison now goes through `invoiceNoKey`, which reads "MSP-INV-0012", "0012" and "12" as one number.
+- **Deal references and invoice numbers are one sequence.** A new paid deal's auto reference continues past saved invoice numbers, and renewal invoices, a deal's fallback number and the blank editor's number skip references deals already quote (`reservedInvoiceNumbers`). A renewal could previously be raised as 0012 while another deal quoted MSP-INV-0012.
+- **Saving an invoice links it to the right deal.** Matching by typed reference only considers deals no other invoice bills yet, and never a renewal's invoice, so one deal's invoice can't be taken over by another deal quoting the same number. A linked deal's reference follows its invoice's number, so renumbering an invoice updates the campaigns table and its link.
+- **Retyping a deal's invoice reference relinks it.** Saving a deal whose reference names an invoice it isn't linked to links it (`invoiceClaimedByRef`), taking the link from another deal only when that deal quotes a different number. This repairs an invoice that was linked to the wrong deal.
+- **A "Not tracked" deal follows its invoice.** Marking the invoice sent moves the deal to pending, and paid moves it to received (`paymentStatusForInvoice`). Called-off deals are still left alone.
+- **The dashboard's Create invoice links open the deal-filled editor** (`/invoices/new?campaignId=`), so the saved invoice links to that deal rather than being matched by number.
+
 ## [1.22.2] - 2026-09-15
 
 ### Added

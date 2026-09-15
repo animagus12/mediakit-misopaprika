@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AlarmClock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMoney } from "@/lib/invoice";
+import { formatMoney, newInvoiceHref } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import { summarizeDuePayments, type DuePayment } from "@/lib/brandCampaignStats";
 import type { CollectionLag } from "@/lib/cashTiming";
@@ -16,16 +16,6 @@ import { useMarkReceived } from "./useMarkReceived";
 function needsInvoice(invoiceRef: string): boolean {
   const ref = invoiceRef.trim();
   return ref === "" || ref === "-";
-}
-
-// Prefill the invoice editor with this deal's brand + campaign so the saved
-// invoice lines up with the record.
-function newInvoiceHref(brand: string, campaign: string): string {
-  const params = new URLSearchParams();
-  if (brand.trim()) params.set("client", brand.trim());
-  if (campaign.trim()) params.set("campaign", campaign.trim());
-  const query = params.toString();
-  return query ? `/invoices/new?${query}` : "/invoices/new";
 }
 
 interface PaymentsDueCardProps {
@@ -134,7 +124,7 @@ export function PaymentsDueCard({ due, lag, className }: PaymentsDueCardProps) {
                 )}
                 {needsInvoice(record.invoiceRef) && (
                   <Button asChild size="sm" variant="ghost">
-                    <Link href={newInvoiceHref(record.brand, record.campaign)}>
+                    <Link href={newInvoiceHref(record.brand, record.campaign, record.campaignId)}>
                       <FileText />
                       Invoice
                     </Link>

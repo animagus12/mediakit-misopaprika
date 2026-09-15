@@ -2,6 +2,7 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import invoicesSeed from "@/data/invoices.json";
 import type { RecordChange } from "@/lib/activityDiff";
+import { buildInvoiceNumber, invoiceNoKey, isInvoiceNoTaken } from "@/lib/invoice";
 import { toInvoice } from "./invoices";
 import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
 
@@ -79,10 +80,22 @@ function normalize(input: NewInvoice): NewInvoice {
   };
 }
 
+// Refused here rather than only warned about in the editor: the warning is a
+// hint on one form, and a renewal or a second tab saves without ever showing
+// it. Two invoices under one number is a document a brand's accounts team
+// cannot tell apart, and the number is what a deal is matched to.
+function assertInvoiceNoFree(invoiceNo: string, records: InvoiceRecord[], exceptId?: string): void {
+  const others = records.filter((record) => record.id !== exceptId).map((record) => record.invoiceNo);
+  if (isInvoiceNoTaken(invoiceNo, others)) {
+    throw new Error(`${buildInvoiceNumber(invoiceNo)} is already used by another invoice`);
+  }
+}
+
 export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
+  assertInvoiceNoFree(input.invoiceNo, records);
   const now = new Date().toISOString();
   const record: InvoiceRecord = {
     id: crypto.randomUUID(),
@@ -109,6 +122,12 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
   const records = await readRecords();
   const before = records.find((record) => record.id === input.id);
   if (!before) return null;
+  // Only when the number moves: an invoice that already shares its number with
+  // an older one should still take a status change, and its clash is fixed by
+  // renumbering it, which this does check.
+  if (invoiceNoKey(input.invoiceNo) !== invoiceNoKey(before.invoiceNo)) {
+    assertInvoiceNoFree(input.invoiceNo, records, input.id);
+  }
   const after: InvoiceRecord = { ...before, ...normalize(input), updatedAt: new Date().toISOString() };
   await redis.set(INVOICES_KEY, records.map((record) => (record.id === input.id ? after : record)));
   return { before, after };

@@ -4,8 +4,10 @@ import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
 import type { Invoice, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
+import type { CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
+import { isCampaignCalledOff } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
@@ -38,6 +40,23 @@ export function todayISO(offsetDays = 0): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * The invoice editor, opened for one deal.
+ *
+ * `campaignId` fills every field from the deal and links the saved invoice to
+ * it directly (a deal already invoiced opens that invoice instead). Brand and
+ * campaign ride along for a deal the page can no longer find, so the editor
+ * still names the pair selectAttentionItems matches a deal's invoice on.
+ */
+export function newInvoiceHref(brand: string, campaign: string, campaignId?: string): string {
+  const params = new URLSearchParams();
+  if (campaignId?.trim()) params.set("campaignId", campaignId.trim());
+  if (brand.trim()) params.set("client", brand.trim());
+  if (campaign.trim()) params.set("campaign", campaign.trim());
+  const query = params.toString();
+  return query ? `/invoices/new?${query}` : "/invoices/new";
+}
+
 export function buildInvoiceNumber(invoiceNo: string): string {
   return `MSP-INV-${String(invoiceNo || "").trim().padStart(4, "0")}`;
 }
@@ -58,19 +77,48 @@ export function findInvoiceByCampaignRef<T extends { invoiceNo: string }>(
   invoiceRef: string,
   invoices: T[]
 ): T | null {
-  const needle = invoiceRef.trim().toLowerCase();
+  const needle = invoiceNoKey(invoiceRef);
   if (!needle || needle === "-") return null;
-  return (
-    invoices.find((invoice) => {
-      const no = invoice.invoiceNo.trim().toLowerCase();
-      if (!no) return false;
-      return (
-        needle === no ||
-        needle === no.replace(/^0+/, "") ||
-        needle === buildInvoiceNumber(invoice.invoiceNo).toLowerCase()
-      );
-    }) ?? null
-  );
+  return invoices.find((invoice) => invoiceNoKey(invoice.invoiceNo) === needle) ?? null;
+}
+
+/**
+ * One invoice number however it was written: "MSP-INV-0012", "0012" and "12"
+ * all answer "12". Every comparison between two invoice numbers goes through
+ * this, since comparing the raw strings is how "12" once passed as unused
+ * while "0012" was already saved.
+ */
+export function invoiceNoKey(invoiceNo: string): string {
+  const bare = invoiceNo.trim().toLowerCase().replace(/^msp-inv-/, "");
+  return /^\d+$/.test(bare) ? String(Number(bare)) : bare;
+}
+
+/** Whether `invoiceNo` names one of `numbers`. A blank number clashes with nothing. */
+export function isInvoiceNoTaken(invoiceNo: string, numbers: string[]): boolean {
+  const key = invoiceNoKey(invoiceNo);
+  return key !== "" && numbers.some((number) => invoiceNoKey(number) === key);
+}
+
+/**
+ * Every invoice number already spoken for: the saved invoices' own, and the
+ * references deals quote before an invoice exists for them.
+ *
+ * Both, because they are one sequence to the brand reading them. A deal is
+ * handed "MSP-INV-0012" the day it is added, and an invoice raised elsewhere
+ * (a renewal, one typed by hand) under 0012 afterwards leaves two documents
+ * with one number and matches the wrong deal to it.
+ */
+export function reservedInvoiceNumbers(
+  invoices: { invoiceNo: string }[],
+  campaigns: { invoiceRef: string }[]
+): { invoiceNo: string }[] {
+  return [
+    ...invoices,
+    ...campaigns.flatMap((campaign) => {
+      const match = campaign.invoiceRef.trim().match(/^MSP-INV-(\d+)$/i);
+      return match ? [{ invoiceNo: match[1] }] : [];
+    }),
+  ];
 }
 
 /**
@@ -93,6 +141,58 @@ export function resolveCampaignInvoice<T extends { id: string; invoiceNo: string
     if (linked) return linked;
   }
   return findInvoiceByCampaignRef(link.invoiceRef, invoices);
+}
+
+interface InvoiceLinkHolder {
+  id: string;
+  invoiceId: string | null;
+  invoiceRef: string;
+}
+
+/**
+ * The invoice a deal's typed reference should link it to, and the deal that
+ * holds that link now, or null to leave every link as it is.
+ *
+ * Saving a deal whose reference names an invoice it isn't linked to is the
+ * creator saying which document bills it. It takes the link from another deal
+ * only when that deal quotes some other number: such a link was made by
+ * matching the wrong deal to the invoice, and is exactly what the reference is
+ * correcting. A deal that quotes the same number keeps it, since two deals
+ * quoting one number is ambiguous and a guess would only move the problem.
+ */
+export function invoiceClaimedByRef<T extends { id: string; invoiceNo: string }>(
+  deal: InvoiceLinkHolder,
+  campaigns: InvoiceLinkHolder[],
+  invoices: T[]
+): { invoice: T; previousHolderId: string | null } | null {
+  const linked = deal.invoiceId ? invoices.filter((invoice) => invoice.id === deal.invoiceId) : [];
+  if (findInvoiceByCampaignRef(deal.invoiceRef, linked)) return null;
+
+  const invoice = findInvoiceByCampaignRef(deal.invoiceRef, invoices);
+  if (!invoice) return null;
+
+  const holder = campaigns.find((entry) => entry.id !== deal.id && entry.invoiceId === invoice.id);
+  if (holder && findInvoiceByCampaignRef(holder.invoiceRef, [invoice])) return null;
+  return { invoice, previousHolderId: holder?.id ?? null };
+}
+
+/**
+ * The payment status a deal moves to when the invoice billing it is marked
+ * `invoiceStatus`, or null to leave the deal alone.
+ *
+ * Sent means the money is owed and paid means it arrived, whatever the deal
+ * said before, "Not tracked" included: raising and sending the invoice is the
+ * tracking. A called-off deal is owed nothing, so an invoice cannot put a
+ * payment back on it; drafts and void invoices say nothing about money.
+ */
+export function paymentStatusForInvoice(
+  campaign: { status: CampaignStatus; paymentStatus: CampaignPaymentStatus },
+  invoiceStatus: InvoiceStatus
+): CampaignPaymentStatus | null {
+  if (invoiceStatus !== "paid" && invoiceStatus !== "sent") return null;
+  if (isCampaignCalledOff(campaign.status)) return null;
+  const target = invoiceStatus === "paid" ? "received" : "pending";
+  return campaign.paymentStatus === target ? null : target;
 }
 
 export function lineItemTotal(item: InvoiceLineItemInput): number {

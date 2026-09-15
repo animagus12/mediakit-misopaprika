@@ -8,7 +8,12 @@ import {
   updateInvoice as updateInvoiceRecord,
 } from "@/repositories/invoices.writer.server";
 import { campaignRepository } from "@/repositories/campaignRepository";
-import { buildInvoiceNumber, computeSubtotal } from "@/lib/invoice";
+import {
+  buildInvoiceNumber,
+  computeSubtotal,
+  findInvoiceByCampaignRef,
+  paymentStatusForInvoice,
+} from "@/lib/invoice";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
 import { invoiceFields } from "@/lib/activityFields";
@@ -33,8 +38,8 @@ function toActionError(err: unknown, fallback: string): { success: false; error:
  * deal and Earnings still counts it as outstanding, because every one of
  * those is computed from Campaign.paymentStatus alone (see selectDuePayments).
  *
- * A deal already in the target state is left alone, so this never overwrites a
- * "unknown" payment status that nobody asked it to touch.
+ * What the deal moves to is paymentStatusForInvoice's call: a "Not tracked"
+ * deal follows its invoice too, and a called-off one never does.
  */
 async function syncLinkedCampaignPayment(
   invoiceId: string,
@@ -42,34 +47,36 @@ async function syncLinkedCampaignPayment(
   status: InvoiceStatus,
   campaignId?: string
 ): Promise<void> {
-  const ref = buildInvoiceNumber(invoiceNo).toUpperCase();
   const campaigns = await campaignRepository.getAll();
+  // A renewal's invoice bills a licence extension, not the deal: its link and
+  // its payment live on the renewal (see setUsageRenewalPaymentStatus).
+  if (campaigns.some((entry) => entry.usage.renewals.some((renewal) => renewal.invoiceId === invoiceId))) {
+    return;
+  }
   // The deal the invoice was raised from, when it was, since that is known
   // rather than inferred. Then by key, so a deal already reconciled keeps its
   // invoice even after that invoice is renumbered; by the typed reference
-  // otherwise, which is the only handle a deal that predates the link has.
+  // otherwise, which is the only handle a deal that predates the link has, and
+  // only on a deal no other invoice bills yet: matching a linked deal by number
+  // is how one deal's invoice was once stolen by another quoting the same one.
   const campaign =
     (campaignId ? campaigns.find((entry) => entry.id === campaignId) : undefined) ??
     campaigns.find((entry) => entry.invoiceId === invoiceId) ??
-    campaigns.find((entry) => entry.invoiceRef.trim().toUpperCase() === ref);
+    campaigns.find(
+      (entry) => !entry.invoiceId && findInvoiceByCampaignRef(entry.invoiceRef, [{ invoiceNo }])
+    );
   if (!campaign) return;
 
   // Written before the status check below, and regardless of what that status
   // is: saving the invoice is the one moment the app knows which record the
   // typed reference meant, and a draft names its deal just as well as a paid
-  // one does. Matching the number back on every later read is work this write
-  // makes unnecessary.
-  if (campaign.invoiceId !== invoiceId) {
-    await campaignRepository.linkInvoice(campaign.id, invoiceId);
-  }
+  // one does. The deal's reference follows the invoice's number, so raising it
+  // under another number or renumbering it later leaves no stale reference on
+  // the campaigns table. A no-op when both already agree.
+  await campaignRepository.linkInvoice(campaign.id, invoiceId, invoiceNo);
 
-  if (status !== "paid" && status !== "sent") return;
-
-  const target = status === "paid" ? "received" : "pending";
-  if (campaign.paymentStatus === target) return;
-  // Only ever flips between the two states this action owns: a deal marked
-  // "unknown" (e.g. a cancelled one) is left as it is.
-  if (campaign.paymentStatus !== "received" && campaign.paymentStatus !== "pending") return;
+  const target = paymentStatusForInvoice(campaign, status);
+  if (!target) return;
 
   // Through the repository rather than the writer, so this collects a payment
   // the same way the dashboard's "Mark received" does: stamping the day the
