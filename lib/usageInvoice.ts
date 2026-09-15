@@ -1,10 +1,11 @@
 import { formatInvoiceDate } from "@/lib/invoice";
+import { formatUsageDays } from "@/lib/usageRights";
 import type { InvoiceData } from "@/repositories/invoice";
-import type { NewInvoice } from "@/repositories/invoices";
+import type { InvoicePaymentSnapshot, NewInvoice } from "@/repositories/invoices";
 
 // Turns a licence renewal into the invoice that bills for it.
 //
-// A renewal is a sale: months of usage for a price, agreed on a date, owed by
+// A renewal is a sale: days of usage for a price, agreed on a date, owed by
 // a date. Every one of those is already captured when the renewal is recorded,
 // so retyping them into the invoice editor afterwards was pure transcription,
 // and the invoice that never got retyped was the one the money went missing
@@ -25,7 +26,7 @@ export interface RenewalInvoiceInput {
   contactName: string;
   /** The deal's campaign name, or "" when it was never given one. */
   campaignName: string;
-  months: number;
+  days: number;
   amount: number;
   startDate: string; // yyyy-mm-dd, the day the extended term runs from
   /** yyyy-mm-dd the fee is due, or "" to fall back to the defaults' terms. */
@@ -55,20 +56,23 @@ export function nextInvoiceNo(existing: { invoiceNo: string }[], seed: string): 
   return String(next).padStart(Math.max(4, seed.trim().length), "0");
 }
 
-function termLine(months: number, startDate: string): string {
-  const term = `${months} month${months === 1 ? "" : "s"}`;
+export function termLine(days: number, startDate: string): string {
+  const term = formatUsageDays(days);
   const from = formatInvoiceDate(startDate);
   return from ? `${term} from ${from}` : term;
 }
 
 /**
- * Adds `days` to a yyyy-mm-dd date. Local-time arithmetic, matching
- * lib/invoice.ts's todayISO, which is what produces every other invoice date.
+ * Adds `days` to a yyyy-mm-dd date.
+ *
+ * Calendar arithmetic in UTC on both ends. Parsing at local midnight and
+ * formatting with toISOString, as this used to, lands on the previous day
+ * anywhere east of UTC: in IST every due date came out one day short.
  */
-function addDaysISO(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00`);
+export function addDaysISO(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return iso;
-  date.setDate(date.getDate() + days);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
@@ -91,7 +95,7 @@ function addDaysISO(iso: string, days: number): string {
  * and silence the "Delivered, no invoice raised" warning.
  */
 export function buildRenewalInvoice(input: RenewalInvoiceInput): NewInvoice {
-  const { defaults, payee } = { defaults: input.defaults, payee: input.defaults.payee };
+  const { defaults } = input;
   const campaign = input.campaignName.trim();
 
   return {
@@ -115,7 +119,7 @@ export function buildRenewalInvoice(input: RenewalInvoiceInput): NewInvoice {
     items: [
       {
         desc: "Ad usage rights renewal",
-        sub: termLine(input.months, input.startDate),
+        sub: termLine(input.days, input.startDate),
         qty: 1,
         price: input.amount,
       },
@@ -124,16 +128,22 @@ export function buildRenewalInvoice(input: RenewalInvoiceInput): NewInvoice {
     // A licence extension is paid in cash or not at all: there is no product
     // being sent for it, which is what barter on a deal accounts for.
     barter: { enabled: false, value: 0, status: "" },
-    payment: {
-      payeeName: payee.name,
-      payeeEmail: payee.email,
-      mode: payee.paymentMode,
-      upi: payee.upi,
-      bank: { ...payee.bank },
-      footerNote: payee.footerNote,
-      closingLine: payee.closingLine,
-      qrImage: payee.defaultQrImage,
-      stampImage: payee.defaultStampImage,
-    },
+    payment: paymentSnapshot(defaults),
+  };
+}
+
+/** The payee, bank and branding block a new invoice snapshots from the defaults. */
+export function paymentSnapshot(defaults: InvoiceData): InvoicePaymentSnapshot {
+  const { payee } = defaults;
+  return {
+    payeeName: payee.name,
+    payeeEmail: payee.email,
+    mode: payee.paymentMode,
+    upi: payee.upi,
+    bank: { ...payee.bank },
+    footerNote: payee.footerNote,
+    closingLine: payee.closingLine,
+    qrImage: payee.defaultQrImage,
+    stampImage: payee.defaultStampImage,
   };
 }

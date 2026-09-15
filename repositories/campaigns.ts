@@ -7,6 +7,7 @@
 // app (lib/campaigns.ts, lib/brandCampaignStats.ts, ...) keeps working
 // unchanged: same choice already made for data/editor-transactions.json.
 
+import { addMonthsToDay, daysBetween } from "@/lib/day";
 import { toWorkflowStatus, type WorkflowStatus } from "./workflowStatus";
 
 export type CampaignPaymentStatus = "received" | "pending" | "unknown";
@@ -60,7 +61,7 @@ export type UsageStatus = "active" | "paused" | "ended";
 export interface UsageRenewalRecord {
   id: string; // "R0001", unique within the deal: see nextSequenceId
   startDate: string; // DD/MM/YYYY the extended term runs from
-  months: number;
+  days: number; // length of the extended term, counted from startDate
   amount: number; // 0 for an extension granted for free
   paymentStatus: CampaignPaymentStatus;
   paymentDue: string; // DD/MM/YYYY, "" when nothing was agreed
@@ -80,8 +81,35 @@ export interface UsageRenewalRecord {
 }
 
 export interface CampaignUsage {
-  /** The base term in months, counted from uploadDate. 0 = not tracked. */
-  months: number;
+  /**
+   * The base term in days, counted from uploadDate. 0 = not tracked.
+   *
+   * Days rather than months because licences are sold for any length, a
+   * one-day boost as readily as a quarter, and a month is not a fixed number
+   * of days to convert one into.
+   */
+  days: number;
+  /**
+   * Granted with no end date: the brand may run the content for as long as it
+   * likes.
+   *
+   * A flag rather than a very large `days`, because "forever" is a different
+   * answer from "a long time": it never expires, so there is nothing to warn
+   * about, renew or pause, and a sentinel number would reach every countdown
+   * that has to be taught to ignore it. `days` is 0 while this is set.
+   */
+  indefinite: boolean;
+  /**
+   * What the brand pays for the base licence, charged on top of the deal's
+   * `amount`, 0 when nothing was charged for it.
+   *
+   * An addition, not a share: `amount` is the price of the post, and the fee
+   * is a second price for the right to run it as an ad, the same split the
+   * rate card sells. Everything that reads the deal's money reads
+   * `Campaign.cash`, which is the two together, so a fee is invoiced, chased
+   * and counted as income like the rest of the deal.
+   */
+  fee: number;
   status: UsageStatus;
   /**
    * DD/MM/YYYY the countdown was frozen on, "" while it is running.
@@ -100,23 +128,80 @@ export interface CampaignUsage {
 }
 
 export function emptyUsage(): CampaignUsage {
-  return { months: 0, status: "active", pausedOn: "", pausedDays: 0, endedOn: "", renewals: [] };
+  return { days: 0, indefinite: false, fee: 0, status: "active", pausedOn: "", pausedDays: 0, endedOn: "", renewals: [] };
+}
+
+/** A renewal as stored: one written before terms moved to days carries `months`. */
+export type StoredUsageRenewal = Omit<UsageRenewalRecord, "days"> & { days?: number; months?: number };
+
+/** A licence as stored, in either the days shape or the months one before it. */
+export type StoredUsage = Omit<CampaignUsage, "days" | "indefinite" | "fee" | "renewals"> & {
+  days?: number;
+  indefinite?: boolean;
+  months?: number;
+  fee?: number;
+  renewals?: StoredUsageRenewal[];
+};
+
+const SHEET_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+
+/**
+ * A stored term's length in days, converting one recorded in months.
+ *
+ * Converted as calendar months from the day the term starts, not at a flat
+ * thirty days: three months from 10 August is 92 days, and counting it as 90
+ * would move the end date of every licence already on the books. Measured this
+ * way, a converted licence runs out on exactly the day it did before. With no
+ * start date to measure from, thirty days a month stands in. The stored months
+ * are converted on every read until the licence is next saved, which writes
+ * the days and ends the conversion for that record.
+ */
+function termDays(raw: { days?: number; months?: number }, startDate: string): number {
+  if (raw.days !== undefined) return Math.max(0, Math.round(Number(raw.days) || 0));
+  const months = Math.max(0, Math.round(Number(raw.months) || 0));
+  if (months === 0) return 0;
+  const match = startDate.trim().match(SHEET_DATE);
+  if (!match) return months * 30;
+  const [, day, month, year] = match;
+  const startKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const endKey = addMonthsToDay(startKey, months);
+  return endKey ? daysBetween(startKey, endKey) : months * 30;
 }
 
 // Legacy rows predate the field entirely, and a hand-edited one can carry
 // anything: every campaign read through toCampaign gets a whole, coerced
 // object, so nothing downstream has to test for its absence. Records are
 // healed on their next write (see normalize in ./campaigns.writer.server).
-export function toUsage(raw: CampaignUsage | undefined): CampaignUsage {
+//
+// `termStart` is the DD/MM/YYYY the base term counts from (the upload date,
+// falling back to the deal date), used only to convert a term stored in months.
+export function toUsage(raw: StoredUsage | undefined, termStart: string): CampaignUsage {
   if (!raw) return emptyUsage();
+  // Absent on every licence written before the option existed, all of which
+  // had an end date.
+  const indefinite = raw.indefinite === true;
   return {
-    months: Math.max(0, Math.round(Number(raw.months) || 0)),
+    days: indefinite ? 0 : termDays(raw, termStart),
+    indefinite,
+    // Absent on every licence written before the split: 0 reads as "not priced
+    // separately", which is exactly what those records are.
+    fee: Math.max(0, Number(raw.fee) || 0),
     status: raw.status === "paused" || raw.status === "ended" ? raw.status : "active",
     pausedOn: raw.pausedOn?.trim() ?? "",
     pausedDays: Math.max(0, Math.round(Number(raw.pausedDays) || 0)),
     endedOn: raw.endedOn?.trim() ?? "",
-    renewals: Array.isArray(raw.renewals) ? raw.renewals : [],
+    renewals: Array.isArray(raw.renewals)
+      ? raw.renewals.map(({ months, days, ...renewal }) => ({
+          ...renewal,
+          days: termDays({ days, months }, renewal.startDate ?? ""),
+        }))
+      : [],
   };
+}
+
+/** The day a deal's base licence counts from, as toUsage needs it. */
+export function usageTermStart(record: Pick<CampaignRecord, "uploadDate" | "date">): string {
+  return record.uploadDate?.trim() || record.date;
 }
 
 // --- Invoice link --------------------------------------------------------
@@ -199,11 +284,18 @@ export interface CampaignRecord extends CampaignInvoiceLink {
    */
   editorTransactionId?: string | null;
   /** The ad-usage licence on this deal. Absent on rows that predate it. */
-  usage?: CampaignUsage;
+  usage?: StoredUsage;
 }
 
 export interface Campaign extends CampaignRecord {
-  total: number; // amount + barterValue, derived, never stored, so it can't drift
+  /**
+   * The deal's cash: `amount` plus the ad usage fee. Derived, never stored.
+   *
+   * Every read of what a deal is owed or paid in money reads this rather than
+   * `amount`, which is only the post's own price and is what the form edits.
+   */
+  cash: number;
+  total: number; // cash + barterValue, derived, never stored, so it can't drift
   stage: CampaignStage; // derived from status, see PAST_STATUSES
   paidDate: string; // "" rather than absent: see toCampaign
   editorTransactionId: string | null; // null rather than absent: see toCampaign
@@ -229,8 +321,16 @@ export interface NewCampaignInput {
   paymentMethod?: string;
   /** The editing job behind the video, or null when there wasn't one. */
   editorTransactionId?: string | null;
-  /** The base licence term. Renewals are added separately, never through a form. */
-  usageMonths?: number;
+  /** The base licence term in days. Renewals are added separately, never through a form. */
+  usageDays?: number;
+  /** Granted with no end date. Absent on update keeps the stored setting. */
+  usageIndefinite?: boolean;
+  /** The latest renewal's length in days. Absent keeps it; ignored with no renewals. */
+  usageRenewalDays?: number;
+  /** DD/MM/YYYY an ended licence was called off on. Absent keeps it; ignored unless ended. */
+  usageEndedOn?: string;
+  /** The part of `amount` agreed for the base licence. Absent on update keeps the stored fee. */
+  usageFee?: number;
 }
 
 export interface CampaignUpdate extends NewCampaignInput {
@@ -239,11 +339,14 @@ export interface CampaignUpdate extends NewCampaignInput {
 
 export function toCampaign(record: CampaignRecord): Campaign {
   const status = toCampaignStatus(record.status);
+  const usage = toUsage(record.usage, usageTermStart(record));
+  const cash = record.amount + usage.fee;
   return {
     ...record,
     ...toInvoiceLink(record),
     status,
-    total: record.amount + record.barterValue,
+    cash,
+    total: cash + record.barterValue,
     stage: PAST_STATUSES.has(status) ? "past" : "active",
     paidDate: record.paidDate?.trim() ?? "",
     // An empty string is what a cleared <Select> leaves behind and a row
@@ -251,7 +354,7 @@ export function toCampaign(record: CampaignRecord): Campaign {
     // thing, so both settle on null and no reader downstream has to test for
     // two kinds of absence.
     editorTransactionId: record.editorTransactionId?.trim() || null,
-    usage: toUsage(record.usage),
+    usage,
   };
 }
 

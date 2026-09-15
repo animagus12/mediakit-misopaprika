@@ -18,7 +18,7 @@ import {
   type InvoiceLineItem,
 } from "@/lib/invoice";
 import type { InvoiceData } from "@/repositories/invoice";
-import type { Invoice } from "@/repositories/invoices";
+import type { Invoice, NewInvoice } from "@/repositories/invoices";
 import { InvoiceControls } from "./InvoiceControls";
 import { InvoicePreview } from "./InvoicePreview";
 import type { InvoiceFormState } from "./types";
@@ -27,12 +27,16 @@ import styles from "./invoice.module.css";
 function buildInitialState(
   data: InvoiceData,
   invoice: Invoice | undefined,
+  prefill: NewInvoice | undefined,
   brandOptions: InvoiceBrandOption[],
   initialBrandId?: string,
   initialCampaignName?: string,
   initialClientName?: string
 ): InvoiceFormState {
   if (invoice) return invoiceRecordToFormState(invoice);
+  // Raised from a deal ("Create invoice" on a campaign): every field is
+  // already answered, so the loose deep-link params below have nothing to add.
+  if (prefill) return invoiceRecordToFormState(prefill);
   const base = invoiceDefaultsToFormState(data);
   // Deep-linked from a brand ("New invoice" on /brands/[id]): pre-select it
   // and seed the shown client name from the brand.
@@ -59,6 +63,10 @@ function buildInitialState(
 interface InvoiceGeneratorProps {
   data: InvoiceData;
   invoice?: Invoice;
+  /** An unsaved invoice built from a stored record, to open the editor on. */
+  prefill?: NewInvoice;
+  /** The deal `prefill` was built from, so saving links the two. */
+  campaignId?: string;
   takenInvoiceNumbers?: string[];
   brandOptions?: InvoiceBrandOption[];
   editorJobOptions?: InvoiceEditorJobOption[];
@@ -70,6 +78,8 @@ interface InvoiceGeneratorProps {
 export function InvoiceGenerator({
   data,
   invoice,
+  prefill,
+  campaignId,
   takenInvoiceNumbers = [],
   brandOptions = [],
   editorJobOptions = [],
@@ -79,7 +89,7 @@ export function InvoiceGenerator({
 }: InvoiceGeneratorProps) {
   const router = useRouter();
   const [state, setState] = useState<InvoiceFormState>(() =>
-    buildInitialState(data, invoice, brandOptions, initialBrandId, initialCampaignName, initialClientName)
+    buildInitialState(data, invoice, prefill, brandOptions, initialBrandId, initialCampaignName, initialClientName)
   );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
@@ -209,7 +219,7 @@ export function InvoiceGenerator({
         showToast(result.success ? "Invoice saved" : result.error);
         return;
       }
-      const result = await createInvoiceAction(input);
+      const result = await createInvoiceAction(input, campaignId);
       if (!result.success) {
         showToast(result.error);
         return;
@@ -218,7 +228,7 @@ export function InvoiceGenerator({
       showToast("Invoice saved");
       router.replace(`/invoices/${result.id}`);
     });
-  }, [state, data, invoice, router, showToast]);
+  }, [state, data, invoice, campaignId, router, showToast]);
 
   // Opens the browser's print/Save-as-PDF dialog for the live preview. The
   // invoice.module.css @media print rules hide the controls panel, so only

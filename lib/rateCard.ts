@@ -86,7 +86,7 @@ export function cardValueOf(
 ): number {
   const packages = deliverableCount(deal.reels);
   if (packages === 0) return 0;
-  const licensed = deal.usage.months > 0 ? card.usagePrice : 0;
+  const licensed = deal.usage.days > 0 || deal.usage.indefinite ? card.usagePrice : 0;
   return packages * (card.packagePrice + licensed);
 }
 
@@ -162,7 +162,7 @@ export function computeRateRealization(
     packages += deliverableCount(campaign.reels);
     cardValue += dealCardValue;
     value += campaign.total;
-    cash += campaign.amount;
+    cash += campaign.cash;
   }
 
   if (cardValue <= 0) return null;

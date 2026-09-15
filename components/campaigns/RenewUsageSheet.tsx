@@ -25,11 +25,11 @@ import {
 import { renewCampaignUsage } from "@/app/(dashboard)/actions";
 import { PAYMENT_STATUS_OPTIONS, paymentStatusLabel } from "@/lib/campaigns";
 import { buildInvoiceNumber } from "@/lib/invoice";
-import { defaultRenewalStart, type UsageTerm } from "@/lib/usageRights";
+import { defaultRenewalStart, formatUsageDays, type UsageTerm } from "@/lib/usageRights";
 import type { CampaignPaymentStatus } from "@/repositories/campaigns";
 
 interface RenewFormState {
-  months: string;
+  days: string;
   amount: string;
   startDate: string;
   paymentStatus: CampaignPaymentStatus;
@@ -38,13 +38,13 @@ interface RenewFormState {
   paymentMethod: string;
 }
 
-// Three months is the term most licences are written for, so it is what the
-// field opens on; the amount deliberately is not guessed from the deal, since
+// Ninety days, a quarter, is the term most licences are written for, so it is
+// what the field opens on; the amount deliberately is not guessed from the deal, since
 // a renewal is negotiated separately and a prefilled price is one nobody
 // re-reads before saving.
 function initialForm(term: UsageTerm): RenewFormState {
   return {
-    months: "3",
+    days: "90",
     amount: "",
     startDate: defaultRenewalStart(term),
     paymentStatus: "pending",
@@ -84,7 +84,7 @@ export function RenewUsageSheet({
   const [isPending, startTransition] = useTransition();
 
   const formId = `renew-usage-${campaignId}`;
-  const months = Number(form.months) || 0;
+  const days = Number(form.days) || 0;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -92,7 +92,7 @@ export function RenewUsageSheet({
     startTransition(async () => {
       const result = await renewCampaignUsage(campaignId, {
         startDate: form.startDate,
-        months,
+        days,
         amount: Number(form.amount) || 0,
         paymentStatus: form.paymentStatus,
         paymentDue: form.paymentDue,
@@ -106,7 +106,7 @@ export function RenewUsageSheet({
       setOpen(false);
       onRenewed?.();
 
-      const term = `${months} more month${months === 1 ? "" : "s"}`;
+      const term = `${formatUsageDays(days)} more`;
       if (result.warning) {
         // The renewal landed either way; the warning is about the invoice not
         // following, which is worth saying rather than showing a plain success.
@@ -149,15 +149,15 @@ export function RenewUsageSheet({
         <form id={formId} onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-6">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor={`${formId}-months`}>Months</Label>
+              <Label htmlFor={`${formId}-days`}>Days</Label>
               <Input
-                id={`${formId}-months`}
+                id={`${formId}-days`}
                 type="number"
                 min={1}
                 step={1}
                 required
-                value={form.months}
-                onChange={(event) => setForm((f) => ({ ...f, months: event.target.value }))}
+                value={form.days}
+                onChange={(event) => setForm((f) => ({ ...f, days: event.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -257,7 +257,7 @@ export function RenewUsageSheet({
               Cancel
             </Button>
           </SheetClose>
-          <Button type="submit" form={formId} className="flex-1" disabled={isPending || months < 1}>
+          <Button type="submit" form={formId} className="flex-1" disabled={isPending || days < 1}>
             {isPending ? "Saving…" : "Record renewal"}
           </Button>
         </SheetFooter>

@@ -39,14 +39,17 @@ function toActionError(err: unknown, fallback: string): { success: false; error:
 async function syncLinkedCampaignPayment(
   invoiceId: string,
   invoiceNo: string,
-  status: InvoiceStatus
+  status: InvoiceStatus,
+  campaignId?: string
 ): Promise<void> {
   const ref = buildInvoiceNumber(invoiceNo).toUpperCase();
   const campaigns = await campaignRepository.getAll();
-  // By key first, so a deal already reconciled keeps its invoice even after
-  // that invoice is renumbered; by the typed reference otherwise, which is
-  // the only handle a deal that predates the link has.
+  // The deal the invoice was raised from, when it was, since that is known
+  // rather than inferred. Then by key, so a deal already reconciled keeps its
+  // invoice even after that invoice is renumbered; by the typed reference
+  // otherwise, which is the only handle a deal that predates the link has.
   const campaign =
+    (campaignId ? campaigns.find((entry) => entry.id === campaignId) : undefined) ??
     campaigns.find((entry) => entry.invoiceId === invoiceId) ??
     campaigns.find((entry) => entry.invoiceRef.trim().toUpperCase() === ref);
   if (!campaign) return;
@@ -85,15 +88,21 @@ export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResu
   }
 }
 
+/**
+ * `campaignId` is the deal the editor was prefilled from, when it was: the
+ * invoice is linked to that deal directly, even when its number differs from
+ * the reference the deal quotes.
+ */
 export async function createInvoice(
-  input: NewInvoice
+  input: NewInvoice,
+  campaignId?: string
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
   try {
     const record = await addInvoice(input);
     // An invoice can be raised already marked paid against a deal that already
     // references its number, so creation syncs the same way an edit does.
     try {
-      await syncLinkedCampaignPayment(record.id, record.invoiceNo, record.status);
+      await syncLinkedCampaignPayment(record.id, record.invoiceNo, record.status, campaignId);
     } catch {
       // The invoice is saved; the deal not following is not worth failing on.
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,9 +26,17 @@ import {
   paymentStatusLabel,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
+import { addDays, todayKey } from "@/lib/day";
+import { formatMoney } from "@/lib/invoice";
+import { termDaysUntil, termEndDayKey } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { EditorVideoOption } from "@/lib/contentPlan";
-import type { CampaignPaymentStatus, CampaignStatus, CampaignType } from "@/repositories/campaigns";
+import type {
+  CampaignPaymentStatus,
+  CampaignStatus,
+  CampaignType,
+  UsageStatus,
+} from "@/repositories/campaigns";
 
 const NO_BRAND_LINK = "__none__";
 const NO_VIDEO = "__none__";
@@ -53,7 +62,15 @@ export interface CampaignFormState {
   /** The editing job behind the deal's video, or null when there wasn't one. */
   editorTransactionId: string | null;
   /** Kept as a string like the money fields, so the input can be left empty. */
-  usageMonths: string;
+  usageDays: string;
+  /** Granted with no end date; the days field is ignored while set. */
+  usageIndefinite: boolean;
+  /** The latest renewal's length, "" on a licence never renewed. */
+  usageRenewalDays: string;
+  /** yyyy-mm-dd an ended licence was called off on, "" otherwise. */
+  usageEndedOn: string;
+  /** The part of the amount agreed for ad usage, as a string for the same reason. */
+  usageFee: string;
 }
 
 /**
@@ -69,15 +86,27 @@ export interface CampaignFormState {
  * the type changes. Both give the same record; only this one survives someone
  * flipping the type twice by accident, which on an existing deal would
  * otherwise wipe a real amount with nothing on screen to show it had gone.
+ *
+ * The ad usage fee follows the same rule: it is cash, so a barter-only deal
+ * charges none however much the hidden field still holds.
  */
 export function campaignAmounts(form: CampaignFormState): {
   amount: number;
   barterValue: number;
+  usageFee: number;
 } {
+  const barterOnly = form.type === "Barter";
   return {
-    amount: form.type === "Barter" ? 0 : Number(form.amount) || 0,
+    amount: barterOnly ? 0 : Number(form.amount) || 0,
     barterValue: Number(form.barterValue) || 0,
+    usageFee: barterOnly ? 0 : Math.max(0, Number(form.usageFee) || 0),
   };
+}
+
+/** "13/03/2026" for a yyyy-mm-dd day key, the app's written date format. */
+function formatDayKey(dayKey: string): string {
+  const [year, month, day] = dayKey.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : dayKey;
 }
 
 export function campaignInitialForm(): CampaignFormState {
@@ -99,12 +128,31 @@ export function campaignInitialForm(): CampaignFormState {
     paidDate: "",
     paymentMethod: "",
     editorTransactionId: null,
-    usageMonths: "",
+    usageDays: "",
+    usageIndefinite: false,
+    usageRenewalDays: "",
+    usageEndedOn: "",
+    usageFee: "",
   };
+}
+
+/**
+ * What the form needs to know about a licence that already exists, beyond the
+ * fields it edits: which term the end date belongs to and where it counts from.
+ * Absent on a new deal, which has no renewals, pauses or end yet.
+ */
+export interface CampaignLicenceContext {
+  status: UsageStatus;
+  pausedDays: number;
+  /** yyyy-mm-dd the latest renewal runs from, or null when never renewed. */
+  renewalStart: string | null;
+  /** Renewal money received and pending, shown beside the deal's total (see renewalTotal). */
+  renewalMoney: number;
 }
 
 interface CampaignFormFieldsProps {
   idPrefix: string;
+  licence?: CampaignLicenceContext;
   form: CampaignFormState;
   setForm: React.Dispatch<React.SetStateAction<CampaignFormState>>;
   brandOptions?: CampaignBrandOption[];
@@ -118,6 +166,7 @@ interface CampaignFormFieldsProps {
 // at once (one per campaign card), even while closed.
 export function CampaignFormFields({
   idPrefix,
+  licence,
   form,
   setForm,
   brandOptions = [],
@@ -134,6 +183,25 @@ export function CampaignFormFields({
   // same rule the campaigns table reads by (see paymentTiming, which refuses
   // to score a deal with no cash in it).
   const barterOnly = form.type === "Barter";
+  const amounts = campaignAmounts(form);
+
+  // The licence's end date is a second way to write its length, not a value of
+  // its own: shown as start + length and turned back into a length when
+  // picked, so the two can never disagree and Save changes writes one number.
+  // After a renewal the length being edited is the renewal's, counted from its
+  // own start; before one, the base term's, counted from the upload date.
+  const status = licence?.status ?? "active";
+  const pausedDays = licence?.pausedDays ?? 0;
+  const renewed = licence?.renewalStart != null;
+  const termStart = renewed ? licence?.renewalStart || form.uploadDate : form.uploadDate;
+  const termDaysField: "usageRenewalDays" | "usageDays" = renewed ? "usageRenewalDays" : "usageDays";
+  const endsOn = termEndDayKey(termStart, Number(form[termDaysField]) || 0, pausedDays);
+  // A paused licence's end moves forward every day until it is resumed, so it
+  // has no fixed date to pick; an ended one shows the day it ended instead.
+  const showEndsOn = !form.usageIndefinite && status === "active";
+  const showEndedOn = status === "ended";
+  const total = amounts.amount + amounts.usageFee + amounts.barterValue;
+  const renewalMoney = licence?.renewalMoney ?? 0;
 
   return (
     <>
@@ -268,7 +336,33 @@ export function CampaignFormFields({
             onChange={(event) => setForm((f) => ({ ...f, barterValue: event.target.value }))}
           />
         </div>
+        {/* Third in the grid so it wraps to sit directly under Amount, the
+            price it is charged on top of. Cash only, like the amount. */}
+        {!barterOnly && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-usageFee`}>Ad usage fee (₹)</Label>
+            <Input
+              id={`${idPrefix}-usageFee`}
+              type="number"
+              min={0}
+              placeholder="0"
+              value={form.usageFee}
+              onChange={(event) => setForm((f) => ({ ...f, usageFee: event.target.value }))}
+            />
+          </div>
+        )}
       </div>
+      {/* Spelled out because the fee is the one figure here that adds to
+          another rather than standing alone. */}
+      {(total > 0 || renewalMoney > 0) && (
+        <p className="text-[11px] text-muted-foreground">
+          Total value {formatMoney(total)}
+          {amounts.usageFee > 0 ? ", including the ad usage fee" : ""}
+          {/* Beside the total rather than in it: see renewalTotal. */}
+          {renewalMoney > 0 ? ` · ${formatMoney(total + renewalMoney)} with renewals` : ""}.
+          {amounts.usageFee > 0 ? " The fee also counts as licensing income." : ""}
+        </p>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-status`}>Status</Label>
@@ -466,25 +560,104 @@ export function CampaignFormFields({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-usageMonths`}>Ad usage (months)</Label>
+              <Label htmlFor={`${idPrefix}-usageDays`}>Ad usage (days)</Label>
               <Input
-                id={`${idPrefix}-usageMonths`}
+                id={`${idPrefix}-usageDays`}
                 type="number"
                 min={0}
                 step={1}
-                placeholder="0"
-                value={form.usageMonths}
-                onChange={(event) => setForm((f) => ({ ...f, usageMonths: event.target.value }))}
+                placeholder={form.usageIndefinite ? "No end" : "0"}
+                disabled={form.usageIndefinite}
+                value={form.usageIndefinite ? "" : form.usageDays}
+                onChange={(event) => setForm((f) => ({ ...f, usageDays: event.target.value }))}
               />
             </div>
           </div>
           {/* Paired with the upload date on purpose: the licence counts from
               the day the post goes up, not from the day the deal was struck,
               so the two fields belong on the same row. */}
+          {(showEndsOn || showEndedOn) && (
+            <div className="grid grid-cols-2 gap-3">
+              {showEndsOn && renewed && (
+                <div className="space-y-2">
+                  <Label htmlFor={`${idPrefix}-usageRenewalDays`}>Renewal (days)</Label>
+                  <Input
+                    id={`${idPrefix}-usageRenewalDays`}
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={form.usageRenewalDays}
+                    onChange={(event) =>
+                      setForm((f) => ({ ...f, usageRenewalDays: event.target.value }))
+                    }
+                  />
+                </div>
+              )}
+              {showEndsOn && (
+                <div className="col-start-2 space-y-2">
+                  <Label htmlFor={`${idPrefix}-usageEndsOn`}>Ends on</Label>
+                  <Input
+                    id={`${idPrefix}-usageEndsOn`}
+                    type="date"
+                    disabled={!termStart}
+                    min={termStart ? addDays(termStart, pausedDays + 1) : undefined}
+                    value={endsOn}
+                    onChange={(event) => {
+                      const picked = event.target.value;
+                      if (!picked || !termStart) return;
+                      setForm((f) => ({
+                        ...f,
+                        [termDaysField]: String(termDaysUntil(termStart, picked, pausedDays)),
+                      }));
+                    }}
+                  />
+                </div>
+              )}
+              {showEndedOn && (
+                <div className="col-start-2 space-y-2">
+                  <Label htmlFor={`${idPrefix}-usageEndedOn`}>Ended on</Label>
+                  <Input
+                    id={`${idPrefix}-usageEndedOn`}
+                    type="date"
+                    min={form.uploadDate || form.date || undefined}
+                    max={todayKey()}
+                    value={form.usageEndedOn}
+                    onChange={(event) => setForm((f) => ({ ...f, usageEndedOn: event.target.value }))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {showEndsOn && !termStart && (
+            <p className="text-[11px] text-muted-foreground">
+              Set the upload date to pick an end date: the licence counts from the day it posts.
+            </p>
+          )}
+          {showEndsOn && renewed && (
+            <p className="text-[11px] text-muted-foreground">
+              Renewed from {formatDayKey(termStart)}, so the end date moves the latest renewal.
+              Ad usage (days) above is the original term.
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${idPrefix}-usageIndefinite`}
+              checked={form.usageIndefinite}
+              onCheckedChange={(checked) =>
+                setForm((f) => ({ ...f, usageIndefinite: checked === true }))
+              }
+            />
+            <Label htmlFor={`${idPrefix}-usageIndefinite`} className="font-normal">
+              Indefinite: no end date
+            </Label>
+          </div>
           <p className="text-[11px] text-muted-foreground">
-            How long the brand may keep running this as an ad, counted from the upload date.
-            Leave at 0 if there is no licence to track.
+            {form.usageIndefinite
+              ? "The brand may run this as an ad for as long as it likes. It never expires or needs renewing."
+              : "How long the brand may keep running this as an ad, counted from the upload date. Leave at 0 if there is no licence to track."}
           </p>
+
         </CollapsibleContent>
       </Collapsible>
     </>

@@ -1,10 +1,11 @@
 import { formatMoney } from "@/lib/invoice";
+import { formatUsageDays, formatUsageGrant } from "@/lib/usageRights";
 import { countOf, type DiffField } from "@/lib/activityDiff";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
 import type { Agency } from "@/repositories/agencies";
 import type { Brand } from "@/repositories/brands";
-import type { CampaignRecord } from "@/repositories/campaigns";
+import { toUsage, usageTermStart, type CampaignRecord } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { Editor } from "@/repositories/editors";
@@ -33,13 +34,6 @@ function money(value: unknown): string {
 // the log never asserts a unit it cannot know.
 function rate(value: unknown): string {
   return typeof value === "number" && value > 0 ? String(value) : "";
-}
-
-// 0 is "no licence recorded" rather than a zero-month one, so it reads as
-// absent: describeChanges then says "usage term added" instead of "0 to 3".
-function months(value: unknown): string {
-  if (typeof value !== "number" || value <= 0) return "";
-  return `${value} month${value === 1 ? "" : "s"}`;
 }
 
 export const brandFields: readonly DiffField<Brand>[] = [
@@ -74,8 +68,24 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
   { label: "type", value: (campaign) => campaign.type },
   { label: "payment due", value: (campaign) => campaign.paymentDue },
   { label: "paid on", value: (campaign) => campaign.paidDate },
-  { label: "usage term", value: (campaign) => campaign.usage?.months, format: months },
+  // Read through toUsage so a record still holding its term in months compares
+  // as the days it converts to, rather than logging "usage term added". No
+  // licence reads as "", so describeChanges says "added" rather than "0 to 30".
+  {
+    label: "usage term",
+    value: (campaign) => formatUsageGrant(toUsage(campaign.usage, usageTermStart(campaign))),
+  },
+  {
+    label: "latest renewal term",
+    value: (campaign) => {
+      const { renewals } = toUsage(campaign.usage, usageTermStart(campaign));
+      const last = renewals[renewals.length - 1];
+      return last ? formatUsageDays(last.days) : "";
+    },
+  },
+  { label: "usage fee", value: (campaign) => campaign.usage?.fee, format: money },
   { label: "usage status", value: (campaign) => campaign.usage?.status },
+  { label: "usage ended on", value: (campaign) => campaign.usage?.endedOn },
   { label: "usage renewals", value: (campaign) => campaign.usage?.renewals, format: countOf },
   { label: "upload date", value: (campaign) => campaign.uploadDate },
   { label: "deal date", value: (campaign) => campaign.date },

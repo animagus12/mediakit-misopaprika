@@ -59,7 +59,7 @@ interface RevenueMixCardProps {
  * they are a made-up one.
  */
 export function RevenueMixCard({ mix, className }: RevenueMixCardProps) {
-  const { concentration, barter, renewals } = mix;
+  const { concentration, barter, licensing } = mix;
   if (concentration.total <= 0) return null;
 
   const { top } = concentration;
@@ -71,6 +71,17 @@ export function RevenueMixCard({ mix, className }: RevenueMixCardProps) {
       : Math.abs(barter.deltaPoints) < 1
         ? "flat against the prior quarter"
         : `${barter.deltaPoints > 0 ? "up" : "down"} ${points(barter.deltaPoints)} on the prior quarter`;
+
+  // Names only the kinds of licence money actually present, so a book with no
+  // renewals yet doesn't read "0 renewals" as though one were missing.
+  const licensingHint = [
+    licensing.licensedDeals > 0 &&
+      `${licensing.licensedDeals} licensed deal${licensing.licensedDeals === 1 ? "" : "s"}`,
+    licensing.renewalCount > 0 &&
+      `${licensing.renewalCount} renewal${licensing.renewalCount === 1 ? "" : "s"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <section className={cn("space-y-3", className)}>
@@ -131,13 +142,14 @@ export function RevenueMixCard({ mix, className }: RevenueMixCardProps) {
         {/* Only once a licence has actually been sold. A permanent 0% would be
             a tile spent saying nothing, the same call MoneyFlowCard's margin
             tile and the campaigns table's usage column make. */}
-        {renewals.count > 0 && (
+        {licensing.total > 0 && (
           <StatTile
             icon={ScrollText}
             label="Licensing"
-            value={percent(renewals.percent)}
-            hint={`${renewals.count} renewal${renewals.count === 1 ? "" : "s"} across ${renewals.brands} brand${renewals.brands === 1 ? "" : "s"}`}
+            value={percent(licensing.percent)}
+            hint={licensingHint}
             tone="cash"
+            title={`${formatMoney(licensing.upfront)} in ad usage fees agreed with deals and ${formatMoney(licensing.renewals)} in renewals, across ${licensing.brands} brand${licensing.brands === 1 ? "" : "s"}.`}
             href="/campaigns"
           />
         )}

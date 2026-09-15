@@ -16,7 +16,7 @@ export interface BrandCampaignRecord {
   date: string; // DD/MM/YYYY, deal date
   uploadDate: string; // DD/MM/YYYY, actual delivery date, often blank until posted
   status: CampaignStatus; // pipeline status: Discussion/Filming/Posted/Cancelled/...
-  amount: number;
+  amount: number; // the deal's cash: its amount plus the ad usage fee (Campaign.cash)
   barterValue: number;
   total: number;
   invoiceRef: string; // the free-text reference typed on the deal, "" when none
@@ -38,7 +38,7 @@ function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     date: campaign.date,
     uploadDate: campaign.uploadDate,
     status: campaign.status,
-    amount: campaign.amount,
+    amount: campaign.cash,
     barterValue: campaign.barterValue,
     total: campaign.total,
     invoiceRef: campaign.invoiceRef,

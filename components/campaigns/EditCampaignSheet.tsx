@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,20 +17,43 @@ import {
 } from "@/components/ui/sheet";
 import { updateCampaign } from "@/app/(dashboard)/actions";
 import { Separator } from "@/components/ui/separator";
-import { CampaignFormFields, campaignAmounts, type CampaignFormState } from "./CampaignFormFields";
+import {
+  CampaignFormFields,
+  campaignAmounts,
+  type CampaignFormState,
+  type CampaignLicenceContext,
+} from "./CampaignFormFields";
 import { UsageRightsPanel } from "./UsageRightsPanel";
 import {
   REEL_OPTIONS,
   STORY_OPTIONS,
   CAMPAIGN_TYPES,
+  isCampaignCalledOff,
   toIsoDate,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import { renewalTotal } from "@/lib/usageRights";
 import type { Campaign } from "@/repositories/campaigns";
 import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
+function latestRenewal(campaign: Campaign) {
+  const { renewals } = campaign.usage;
+  return renewals.length > 0 ? renewals[renewals.length - 1] : null;
+}
+
+function licenceContext(campaign: Campaign): CampaignLicenceContext {
+  const renewal = latestRenewal(campaign);
+  return {
+    status: campaign.usage.status,
+    pausedDays: campaign.usage.pausedDays,
+    renewalStart: renewal ? toIsoDate(renewal.startDate) : null,
+    renewalMoney: renewalTotal(campaign.usage),
+  };
+}
+
 function formFromCampaign(campaign: Campaign): CampaignFormState {
+  const renewal = latestRenewal(campaign);
   return {
     brand: campaign.brand,
     brandId: campaign.brandId,
@@ -49,7 +74,11 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     paidDate: toIsoDate(campaign.paidDate),
     paymentMethod: campaign.paymentMethod,
     editorTransactionId: campaign.editorTransactionId,
-    usageMonths: campaign.usage.months > 0 ? String(campaign.usage.months) : "",
+    usageDays: campaign.usage.days > 0 ? String(campaign.usage.days) : "",
+    usageIndefinite: campaign.usage.indefinite,
+    usageRenewalDays: renewal ? String(renewal.days) : "",
+    usageEndedOn: toIsoDate(campaign.usage.endedOn),
+    usageFee: campaign.usage.fee > 0 ? String(campaign.usage.fee) : "",
   };
 }
 
@@ -71,6 +100,16 @@ export function EditCampaignSheet({
   const [isPending, startTransition] = useTransition();
 
   const formId = `edit-campaign-${campaign.id}`;
+  // A deal linked to its invoice opens it. One that isn't gets the editor
+  // prefilled from the deal, unless there is nothing to bill: a called-off deal
+  // is owed nothing, and a deal with no value has no line to put a price on.
+  // A deal whose invoice is only matched by its typed number still lands on
+  // that invoice, since /invoices/new redirects to it rather than raise another.
+  const invoiceHref = campaign.invoiceId
+    ? `/invoices/${campaign.invoiceId}`
+    : !isCampaignCalledOff(campaign.status) && campaign.total > 0
+      ? `/invoices/new?campaignId=${encodeURIComponent(campaign.id)}`
+      : null;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -94,7 +133,16 @@ export function EditCampaignSheet({
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
         editorTransactionId: form.editorTransactionId,
-        usageMonths: Number(form.usageMonths) || 0,
+        usageDays: Number(form.usageDays) || 0,
+        usageIndefinite: form.usageIndefinite,
+        // Sent only where they mean something, so an unrenewed or live licence
+        // never has a renewal length or end date written onto it.
+        ...(campaign.usage.renewals.length > 0 && Number(form.usageRenewalDays) > 0
+          ? { usageRenewalDays: Number(form.usageRenewalDays) }
+          : {}),
+        ...(campaign.usage.status === "ended" && form.usageEndedOn
+          ? { usageEndedOn: form.usageEndedOn }
+          : {}),
       });
       if (!result.success) {
         setError(result.error);
@@ -131,6 +179,7 @@ export function EditCampaignSheet({
           <form id={formId} onSubmit={handleSubmit} className="space-y-4">
             <CampaignFormFields
               idPrefix={formId}
+              licence={licenceContext(campaign)}
               form={form}
               setForm={setForm}
               brandOptions={brandOptions}
@@ -138,6 +187,28 @@ export function EditCampaignSheet({
             />
             {error && <p className="text-xs text-destructive">{error}</p>}
           </form>
+
+          {invoiceHref && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 space-y-0.5">
+                  <p className="text-xs font-medium">Invoice</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {campaign.invoiceId
+                      ? "Already raised for this deal."
+                      : "Fills in the brand, deliverables, amounts and due date from this deal as last saved."}
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline" className="shrink-0">
+                  <Link href={invoiceHref}>
+                    <FileText />
+                    {campaign.invoiceId ? "View invoice" : "Create invoice"}
+                  </Link>
+                </Button>
+              </div>
+            </>
+          )}
 
           <Separator />
 

@@ -265,7 +265,7 @@ export function sortCampaigns(
         delta = parseSheetDate(a.uploadDate) - parseSheetDate(b.uploadDate);
         break;
       case "amount":
-        delta = a.amount - b.amount;
+        delta = a.cash - b.cash;
         break;
       case "barterValue":
         delta = a.barterValue - b.barterValue;

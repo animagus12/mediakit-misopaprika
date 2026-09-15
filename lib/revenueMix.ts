@@ -209,53 +209,76 @@ export function computeBarterShare(
 
 // --- Licensing -------------------------------------------------------------
 
-export interface RenewalShare {
-  received: number;
-  pending: number;
-  count: number;
-  /** Brands that have bought an extension: whether this is one client or a habit. */
+export interface LicensingShare {
+  /** Base licence fees carved out of deal amounts (Campaign.usage.fee). */
+  upfront: number;
+  /** Deals that priced their base licence separately. */
+  licensedDeals: number;
+  /** Renewal fees received and pending. */
+  renewals: number;
+  renewalCount: number;
+  /** upfront plus renewals: every rupee paid for ad usage rather than a post. */
+  total: number;
+  /** Brands that have paid for a licence: whether this is one client or a habit. */
   brands: number;
-  /** Renewal fees as a percentage of everything booked. */
+  /** total as a percentage of everything booked. */
   percent: number;
 }
 
 /**
  * What share of the book is licensing rather than posting.
  *
- * repositories/earnings.ts has counted renewal fees into income since the
+ * repositories/earnings.ts has counted licence money into income since the
  * licence was modelled, but only ever as part of a total, so a business
  * quietly turning into a licensing business would show up as a slightly better
  * month. Expressed against the same booked total computeConcentration uses, so
  * the two shares on the same row are shares of the same number.
  *
+ * Two kinds of licence money count. The base fee is charged on top of a
+ * deal's amount when it is struck; it is part of the deal's total and so of
+ * that booked total, and is counted on the same terms as the deal (whatever
+ * its payment status, called-off excluded). Renewals are their own transactions
+ * and count once received or pending, as computeConcentration adds them.
+ * Counting renewals alone left every licence sold with the post at 0%.
+ *
  * Free extensions are excluded, as they are from earnings: a term granted at
  * no charge is a favour, not revenue.
  */
-export function computeRenewalShare(campaigns: Campaign[], bookedTotal: number): RenewalShare {
+export function computeLicensingShare(campaigns: Campaign[], bookedTotal: number): LicensingShare {
   const brands = new Set<string>();
-  let received = 0;
-  let pending = 0;
-  let count = 0;
+  let upfront = 0;
+  let licensedDeals = 0;
+  let renewals = 0;
+  let renewalCount = 0;
 
   for (const campaign of campaigns) {
     if (isCampaignCalledOff(campaign.status)) continue;
+    const brandKey = campaign.brandId ?? normalizeBrandName(campaign.brand);
+
+    const fee = campaign.usage.fee;
+    if (fee > 0) {
+      upfront += fee;
+      licensedDeals += 1;
+      brands.add(brandKey);
+    }
 
     for (const renewal of campaign.usage.renewals) {
       if (renewal.amount <= 0) continue;
-      if (renewal.paymentStatus === "received") received += renewal.amount;
-      else if (renewal.paymentStatus === "pending") pending += renewal.amount;
-      else continue;
+      if (renewal.paymentStatus !== "received" && renewal.paymentStatus !== "pending") continue;
 
-      count += 1;
-      brands.add(campaign.brandId ?? normalizeBrandName(campaign.brand));
+      renewals += renewal.amount;
+      renewalCount += 1;
+      brands.add(brandKey);
     }
   }
 
-  const total = received + pending;
+  const total = upfront + renewals;
   return {
-    received,
-    pending,
-    count,
+    upfront,
+    licensedDeals,
+    renewals,
+    renewalCount,
+    total,
     brands: brands.size,
     percent: bookedTotal > 0 ? (total / bookedTotal) * 100 : 0,
   };
@@ -266,12 +289,12 @@ export function computeRenewalShare(campaigns: Campaign[], bookedTotal: number):
 export interface RevenueMix {
   concentration: RevenueConcentration;
   barter: BarterShare;
-  renewals: RenewalShare;
+  licensing: LicensingShare;
 }
 
 /**
  * One pass for the three shares, so a caller reads the mix rather than
- * assembling it and so the renewal share is always taken against the booked
+ * assembling it and so the licensing share is always taken against the booked
  * total the concentration read produced.
  */
 export function computeRevenueMix(
@@ -283,6 +306,6 @@ export function computeRevenueMix(
   return {
     concentration,
     barter: computeBarterShare(summary, now),
-    renewals: computeRenewalShare(campaigns, concentration.total),
+    licensing: computeLicensingShare(campaigns, concentration.total),
   };
 }

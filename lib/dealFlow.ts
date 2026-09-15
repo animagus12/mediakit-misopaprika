@@ -45,7 +45,7 @@ export function computePipelineValue(campaigns: Campaign[]): PipelineValue {
 
     pipeline.count += 1;
     pipeline.total += campaign.total;
-    pipeline.cash += campaign.amount;
+    pipeline.cash += campaign.cash;
     pipeline.barter += campaign.barterValue;
     if (campaign.total <= 0) pipeline.unpriced += 1;
   }

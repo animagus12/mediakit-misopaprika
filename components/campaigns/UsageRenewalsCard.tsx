@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { setCampaignUsageState, setUsageRenewalPaymentStatus } from "@/app/(dashboard)/actions";
 import { formatMoney } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
-import type { OwedRenewal, UsageAlert } from "@/lib/usageRights";
+import { formatUsageDays, type OwedRenewal, type UsageAlert } from "@/lib/usageRights";
 import { RenewUsageSheet } from "./RenewUsageSheet";
 
 interface UsageRenewalsCardProps {
@@ -168,8 +168,7 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
               <div className="min-w-0">
                 <p className="truncate font-medium">{alert.brand}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {alert.campaign || "-"} · {alert.term.totalMonths} month
-                  {alert.term.totalMonths === 1 ? "" : "s"} granted
+                  {alert.campaign || "-"} · {formatUsageDays(alert.term.totalDays)} granted
                   {alert.term.termCount > 1 ? ` over ${alert.term.termCount} terms` : ""}
                 </p>
               </div>
@@ -245,7 +244,7 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
                   <div className="min-w-0">
                     <p className="truncate font-medium">{renewal.brand}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {renewal.months} month{renewal.months === 1 ? "" : "s"} ·{" "}
+                      {formatUsageDays(renewal.days)} ·{" "}
                       {formatMoney(renewal.amount)}
                     </p>
                   </div>

@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+## [1.22.2] - 2026-09-15
+
+### Added
+
+- **A licence's end dates are edited in the campaign form and saved with Save changes.** The usage section has an "Ends on" date beside "Ad usage (days)", and an "Ended on" date for a licence that has been ended. There is no separate Save button.
+  - **Ends on is another way to set the length, not a separate value.** It shows the start date plus the days (plus any days spent paused). Picking a date rewrites the day count, so the two can't disagree and only one number is saved. It counts from the upload date and is disabled until one is set. It doesn't appear for indefinite or paused licences; a paused licence's end moves every day until it's resumed.
+  - **After a renewal, the date moves the latest renewal,** which is the term the end counts from. A "Renewal (days)" field sits beside it, with a note, and "Ad usage (days)" stays the original term. `NewCampaignInput` gains `usageRenewalDays` for this, and the log records it as "latest renewal term".
+  - **Ended on corrects the day an ended licence was called off,** since ending stamps today and the brand has often stopped earlier. `updateCampaign` checks it with `usageEndDateProblem` against the upload and deal dates in the same submission: not before the licence started, not after today. It is saved through `NewCampaignInput.usageEndedOn`, which is ignored unless the licence is ended.
+  - `CampaignFormFields` takes an optional `licence` context (status, paused days, latest renewal start), which the edit sheet passes. `termEndDayKey` and `termDaysUntil` in `lib/usageRights.ts` convert between a date and a length.
+  - **An ended licence shows only when it ended.** The panel used to also show its term's end ("Ended 14/09/2026 · 30 days granted · ends 05/08/2026"), a second end date that contradicted the first.
+- **Ad usage rights can be granted indefinitely.** A checkbox under the usage term, "Indefinite: no end date", disables the days field. The licence then reads "No end date", never expires, and never shows up in the renewal queue or the expired nav badge.
+  - **`CampaignUsage.indefinite` is its own flag,** not a very large day count, so no countdown has to learn to ignore it. `days` is stored as 0 while it is set. Records without the flag read as false, and an update that leaves it out keeps the stored value, the same as the usage fee.
+  - **An indefinite licence can't be renewed or paused,** since it has no end to extend and no countdown to freeze. The licence panel hides both buttons; Resume shows only for a licence that was already paused, so it can't get stuck. End still works, for a brand that stops running the ad.
+  - The campaigns table shows "Indefinite" in the usage column. A prefilled invoice's ad usage line reads "Indefinite, from 10.01.2026". The rate card prices the deal with the ad usage add-on. The activity log records the change as "usage term 90 days to Indefinite".
+- **A campaign can raise its own invoice.** The edit sheet has an Invoice row. Its **Create invoice** button opens the invoice editor already filled in from the deal as last saved, so nothing is retyped. A deal already linked to an invoice shows **View invoice** instead. Called-off deals and deals with no value don't show the row.
+  - **What is filled in** (`buildCampaignInvoice` in `lib/campaignInvoice.ts`): the brand and its primary contact, the deal's own campaign name (so "Delivered, no invoice raised" clears once it is saved), a line for the deliverables, and a separate "Ad usage rights" line with its term when the deal charges a usage fee. The two lines add up to the deal's cash. Also filled in: the barter value, the linked editor job, the agreed due date (or the default payment terms), and Paid status when the money is already in (Draft otherwise).
+  - **The deal's own invoice number is used when it is free.** A paid deal quoting `MSP-INV-0012` gets invoice `0012`, unless another invoice already has that number, in which case the next free number is used. Saving never moves the number seed backwards, so the next invoice doesn't reuse a number.
+  - **Saving links the invoice to that deal directly.** `createInvoice` takes the deal's id, so the link holds even when the numbers differ. Opening `/invoices/new?campaignId=` for a deal that already has an invoice, matched by link or by its typed number, redirects to that invoice rather than raising a second one.
+  - `invoiceRecordToFormState` accepts an unsaved `NewInvoice`, and the renewal invoice builder shares its payee block (`paymentSnapshot`) and date helpers with the new builder.
+
+### Changed
+
+- **Ad usage terms are in days, not months.** Licences are sold for any length, from a one-day boost to a quarter, and months couldn't record that. The campaign form asks for "Ad usage (days)", the renew sheet asks for "Days" and opens on 90, and every term shows as "25 days" or "1 day" through `formatUsageDays`.
+  - **`CampaignUsage.days` and `UsageRenewalRecord.days` replace `months`**, and a term ends on its start date plus that many days. `UsageTerm.totalMonths` is `totalDays`, and `OwedRenewal.months` is `days`. The form fields are `usageDays` and `days`.
+  - **Existing licences keep their exact end dates.** A record still stored in months is converted when read, in calendar months from the day its term starts: 3 months from 10 Aug reads as 92 days and still ends on 10 Nov. The base term converts from the upload date, or the deal date before posting, and a renewal from its own start date. The days are written the next time that licence is saved, so no migration runs. The activity log compares a legacy term as its days, so the first save doesn't log "usage term added".
+  - The expiry warning still opens at half the term, capped at 30 days, so a 1-day licence is flagged only on its last day.
+
+- **The ad usage fee is charged on top of the amount and counts in the deal's total.** It sits directly under Amount in the campaign form, not with the usage term. A line under the money fields shows the total value as it's typed.
+  - **`Campaign.cash` is new, and `Campaign.total` is now `cash + barterValue`.** `cash` is `amount + usage.fee`, and `amount` is only the post's own price. Every read of a deal's money uses `cash`: earnings received, the pipeline's cash, rate-card realization, the campaigns table's cash split, payment timing and the cash sort. The brand CRM projection's `amount` is `cash`, so due payments, payment reliability, collection lag and "Needs attention" follow without changes of their own.
+  - **A prefilled invoice prices the post at the amount** and adds the fee as its own line, so the invoice total matches the deal's cash. Licensing in the Revenue mix counts the whole fee, with no cap.
+  - **The campaigns table's value cell breaks the total into its parts:** "₹5,000" over "₹3,500 cash · ₹1,000 ad fee · ₹500 barter". It shows only when the total has more than one part, as the cash and barter split did before.
+  - **Renewals show beside the total, not in it.** The value cell adds "+₹800 renewals", and the form's total line reads "Total value ₹4,000 · ₹4,800 with renewals". `renewalTotal` in `lib/usageRights.ts` sums renewals received and pending. They stay out of `Campaign.total` because earnings already counts each renewal in the month it's paid, so adding them would count that money twice.
+  - The fee is cash, so a barter-only deal saves none, and it is no longer capped at the amount. Activity events for creating, updating and collecting on a deal report the amount including the fee.
+
+### Fixed
+
+- **Invoice due dates raised by the app were a day early in IST.** `addDaysISO` parsed the date at local midnight and formatted it in UTC, so a renewal invoice due in 5 days was dated 4 days out. It now works in UTC on both ends.
+- **Licensing in the Revenue mix now counts ad rights sold with the deal, not only renewals.** The base licence fee was stored as part of the deal's amount with nothing marking it, so a post sold with three months of ad usage showed as 0% licensing until the brand renewed.
+  - **A deal records its ad usage fee** as `usage.fee`, charged on top of the amount (see Changed).
+  - **`computeRenewalShare` is now `computeLicensingShare`** and `RevenueMix.renewals` is `RevenueMix.licensing`. It adds base fees from every deal that isn't called off, on the same basis the booked total counts the deal, to renewals received or pending. The tile's hint names licensed deals and renewals, and its tooltip splits the rupees.
+  - **Existing records need no migration.** A licence without a fee reads as 0, so older licensed deals count once their fee is filled in. An update that leaves the fee out keeps the stored one, and fee changes appear in the activity log as "usage fee".
+
 ## [1.22.1] - 2026-09-13
 ### Changed
 - **Brand deals and your own posts now use the same statuses.** The campaigns page used the old spreadsheet's words (Brainstorming, Todo, Ready to Upload, Completed) and the content calendar used its own (Scripting, Filming, Ready, Posted, Dropped). The calendar had to translate one into the other, and a deal's card showed two words for one step ("Filming · Todo"). Both now use one ordered list, `WorkflowStatus` in `repositories/workflowStatus.ts`: Discussion, In Route, Idea, Scripting, Filming, Editing, Ready, Posted, Cancelled, Redacted.
