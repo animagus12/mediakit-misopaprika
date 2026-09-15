@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, Search } from "lucide-react";
@@ -40,7 +40,7 @@ import {
   type PaymentDisplayStatus,
 } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
-import { formatMoney } from "@/lib/invoice";
+import { formatMoney, type CampaignInvoiceOption } from "@/lib/invoice";
 import { paymentTiming, type PaymentPunctuality } from "@/lib/paymentReliability";
 import { formatUsageDays, renewalTotal, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
@@ -188,23 +188,26 @@ function SortHeader({
 }
 
 /**
- * The deal's invoice, as a link once the two records have actually been
- * reconciled (Campaign.invoiceId) and as plain text while it is still only a
- * number someone typed (Campaign.invoiceRef).
+ * The deal's invoice number, as a link to it, shown only once a real invoice
+ * is linked (Campaign.invoiceId). A typed reference with no invoice behind it
+ * shows nothing: it named a document that doesn't exist.
+ *
+ * The number is read from the invoice itself, so a renumbered invoice never
+ * shows a stale one; the deal's stored reference is only the fallback for a
+ * table rendered without the invoice list.
  *
  * The click has to be stopped: the row around it opens the edit sheet, and a
  * link that also opened a sheet behind the page it navigated to would be two
  * answers to one click.
  */
-function InvoiceLink({ campaign }: { campaign: Campaign }) {
-  if (!campaign.invoiceId) return <>{campaign.invoiceRef}</>;
+function InvoiceLink({ invoiceId, number }: { invoiceId: string; number: string }) {
   return (
     <Link
-      href={`/invoices/${campaign.invoiceId}`}
+      href={`/invoices/${invoiceId}`}
       onClick={(event) => event.stopPropagation()}
       className="underline underline-offset-2 hover:text-foreground"
     >
-      {campaign.invoiceRef || "Invoice"}
+      {number}
     </Link>
   );
 }
@@ -213,13 +216,19 @@ interface CampaignsTableProps {
   campaigns: Campaign[];
   brandOptions?: CampaignBrandOption[];
   videoOptions?: EditorVideoOption[];
+  invoiceOptions?: CampaignInvoiceOption[];
 }
 
 export function CampaignsTable({
   campaigns,
   brandOptions = [],
   videoOptions = [],
+  invoiceOptions = [],
 }: CampaignsTableProps) {
+  const invoiceNumbers = useMemo(
+    () => new Map(invoiceOptions.map((option) => [option.id, option.number])),
+    [invoiceOptions]
+  );
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -419,6 +428,7 @@ export function CampaignsTable({
                       campaign={campaign}
                       brandOptions={brandOptions}
                       videoOptions={videoOptions}
+                      invoiceOptions={invoiceOptions}
                       trigger={
                         <TableRow className="group cursor-pointer border-b border-border/50 bg-background">
                           {/* bg-inherit, so the sticky cell picks up whichever
@@ -478,10 +488,19 @@ export function CampaignsTable({
                                 {paymentState}
                               </Badge>
                             )}
-                            {(campaign.invoiceRef || campaign.paymentMethod) && (
+                            {(campaign.invoiceId || campaign.paymentMethod) && (
                               <Sub className={cn(paymentState === "unknown" && "mt-0")}>
-                                <InvoiceLink campaign={campaign} />
-                                {campaign.invoiceRef && campaign.paymentMethod && " · "}
+                                {campaign.invoiceId && (
+                                  <InvoiceLink
+                                    invoiceId={campaign.invoiceId}
+                                    number={
+                                      invoiceNumbers.get(campaign.invoiceId) ||
+                                      campaign.invoiceRef ||
+                                      "Invoice"
+                                    }
+                                  />
+                                )}
+                                {campaign.invoiceId && campaign.paymentMethod && " · "}
                                 {campaign.paymentMethod}
                               </Sub>
                             )}

@@ -29,6 +29,8 @@ import {
 } from "@/repositories/brandNotes.writer.server";
 import type { NewBrandNote } from "@/repositories/brandNotes";
 import { setCampaignContact, deleteCampaignContactsForBrand } from "@/repositories/campaignContacts.writer.server";
+import { syncCampaignsWithBrand } from "@/repositories/campaigns.writer.server";
+import { detachInvoicesFromBrand } from "@/repositories/invoices.writer.server";
 
 type ActionResult = { success: true } | { success: false; error: string };
 
@@ -86,6 +88,12 @@ export async function createBrand(
 export async function updateBrand(input: BrandUpdate): Promise<ActionResult> {
   try {
     const change = await updateBrandRecord(input);
+    // A rename reaches every deal linked to the brand, so the campaigns table
+    // and dashboard don't keep showing the old name.
+    if (change && change.before.name !== change.after.name) {
+      await syncCampaignsWithBrand(change.after.id, change.after.name);
+      revalidateStores("campaigns");
+    }
     revalidateStores("brands");
     if (change) {
       await recordActivity({
@@ -123,13 +131,18 @@ export async function removeBrand(id: string): Promise<ActionResult> {
     // Direct contacts/notes/campaign-contact assignments only belong to this
     // brand: agency contacts stay, since they still rep the agency's other
     // brands.
+    // Deals and invoices are the brand's history, so they stay, unlinked and
+    // keeping the name they show, rather than pointing at a brand that no
+    // longer exists. Different stores, so these can run alongside the rest.
     await Promise.all([
       deleteContactsForBrand(id),
       deleteBrandNotesForBrand(id),
       deleteCampaignContactsForBrand(id),
+      syncCampaignsWithBrand(id, null),
+      detachInvoicesFromBrand(id),
     ]);
     const removed = await deleteBrandRecord(id);
-    revalidateStores("brands", "contacts", "brandNotes", "campaignContacts");
+    revalidateStores("brands", "contacts", "brandNotes", "campaignContacts", "campaigns", "invoices");
     if (removed) {
       await recordActivity({
         action: "brand.deleted",

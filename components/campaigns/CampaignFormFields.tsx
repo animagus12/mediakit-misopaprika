@@ -54,8 +54,6 @@ export interface CampaignFormState {
   paymentStatus: CampaignPaymentStatus;
   date: string;
   uploadDate: string;
-  /** The free-text invoice reference. The invoiceId foreign key is written by the app, never typed. */
-  invoiceRef: string;
   paymentDue: string;
   paidDate: string;
   paymentMethod: string;
@@ -123,7 +121,6 @@ export function campaignInitialForm(): CampaignFormState {
     paymentStatus: "unknown",
     date: new Date().toISOString().slice(0, 10),
     uploadDate: "",
-    invoiceRef: "",
     paymentDue: "",
     paidDate: "",
     paymentMethod: "",
@@ -526,25 +523,17 @@ export function CampaignFormFields({
                 The gap between these two is what the brand&apos;s payment record is built from.
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor={`${idPrefix}-invoiceRef`}>Invoice ref</Label>
-                  <Input
-                    id={`${idPrefix}-invoiceRef`}
-                    placeholder="MSP-INV-0011"
-                    value={form.invoiceRef}
-                    onChange={(event) => setForm((f) => ({ ...f, invoiceRef: event.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`${idPrefix}-paymentMethod`}>Payment method</Label>
-                  <Input
-                    id={`${idPrefix}-paymentMethod`}
-                    placeholder="UPI, Barter, ..."
-                    value={form.paymentMethod}
-                    onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
-                  />
-                </div>
+              {/* No invoice number field: a deal shows an invoice number only
+                  once a real invoice is linked to it (the edit sheet's Invoice
+                  section), so a typed number can't claim one that doesn't exist. */}
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-paymentMethod`}>Payment method</Label>
+                <Input
+                  id={`${idPrefix}-paymentMethod`}
+                  placeholder="UPI, Barter, ..."
+                  value={form.paymentMethod}
+                  onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
+                />
               </div>
             </>
           )}

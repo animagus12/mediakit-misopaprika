@@ -4,6 +4,8 @@ import { CampaignsListSection } from "@/components/campaigns/CampaignsListSectio
 import { campaignRepository } from "@/repositories/campaignRepository";
 import { earningsRepository } from "@/repositories/earnings";
 import { getBrands } from "@/repositories/brands.writer.server";
+import { getInvoices } from "@/repositories/invoices.writer.server";
+import { buildCampaignInvoiceOptions } from "@/lib/invoice";
 import { buildCampaignBrandOptions } from "@/lib/campaigns";
 import { buildEditorVideoOptions } from "@/lib/contentPlan";
 import { getContentItems } from "@/repositories/contentPlan.writer.server";
@@ -37,15 +39,17 @@ export default async function CampaignsPage() {
   // The pickers inside the campaign form. A failure to read either store
   // costs one <Select> and not the page, so both are caught rather than
   // joining the two the page is actually about.
-  const [brands, editorTransactions, contentItems] = await Promise.all([
+  const [brands, editorTransactions, contentItems, invoices] = await Promise.all([
     getBrands().catch(() => []),
     getEditorTransactions().catch(() => []),
     getContentItems().catch(() => []),
+    getInvoices().catch(() => []),
   ]);
   const brandOptions = buildCampaignBrandOptions(brands);
   // Both stores that can claim a cut are counted, so a job already on the
   // plan or on another deal is offered marked rather than as free.
   const videoOptions = buildEditorVideoOptions(editorTransactions, [...contentItems, ...campaigns]);
+  const invoiceOptions = buildCampaignInvoiceOptions(invoices, campaigns);
 
   return (
     <AppShell>
@@ -56,6 +60,7 @@ export default async function CampaignsPage() {
           error={error}
           brandOptions={brandOptions}
           videoOptions={videoOptions}
+          invoiceOptions={invoiceOptions}
         />
       </div>
     </AppShell>

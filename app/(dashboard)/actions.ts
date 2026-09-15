@@ -26,7 +26,6 @@ import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
 import {
   buildInvoiceNumber,
   computeSubtotal,
-  invoiceClaimedByRef,
   paymentStatusForInvoice,
   reservedInvoiceNumbers,
   resolveCampaignInvoice,
@@ -47,20 +46,30 @@ export interface CreatedBrand {
 // brand case-insensitively (same convention as importBrandsFromCampaigns in
 // app/brands/actions.ts), or creates one on the spot so a campaign is never
 // left pointing at nothing. Returns the new brand's {id, name} when one was
-// created, so the caller can surface it (toast / "fill in details" nudge): 
+// created, so the caller can surface it (toast / "fill in details" nudge):
 // null when nothing needed creating.
+//
+// `brand` is the name the deal should show. A linked deal shows its brand's
+// own name, so the campaigns table and the brand page never disagree about
+// what a brand is called ("Crosswords" on a deal linked to "Crossword
+// Bookstore"). A link to a brand that no longer exists is dropped and resolved
+// again from the typed name, rather than saved pointing at nothing.
 async function resolveOrCreateBrandId(
   brandId: string | null,
   brandName: string,
   campaignStatus: CampaignStatus
-): Promise<{ brandId: string | null; createdBrand: CreatedBrand | null }> {
+): Promise<{ brandId: string | null; brand: string; createdBrand: CreatedBrand | null }> {
   const name = brandName.trim();
-  if (brandId || !name) return { brandId, createdBrand: null };
+  if (!brandId && !name) return { brandId: null, brand: name, createdBrand: null };
 
   const brands = await getBrands();
+  const linked = brandId ? brands.find((brand) => brand.id === brandId) : undefined;
+  if (linked) return { brandId: linked.id, brand: linked.name, createdBrand: null };
+  if (!name) return { brandId: null, brand: name, createdBrand: null };
+
   const key = normalizeBrandName(name);
   const existing = brands.find((brand) => normalizeBrandName(brand.name) === key);
-  if (existing) return { brandId: existing.id, createdBrand: null };
+  if (existing) return { brandId: existing.id, brand: existing.name, createdBrand: null };
 
   // A freshly-created brand is "Active" by default; only a campaign added as
   // already Posted implies a finished collaboration ("Worked With").
@@ -74,41 +83,75 @@ async function resolveOrCreateBrandId(
     primaryContactId: null,
     status,
   });
-  return { brandId: created.id, createdBrand: { id: created.id, name: created.name } };
+  return { brandId: created.id, brand: created.name, createdBrand: { id: created.id, name: created.name } };
 }
 
 /**
- * Links a just-saved deal to the invoice its typed reference names, when that
- * is a different invoice from the one it is linked to (see
- * invoiceClaimedByRef for when a link is taken from another deal).
+ * Links a deal to the invoice picked for it in the edit sheet, or unlinks it
+ * with null. A no-op when the deal already holds exactly that link.
  *
- * This is the way out of a wrong link: retyping the reference on the right
- * deal. A "Not tracked" deal picks up the invoice's payment state too, since
- * nobody had answered that yet; a status the form did set is left as saved.
+ * Picked, never inferred: every guess from typed numbers has at some point
+ * matched the wrong deal. One invoice bills one deal, so an invoice another
+ * deal holds is refused rather than moved: the picker never offers one, and a
+ * sheet opened before that link was made should not silently undo it. The
+ * link is freed by unlinking it on the deal that holds it.
+ *
+ * Unlinking also blanks the deal's reference (see setCampaignInvoice), or the
+ * deal would go on resolving to that invoice by number and read as invoiced.
+ * Linking sets the reference to the invoice's number. A "Not tracked" deal
+ * picks up the invoice's payment state, since nobody had answered that yet; a
+ * status the form did set is left as saved.
  */
-async function linkInvoiceFromTypedRef(campaignId: string): Promise<void> {
+async function applyInvoiceLink(campaignId: string, invoiceId: string | null): Promise<void> {
   const [campaigns, invoices] = await Promise.all([campaignRepository.getAll(), getInvoices()]);
   const deal = campaigns.find((entry) => entry.id === campaignId);
-  if (!deal) return;
+  if (!deal || deal.invoiceId === invoiceId) return;
 
-  // A renewal's invoice bills the licence extension, never the deal itself.
-  const renewalInvoiceIds = new Set(
-    campaigns.flatMap((entry) => entry.usage.renewals.map((renewal) => renewal.invoiceId))
-  );
-  const claim = invoiceClaimedByRef(
-    deal,
-    campaigns,
-    invoices.filter((invoice) => !renewalInvoiceIds.has(invoice.id))
-  );
-  if (!claim) return;
+  if (!invoiceId) {
+    await campaignRepository.linkInvoice(deal.id, "");
+    return;
+  }
+  const invoice = invoices.find((entry) => entry.id === invoiceId);
+  if (!invoice) throw new Error("The picked invoice no longer exists");
+  if (campaigns.some((entry) => entry.id !== deal.id && entry.invoiceId === invoice.id)) {
+    throw new Error(`${buildInvoiceNumber(invoice.invoiceNo)} is already linked to another campaign`);
+  }
 
-  if (claim.previousHolderId) await campaignRepository.linkInvoice(claim.previousHolderId, "");
-  await campaignRepository.linkInvoice(deal.id, claim.invoice.id, claim.invoice.invoiceNo);
+  await campaignRepository.linkInvoice(deal.id, invoice.id, buildInvoiceNumber(invoice.invoiceNo));
 
   if (deal.paymentStatus !== "unknown") return;
-  const target = paymentStatusForInvoice(deal, claim.invoice.status);
+  const target = paymentStatusForInvoice(deal, invoice.status);
   if (target === "received") await campaignRepository.setPaymentReceived(deal.id);
   else if (target === "pending") await campaignRepository.setPaymentPending(deal.id);
+}
+
+/**
+ * Unlinks a deal from its invoice straight away: the edit sheet's unlink icon,
+ * for a link that is simply wrong. Neither record is deleted; the invoice goes
+ * back to being pickable for the deal it actually bills.
+ */
+export async function unlinkCampaignInvoice(
+  campaignId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!campaignId.trim()) return { success: false, error: "This deal has no campaign ID to update" };
+  try {
+    const [campaigns, invoices] = await Promise.all([campaignRepository.getAll(), getInvoices()]);
+    const deal = campaigns.find((entry) => entry.id === campaignId);
+    if (!deal) return { success: false, error: "That campaign no longer exists" };
+    const invoice = invoices.find((entry) => entry.id === deal.invoiceId);
+
+    await applyInvoiceLink(campaignId, null);
+    revalidateCampaignPaths();
+    revalidateStores("invoices");
+    await recordActivity({
+      action: "campaign.updated",
+      entity: { type: "campaign", id: deal.id, label: campaignLabel(deal.campaign, deal.brand) },
+      detail: invoice ? `unlinked invoice ${buildInvoiceNumber(invoice.invoiceNo)}` : "unlinked invoice",
+    });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Couldn't unlink the invoice" };
+  }
 }
 
 function revalidateCampaignPaths(): void {
@@ -121,13 +164,13 @@ export async function createCampaign(
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
   try {
-    const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
-    const record = await campaignRepository.create({ ...input, brandId });
+    const { brandId, brand, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
+    const record = await campaignRepository.create({ ...input, brandId, brand });
     revalidateCampaignPaths();
     await recordActivity({
       action: "campaign.created",
-      entity: { type: "campaign", id: record.id, label: campaignLabel(input.campaign, input.brand) },
-      detail: input.brand.trim() || undefined,
+      entity: { type: "campaign", id: record.id, label: campaignLabel(input.campaign, brand) },
+      detail: brand || undefined,
       amount: input.amount + (input.usageFee ?? 0) + input.barterValue,
     });
     return { success: true, createdBrand };
@@ -153,19 +196,22 @@ export async function updateCampaign(
     if (problem) return { success: false, error: problem };
   }
   try {
-    const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
-    const change = await campaignRepository.update({ ...input, brandId });
-    // After the write and swallowed on failure: the deal's own edit stands
-    // even if its invoice link couldn't follow the reference.
-    if (change) {
+    const { brandId, brand, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
+    const change = await campaignRepository.update({ ...input, brandId, brand });
+    // After the deal's own write, so the reference the link sets is not
+    // overwritten by the one the form sent. Its failure is reported, since the
+    // creator picked that invoice and would otherwise think it was linked.
+    let linkError: string | null = null;
+    if (change && input.invoiceId !== undefined) {
       try {
-        await linkInvoiceFromTypedRef(change.after.id);
-      } catch {
-        // the link catches up the next time either record is saved
+        await applyInvoiceLink(change.after.id, input.invoiceId);
+      } catch (err) {
+        linkError = err instanceof Error ? err.message : "The invoice link wasn't saved";
       }
     }
     revalidateCampaignPaths();
     revalidateStores("invoices");
+    if (linkError) return { success: false, error: `Campaign saved, but ${linkError.toLowerCase()}` };
     if (change) {
       await recordActivity({
         action: "campaign.updated",
@@ -614,6 +660,32 @@ export async function setUsageRenewalPaymentStatus(
  * invoice for money that was only owed once is worse than none at all, and
  * the link on the renewal is the record of which it was.
  */
+/**
+ * Detaches a renewal from the invoice it points at, for a link that is wrong:
+ * typically an auto-raised renewal invoice later edited into a different
+ * deal's invoice, which leaves the renewal claiming a document that no longer
+ * bills it. Nothing is deleted. The invoice becomes linkable to its real deal
+ * again, and the renewal gets its "Raise invoice" action back.
+ */
+export async function unlinkRenewalInvoice(
+  campaignId: string,
+  renewalId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  if (!campaignId.trim() || !renewalId.trim()) {
+    return { success: false, error: "This renewal has no ID to update" };
+  }
+  try {
+    const record = await campaignRepository.linkRenewalInvoice(campaignId, renewalId, "");
+    if (!record) return { success: false, error: "That renewal no longer exists" };
+    revalidateUsagePaths();
+    revalidateStores("invoices");
+    await recordUsageEvent("campaign.updated", record, "unlinked renewal invoice");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Couldn't unlink the invoice" };
+  }
+}
+
 export async function raiseInvoiceForRenewal(
   campaignId: string,
   renewalId: string

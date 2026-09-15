@@ -3,7 +3,8 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { FileText, Unlink } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,8 +16,12 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { updateCampaign } from "@/app/(dashboard)/actions";
+import { unlinkCampaignInvoice, updateCampaign } from "@/app/(dashboard)/actions";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CampaignInvoiceOption } from "@/lib/invoice";
 import {
   CampaignFormFields,
   campaignAmounts,
@@ -36,6 +41,9 @@ import type { EditorVideoOption } from "@/lib/contentPlan";
 import { renewalTotal } from "@/lib/usageRights";
 import type { Campaign } from "@/repositories/campaigns";
 import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
+
+// Radix Select can't take "" as an item value, so "not linked" needs its own.
+const NO_INVOICE_LINK = "__none__";
 
 function latestRenewal(campaign: Campaign) {
   const { renewals } = campaign.usage;
@@ -69,7 +77,6 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     paymentStatus: campaign.paymentStatus,
     date: toIsoDate(campaign.date) || new Date().toISOString().slice(0, 10),
     uploadDate: toIsoDate(campaign.uploadDate),
-    invoiceRef: campaign.invoiceRef,
     paymentDue: toIsoDate(campaign.paymentDue),
     paidDate: toIsoDate(campaign.paidDate),
     paymentMethod: campaign.paymentMethod,
@@ -87,17 +94,28 @@ export function EditCampaignSheet({
   trigger,
   brandOptions = [],
   videoOptions = [],
+  invoiceOptions = [],
 }: {
   campaign: Campaign;
   trigger: ReactNode;
   brandOptions?: CampaignBrandOption[];
   videoOptions?: EditorVideoOption[];
+  /** The invoices this deal can be linked to. Left empty, the sheet offers no picker and keeps the link. */
+  invoiceOptions?: CampaignInvoiceOption[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CampaignFormState>(() => formFromCampaign(campaign));
+  const [invoiceId, setInvoiceId] = useState<string | null>(campaign.invoiceId);
+  // Only invoices no other deal is linked to, plus this deal's own so the
+  // picker can show it and unlink it. No choices left means no picker.
+  const availableInvoices = invoiceOptions.filter(
+    (option) => !option.linkedCampaignId || option.linkedCampaignId === campaign.id
+  );
+  const pickedInvoice = invoiceId ? availableInvoices.find((option) => option.id === invoiceId) : undefined;
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isUnlinking, startUnlinkTransition] = useTransition();
 
   const formId = `edit-campaign-${campaign.id}`;
   // A deal linked to its invoice opens it. One that isn't gets the editor
@@ -110,6 +128,21 @@ export function EditCampaignSheet({
     : !isCampaignCalledOff(campaign.status) && campaign.total > 0
       ? `/invoices/new?campaignId=${encodeURIComponent(campaign.id)}`
       : null;
+
+  // Writes on click rather than on Save, like the licence panel below: undoing
+  // a wrong link shouldn't wait on the rest of the form being valid.
+  function unlinkInvoice() {
+    startUnlinkTransition(async () => {
+      const result = await unlinkCampaignInvoice(campaign.id);
+      if (!result.success) {
+        toast.error("Couldn't unlink the invoice", { description: result.error });
+        return;
+      }
+      setInvoiceId(null);
+      toast.success("Invoice unlinked");
+      router.refresh();
+    });
+  }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -128,7 +161,6 @@ export function EditCampaignSheet({
         paymentStatus: form.paymentStatus,
         date: form.date,
         uploadDate: form.uploadDate,
-        invoiceRef: form.invoiceRef.trim(),
         paymentDue: form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
@@ -143,6 +175,9 @@ export function EditCampaignSheet({
         ...(campaign.usage.status === "ended" && form.usageEndedOn
           ? { usageEndedOn: form.usageEndedOn }
           : {}),
+        // Only from a sheet that offered the picker, so a sheet without one
+        // can't unlink a deal it never showed the invoice for.
+        ...(availableInvoices.length > 0 ? { invoiceId } : {}),
       });
       if (!result.success) {
         setError(result.error);
@@ -160,6 +195,7 @@ export function EditCampaignSheet({
         setOpen(next);
         if (next) {
           setForm(formFromCampaign(campaign));
+          setInvoiceId(campaign.invoiceId);
           setError(null);
         }
       }}
@@ -188,24 +224,79 @@ export function EditCampaignSheet({
             {error && <p className="text-xs text-destructive">{error}</p>}
           </form>
 
-          {invoiceHref && (
+          {(invoiceHref || availableInvoices.length > 0) && (
             <>
               <Separator />
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-xs font-medium">Invoice</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {campaign.invoiceId
-                      ? "Already raised for this deal."
-                      : "Fills in the brand, deliverables, amounts and due date from this deal as last saved."}
-                  </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-xs font-medium">Invoice</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {campaign.invoiceId
+                        ? "Already raised for this deal."
+                        : "Fills in the brand, deliverables, amounts and due date from this deal as last saved."}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {invoiceHref && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={invoiceHref}>
+                          <FileText />
+                          {campaign.invoiceId ? "View invoice" : "Create invoice"}
+                        </Link>
+                      </Button>
+                    )}
+                    {campaign.invoiceId && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            aria-label="Unlink invoice"
+                            disabled={isUnlinking}
+                            onClick={unlinkInvoice}
+                          >
+                            <Unlink />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Unlink invoice</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
-                <Button asChild size="sm" variant="outline" className="shrink-0">
-                  <Link href={invoiceHref}>
-                    <FileText />
-                    {campaign.invoiceId ? "View invoice" : "Create invoice"}
-                  </Link>
-                </Button>
+
+                {availableInvoices.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`${formId}-invoiceId`}>Linked invoice</Label>
+                    <Select
+                      value={invoiceId ?? NO_INVOICE_LINK}
+                      onValueChange={(value) => setInvoiceId(value === NO_INVOICE_LINK ? null : value)}
+                    >
+                      <SelectTrigger id={`${formId}-invoiceId`} className="w-full">
+                        <SelectValue placeholder="Not linked" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_INVOICE_LINK}>Not linked</SelectItem>
+                        {availableInvoices.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            <span className="truncate">
+                              {option.number}
+                              {option.detail && ` · ${option.detail}`}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {invoiceId !== campaign.invoiceId && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {pickedInvoice
+                          ? `Saving links ${pickedInvoice.number} and shows it on the campaigns table.`
+                          : "Saving unlinks the invoice from this deal."}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}

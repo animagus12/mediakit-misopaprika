@@ -11,13 +11,16 @@ import {
   PlayCircle,
   RefreshCw,
   Undo2,
+  Unlink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   raiseInvoiceForRenewal,
   setCampaignUsageState,
   setUsageRenewalPaymentStatus,
+  unlinkRenewalInvoice,
 } from "@/app/(dashboard)/actions";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
 import { paymentStatusLabel } from "@/lib/campaigns";
@@ -96,6 +99,19 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
           ? `Invoice ${buildInvoiceNumber(result.invoiceNo)} raised`
           : "Invoice raised"
       );
+    });
+  }
+
+  // For a renewal pointing at an invoice that bills something else. Nothing is
+  // deleted, and the renewal gets "Raise invoice" back.
+  function unlinkInvoice(renewal: UsageRenewalRecord) {
+    startTransition(async () => {
+      const result = await unlinkRenewalInvoice(campaign.id, renewal.id);
+      if (!result.success) {
+        toast.error("Couldn't unlink the invoice", { description: result.error });
+        return;
+      }
+      toast.success("Invoice unlinked from the renewal");
     });
   }
 
@@ -208,12 +224,29 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
                   {renewal.paidDate ? ` · paid ${renewal.paidDate}` : ""}
                 </p>
                 {renewal.invoiceId && (
-                  <Link
-                    href={`/invoices/${renewal.invoiceId}`}
-                    className="text-[11px] text-foreground hover:underline"
-                  >
-                    View invoice
-                  </Link>
+                  <span className="inline-flex items-center gap-1">
+                    <Link
+                      href={`/invoices/${renewal.invoiceId}`}
+                      className="text-[11px] text-foreground hover:underline"
+                    >
+                      View invoice
+                    </Link>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          variant="ghost"
+                          aria-label="Unlink renewal invoice"
+                          disabled={isPending}
+                          onClick={() => unlinkInvoice(renewal)}
+                        >
+                          <Unlink />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Unlink invoice</TooltipContent>
+                    </Tooltip>
+                  </span>
                 )}
                 {!renewal.invoiceId && renewal.amount > 0 && (
                   <Button

@@ -7,10 +7,11 @@ import { primaryContactForBrand } from "@/lib/contacts";
 import {
   buildInvoiceBrandOptions,
   buildInvoiceEditorJobOptions,
-  isInvoiceNoTaken,
   reservedInvoiceNumbers,
   resolveCampaignInvoice,
   todayISO,
+  toInvoiceLinkedCampaign,
+  type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
 import { nextInvoiceNo } from "@/lib/usageInvoice";
 import { campaignRepository } from "@/repositories/campaignRepository";
@@ -54,6 +55,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
   // money owed once is worse than none. Best-effort like the rest: a deal that
   // can't be read falls back to a blank editor rather than an error page.
   let prefill: NewInvoice | undefined;
+  let linkedCampaign: InvoiceLinkedCampaign | null = null;
   let existingInvoiceId: string | null = null;
   let invoiceNumberSeed = data.invoiceNumberSeed;
   try {
@@ -68,13 +70,10 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
     brandOptions = buildInvoiceBrandOptions(brands, contacts);
     editorJobOptions = buildInvoiceEditorJobOptions(editorTransactions);
 
-    // The seed is only bumped by saves that go through this editor, so it can
-    // already name a saved invoice or a number a deal quotes. Moved on only
-    // when it does, so a number deliberately reserved there is still offered.
-    const reserved = reservedInvoiceNumbers(invoices, campaigns);
-    if (isInvoiceNoTaken(invoiceNumberSeed, reserved.map((entry) => entry.invoiceNo))) {
-      invoiceNumberSeed = nextInvoiceNo(reserved, invoiceNumberSeed);
-    }
+    // Always counted from what exists rather than trusting the stored seed,
+    // which only moves forward: a top number freed by renaming or deleting an
+    // invoice is offered again instead of leaving a gap (see nextInvoiceNo).
+    invoiceNumberSeed = nextInvoiceNo(reservedInvoiceNumbers(invoices, campaigns), invoiceNumberSeed);
 
     const deal = campaignId ? campaigns.find((entry) => entry.id === campaignId) : undefined;
     if (deal) {
@@ -88,6 +87,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
         contactName: brand ? (primaryContactForBrand(brand, contacts)?.name ?? "") : "",
         today: todayISO(),
       });
+      linkedCampaign = toInvoiceLinkedCampaign({ campaign: deal, renewalId: null });
     }
   } catch {
     // keep the fallbacks
@@ -104,6 +104,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
         editorJobOptions={editorJobOptions}
         prefill={prefill}
         campaignId={prefill ? campaignId : undefined}
+        linkedCampaign={linkedCampaign}
         initialBrandId={brandId}
         initialCampaignName={campaign}
         initialClientName={client}

@@ -37,22 +37,26 @@ export interface RenewalInvoiceInput {
 }
 
 /**
- * The next free invoice number, zero-padded to the width already in use.
+ * The next invoice number: one past the highest number actually in use,
+ * zero-padded to the width already in use.
  *
- * Read from the saved invoices rather than from `invoiceNumberSeed` alone.
- * The seed is bumped when an invoice is saved *through the editor*, and this
- * writes one without going near it, so trusting the seed by itself would hand
- * out the same number twice the moment the two paths interleave. The seed is
- * still honoured as a floor, so a number reserved there is not stepped on.
+ * Read from the saved invoices, never from `invoiceNumberSeed`, once any
+ * exist. The seed only ever moves forward, so an invoice raised as 0015 and
+ * then renamed (or deleted) left it at 0016 and the sequence with a hole in
+ * it. Counting what exists hands 0015 out again instead. Gaps lower down, such
+ * as a number skipped by hand, are left alone: only the top is reclaimed.
+ *
+ * The seed is the starting number while there are no invoices at all.
  */
 export function nextInvoiceNo(existing: { invoiceNo: string }[], seed: string): string {
-  let highest = 0;
+  let highest = -1;
   for (const invoice of existing) {
-    const value = Number(invoice.invoiceNo.trim());
-    if (Number.isFinite(value)) highest = Math.max(highest, value);
+    const trimmed = invoice.invoiceNo.trim();
+    const value = Number(trimmed);
+    if (trimmed && Number.isInteger(value) && value >= 0) highest = Math.max(highest, value);
   }
   const seedValue = Number(seed.trim());
-  const next = Math.max(highest + 1, Number.isFinite(seedValue) ? seedValue : 0);
+  const next = highest >= 0 ? highest + 1 : Number.isInteger(seedValue) && seedValue > 0 ? seedValue : 1;
   return String(next).padStart(Math.max(4, seed.trim().length), "0");
 }
 
@@ -88,11 +92,9 @@ export function addDaysISO(iso: string, days: number): string {
  * app. The renewal fee is already chased by the usage card, so nothing is lost
  * by waiting for the creator to send it and say so.
  *
- * Its **campaign name is not the deal's**. `selectAttentionItems` decides
- * whether a deal has been invoiced by matching a saved invoice's brand and
- * campaign against it, so an invoice billing for a licence extension under the
- * deal's own name would make the deal itself look invoiced when it never was,
- * and silence the "Delivered, no invoice raised" warning.
+ * Its **campaign name is not the deal's**: "IG Page usage renewal", so the
+ * document can't be mistaken for the deal's own invoice in the invoices list.
+ * It is linked to the renewal, never to the deal (see invoiceOwner).
  */
 export function buildRenewalInvoice(input: RenewalInvoiceInput): NewInvoice {
   const { defaults } = input;

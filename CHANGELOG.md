@@ -2,14 +2,34 @@
 
 ## [Unreleased]
 
+## [1.22.4] - 2026-09-16
+
+### Changed
+
+- **A campaign shows an invoice number only when a real invoice is linked to it.** The editable "Invoice ref" field is gone from the new and edit campaign forms; Payment method takes the full row. The campaigns table shows the linked invoice's own number as a link, and nothing for a deal with no invoice, even one still carrying an old typed reference. Search matches invoice numbers only on linked deals.
+  - **New paid deals no longer get an automatic "MSP-INV-00NN" reference.** It was a number for an invoice that didn't exist yet. A deal's reference is written from the invoice's number when one is linked.
+  - **A deal with no linked invoice carries no reference.** Old ones read as blank (`toInvoiceLink`), and the stored record is cleaned on its next write; unlinking or deleting an invoice now always blanks the deal's reference too. A leftover "MSP-INV-0007" on ThisFanon was matching a renewal invoice renamed to 0007. The dashboard's "Delivered, no invoice raised" now flags a delivered deal whose only claim to an invoice was one of these references.
+- **The next invoice number is one past the highest number in use,** not the stored seed. The seed only moves forward, so raising 0015 and renaming it to 0007 used to offer 0016 next and leave a gap; it now offers 0015 again. Gaps lower in the sequence are left alone, and the seed is only used as the starting number when there are no invoices. Applies to the invoice editor, invoices raised from a deal, and renewal invoices.
+
+### Fixed
+
+- **An invoice's brand is the brand of the campaign it bills.** `getInvoices`/`getInvoice` resolve it from the linked campaign or renewal (`withLinkedBrand`, `invoiceOwner`), so the brand page, the invoices list and the media kit's worked-with logos agree. Seven linked invoices saved without a brand (Boy King, Deer Dost, L.O.T Build, Motoblox, Fanzai and two Blinkit ones) were missing from their brand pages, since their billed-to names ("Mangoshake Media", an office address) matched no brand. The stored record follows on its next save.
+  - The invoice editor names the campaign or renewal a linked invoice bills, and locks **Link to brand** to that campaign's brand. The billed-to name and address stay editable; they are what the document says.
+- **Brands keep their campaigns and invoices in step.** Renaming a brand renames it on every campaign linked to it. Deleting one unlinks its campaigns and invoices, which keep the name they show, instead of leaving them pointing at a brand that no longer exists (`syncCampaignsWithBrand`, `detachInvoicesFromBrand`).
+- **A linked campaign shows its brand's own name.** Saving a campaign linked to a brand writes that brand's name ("Crosswords" linked to "Crossword Bookstore" becomes "Crossword Bookstore"). A link to a deleted brand is dropped and resolved again from the typed name.
+- **A renewal's payment follows its invoice.** Marking a renewal invoice paid in the editor marks the renewal received; moving it back to sent or draft returns it to pending. Only the other direction was synced before.
+- **"Delivered, no invoice raised" counts only linked, non-void invoices.** Matching a saved invoice by brand and campaign name, or trusting a typed reference, could clear the warning for a deal whose invoice billed someone else or didn't exist, while the campaigns table showed no invoice.
+
 ## [1.22.3] - 2026-09-15
 
 ### Fixed
 
 - **An invoice can no longer be saved under a number another invoice already uses.** `addInvoice` refuses it, and so does `updateInvoice` when the number changes, with "MSP-INV-0012 is already used by another invoice". The editor's warning used to compare raw strings, so "12" passed while "0012" was saved; every comparison now goes through `invoiceNoKey`, which reads "MSP-INV-0012", "0012" and "12" as one number.
 - **Deal references and invoice numbers are one sequence.** A new paid deal's auto reference continues past saved invoice numbers, and renewal invoices, a deal's fallback number and the blank editor's number skip references deals already quote (`reservedInvoiceNumbers`). A renewal could previously be raised as 0012 while another deal quoted MSP-INV-0012.
-- **Saving an invoice links it to the right deal.** Matching by typed reference only considers deals no other invoice bills yet, and never a renewal's invoice, so one deal's invoice can't be taken over by another deal quoting the same number. A linked deal's reference follows its invoice's number, so renumbering an invoice updates the campaigns table and its link.
-- **Retyping a deal's invoice reference relinks it.** Saving a deal whose reference names an invoice it isn't linked to links it (`invoiceClaimedByRef`), taking the link from another deal only when that deal quotes a different number. This repairs an invoice that was linked to the wrong deal.
+- **Saving an invoice links it to the right deal.** Matching by typed reference only considers deals no other invoice bills yet, and never a renewal's invoice, so one deal's invoice can't be taken over by another deal quoting the same number. A deal's reference follows its invoice's number on a new link, and on a renumber when it named the old number, so renumbering an invoice updates the campaigns table. A deal quoting some other number keeps it: saving an invoice no longer rewrites the reference on a deal that was linked by mistake, which had made the wrong deal look right.
+- **A deal's invoice is picked, not guessed.** The campaign edit sheet on /campaigns has a **Linked invoice** picker. It lists only invoices no other deal is linked to (renewal invoices excluded), plus the deal's own, and is hidden when that leaves nothing to pick. Saving links the invoice and sets this deal's reference to its number; an invoice another deal took in the meantime is refused with "MSP-INV-0014 is already linked to another campaign". "Not linked" removes a link and blanks the reference when it named that invoice, so the deal stops matching it by number.
+  - **An unlink icon sits beside View invoice** in every campaign edit sheet (dashboard and calendar included). It unlinks straight away without Save (`unlinkCampaignInvoice`), confirms with a toast, and logs "unlinked invoice MSP-INV-0014" on the campaign. Neither record is deleted.
+  - **A renewal's invoice can be unlinked the same way,** from the icon beside its View invoice link in Ad usage rights (`unlinkRenewalInvoice`). An auto-raised renewal invoice later edited into another deal's invoice left the renewal still claiming it, which kept it out of every deal's picker. Unlinking gives the renewal its Raise invoice action back. Deleting an invoice now also clears any renewal pointing at it. This replaces relinking from the typed reference, which could not tell a wrong link from two deals quoting one number.
 - **A "Not tracked" deal follows its invoice.** Marking the invoice sent moves the deal to pending, and paid moves it to received (`paymentStatusForInvoice`). Called-off deals are still left alone.
 - **The dashboard's Create invoice links open the deal-filled editor** (`/invoices/new?campaignId=`), so the saved invoice links to that deal rather than being matched by number.
 
