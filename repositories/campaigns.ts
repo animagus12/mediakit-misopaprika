@@ -207,9 +207,10 @@ export function usageTermStart(record: Pick<CampaignRecord, "uploadDate" | "date
 // --- Invoice link --------------------------------------------------------
 // A deal points at its invoice two ways, and they are not the same thing.
 //
-// `invoiceRef` is the number a human types or the app auto-assigns
-// ("MSP-INV-0010"). It exists before any invoice record does, it is what the
-// creator reconciles against a bank statement, and it stays typed text.
+// `invoiceRef` is the linked invoice's number as text ("MSP-INV-0010"),
+// written when the link is (see setCampaignInvoice). It used to be typed or
+// auto-assigned before any invoice existed; neither happens any more, and a
+// deal with no link carries none.
 //
 // `invoiceId` is the real foreign key into repositories/invoices.ts, written
 // by the app once a saved invoice is matched to the deal (see
@@ -233,15 +234,22 @@ export interface CampaignInvoiceLink {
  * `invoiceId` is a typed reference and never an Invoice id. Applied on read
  * (see readRecords in ./campaigns.writer.server) so no caller downstream has
  * to know the difference.
+ *
+ * A reference with no linked invoice reads as "". Those are left over from
+ * when a number was typed or handed out before any invoice existed: nothing
+ * shows them, and matching one by number is how a renewal renamed to 0007
+ * resolved as the invoice of ThisFanon, whose leftover reference was
+ * MSP-INV-0007. Blanked on read rather than by a one-off migration, so every
+ * reader agrees at once and the store heals on the record's next write.
  */
 export function toInvoiceLink(raw: {
   invoiceRef?: string;
   invoiceId?: string | null;
 }): CampaignInvoiceLink {
-  if (raw.invoiceRef === undefined) {
-    return { invoiceRef: raw.invoiceId?.trim() ?? "", invoiceId: null };
-  }
-  return { invoiceRef: raw.invoiceRef.trim(), invoiceId: raw.invoiceId?.trim() || null };
+  // Pre-split: `invoiceId` holds a typed reference, and no key exists.
+  if (raw.invoiceRef === undefined) return { invoiceRef: "", invoiceId: null };
+  const invoiceId = raw.invoiceId?.trim() || null;
+  return { invoiceRef: invoiceId ? raw.invoiceRef.trim() : "", invoiceId };
 }
 
 export interface CampaignRecord extends CampaignInvoiceLink {

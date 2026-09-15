@@ -2,7 +2,9 @@ import "server-only";
 import { getRedis } from "@/lib/cache";
 import invoicesSeed from "@/data/invoices.json";
 import type { RecordChange } from "@/lib/activityDiff";
-import { buildInvoiceNumber, invoiceNoKey, isInvoiceNoTaken } from "@/lib/invoice";
+import { buildInvoiceNumber, invoiceNoKey, isInvoiceNoTaken, withLinkedBrand } from "@/lib/invoice";
+import { getCampaigns } from "./campaigns.writer.server";
+import type { Campaign } from "./campaigns";
 import { toInvoice } from "./invoices";
 import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
 
@@ -21,16 +23,31 @@ async function readRecords(): Promise<InvoiceRecord[]> {
   return stored ?? SEED;
 }
 
+// Every invoice read carries the brand of the deal it bills (withLinkedBrand),
+// so the brand page, the invoices list and the media kit agree on it without
+// each re-deriving it. Best-effort: campaigns that can't be read leave each
+// invoice's own brand. Writes go through readRecords and store what the
+// editor saved, which after this is the linked brand too.
+async function linkedCampaigns(): Promise<Campaign[]> {
+  try {
+    return await getCampaigns();
+  } catch {
+    return [];
+  }
+}
+
 // Falls back to the bundled data/invoices.json seed (empty) until the first
 // invoice is saved, or whenever Redis isn't configured (e.g. local dev
 // without KV env vars).
 export async function getInvoices(): Promise<Invoice[]> {
-  return (await readRecords()).map(toInvoice);
+  const [records, campaigns] = await Promise.all([readRecords(), linkedCampaigns()]);
+  return records.map((record) => withLinkedBrand(toInvoice(record), campaigns));
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
-  const record = (await readRecords()).find((r) => r.id === id);
-  return record ? toInvoice(record) : null;
+  const [records, campaigns] = await Promise.all([readRecords(), linkedCampaigns()]);
+  const record = records.find((r) => r.id === id);
+  return record ? withLinkedBrand(toInvoice(record), campaigns) : null;
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of what
@@ -131,6 +148,23 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
   const after: InvoiceRecord = { ...before, ...normalize(input), updatedAt: new Date().toISOString() };
   await redis.set(INVOICES_KEY, records.map((record) => (record.id === input.id ? after : record)));
   return { before, after };
+}
+
+// Unlinks every invoice from a brand being deleted, keeping the client name it
+// was billed to: an invoice is a document already sent, so only the CRM link
+// goes. Mirrors syncCampaignsWithBrand in campaigns.writer.server.ts. Writes
+// nothing when no invoice named the brand.
+export async function detachInvoicesFromBrand(brandId: string): Promise<number> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const changed = records.filter((record) => record.brandId === brandId).length;
+  if (changed === 0) return 0;
+  await redis.set(
+    INVOICES_KEY,
+    records.map((record): InvoiceRecord => (record.brandId === brandId ? { ...record, brandId: null } : record))
+  );
+  return changed;
 }
 
 // Writes just the status, leaving every other field untouched: mirrors

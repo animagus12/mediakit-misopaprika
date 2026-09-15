@@ -1,7 +1,6 @@
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { Invoice } from "@/repositories/invoices";
 import { isInvoiceOverdue } from "@/lib/invoice";
-import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { isCampaignCalledOff } from "@/lib/campaigns";
 
 // Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
@@ -21,39 +20,24 @@ export interface AttentionItem {
   label: string; // what's unresolved, in a few words
 }
 
-function normalized(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 function isDelivered(record: BrandCampaignRecord): boolean {
   return record.status === "Posted" || record.uploadDate.trim() !== "";
 }
 
-// Whether an invoice exists for this deal: it has been reconciled to a saved
-// invoice, or its "Invoice ref" field names one (auto-filled for paid deals
-// added through the app), or a saved invoice in the invoices store names the
-// same brand + campaign. The last check is what makes the "Delivered, no
-// invoice raised" item clear itself for a deal whose invoice was raised
-// without either link being written. Void invoices don't count: a voided
-// invoice means the deal is still uninvoiced.
+// Whether this deal has an invoice: one is linked to it, and isn't void (a
+// voided invoice leaves the deal uninvoiced). The same answer the campaigns
+// table gives, which shows an invoice number only for a linked one.
+//
+// Linked only. Matching a saved invoice by brand and campaign name, or trusting
+// a typed reference, cleared the warning for deals whose invoice billed
+// someone else or never existed, while the table showed no invoice at all. An
+// invoice raised by hand is linked from the campaign's edit sheet, which is
+// what the "Create invoice" link here leads to.
 function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
-  if (record.invoiceId) return true;
-
-  const ref = record.invoiceRef.trim();
-  if (ref !== "" && ref !== "-") {
-    return true;
-  }
-
-  const brandKey = normalizeBrandName(record.brand);
-  const campaignKey = normalized(record.campaign);
-  if (brandKey === "" || campaignKey === "") return false;
-
-  return invoices.some(
-    (invoice) =>
-      invoice.status !== "void" &&
-      normalizeBrandName(invoice.client.name) === brandKey &&
-      normalized(invoice.campaignName) === campaignKey
-  );
+  if (!record.invoiceId) return false;
+  const invoice = invoices.find((entry) => entry.id === record.invoiceId);
+  // An invoice list that couldn't be read is not evidence the link is broken.
+  return invoice ? invoice.status !== "void" : invoices.length === 0;
 }
 
 export function selectAttentionItems(

@@ -119,20 +119,15 @@ function usageFee(input: NewCampaignInput, stored: number): number {
   return input.usageFee === undefined ? stored : Math.max(0, Number(input.usageFee) || 0);
 }
 
-// MC (monetary campaign) gets an auto-assigned invoice reference; BC (barter
-// campaign) doesn't: matches the sheet's original "MSP-BC0001" /
-// "MSP-MC0001" + "MSP-INV-0001" convention. A caller-supplied invoiceRef
-// (e.g. entered by hand for a barter deal) always wins. The invoiceId foreign
-// key stays null: no invoice record exists to point at yet.
+// MC (monetary campaign) / BC (barter campaign) ids match the sheet's original
+// "MSP-MC0001" / "MSP-BC0001" convention.
 //
-// `takenInvoiceRefs` are the saved invoices' numbers as "MSP-INV-0012": the
-// auto reference continues past those as well as past other deals', since an
-// invoice raised without a deal (a renewal, one typed by hand) uses the same
-// sequence and a reference naming it would match this deal to that invoice.
-export async function addCampaign(
-  input: NewCampaignInput,
-  takenInvoiceRefs: string[] = []
-): Promise<CampaignRecord> {
+// No invoice reference is assigned. Handing a new deal "MSP-INV-0012" before
+// any invoice exists showed a number for a document that was never raised,
+// made the deal read as invoiced, and collided with invoices numbered on their
+// own. A deal gets its number when an invoice is linked to it
+// (setCampaignInvoice). A caller-supplied invoiceRef is still kept as given.
+export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
@@ -142,11 +137,7 @@ export async function addCampaign(
     records.map((r) => r.id),
     hasPaidComponent ? "MSP-MC" : "MSP-BC"
   );
-  const invoiceRef =
-    input.invoiceRef?.trim() ||
-    (hasPaidComponent
-      ? nextSequenceId([...records.map((r) => r.invoiceRef), ...takenInvoiceRefs], "MSP-INV-")
-      : "");
+  const invoiceRef = input.invoiceRef?.trim() ?? "";
 
   const record: CampaignRecord = {
     id,
@@ -408,15 +399,48 @@ export async function setUsageRenewalPayment(
 }
 
 /**
+ * Keeps every deal linked to a brand in step with that brand: `name` rewrites
+ * the brand name the deal shows (a rename in the CRM), and null unlinks the
+ * deals from a brand being deleted, keeping the name they show.
+ *
+ * Without this a renamed brand went on showing its old name on every deal, and
+ * a deleted one left deals pointing at nothing: recordsForBrand trusts a
+ * brandId over the name, so recreating the brand never picked them back up.
+ * Answers how many deals it changed; writes nothing when none.
+ */
+export async function syncCampaignsWithBrand(brandId: string, name: string | null): Promise<number> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  let changed = 0;
+  const next = records.map((record): CampaignRecord => {
+    if (record.brandId !== brandId) return record;
+    if (name === null) {
+      changed += 1;
+      return { ...record, brandId: null };
+    }
+    if (record.brand === name) return record;
+    changed += 1;
+    return { ...record, brand: name };
+  });
+  if (changed > 0) await redis.set(CAMPAIGNS_KEY, next);
+  return changed;
+}
+
+/**
  * Points a deal at the invoice record that bills it, or clears the link with
  * "".
  *
  * `invoiceRef`, when given, replaces the typed reference too: once a deal is
  * linked, its invoice's number is the one the brand was sent, and a deal still
  * quoting the number it was first handed (after the invoice was raised under
- * another, or renumbered) reads as a second, unrelated document. Clearing a
- * link leaves the reference as it is. Answers the record it wrote, or null
- * when the id matched nothing.
+ * another, or renumbered) reads as a second, unrelated document. Left out, the
+ * reference is kept while linked.
+ *
+ * Clearing the link always blanks the reference. A deal with no invoice shows
+ * no number, and a leftover one went on matching whatever invoice later took
+ * that number (a renewal renamed to 0007 resolved as ThisFanon's invoice).
+ * Answers the record it wrote, or null when the id matched nothing.
  */
 export async function setCampaignInvoice(
   id: string,
@@ -430,7 +454,7 @@ export async function setCampaignInvoice(
   if (!before) return null;
 
   const linked = invoiceId.trim() || null;
-  const ref = invoiceRef?.trim() || before.invoiceRef;
+  const ref = !linked ? "" : invoiceRef === undefined ? before.invoiceRef : invoiceRef.trim();
   if (before.invoiceId === linked && before.invoiceRef === ref) return before;
 
   const after: CampaignRecord = { ...before, invoiceId: linked, invoiceRef: ref };

@@ -4,7 +4,7 @@ import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
 import type { Invoice, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
-import type { CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
+import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
 import { isCampaignCalledOff } from "./campaigns";
@@ -46,7 +46,7 @@ export function todayISO(offsetDays = 0): string {
  * `campaignId` fills every field from the deal and links the saved invoice to
  * it directly (a deal already invoiced opens that invoice instead). Brand and
  * campaign ride along for a deal the page can no longer find, so the editor
- * still names the pair selectAttentionItems matches a deal's invoice on.
+ * still starts from the right names.
  */
 export function newInvoiceHref(brand: string, campaign: string, campaignId?: string): string {
   const params = new URLSearchParams();
@@ -103,18 +103,20 @@ export function isInvoiceNoTaken(invoiceNo: string, numbers: string[]): boolean 
  * Every invoice number already spoken for: the saved invoices' own, and the
  * references deals quote before an invoice exists for them.
  *
- * Both, because they are one sequence to the brand reading them. A deal is
- * handed "MSP-INV-0012" the day it is added, and an invoice raised elsewhere
- * (a renewal, one typed by hand) under 0012 afterwards leaves two documents
- * with one number and matches the wrong deal to it.
+ * Both, because they are one sequence to the brand reading them: a reference
+ * a deal still quotes without an invoice, reused for another invoice, leaves
+ * two documents with one number. A linked deal's reference is only a copy of
+ * its invoice's number and is not counted again, so a stale copy can't push
+ * the next number up and leave a gap.
  */
 export function reservedInvoiceNumbers(
   invoices: { invoiceNo: string }[],
-  campaigns: { invoiceRef: string }[]
+  campaigns: { invoiceRef: string; invoiceId: string | null }[]
 ): { invoiceNo: string }[] {
   return [
     ...invoices,
     ...campaigns.flatMap((campaign) => {
+      if (campaign.invoiceId) return [];
       const match = campaign.invoiceRef.trim().match(/^MSP-INV-(\d+)$/i);
       return match ? [{ invoiceNo: match[1] }] : [];
     }),
@@ -143,37 +145,101 @@ export function resolveCampaignInvoice<T extends { id: string; invoiceNo: string
   return findInvoiceByCampaignRef(link.invoiceRef, invoices);
 }
 
-interface InvoiceLinkHolder {
-  id: string;
-  invoiceId: string | null;
-  invoiceRef: string;
+type InvoiceOwnerCandidate = Pick<Campaign, "id" | "brand" | "campaign" | "brandId" | "invoiceId" | "usage">;
+
+/**
+ * The deal an invoice bills, directly or through one of its renewals, or null
+ * for an invoice raised on its own.
+ */
+export function invoiceOwner<C extends InvoiceOwnerCandidate>(
+  invoiceId: string,
+  campaigns: C[]
+): { campaign: C; renewalId: string | null } | null {
+  for (const campaign of campaigns) {
+    if (campaign.invoiceId === invoiceId) return { campaign, renewalId: null };
+    const renewal = campaign.usage.renewals.find((entry) => entry.invoiceId === invoiceId);
+    if (renewal) return { campaign, renewalId: renewal.id };
+  }
+  return null;
 }
 
 /**
- * The invoice a deal's typed reference should link it to, and the deal that
- * holds that link now, or null to leave every link as it is.
+ * The invoice with the brand of the deal it bills.
  *
- * Saving a deal whose reference names an invoice it isn't linked to is the
- * creator saying which document bills it. It takes the link from another deal
- * only when that deal quotes some other number: such a link was made by
- * matching the wrong deal to the invoice, and is exactly what the reference is
- * correcting. A deal that quotes the same number keeps it, since two deals
- * quoting one number is ambiguous and a guess would only move the problem.
+ * A linked invoice bills that deal's brand, whatever brand the invoice record
+ * itself stores: most invoices were saved before they had a brand picker, and
+ * an auto-raised one can be edited into another deal's invoice without its
+ * brand being changed. Either left the invoice off its brand's page (billed to
+ * "Mangoshake Media" or an office address, which no brand name matches) or on
+ * the wrong one. A deal with no brand leaves the invoice's own in place.
  */
-export function invoiceClaimedByRef<T extends { id: string; invoiceNo: string }>(
-  deal: InvoiceLinkHolder,
-  campaigns: InvoiceLinkHolder[],
-  invoices: T[]
-): { invoice: T; previousHolderId: string | null } | null {
-  const linked = deal.invoiceId ? invoices.filter((invoice) => invoice.id === deal.invoiceId) : [];
-  if (findInvoiceByCampaignRef(deal.invoiceRef, linked)) return null;
+export function withLinkedBrand<T extends { id: string; brandId: string | null }>(
+  invoice: T,
+  campaigns: InvoiceOwnerCandidate[]
+): T {
+  const brandId = invoiceOwner(invoice.id, campaigns)?.campaign.brandId ?? invoice.brandId ?? null;
+  return brandId === invoice.brandId ? invoice : { ...invoice, brandId };
+}
 
-  const invoice = findInvoiceByCampaignRef(deal.invoiceRef, invoices);
-  if (!invoice) return null;
+/** The deal a linked invoice bills, as the invoice editor names it. */
+export interface InvoiceLinkedCampaign {
+  label: string;
+  brandId: string | null;
+  /** True for a renewal's invoice, which bills the licence extension. */
+  renewal: boolean;
+}
 
-  const holder = campaigns.find((entry) => entry.id !== deal.id && entry.invoiceId === invoice.id);
-  if (holder && findInvoiceByCampaignRef(holder.invoiceRef, [invoice])) return null;
-  return { invoice, previousHolderId: holder?.id ?? null };
+export function toInvoiceLinkedCampaign(
+  owner: { campaign: InvoiceOwnerCandidate; renewalId: string | null } | null
+): InvoiceLinkedCampaign | null {
+  if (!owner) return null;
+  const { campaign } = owner;
+  return {
+    label: [campaign.brand.trim(), campaign.campaign.trim()].filter(Boolean).join(" · "),
+    brandId: campaign.brandId,
+    renewal: owner.renewalId !== null,
+  };
+}
+
+/** One invoice a deal can be linked to, for the edit sheet's invoice picker. */
+export interface CampaignInvoiceOption {
+  id: string;
+  /** "MSP-INV-0014" */
+  number: string;
+  /** What it bills: its campaign name, or the client when it has none. */
+  detail: string;
+  /** The deal linked to it now, or null. Another deal's invoice is not offered. */
+  linkedCampaignId: string | null;
+}
+
+/**
+ * Every invoice a deal could be billed by, newest number first, with the deal
+ * each is linked to now.
+ *
+ * A renewal's invoice is left out: it bills a licence extension and is linked
+ * to its renewal, and a deal pointing at it would count the renewal fee as the
+ * deal's own. The linked deal is carried so each sheet can drop invoices
+ * another deal already holds: one invoice bills one deal.
+ */
+export function buildCampaignInvoiceOptions(
+  invoices: Pick<Invoice, "id" | "invoiceNo" | "campaignName" | "client">[],
+  campaigns: Pick<Campaign, "id" | "invoiceId" | "usage">[]
+): CampaignInvoiceOption[] {
+  const renewalInvoiceIds = new Set(
+    campaigns.flatMap((campaign) => campaign.usage.renewals.map((renewal) => renewal.invoiceId))
+  );
+  return invoices
+    .filter((invoice) => !renewalInvoiceIds.has(invoice.id))
+    .map((invoice) => {
+      const holder = campaigns.find((campaign) => campaign.invoiceId === invoice.id);
+      return {
+        id: invoice.id,
+        number: buildInvoiceNumber(invoice.invoiceNo),
+        detail: invoice.campaignName.trim() || invoice.client.name.trim(),
+        linkedCampaignId: holder?.id ?? null,
+      };
+    })
+    .sort((a, b) => b.number.localeCompare(a.number, undefined, { numeric: true }));
 }
 
 /**

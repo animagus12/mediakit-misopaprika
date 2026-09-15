@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { computeCampaignStats, type CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
-import { formatMoney } from "@/lib/invoice";
+import { formatMoney, type CampaignInvoiceOption } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
 import type { EarningsSummary } from "@/repositories/earnings";
@@ -27,6 +27,7 @@ interface CampaignsListSectionProps {
   error?: string | null;
   brandOptions?: CampaignBrandOption[];
   videoOptions?: EditorVideoOption[];
+  invoiceOptions?: CampaignInvoiceOption[];
 }
 
 export function CampaignsListSection({
@@ -35,6 +36,7 @@ export function CampaignsListSection({
   error,
   brandOptions = [],
   videoOptions = [],
+  invoiceOptions = [],
 }: CampaignsListSectionProps) {
   const stats = computeCampaignStats(campaigns);
 
@@ -111,6 +113,7 @@ export function CampaignsListSection({
               campaigns={campaigns}
               brandOptions={brandOptions}
               videoOptions={videoOptions}
+              invoiceOptions={invoiceOptions}
             />
           </Suspense>
 

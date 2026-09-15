@@ -219,7 +219,9 @@ function matchesCampaignQuery(item: Campaign, needle: string): boolean {
   return (
     item.brand.toLowerCase().includes(needle) ||
     item.campaign.toLowerCase().includes(needle) ||
-    item.invoiceRef.toLowerCase().includes(needle)
+    // Only a linked deal shows an invoice number, so only its number is
+    // searchable: a leftover typed reference would match a row showing none.
+    (item.invoiceId !== null && item.invoiceRef.toLowerCase().includes(needle))
   );
 }
 

@@ -19,9 +19,7 @@ import type {
   CampaignStatus,
   CampaignType,
 } from "./campaigns";
-import { getInvoices } from "./invoices.writer.server";
 import { toSheetDate } from "@/lib/campaigns";
-import { buildInvoiceNumber } from "@/lib/invoice";
 import { todayKey } from "@/lib/day";
 import type { RecordChange } from "@/lib/activityDiff";
 
@@ -54,7 +52,7 @@ export interface CampaignFormValues {
   paymentStatus: CampaignPaymentStatus;
   date: string; // "yyyy-mm-dd", as produced by <input type="date">
   uploadDate?: string; // "yyyy-mm-dd"
-  invoiceRef?: string; // free-text invoice reference; the invoiceId foreign key is never form-settable
+  invoiceRef?: string; // not on the form: written from the invoice's number when one is linked (see linkInvoice); absent keeps the stored one
   paymentDue?: string; // "yyyy-mm-dd"
   paidDate?: string; // "yyyy-mm-dd", the day the money actually landed
   paymentMethod?: string;
@@ -68,6 +66,9 @@ export interface CampaignFormValues {
 
 export interface CampaignFormUpdate extends CampaignFormValues {
   id: string;
+  // The invoice picked in the edit sheet, or null to unlink; absent keeps the
+  // link. Applied by the action after the update, never by the writer.
+  invoiceId?: string | null;
 }
 
 /**
@@ -127,10 +128,10 @@ export interface ICampaignRepository {
     status: CampaignPaymentStatus
   ): Promise<RecordChange<CampaignRecord> | null>;
   // Points the deal at the invoice record that bills it, once that invoice
-  // exists, or clears the link with "". Given the invoice's number, the deal's
-  // reference is brought in line with it. Answers the record it wrote, or null
-  // when the id matched nothing.
-  linkInvoice(campaignId: string, invoiceId: string, invoiceNo?: string): Promise<CampaignRecord | null>;
+  // exists, or clears the link with "". `invoiceRef` replaces the deal's typed
+  // reference ("" blanks it); left out, the reference is kept. Answers the
+  // record it wrote, or null when the id matched nothing.
+  linkInvoice(campaignId: string, invoiceId: string, invoiceRef?: string): Promise<CampaignRecord | null>;
   // Points a renewal at the invoice raised for it, once that invoice exists.
   // Answers the record it wrote, or null when either id matched nothing.
   linkRenewalInvoice(
@@ -146,7 +147,6 @@ class CampaignRepositoryImpl implements ICampaignRepository {
   }
 
   async create(input: CampaignFormValues): Promise<CampaignRecord> {
-    const invoices = await getInvoices();
     return addCampaign({
       date: toSheetDate(input.date),
       brand: input.brand,
@@ -168,7 +168,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       usageDays: input.usageDays,
       usageIndefinite: input.usageIndefinite,
       usageFee: input.usageFee,
-    }, invoices.map((invoice) => buildInvoiceNumber(invoice.invoiceNo)));
+    });
   }
 
   async update(input: CampaignFormUpdate): Promise<RecordChange<CampaignRecord> | null> {
@@ -252,12 +252,8 @@ class CampaignRepositoryImpl implements ICampaignRepository {
     );
   }
 
-  async linkInvoice(campaignId: string, invoiceId: string, invoiceNo?: string): Promise<CampaignRecord | null> {
-    return setCampaignInvoice(
-      campaignId,
-      invoiceId,
-      invoiceNo?.trim() ? buildInvoiceNumber(invoiceNo) : undefined
-    );
+  async linkInvoice(campaignId: string, invoiceId: string, invoiceRef?: string): Promise<CampaignRecord | null> {
+    return setCampaignInvoice(campaignId, invoiceId, invoiceRef);
   }
 
   async linkRenewalInvoice(

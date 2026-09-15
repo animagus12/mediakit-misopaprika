@@ -16,6 +16,7 @@ import {
   type InvoiceBrandOption,
   type InvoiceEditorJobOption,
   type InvoiceLineItem,
+  type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { Invoice, NewInvoice } from "@/repositories/invoices";
@@ -43,9 +44,8 @@ function buildInitialState(
   const brand = initialBrandId ? brandOptions.find((option) => option.id === initialBrandId) : undefined;
   return {
     ...base,
-    // Prefilled from the dashboard's "Needs attention" / "Payments due" links
-    // so the saved invoice names the same brand + campaign the record does: 
-    // that's the pair those cards match on to stop re-flagging the deal.
+    // Prefilled from a link that carried a brand + campaign but no deal the
+    // page could find, so the invoice at least starts with the right names.
     ...(initialCampaignName ? { campaignName: initialCampaignName } : {}),
     ...(brand
       ? {
@@ -67,6 +67,8 @@ interface InvoiceGeneratorProps {
   prefill?: NewInvoice;
   /** The deal `prefill` was built from, so saving links the two. */
   campaignId?: string;
+  /** The campaign (or renewal) this invoice bills, when it is linked to one. */
+  linkedCampaign?: InvoiceLinkedCampaign | null;
   takenInvoiceNumbers?: string[];
   brandOptions?: InvoiceBrandOption[];
   editorJobOptions?: InvoiceEditorJobOption[];
@@ -80,6 +82,7 @@ export function InvoiceGenerator({
   invoice,
   prefill,
   campaignId,
+  linkedCampaign = null,
   takenInvoiceNumbers = [],
   brandOptions = [],
   editorJobOptions = [],
@@ -289,6 +292,7 @@ export function InvoiceGenerator({
         editorJobOptions={editorJobOptions}
         isSaving={isSaving}
         isExisting={invoice != null}
+        linkedCampaign={linkedCampaign}
         onImageUploadError={showToast}
       />
 

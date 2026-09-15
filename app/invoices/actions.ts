@@ -12,6 +12,7 @@ import {
   buildInvoiceNumber,
   computeSubtotal,
   findInvoiceByCampaignRef,
+  invoiceOwner,
   paymentStatusForInvoice,
 } from "@/lib/invoice";
 import { recordActivity } from "@/repositories/activity.writer.server";
@@ -45,12 +46,23 @@ async function syncLinkedCampaignPayment(
   invoiceId: string,
   invoiceNo: string,
   status: InvoiceStatus,
-  campaignId?: string
+  options: { campaignId?: string; previousInvoiceNo?: string } = {}
 ): Promise<void> {
+  const { campaignId, previousInvoiceNo } = options;
   const campaigns = await campaignRepository.getAll();
-  // A renewal's invoice bills a licence extension, not the deal: its link and
-  // its payment live on the renewal (see setUsageRenewalPaymentStatus).
-  if (campaigns.some((entry) => entry.usage.renewals.some((renewal) => renewal.invoiceId === invoiceId))) {
+  // A renewal's invoice bills a licence extension, not the deal: its payment
+  // lives on the renewal, and follows the invoice the way the renewal's own
+  // "Mark received" moves the invoice (setUsageRenewalPaymentStatus). Paid is
+  // collected; back to sent or draft is owed again. Void says nothing either
+  // way, and a free renewal has nothing to collect.
+  const owner = invoiceOwner(invoiceId, campaigns);
+  if (owner?.renewalId) {
+    const renewal = owner.campaign.usage.renewals.find((entry) => entry.id === owner.renewalId);
+    if (!renewal || renewal.amount <= 0 || status === "void") return;
+    const target = status === "paid" ? "received" : "pending";
+    if (renewal.paymentStatus !== target) {
+      await campaignRepository.setRenewalPaymentStatus(owner.campaign.id, renewal.id, target);
+    }
     return;
   }
   // The deal the invoice was raised from, when it was, since that is known
@@ -70,10 +82,19 @@ async function syncLinkedCampaignPayment(
   // Written before the status check below, and regardless of what that status
   // is: saving the invoice is the one moment the app knows which record the
   // typed reference meant, and a draft names its deal just as well as a paid
-  // one does. The deal's reference follows the invoice's number, so raising it
-  // under another number or renumbering it later leaves no stale reference on
-  // the campaigns table. A no-op when both already agree.
-  await campaignRepository.linkInvoice(campaign.id, invoiceId, invoiceNo);
+  // one does. The deal's reference follows the invoice's number on a new link,
+  // and on a renumber when it named the old number, so the campaigns table
+  // never shows a stale one. A deal quoting some other number keeps it: that
+  // is a link the creator has not confirmed (see the edit sheet's invoice
+  // picker), and rewriting its reference would make the wrong deal look right.
+  const newLink = campaign.invoiceId !== invoiceId;
+  const refFollows =
+    newLink || Boolean(findInvoiceByCampaignRef(campaign.invoiceRef, [{ invoiceNo: previousInvoiceNo ?? invoiceNo }]));
+  await campaignRepository.linkInvoice(
+    campaign.id,
+    invoiceId,
+    refFollows ? buildInvoiceNumber(invoiceNo) : undefined
+  );
 
   const target = paymentStatusForInvoice(campaign, status);
   if (!target) return;
@@ -109,7 +130,7 @@ export async function createInvoice(
     // An invoice can be raised already marked paid against a deal that already
     // references its number, so creation syncs the same way an edit does.
     try {
-      await syncLinkedCampaignPayment(record.id, record.invoiceNo, record.status, campaignId);
+      await syncLinkedCampaignPayment(record.id, record.invoiceNo, record.status, { campaignId });
     } catch {
       // The invoice is saved; the deal not following is not worth failing on.
     }
@@ -132,7 +153,9 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
     // Outside the write above for the same reason as the dashboard's mark
     // received: the invoice edit stands even if the deal couldn't follow.
     try {
-      await syncLinkedCampaignPayment(input.id, input.invoiceNo, input.status);
+      await syncLinkedCampaignPayment(input.id, input.invoiceNo, input.status, {
+        previousInvoiceNo: change?.before.invoiceNo,
+      });
     } catch {
       // Reported through the pages below rather than failing a saved invoice.
     }
@@ -170,10 +193,18 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
     // nothing on every read; clearing the key returns it to its typed
     // reference, which is where it was before the invoice was raised.
     if (removed) {
-      const linked = (await campaignRepository.getAll()).find(
-        (campaign) => campaign.invoiceId === removed.id
-      );
+      const campaigns = await campaignRepository.getAll();
+      const linked = campaigns.find((campaign) => campaign.invoiceId === removed.id);
       if (linked) await campaignRepository.linkInvoice(linked.id, "");
+      // A renewal left pointing at it would hide its "Raise invoice" action for
+      // good, since that only shows on a renewal with no invoice.
+      for (const campaign of campaigns) {
+        for (const renewal of campaign.usage.renewals) {
+          if (renewal.invoiceId === removed.id) {
+            await campaignRepository.linkRenewalInvoice(campaign.id, renewal.id, "");
+          }
+        }
+      }
     }
     revalidateStores("invoices", "campaigns");
     if (removed) {

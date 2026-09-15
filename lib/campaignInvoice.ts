@@ -25,7 +25,7 @@ export interface CampaignInvoiceInput {
   /** Every saved invoice, so the number picked cannot collide with one. */
   existing: { invoiceNo: string }[];
   /** Every deal, so a fallback number is not one another deal already quotes. */
-  campaigns: { invoiceRef: string }[];
+  campaigns: { invoiceRef: string; invoiceId: string | null }[];
   /** The brand's primary contact, or "" when it has none on file. */
   contactName: string;
   today: string; // yyyy-mm-dd
@@ -107,11 +107,9 @@ function lineItems(campaign: Campaign): InvoiceLineItemInput[] {
  * The invoice for one deal, with every field the editor would have asked for
  * already answered.
  *
- * Its campaign name is the deal's own, unchanged: selectAttentionItems decides
- * whether a deal has been invoiced by matching brand and campaign name, so
- * anything else would leave "Delivered, no invoice raised" flagging a deal
- * that has one. (buildRenewalInvoice deliberately does the opposite, for the
- * same reason.)
+ * Its campaign name is the deal's own, unchanged, so the invoice reads as the
+ * deal it bills. Whether the deal counts as invoiced comes from the link that
+ * saving it writes, not from the name.
  *
  * Marked paid when the deal's money is already in, and a draft otherwise: the
  * app cannot know an invoice was sent, and a "sent" invoice nobody sent would

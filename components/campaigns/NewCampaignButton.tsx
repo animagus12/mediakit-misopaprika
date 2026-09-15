@@ -49,7 +49,6 @@ export function NewCampaignButton({
         paymentStatus: form.paymentStatus,
         date: form.date,
         uploadDate: form.uploadDate,
-        invoiceRef: form.invoiceRef.trim(),
         paymentDue: form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),

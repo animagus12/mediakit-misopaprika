@@ -21,6 +21,7 @@ import {
   isInvoiceNoTaken,
   type InvoiceBrandOption,
   type InvoiceEditorJobOption,
+  type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
 import type { InvoiceContact, InvoicePaymentMode, InvoicePreset } from "@/repositories/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
@@ -43,6 +44,8 @@ interface InvoiceControlsProps {
   editorJobOptions: InvoiceEditorJobOption[];
   isSaving: boolean;
   isExisting: boolean;
+  /** The campaign (or renewal) this invoice bills, or null for a one-off. */
+  linkedCampaign: InvoiceLinkedCampaign | null;
   onImageUploadError: (message: string) => void;
 }
 
@@ -57,10 +60,14 @@ export function InvoiceControls({
   editorJobOptions,
   isSaving,
   isExisting,
+  linkedCampaign,
   onImageUploadError,
 }: InvoiceControlsProps) {
   const numberClash = isInvoiceNoTaken(state.invoiceNo, takenInvoiceNumbers);
   const linkedBrand = state.brandId ? brandOptions.find((option) => option.id === state.brandId) : undefined;
+  // A linked invoice bills its campaign's brand (see withLinkedBrand), so the
+  // picker can't disagree with it. A campaign with no brand leaves it free.
+  const brandLocked = Boolean(linkedCampaign?.brandId);
   const editorJobLabel = (job: InvoiceEditorJobOption) =>
     `${job.video || "Untitled"}: ${job.editor || "?"}${job.amount != null ? ` · ${formatMoney(job.amount)}` : ""}`;
 
@@ -115,6 +122,13 @@ export function InvoiceControls({
           </SelectContent>
         </Select>
 
+        {linkedCampaign && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {linkedCampaign.renewal ? "Bills a usage renewal on " : "Linked to campaign "}
+            <span className="font-medium text-foreground">{linkedCampaign.label}</span>
+          </p>
+        )}
+
         <Label className={styles.fieldLabel} htmlFor="campaignName">
           Campaign
         </Label>
@@ -162,6 +176,7 @@ export function InvoiceControls({
             <Select
               value={state.brandId ?? NO_LINK}
               onValueChange={(value) => actions.selectBrand(value === NO_LINK ? null : value)}
+              disabled={brandLocked}
             >
               <SelectTrigger id="brandLink" className="w-full">
                 <SelectValue placeholder="No brand (one-off)" />
@@ -175,10 +190,17 @@ export function InvoiceControls({
                 ))}
               </SelectContent>
             </Select>
-            {state.brandId && !linkedBrand && (
-              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                Linked brand no longer exists: pick another or set it to one-off.
+            {brandLocked ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Set by the linked campaign. Change it on the campaign.
               </p>
+            ) : (
+              state.brandId &&
+              !linkedBrand && (
+                <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                  Linked brand no longer exists: pick another or set it to one-off.
+                </p>
+              )
             )}
           </>
         )}

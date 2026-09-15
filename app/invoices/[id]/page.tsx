@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/common/AppShell";
 import { InvoiceGenerator } from "@/components/invoice/InvoiceGenerator";
-import { buildInvoiceBrandOptions, buildInvoiceEditorJobOptions } from "@/lib/invoice";
+import {
+  buildInvoiceBrandOptions,
+  buildInvoiceEditorJobOptions,
+  invoiceOwner,
+  toInvoiceLinkedCampaign,
+} from "@/lib/invoice";
+import { campaignRepository } from "@/repositories/campaignRepository";
 import { getInvoiceData } from "@/repositories/invoice.writer.server";
 import { getInvoice, getInvoices } from "@/repositories/invoices.writer.server";
 import { getBrands } from "@/repositories/brands.writer.server";
@@ -22,16 +28,19 @@ interface EditInvoicePageProps {
 export default async function EditInvoicePage({ params }: EditInvoicePageProps) {
   const { id } = await params;
 
-  const [data, invoice, invoices, brands, contacts, editorTransactions] = await Promise.all([
+  const [data, invoice, invoices, brands, contacts, editorTransactions, campaigns] = await Promise.all([
     getInvoiceData(),
     getInvoice(id),
     getInvoices(),
     getBrands(),
     getContacts(),
     getEditorTransactions(),
+    // Best-effort: without it the editor just can't name the linked campaign.
+    campaignRepository.getAll().catch(() => []),
   ]);
 
   if (!invoice) notFound();
+  const linkedCampaign = toInvoiceLinkedCampaign(invoiceOwner(invoice.id, campaigns));
 
   const takenInvoiceNumbers = invoices
     .filter((other) => other.id !== id)
@@ -50,6 +59,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
       <InvoiceGenerator
         data={{ ...data, brandHandle }}
         invoice={invoice}
+        linkedCampaign={linkedCampaign}
         takenInvoiceNumbers={takenInvoiceNumbers}
         brandOptions={buildInvoiceBrandOptions(brands, contacts)}
         editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions)}
