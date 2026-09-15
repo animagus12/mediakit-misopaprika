@@ -7,9 +7,12 @@ import { primaryContactForBrand } from "@/lib/contacts";
 import {
   buildInvoiceBrandOptions,
   buildInvoiceEditorJobOptions,
+  isInvoiceNoTaken,
+  reservedInvoiceNumbers,
   resolveCampaignInvoice,
   todayISO,
 } from "@/lib/invoice";
+import { nextInvoiceNo } from "@/lib/usageInvoice";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import { getInvoiceData } from "@/repositories/invoice.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
@@ -52,19 +55,28 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
   // can't be read falls back to a blank editor rather than an error page.
   let prefill: NewInvoice | undefined;
   let existingInvoiceId: string | null = null;
+  let invoiceNumberSeed = data.invoiceNumberSeed;
   try {
     const [invoices, brands, contacts, editorTransactions, campaigns] = await Promise.all([
       getInvoices(),
       getBrands(),
       getContacts(),
       getEditorTransactions(),
-      campaignId ? campaignRepository.getAll() : Promise.resolve([]),
+      campaignRepository.getAll(),
     ]);
     takenInvoiceNumbers = invoices.map((invoice) => invoice.invoiceNo);
     brandOptions = buildInvoiceBrandOptions(brands, contacts);
     editorJobOptions = buildInvoiceEditorJobOptions(editorTransactions);
 
-    const deal = campaigns.find((entry) => entry.id === campaignId);
+    // The seed is only bumped by saves that go through this editor, so it can
+    // already name a saved invoice or a number a deal quotes. Moved on only
+    // when it does, so a number deliberately reserved there is still offered.
+    const reserved = reservedInvoiceNumbers(invoices, campaigns);
+    if (isInvoiceNoTaken(invoiceNumberSeed, reserved.map((entry) => entry.invoiceNo))) {
+      invoiceNumberSeed = nextInvoiceNo(reserved, invoiceNumberSeed);
+    }
+
+    const deal = campaignId ? campaigns.find((entry) => entry.id === campaignId) : undefined;
     if (deal) {
       existingInvoiceId = resolveCampaignInvoice(deal, invoices)?.id ?? null;
       const brand = deal.brandId ? brands.find((entry) => entry.id === deal.brandId) : undefined;
@@ -72,6 +84,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
         campaign: deal,
         defaults: data,
         existing: invoices,
+        campaigns,
         contactName: brand ? (primaryContactForBrand(brand, contacts)?.name ?? "") : "",
         today: todayISO(),
       });
@@ -85,7 +98,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
   return (
     <AppShell>
       <InvoiceGenerator
-        data={{ ...data, brandHandle }}
+        data={{ ...data, brandHandle, invoiceNumberSeed }}
         takenInvoiceNumbers={takenInvoiceNumbers}
         brandOptions={brandOptions}
         editorJobOptions={editorJobOptions}

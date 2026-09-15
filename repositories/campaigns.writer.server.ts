@@ -124,7 +124,15 @@ function usageFee(input: NewCampaignInput, stored: number): number {
 // "MSP-MC0001" + "MSP-INV-0001" convention. A caller-supplied invoiceRef
 // (e.g. entered by hand for a barter deal) always wins. The invoiceId foreign
 // key stays null: no invoice record exists to point at yet.
-export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
+//
+// `takenInvoiceRefs` are the saved invoices' numbers as "MSP-INV-0012": the
+// auto reference continues past those as well as past other deals', since an
+// invoice raised without a deal (a renewal, one typed by hand) uses the same
+// sequence and a reference naming it would match this deal to that invoice.
+export async function addCampaign(
+  input: NewCampaignInput,
+  takenInvoiceRefs: string[] = []
+): Promise<CampaignRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
@@ -136,7 +144,9 @@ export async function addCampaign(input: NewCampaignInput): Promise<CampaignReco
   );
   const invoiceRef =
     input.invoiceRef?.trim() ||
-    (hasPaidComponent ? nextSequenceId(records.map((r) => r.invoiceRef), "MSP-INV-") : "");
+    (hasPaidComponent
+      ? nextSequenceId([...records.map((r) => r.invoiceRef), ...takenInvoiceRefs], "MSP-INV-")
+      : "");
 
   const record: CampaignRecord = {
     id,
@@ -401,14 +411,17 @@ export async function setUsageRenewalPayment(
  * Points a deal at the invoice record that bills it, or clears the link with
  * "".
  *
- * Writes only the foreign key: the typed `invoiceRef` is what the creator
- * entered and is left exactly as it is, so reconciling never rewrites the
- * thing being reconciled. Answers the record it wrote, or null when the id
- * matched nothing.
+ * `invoiceRef`, when given, replaces the typed reference too: once a deal is
+ * linked, its invoice's number is the one the brand was sent, and a deal still
+ * quoting the number it was first handed (after the invoice was raised under
+ * another, or renumbered) reads as a second, unrelated document. Clearing a
+ * link leaves the reference as it is. Answers the record it wrote, or null
+ * when the id matched nothing.
  */
 export async function setCampaignInvoice(
   id: string,
-  invoiceId: string
+  invoiceId: string,
+  invoiceRef?: string
 ): Promise<CampaignRecord | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
@@ -417,9 +430,10 @@ export async function setCampaignInvoice(
   if (!before) return null;
 
   const linked = invoiceId.trim() || null;
-  if (before.invoiceId === linked) return before;
+  const ref = invoiceRef?.trim() || before.invoiceRef;
+  if (before.invoiceId === linked && before.invoiceRef === ref) return before;
 
-  const after: CampaignRecord = { ...before, invoiceId: linked };
+  const after: CampaignRecord = { ...before, invoiceId: linked, invoiceRef: ref };
   await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
   return after;
 }

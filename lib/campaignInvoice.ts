@@ -1,5 +1,5 @@
 import { toIsoDate } from "@/lib/campaigns";
-import { formatInvoiceDate } from "@/lib/invoice";
+import { formatInvoiceDate, isInvoiceNoTaken, reservedInvoiceNumbers } from "@/lib/invoice";
 import { deliverableCount } from "@/lib/rateCard";
 import { addDaysISO, nextInvoiceNo, paymentSnapshot, termLine } from "@/lib/usageInvoice";
 import type { InvoiceLineItemInput, InvoiceData } from "@/repositories/invoice";
@@ -24,6 +24,8 @@ export interface CampaignInvoiceInput {
   defaults: InvoiceData;
   /** Every saved invoice, so the number picked cannot collide with one. */
   existing: { invoiceNo: string }[];
+  /** Every deal, so a fallback number is not one another deal already quotes. */
+  campaigns: { invoiceRef: string }[];
   /** The brand's primary contact, or "" when it has none on file. */
   contactName: string;
   today: string; // yyyy-mm-dd
@@ -39,17 +41,20 @@ const INVOICE_REF = /^MSP-INV-(\d+)$/i;
  * brand may already have been told it. Raising the invoice under that same
  * number keeps the two records agreeing without anyone reconciling them. It
  * falls back to the next free number when the deal quotes none, quotes
- * something else, or quotes one another invoice already took: the deal and
- * invoice reference families are numbered separately, so a clash is possible.
+ * something else, or quotes one another invoice already took (a record from
+ * before deal references and invoice numbers were one sequence). The fallback
+ * skips every number another deal quotes too, or saving it would match that
+ * deal's reference rather than this one.
  */
 function invoiceNoFor(input: CampaignInvoiceInput): string {
   const match = input.campaign.invoiceRef.trim().match(INVOICE_REF);
-  if (match) {
-    const quoted = Number(match[1]);
-    const taken = input.existing.some((invoice) => Number(invoice.invoiceNo.trim()) === quoted);
-    if (!taken) return match[1];
+  if (match && !isInvoiceNoTaken(match[1], input.existing.map((invoice) => invoice.invoiceNo))) {
+    return match[1];
   }
-  return nextInvoiceNo(input.existing, input.defaults.invoiceNumberSeed);
+  return nextInvoiceNo(
+    reservedInvoiceNumbers(input.existing, input.campaigns),
+    input.defaults.invoiceNumberSeed
+  );
 }
 
 /** "1 Reel + 1 Story", leaving out a deliverable the deal did not include. */

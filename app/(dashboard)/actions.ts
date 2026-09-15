@@ -23,10 +23,17 @@ import { getContacts } from "@/repositories/contacts.writer.server";
 import { primaryContactForBrand } from "@/lib/contacts";
 import { buildRenewalInvoice, nextInvoiceNo } from "@/lib/usageInvoice";
 import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
-import { buildInvoiceNumber, computeSubtotal, todayISO } from "@/lib/invoice";
+import {
+  buildInvoiceNumber,
+  computeSubtotal,
+  invoiceClaimedByRef,
+  paymentStatusForInvoice,
+  reservedInvoiceNumbers,
+  resolveCampaignInvoice,
+  todayISO,
+} from "@/lib/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
 import { toCampaign } from "@/repositories/campaigns";
-import { resolveCampaignInvoice } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 
@@ -68,6 +75,40 @@ async function resolveOrCreateBrandId(
     status,
   });
   return { brandId: created.id, createdBrand: { id: created.id, name: created.name } };
+}
+
+/**
+ * Links a just-saved deal to the invoice its typed reference names, when that
+ * is a different invoice from the one it is linked to (see
+ * invoiceClaimedByRef for when a link is taken from another deal).
+ *
+ * This is the way out of a wrong link: retyping the reference on the right
+ * deal. A "Not tracked" deal picks up the invoice's payment state too, since
+ * nobody had answered that yet; a status the form did set is left as saved.
+ */
+async function linkInvoiceFromTypedRef(campaignId: string): Promise<void> {
+  const [campaigns, invoices] = await Promise.all([campaignRepository.getAll(), getInvoices()]);
+  const deal = campaigns.find((entry) => entry.id === campaignId);
+  if (!deal) return;
+
+  // A renewal's invoice bills the licence extension, never the deal itself.
+  const renewalInvoiceIds = new Set(
+    campaigns.flatMap((entry) => entry.usage.renewals.map((renewal) => renewal.invoiceId))
+  );
+  const claim = invoiceClaimedByRef(
+    deal,
+    campaigns,
+    invoices.filter((invoice) => !renewalInvoiceIds.has(invoice.id))
+  );
+  if (!claim) return;
+
+  if (claim.previousHolderId) await campaignRepository.linkInvoice(claim.previousHolderId, "");
+  await campaignRepository.linkInvoice(deal.id, claim.invoice.id, claim.invoice.invoiceNo);
+
+  if (deal.paymentStatus !== "unknown") return;
+  const target = paymentStatusForInvoice(deal, claim.invoice.status);
+  if (target === "received") await campaignRepository.setPaymentReceived(deal.id);
+  else if (target === "pending") await campaignRepository.setPaymentPending(deal.id);
 }
 
 function revalidateCampaignPaths(): void {
@@ -114,7 +155,17 @@ export async function updateCampaign(
   try {
     const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
     const change = await campaignRepository.update({ ...input, brandId });
+    // After the write and swallowed on failure: the deal's own edit stands
+    // even if its invoice link couldn't follow the reference.
+    if (change) {
+      try {
+        await linkInvoiceFromTypedRef(change.after.id);
+      } catch {
+        // the link catches up the next time either record is saved
+      }
+    }
     revalidateCampaignPaths();
+    revalidateStores("invoices");
     if (change) {
       await recordActivity({
         action: "campaign.updated",
@@ -365,12 +416,16 @@ async function raiseRenewalInvoice(
 ): Promise<string | null> {
   if (billing.amount <= 0) return null;
 
-  const [defaults, existing, brands, contacts] = await Promise.all([
+  const [defaults, invoices, campaigns, brands, contacts] = await Promise.all([
     getInvoiceData(),
     getInvoices(),
+    campaignRepository.getAll(),
     getBrands(),
     getContacts(),
   ]);
+  // Numbers deals quote count as used: this is how a renewal was once raised
+  // as 0012 while another deal already quoted MSP-INV-0012.
+  const existing = reservedInvoiceNumbers(invoices, campaigns);
 
   const brand = campaign.brandId
     ? (brands.find((entry) => entry.id === campaign.brandId) ?? null)

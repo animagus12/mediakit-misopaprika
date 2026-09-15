@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CircleAlert, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMoney } from "@/lib/invoice";
+import { formatMoney, newInvoiceHref } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { AttentionItem } from "@/lib/dashboardAttention";
 import { MarkReceivedButton } from "./MarkReceivedButton";
@@ -16,17 +16,6 @@ interface NeedsAttentionCardProps {
 }
 
 const MAX_ROWS = 6;
-
-// Carry the brand + campaign into the invoice editor so the saved invoice
-// names the same pair the record does: that's what lets this card stop
-// re-flagging the deal (selectAttentionItems matches on brand + campaign).
-function newInvoiceHref(brand: string, campaign: string): string {
-  const params = new URLSearchParams();
-  if (brand.trim()) params.set("client", brand.trim());
-  if (campaign.trim()) params.set("campaign", campaign.trim());
-  const query = params.toString();
-  return query ? `/invoices/new?${query}` : "/invoices/new";
-}
 
 // Operational open loops: delivered work with no invoice, posted deals
 // with untracked payment: each with the one action that closes it. Sits
@@ -70,7 +59,7 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
             <div className="mt-1.5 flex items-center gap-1.5">
               {item.kind === "uninvoiced" ? (
                 <Button asChild size="sm" variant="outline">
-                  <Link href={newInvoiceHref(item.brand, item.campaign)}>
+                  <Link href={newInvoiceHref(item.brand, item.campaign, item.campaignId)}>
                     <FileText />
                     Create invoice
                   </Link>

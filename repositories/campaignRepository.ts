@@ -19,7 +19,9 @@ import type {
   CampaignStatus,
   CampaignType,
 } from "./campaigns";
+import { getInvoices } from "./invoices.writer.server";
 import { toSheetDate } from "@/lib/campaigns";
+import { buildInvoiceNumber } from "@/lib/invoice";
 import { todayKey } from "@/lib/day";
 import type { RecordChange } from "@/lib/activityDiff";
 
@@ -125,9 +127,10 @@ export interface ICampaignRepository {
     status: CampaignPaymentStatus
   ): Promise<RecordChange<CampaignRecord> | null>;
   // Points the deal at the invoice record that bills it, once that invoice
-  // exists, or clears the link with "". Answers the record it wrote, or null
+  // exists, or clears the link with "". Given the invoice's number, the deal's
+  // reference is brought in line with it. Answers the record it wrote, or null
   // when the id matched nothing.
-  linkInvoice(campaignId: string, invoiceId: string): Promise<CampaignRecord | null>;
+  linkInvoice(campaignId: string, invoiceId: string, invoiceNo?: string): Promise<CampaignRecord | null>;
   // Points a renewal at the invoice raised for it, once that invoice exists.
   // Answers the record it wrote, or null when either id matched nothing.
   linkRenewalInvoice(
@@ -143,6 +146,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
   }
 
   async create(input: CampaignFormValues): Promise<CampaignRecord> {
+    const invoices = await getInvoices();
     return addCampaign({
       date: toSheetDate(input.date),
       brand: input.brand,
@@ -164,7 +168,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       usageDays: input.usageDays,
       usageIndefinite: input.usageIndefinite,
       usageFee: input.usageFee,
-    });
+    }, invoices.map((invoice) => buildInvoiceNumber(invoice.invoiceNo)));
   }
 
   async update(input: CampaignFormUpdate): Promise<RecordChange<CampaignRecord> | null> {
@@ -248,8 +252,12 @@ class CampaignRepositoryImpl implements ICampaignRepository {
     );
   }
 
-  async linkInvoice(campaignId: string, invoiceId: string): Promise<CampaignRecord | null> {
-    return setCampaignInvoice(campaignId, invoiceId);
+  async linkInvoice(campaignId: string, invoiceId: string, invoiceNo?: string): Promise<CampaignRecord | null> {
+    return setCampaignInvoice(
+      campaignId,
+      invoiceId,
+      invoiceNo?.trim() ? buildInvoiceNumber(invoiceNo) : undefined
+    );
   }
 
   async linkRenewalInvoice(
