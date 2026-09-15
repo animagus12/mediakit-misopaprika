@@ -1,7 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+
+## [1.22.2] - 2026-09-15
+
 ### Added
+
 - **A licence's end dates are edited in the campaign form and saved with Save changes.** The usage section has an "Ends on" date beside "Ad usage (days)", and an "Ended on" date for a licence that has been ended. There is no separate Save button.
   - **Ends on is another way to set the length, not a separate value.** It shows the start date plus the days (plus any days spent paused). Picking a date rewrites the day count, so the two can't disagree and only one number is saved. It counts from the upload date and is disabled until one is set. It doesn't appear for indefinite or paused licences; a paused licence's end moves every day until it's resumed.
   - **After a renewal, the date moves the latest renewal,** which is the term the end counts from. A "Renewal (days)" field sits beside it, with a note, and "Ad usage (days)" stays the original term. `NewCampaignInput` gains `usageRenewalDays` for this, and the log records it as "latest renewal term".
@@ -19,6 +23,7 @@
   - `invoiceRecordToFormState` accepts an unsaved `NewInvoice`, and the renewal invoice builder shares its payee block (`paymentSnapshot`) and date helpers with the new builder.
 
 ### Changed
+
 - **Ad usage terms are in days, not months.** Licences are sold for any length, from a one-day boost to a quarter, and months couldn't record that. The campaign form asks for "Ad usage (days)", the renew sheet asks for "Days" and opens on 90, and every term shows as "25 days" or "1 day" through `formatUsageDays`.
   - **`CampaignUsage.days` and `UsageRenewalRecord.days` replace `months`**, and a term ends on its start date plus that many days. `UsageTerm.totalMonths` is `totalDays`, and `OwedRenewal.months` is `days`. The form fields are `usageDays` and `days`.
   - **Existing licences keep their exact end dates.** A record still stored in months is converted when read, in calendar months from the day its term starts: 3 months from 10 Aug reads as 92 days and still ends on 10 Nov. The base term converts from the upload date, or the deal date before posting, and a renewal from its own start date. The days are written the next time that licence is saved, so no migration runs. The activity log compares a legacy term as its days, so the first save doesn't log "usage term added".
@@ -32,6 +37,7 @@
   - The fee is cash, so a barter-only deal saves none, and it is no longer capped at the amount. Activity events for creating, updating and collecting on a deal report the amount including the fee.
 
 ### Fixed
+
 - **Invoice due dates raised by the app were a day early in IST.** `addDaysISO` parsed the date at local midnight and formatted it in UTC, so a renewal invoice due in 5 days was dated 4 days out. It now works in UTC on both ends.
 - **Licensing in the Revenue mix now counts ad rights sold with the deal, not only renewals.** The base licence fee was stored as part of the deal's amount with nothing marking it, so a post sold with three months of ad usage showed as 0% licensing until the brand renewed.
   - **A deal records its ad usage fee** as `usage.fee`, charged on top of the amount (see Changed).
