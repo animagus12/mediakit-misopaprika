@@ -21,7 +21,7 @@ import {
 } from "@/app/(dashboard)/actions";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
 import { paymentStatusLabel } from "@/lib/campaigns";
-import { usageTerm, type UsageState } from "@/lib/usageRights";
+import { formatUsageDays, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign, UsageRenewalRecord } from "@/repositories/campaigns";
 import { RenewUsageSheet } from "./RenewUsageSheet";
@@ -32,6 +32,7 @@ const STATE_TONES: Record<UsageState, string> = {
   untracked: "text-muted-foreground",
   unstarted: "text-muted-foreground",
   active: "text-emerald-600 dark:text-emerald-400",
+  indefinite: "text-emerald-600 dark:text-emerald-400",
   expiring: "text-amber-600 dark:text-amber-400",
   expired: "text-destructive",
   paused: "text-muted-foreground",
@@ -67,7 +68,7 @@ function renewalStatusClass(renewal: UsageRenewalRecord): string {
 export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
   const [isPending, startTransition] = useTransition();
   const term = usageTerm(campaign);
-  const { renewals, status } = campaign.usage;
+  const { renewals, status, indefinite } = campaign.usage;
 
   function move(transition: "pause" | "resume" | "end", message: string) {
     startTransition(async () => {
@@ -126,25 +127,33 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className={cn("text-sm font-medium", STATE_TONES[term.state])}>{term.label}</span>
         <span className="text-[11px] text-muted-foreground tabular-nums">
-          {term.totalMonths} month{term.totalMonths === 1 ? "" : "s"} granted
+          {indefinite ? "Granted indefinitely" : `${formatUsageDays(term.totalDays)} granted`}
           {term.termCount > 1 ? ` over ${term.termCount} terms` : ""}
-          {term.endDate ? ` · ends ${term.endDate}` : ""}
+          {/* An ended licence already says when it ended; its term's nominal
+              end beside that read as a second, contradicting end date. */}
+          {term.endDate && status !== "ended" ? ` · ends ${term.endDate}` : ""}
         </span>
       </div>
 
+
       <div className="flex flex-wrap items-center gap-1.5">
-        <RenewUsageSheet
-          campaignId={campaign.id}
-          brand={campaign.brand}
-          term={term}
-          trigger={
-            <Button type="button" size="sm" variant="outline" disabled={isPending}>
-              <RefreshCw />
-              Renew
-            </Button>
-          }
-        />
-        {status === "active" ? (
+        {/* Nothing to extend on a licence with no end, and no countdown for a
+            pause to freeze. A pause recorded before it was made indefinite
+            can still be resumed, so the licence isn't stuck reading paused. */}
+        {!indefinite && (
+          <RenewUsageSheet
+            campaignId={campaign.id}
+            brand={campaign.brand}
+            term={term}
+            trigger={
+              <Button type="button" size="sm" variant="outline" disabled={isPending}>
+                <RefreshCw />
+                Renew
+              </Button>
+            }
+          />
+        )}
+        {indefinite && status !== "paused" ? null : status === "active" ? (
           <Button
             type="button"
             size="sm"
@@ -191,7 +200,7 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             >
               <div className="min-w-0 text-xs">
                 <p className="font-medium tabular-nums">
-                  {renewal.months} month{renewal.months === 1 ? "" : "s"} ·{" "}
+                  {formatUsageDays(renewal.days)} ·{" "}
                   {formatMoney(renewal.amount)}
                 </p>
                 <p className="text-[11px] text-muted-foreground tabular-nums">

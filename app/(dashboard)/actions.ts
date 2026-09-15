@@ -22,11 +22,13 @@ import { getInvoiceData, saveInvoiceData } from "@/repositories/invoice.writer.s
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { primaryContactForBrand } from "@/lib/contacts";
 import { buildRenewalInvoice, nextInvoiceNo } from "@/lib/usageInvoice";
+import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
 import { buildInvoiceNumber, computeSubtotal, todayISO } from "@/lib/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
+import { toCampaign } from "@/repositories/campaigns";
 import { resolveCampaignInvoice } from "@/lib/invoice";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
-import { campaignLabel, isCampaignStatus, toIsoDate } from "@/lib/campaigns";
+import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 
 export interface CreatedBrand {
   id: string;
@@ -85,7 +87,7 @@ export async function createCampaign(
       action: "campaign.created",
       entity: { type: "campaign", id: record.id, label: campaignLabel(input.campaign, input.brand) },
       detail: input.brand.trim() || undefined,
-      amount: input.amount + input.barterValue,
+      amount: input.amount + (input.usageFee ?? 0) + input.barterValue,
     });
     return { success: true, createdBrand };
   } catch (err) {
@@ -100,6 +102,15 @@ export async function updateCampaign(
   input: CampaignFormUpdate
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  // Checked against the upload and deal dates in this same submission, so a
+  // form that moves both at once is judged on what it will save.
+  if (input.usageEndedOn !== undefined) {
+    const problem = usageEndDateProblem(
+      { uploadDate: toSheetDate(input.uploadDate ?? ""), date: toSheetDate(input.date) },
+      input.usageEndedOn
+    );
+    if (problem) return { success: false, error: problem };
+  }
   try {
     const { brandId, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
     const change = await campaignRepository.update({ ...input, brandId });
@@ -113,7 +124,7 @@ export async function updateCampaign(
           label: campaignLabel(change.after.campaign, change.after.brand),
         },
         detail: describeChanges(change, campaignFields) ?? (change.after.brand.trim() || undefined),
-        amount: change.after.amount + change.after.barterValue,
+        amount: toCampaign(change.after).total,
       });
     }
     return { success: true, createdBrand };
@@ -201,7 +212,7 @@ export async function markCampaignPaymentReceived(
       label: campaignLabel(campaign.campaign, campaign.brand),
     },
     detail: campaign.brand.trim() || undefined,
-    amount: campaign.amount,
+    amount: toCampaign(campaign).cash,
   });
   return { success: true, previousInvoiceStatus, ...(warning ? { warning } : {}) };
 }
@@ -231,7 +242,7 @@ export async function unmarkCampaignPaymentReceived(
         label: campaignLabel(campaign.campaign, campaign.brand),
       },
       detail: campaign.brand.trim() || undefined,
-      amount: campaign.amount,
+      amount: toCampaign(campaign).cash,
     });
     return { success: true };
   } catch (err) {
@@ -340,7 +351,7 @@ export interface RenewResult {
  * a document with nothing to collect on.
  */
 interface RenewalBilling {
-  months: number;
+  days: number;
   amount: number;
   startDate: string; // yyyy-mm-dd
   paymentDue: string; // yyyy-mm-dd, "" when none was agreed
@@ -373,7 +384,7 @@ async function raiseRenewalInvoice(
       brandId: campaign.brandId,
       contactName: brand ? (primaryContactForBrand(brand, contacts)?.name ?? "") : "",
       campaignName: campaign.campaign,
-      months: billing.months,
+      days: billing.days,
       amount: billing.amount,
       startDate: billing.startDate,
       dueDate: billing.paymentDue,
@@ -433,8 +444,8 @@ export async function renewCampaignUsage(
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
-  if (input.months <= 0) {
-    return { success: false, error: "A renewal needs a term of at least one month" };
+  if (input.days <= 0) {
+    return { success: false, error: "A renewal needs a term of at least one day" };
   }
   try {
     const change = await campaignRepository.renewUsage(campaignId, input);
@@ -450,7 +461,7 @@ export async function renewCampaignUsage(
     try {
       if (renewal) {
         invoiceNo = await raiseRenewalInvoice(change.after, renewal.id, {
-          months: input.months,
+          days: input.days,
           amount: input.amount,
           startDate: input.startDate,
           paymentDue: input.paymentDue,
@@ -469,7 +480,7 @@ export async function renewCampaignUsage(
     await recordUsageEvent(
       "campaign.usage_renewed",
       change.after,
-      `${input.months} more month${input.months === 1 ? "" : "s"}`,
+      `${formatUsageDays(input.days)} more`,
       renewal?.amount
     );
     return { success: true, invoiceNo, ...(warning ? { warning } : {}) };
@@ -570,7 +581,7 @@ export async function raiseInvoiceForRenewal(
     }
 
     const invoiceNo = await raiseRenewalInvoice(campaign, renewal.id, {
-      months: renewal.months,
+      days: renewal.days,
       amount: renewal.amount,
       // Stored DD/MM/YYYY; the builder works in the yyyy-mm-dd the invoice
       // record keeps its dates in.

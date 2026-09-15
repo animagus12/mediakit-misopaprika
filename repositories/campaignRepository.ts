@@ -57,7 +57,11 @@ export interface CampaignFormValues {
   paidDate?: string; // "yyyy-mm-dd", the day the money actually landed
   paymentMethod?: string;
   editorTransactionId?: string | null; // the editing job behind the video, or null
-  usageMonths?: number; // base ad-usage licence term; 0 or absent = not tracked
+  usageDays?: number; // base ad-usage licence term in days; 0 or absent = not tracked
+  usageIndefinite?: boolean; // granted with no end date; absent on update keeps the stored setting
+  usageRenewalDays?: number; // the latest renewal's length; absent keeps it
+  usageEndedOn?: string; // "yyyy-mm-dd" an ended licence was called off on; absent keeps it
+  usageFee?: number; // the part of `amount` agreed for that licence; absent on update keeps the stored fee
 }
 
 export interface CampaignFormUpdate extends CampaignFormValues {
@@ -73,7 +77,7 @@ export interface CampaignFormUpdate extends CampaignFormValues {
  */
 export interface UsageRenewalFormValues {
   startDate: string; // "yyyy-mm-dd", the day the extended term runs from
-  months: number;
+  days: number;
   amount: number;
   paymentStatus: CampaignPaymentStatus;
   paymentDue: string; // "yyyy-mm-dd"
@@ -157,7 +161,9 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
       editorTransactionId: input.editorTransactionId,
-      usageMonths: input.usageMonths,
+      usageDays: input.usageDays,
+      usageIndefinite: input.usageIndefinite,
+      usageFee: input.usageFee,
     });
   }
 
@@ -181,7 +187,11 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
       editorTransactionId: input.editorTransactionId,
-      usageMonths: input.usageMonths,
+      usageDays: input.usageDays,
+      usageIndefinite: input.usageIndefinite,
+      usageFee: input.usageFee,
+      usageRenewalDays: input.usageRenewalDays,
+      usageEndedOn: input.usageEndedOn ? toSheetDate(input.usageEndedOn) : undefined,
     });
   }
 
@@ -216,7 +226,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
   ): Promise<RecordChange<CampaignRecord> | null> {
     return addCampaignUsageRenewal(campaignId, {
       startDate: input.startDate ? toSheetDate(input.startDate) : today(),
-      months: input.months,
+      days: input.days,
       amount: input.amount,
       paymentStatus: input.paymentStatus,
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",

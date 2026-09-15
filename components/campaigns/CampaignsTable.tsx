@@ -42,7 +42,7 @@ import {
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import { formatMoney } from "@/lib/invoice";
 import { paymentTiming, type PaymentPunctuality } from "@/lib/paymentReliability";
-import { usageTerm, type UsageState } from "@/lib/usageRights";
+import { formatUsageDays, renewalTotal, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
 import { CAMPAIGN_STATUS_STYLES, type StatusStyle } from "./campaignStatusStyle";
@@ -90,6 +90,7 @@ const USAGE_TONES: Record<UsageState, string> = {
   untracked: "text-muted-foreground",
   unstarted: "text-muted-foreground",
   active: "text-muted-foreground",
+  indefinite: "text-muted-foreground",
   expiring: "text-amber-600 dark:text-amber-400",
   expired: "text-destructive",
   paused: "text-muted-foreground",
@@ -275,7 +276,7 @@ export function CampaignsTable({
   // does not appear and vanish as the creator moves between tabs. Same
   // conditional-column shape as BrandInvoicesTab's margin column.
   const anyUsage = campaigns.some(
-    (item) => item.usage.months > 0 || item.usage.renewals.length > 0
+    (item) => item.usage.days > 0 || item.usage.indefinite || item.usage.renewals.length > 0
   );
 
   const filtered = filterCampaigns(campaigns, { filter: tab, query });
@@ -394,18 +395,24 @@ export function CampaignsTable({
                   // "250 days overdue" on a deal nobody is chasing is worse
                   // than a blank one.
                   const cancelled = isCampaignCancelled(campaign.status);
-                  const timing = paymentTiming(campaign);
+                  const timing = paymentTiming({ ...campaign, amount: campaign.cash });
                   const term = usageTerm(campaign);
+                  const renewals = renewalTotal(campaign.usage);
                   const deliverables = [campaign.reels, campaign.story].filter(Boolean).join(", ");
-                  // Only when a deal is genuinely both: on a cash-only or
-                  // barter-only deal the split is the total again, and the
-                  // Deal column's type already says which kind it was.
-                  const mixed = campaign.amount > 0 && campaign.barterValue > 0;
+                  // What the total is made of, shown only when it is made of
+                  // more than one thing: on a deal that is all cash or all
+                  // barter the breakdown is the total again, and the Deal
+                  // column's type already says which kind it was.
+                  const breakdown = [
+                    campaign.amount > 0 && `${formatMoney(campaign.amount)} cash`,
+                    campaign.usage.fee > 0 && `${formatMoney(campaign.usage.fee)} ad fee`,
+                    campaign.barterValue > 0 && `${formatMoney(campaign.barterValue)} barter`,
+                  ].filter(Boolean);
                   // Nothing was owed in cash, so a due date and a punctuality
                   // verdict describe a schedule that never existed. What the
                   // deal is actually waiting on is a parcel, so the column
                   // carries the one date that means anything: the day it came.
-                  const barterOnly = campaign.amount <= 0 && campaign.barterValue > 0;
+                  const barterOnly = campaign.cash <= 0 && campaign.barterValue > 0;
                   return (
                     <EditCampaignSheet
                       key={campaign.id}
@@ -452,10 +459,12 @@ export function CampaignsTable({
                             )}
                           >
                             {formatMoney(campaign.total)}
-                            {mixed && (
-                              <Sub className="font-normal">
-                                {formatMoney(campaign.amount)} cash · {formatMoney(campaign.barterValue)} barter
-                              </Sub>
+                            {breakdown.length > 1 && (
+                              <Sub className="font-normal">{breakdown.join(" · ")}</Sub>
+                            )}
+                            {/* Beside the total rather than in it: see renewalTotal. */}
+                            {renewals > 0 && (
+                              <Sub className="font-normal">+{formatMoney(renewals)} renewals</Sub>
                             )}
                           </TableCell>
 
@@ -520,7 +529,9 @@ export function CampaignsTable({
                                 <>
                                   <span className={cn("block", USAGE_TONES[term.state])}>{term.label}</span>
                                   <Sub>
-                                    {term.totalMonths} month{term.totalMonths === 1 ? "" : "s"}
+                                    {term.state === "indefinite" || (term.state === "ended" && campaign.usage.indefinite)
+                                      ? "Indefinite"
+                                      : formatUsageDays(term.totalDays)}
                                     {term.termCount > 1 ? ` · ${term.termCount} terms` : ""}
                                   </Sub>
                                 </>

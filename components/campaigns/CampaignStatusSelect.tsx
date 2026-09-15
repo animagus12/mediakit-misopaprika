@@ -62,7 +62,9 @@ export function CampaignStatusSelect({
         paymentDue: toIsoDate(campaign.paymentDue),
         paidDate: toIsoDate(campaign.paidDate),
         paymentMethod: campaign.paymentMethod,
-        usageMonths: campaign.usage.months,
+        usageDays: campaign.usage.days,
+        usageIndefinite: campaign.usage.indefinite,
+        usageFee: campaign.usage.fee,
       });
 
       if (!result.success) {

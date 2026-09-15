@@ -1,4 +1,4 @@
-import { addDays, addMonthsToDay, daysBetween, todayKey } from "@/lib/day";
+import { addDays, daysBetween, isDayKey, todayKey } from "@/lib/day";
 import { isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import type { Campaign, CampaignUsage } from "@/repositories/campaigns";
 
@@ -14,11 +14,22 @@ import type { Campaign, CampaignUsage } from "@/repositories/campaigns";
 // Client-safe: the dashboard card that renews a licence is a client
 // component, and the pages that list them are not, and both read this.
 
+/** "1 day", "25 days": how every licence term is written out. */
+export function formatUsageDays(days: number): string {
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+/** A deal's base licence as a phrase: "Indefinite", "25 days", or "" with none. */
+export function formatUsageGrant(usage: Pick<CampaignUsage, "days" | "indefinite">): string {
+  if (usage.indefinite) return "Indefinite";
+  return usage.days > 0 ? formatUsageDays(usage.days) : "";
+}
+
 /**
  * The longest notice a licence gets before it runs out.
  *
  * A ceiling, not a fixed window: see alertWindow below. A flat thirty days is
- * longer than a one-month term, so a short licence would be "expiring" from
+ * longer than a 25-day term, so a short licence would be "expiring" from
  * the moment it started and could never leave the decision queue, however
  * many times it was renewed.
  */
@@ -28,9 +39,10 @@ export const USAGE_ALERT_DAYS = 30;
  * How much notice this particular term earns: at most USAGE_ALERT_DAYS, and
  * never more than half of the term itself.
  *
- * Half is the point where "this is running out" stops being news. A twelve
- * month licence still warns a month ahead; a one month licence warns a
- * fortnight ahead, which is notice rather than a permanent alarm; and a
+ * Half is the point where "this is running out" stops being news. A 365-day
+ * licence still warns a month ahead; a 30-day licence warns a fortnight
+ * ahead, which is notice rather than a permanent alarm; a 1-day licence warns
+ * only on its last day; and a
  * licence renewed today leaves the queue immediately, because a decision that
  * has just been made is not one still owed.
  */
@@ -44,6 +56,8 @@ export type UsageState =
   /** A term is recorded, but the post it counts from has not gone up yet. */
   | "unstarted"
   | "active"
+  /** Granted with no end date: never expires, so never owes a decision. */
+  | "indefinite"
   /** Inside USAGE_ALERT_DAYS of running out: the decision window. */
   | "expiring"
   | "expired"
@@ -62,8 +76,8 @@ export interface UsageTerm {
   endDate: string;
   /** Whole days until it runs out; negative once past, frozen while paused. */
   daysRemaining: number;
-  /** Every month ever granted on this deal: the base term plus each renewal. */
-  totalMonths: number;
+  /** Every day ever granted on this deal: the base term plus each renewal. */
+  totalDays: number;
   /** 1 for the original licence, plus one per renewal. */
   termCount: number;
   /** Renewal money already collected. */
@@ -79,7 +93,7 @@ const UNTRACKED: UsageTerm = {
   endDayKey: "",
   endDate: "",
   daysRemaining: 0,
-  totalMonths: 0,
+  totalDays: 0,
   termCount: 0,
   renewalReceived: 0,
   renewalPending: 0,
@@ -96,12 +110,28 @@ function renewalMoney(usage: CampaignUsage): { received: number; pending: number
   return { received, pending };
 }
 
+/**
+ * Renewal money agreed on a deal, received and pending together: what the
+ * licence has brought in beyond the deal itself.
+ *
+ * Kept out of Campaign.total on purpose. A renewal is its own transaction,
+ * paid on its own date and counted by earnings in its own month, so folding
+ * it into the deal would count that money twice and give the deal a payment
+ * status that covers money it doesn't. Screens show it beside the total.
+ */
+export function renewalTotal(usage: CampaignUsage): number {
+  const { received, pending } = renewalMoney(usage);
+  return received + pending;
+}
+
 function termLabel(state: UsageState, daysRemaining: number, endedOn: string): string {
   switch (state) {
     case "untracked":
       return "Not tracked";
     case "unstarted":
       return "Starts when this posts";
+    case "indefinite":
+      return "No end date";
     case "ended":
       return endedOn ? `Ended ${endedOn}` : "Ended";
     case "paused": {
@@ -134,13 +164,13 @@ function termLabel(state: UsageState, daysRemaining: number, endedOn: string): s
  */
 export function usageTerm(campaign: Campaign, now: Date = new Date()): UsageTerm {
   const usage = campaign.usage;
-  if (usage.months <= 0 && usage.renewals.length === 0) return UNTRACKED;
+  if (usage.days <= 0 && !usage.indefinite && usage.renewals.length === 0) return UNTRACKED;
 
   const money = renewalMoney(usage);
-  const totalMonths = usage.renewals.reduce((sum, r) => sum + r.months, usage.months);
+  const totalDays = usage.renewals.reduce((sum, r) => sum + r.days, usage.days);
   const base: UsageTerm = {
     ...UNTRACKED,
-    totalMonths,
+    totalDays,
     termCount: 1 + usage.renewals.length,
     renewalReceived: money.received,
     renewalPending: money.pending,
@@ -151,12 +181,25 @@ export function usageTerm(campaign: Campaign, now: Date = new Date()): UsageTerm
     return { ...base, state: "unstarted", label: termLabel("unstarted", 0, "") };
   }
 
+  // No end to count down to, so none of the arithmetic below applies: it
+  // cannot expire, and a pause has nothing to freeze. Ending it still does,
+  // since a brand can stop running an ad it was allowed to keep forever.
+  if (usage.indefinite) {
+    const state: UsageState = usage.status === "ended" ? "ended" : "indefinite";
+    return {
+      ...base,
+      state,
+      startDayKey: uploadKey,
+      label: termLabel(state, 0, usage.endedOn),
+    };
+  }
+
   const latest = usage.renewals[usage.renewals.length - 1];
   const startDayKey = latest ? toIsoDate(latest.startDate) || uploadKey : uploadKey;
-  const months = latest ? latest.months : usage.months;
+  const days = latest ? latest.days : usage.days;
 
   const today = todayKey(now);
-  const nominalEnd = addMonthsToDay(startDayKey, months);
+  const nominalEnd = addDays(startDayKey, days);
   // While paused, the pause itself keeps lengthening, so the end date slides
   // forward day for day and daysRemaining holds still. Banked pauses are
   // already in pausedDays; this only adds the one still running.
@@ -206,7 +249,7 @@ export interface UsageAlert {
  * already past their term and never closed off.
  *
  * Paused and ended licences are absent by construction, which is the whole
- * point of those two states: they are the answers to this list, so choosing
+ * point of those two states, and indefinite ones never reach the window: they are the answers to this list, so choosing
  * one takes the deal out of it. Soonest first, and the most valuable deal
  * first among licences running out on the same day.
  */
@@ -226,6 +269,47 @@ export function selectExpiringUsage(campaigns: Campaign[], now: Date = new Date(
     .sort(
       (a, b) => a.term.daysRemaining - b.term.daysRemaining || b.amount - a.amount
     );
+}
+
+/**
+ * Why a licence cannot be recorded as ended on `isoDate`, or null when it can.
+ *
+ * Not before the licence started, since it cannot have been called off before
+ * it existed: the upload date, or the deal date for a post not yet up. Not
+ * after today either, because this records when it was ended, and the panel
+ * reads it back as "Ended 20/09/2026" as a fact rather than a plan.
+ */
+export function usageEndDateProblem(
+  campaign: Pick<Campaign, "uploadDate" | "date">,
+  isoDate: string,
+  now: Date = new Date()
+): string | null {
+  if (!isDayKey(isoDate)) return "Pick the day it ended";
+  const startKey = toIsoDate(campaign.uploadDate) || toIsoDate(campaign.date);
+  if (startKey && isoDate < startKey) {
+    return `It can't have ended before it started on ${toSheetDate(startKey)}`;
+  }
+  if (isoDate > todayKey(now)) return "The end date can't be in the future";
+  return null;
+}
+
+/**
+ * The day a term runs out on: its start plus its length plus any days already
+ * spent paused, the same arithmetic usageTerm does. "" with no start or no
+ * length, since there is then no end to show.
+ */
+export function termEndDayKey(startDayKey: string, days: number, pausedDays: number): string {
+  if (!isDayKey(startDayKey) || days <= 0) return "";
+  return addDays(startDayKey, days + pausedDays);
+}
+
+/**
+ * The length that makes a term starting on `startDayKey` run out on
+ * `endDayKey`: the inverse of termEndDayKey. Never below one day, so an end
+ * picked on or before the start still leaves a term rather than none.
+ */
+export function termDaysUntil(startDayKey: string, endDayKey: string, pausedDays: number): number {
+  return Math.max(1, daysBetween(startDayKey, endDayKey) - pausedDays);
 }
 
 /**
@@ -250,7 +334,7 @@ export interface OwedRenewal {
   brand: string;
   campaign: string;
   amount: number;
-  months: number;
+  days: number;
   /** DD/MM/YYYY it was agreed to be paid by, or "" when nothing was agreed. */
   paymentDue: string;
   /** Whole days until it is due; negative once overdue, null when undated. */
@@ -289,7 +373,7 @@ export function selectOwedRenewals(campaigns: Campaign[], now: Date = new Date()
         brand: campaign.brand,
         campaign: campaign.campaign,
         amount: renewal.amount,
-        months: renewal.months,
+        days: renewal.days,
         paymentDue: renewal.paymentDue,
         daysUntilDue,
         overdue: daysUntilDue !== null && daysUntilDue < 0,

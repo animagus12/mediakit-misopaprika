@@ -168,13 +168,13 @@ export function summarizeEarnings(
     if (campaign.paymentStatus !== "received") continue;
 
     total += campaign.total;
-    paid += campaign.amount;
+    paid += campaign.cash;
     barter += campaign.barterValue;
 
     if (key) {
       const bucket = getBucket(key);
       bucket.total += campaign.total;
-      bucket.paid += campaign.amount;
+      bucket.paid += campaign.cash;
       bucket.barter += campaign.barterValue;
       bucket.deals.push(deal);
     }

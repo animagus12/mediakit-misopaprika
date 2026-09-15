@@ -54,7 +54,8 @@ export function NewCampaignButton({
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
         editorTransactionId: form.editorTransactionId,
-        usageMonths: Number(form.usageMonths) || 0,
+        usageDays: Number(form.usageDays) || 0,
+        usageIndefinite: form.usageIndefinite,
       });
       if (!result.success) {
         setError(result.error);

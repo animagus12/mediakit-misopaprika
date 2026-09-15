@@ -2,7 +2,7 @@ import type { VariantProps } from "class-variance-authority";
 import type { badgeVariants } from "@/components/ui/badge";
 import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
-import type { Invoice, InvoiceRecord, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
+import type { Invoice, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
@@ -117,10 +117,16 @@ function daysBetween(startISO: string, endISO: string): number {
 // it verbatim would immediately collide: bump it by one instead, keeping
 // the zero-padded width (e.g. "0007" -> "0008"). Falls back to the literal
 // value when it isn't numeric.
-function nextInvoiceNumberSeed(invoiceNo: string): string {
+//
+// Never moves the seed backwards: an invoice raised under a number the deal
+// already quoted (see lib/campaignInvoice.ts) can sit below the seed, and
+// seeding from it would hand the next invoice a number already in use.
+function nextInvoiceNumberSeed(invoiceNo: string, currentSeed: string): string {
   const trimmed = invoiceNo.trim();
   const numeric = Number(trimmed);
   if (!trimmed || !Number.isFinite(numeric)) return trimmed;
+  const current = Number(currentSeed.trim());
+  if (Number.isFinite(current) && current > numeric + 1) return currentSeed;
   return String(numeric + 1).padStart(trimmed.length, "0");
 }
 
@@ -134,7 +140,7 @@ function nextInvoiceNumberSeed(invoiceNo: string): string {
 export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData): InvoiceData {
   return {
     ...current,
-    invoiceNumberSeed: nextInvoiceNumberSeed(state.invoiceNo),
+    invoiceNumberSeed: nextInvoiceNumberSeed(state.invoiceNo, current.invoiceNumberSeed),
     campaignNameSeed: state.campaignName,
     dueInDays: Math.max(daysBetween(state.date, state.due), 0),
     billedToPlaceholder: {
@@ -378,8 +384,9 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
   };
 }
 
-// Seeds the editor when opening a saved invoice for editing.
-export function invoiceRecordToFormState(record: InvoiceRecord): InvoiceFormState {
+// Seeds the editor when opening a saved invoice for editing, or an unsaved one
+// built from a record elsewhere (see lib/campaignInvoice.ts).
+export function invoiceRecordToFormState(record: NewInvoice): InvoiceFormState {
   return {
     status: record.status,
     invoiceNo: record.invoiceNo,

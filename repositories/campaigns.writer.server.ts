@@ -11,6 +11,7 @@ import {
   toCampaignStatus,
   toInvoiceLink,
   toUsage,
+  usageTermStart,
 } from "./campaigns";
 import type {
   Campaign,
@@ -81,10 +82,41 @@ function normalize(
   };
 }
 
-// A licence is granted in whole months; anything else is a typo rather than a
+// A licence is granted in whole days; anything else is a typo rather than a
 // term, so it is rounded and floored at zero (0 meaning "not tracked").
-function usageMonths(input: NewCampaignInput): number {
-  return Math.max(0, Math.round(Number(input.usageMonths) || 0));
+function usageDays(input: NewCampaignInput): number {
+  return Math.max(0, Math.round(Number(input.usageDays) || 0));
+}
+
+// An input that leaves the flag out keeps the stored one, for the same reason
+// usageFee does. An indefinite licence carries no day count, so a stale one
+// left in the form can't resurface if the flag is later cleared by mistake.
+function usageTermOf(
+  input: NewCampaignInput,
+  stored: boolean
+): Pick<CampaignUsage, "days" | "indefinite"> {
+  const indefinite = input.usageIndefinite ?? stored;
+  return { indefinite, days: indefinite ? 0 : usageDays(input) };
+}
+
+// The form edits the current term's length, which after a renewal is the
+// latest renewal's rather than the base term's: that is the term the end date
+// counts from. At least a day, since a renewal of nothing is not a renewal.
+function resizeLatestRenewal(
+  renewals: UsageRenewalRecord[],
+  days: number | undefined
+): UsageRenewalRecord[] {
+  if (days === undefined || renewals.length === 0) return renewals;
+  const length = Math.max(1, Math.round(Number(days) || 0));
+  const last = renewals.length - 1;
+  return renewals.map((renewal, index) => (index === last ? { ...renewal, days: length } : renewal));
+}
+
+// The ad usage fee, charged on top of the amount and floored at zero. An input
+// that leaves the fee out keeps the stored one, so a caller that only moves the
+// status can't wipe it.
+function usageFee(input: NewCampaignInput, stored: number): number {
+  return input.usageFee === undefined ? stored : Math.max(0, Number(input.usageFee) || 0);
 }
 
 // MC (monetary campaign) gets an auto-assigned invoice reference; BC (barter
@@ -111,7 +143,7 @@ export async function addCampaign(input: NewCampaignInput): Promise<CampaignReco
     invoiceRef,
     invoiceId: null,
     ...normalize(input),
-    usage: { ...emptyUsage(), months: usageMonths(input) },
+    usage: { ...emptyUsage(), ...usageTermOf(input, false), fee: usageFee(input, 0) },
   };
   await redis.set(CAMPAIGNS_KEY, [...records, record]);
   return record;
@@ -129,6 +161,7 @@ export async function updateCampaign(
   const records = await readRecords();
   const before = records.find((record) => record.id === input.id);
   if (!before) return null;
+  const usage = toUsage(before.usage, usageTermStart(before));
   const after: CampaignRecord = {
     ...before,
     ...normalize(input),
@@ -137,10 +170,22 @@ export async function updateCampaign(
     // once a saved invoice is matched to the deal, and an edit of the
     // reference must not silently drop it.
     invoiceId: before.invoiceId,
-    // Only the term length comes from the form; the licence's status, its
-    // pause accounting and its renewals are moved by their own actions and
-    // are carried through untouched.
-    usage: { ...toUsage(before.usage), months: usageMonths(input) },
+    // The form sets the term's length (the latest renewal's too, once there
+    // is one), the fee, and an ended licence's end date. The licence's status,
+    // its pause accounting and adding renewals are moved by their own actions
+    // and are carried through untouched.
+    usage: {
+      ...usage,
+      ...usageTermOf(input, usage.indefinite),
+      fee: usageFee(input, usage.fee),
+      renewals: resizeLatestRenewal(usage.renewals, input.usageRenewalDays),
+      // Only an ended licence has a day it ended on; on a live one the field
+      // would be a date that means nothing, so it is left as stored.
+      endedOn:
+        usage.status === "ended" && input.usageEndedOn !== undefined
+          ? input.usageEndedOn.trim()
+          : usage.endedOn,
+    },
   };
   await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === input.id ? after : record)));
   return { before, after };
@@ -238,7 +283,7 @@ export async function transitionCampaignUsage(
   const before = records.find((record) => record.id === id);
   if (!before) return null;
 
-  const usage = toUsage(before.usage);
+  const usage = toUsage(before.usage, usageTermStart(before));
   let next: CampaignUsage;
   if (transition === "pause") {
     next = { ...usage, status: "paused", pausedOn: today, endedOn: "" };
@@ -290,11 +335,11 @@ export async function addCampaignUsageRenewal(
   const before = records.find((record) => record.id === id);
   if (!before) return null;
 
-  const usage = toUsage(before.usage);
+  const usage = toUsage(before.usage, usageTermStart(before));
   const renewal: UsageRenewalRecord = {
     id: nextSequenceId(usage.renewals.map((entry) => entry.id), "R"),
     startDate: input.startDate.trim(),
-    months: Math.max(0, Math.round(Number(input.months) || 0)),
+    days: Math.max(0, Math.round(Number(input.days) || 0)),
     amount: Number(input.amount) || 0,
     paymentStatus: input.paymentStatus,
     paymentDue: input.paymentDue.trim(),
@@ -337,7 +382,7 @@ export async function setUsageRenewalPayment(
   const before = records.find((record) => record.id === id);
   if (!before) return null;
 
-  const usage = toUsage(before.usage);
+  const usage = toUsage(before.usage, usageTermStart(before));
   if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return null;
 
   const written = writeUsage(records, before, {
@@ -399,7 +444,7 @@ export async function setUsageRenewalInvoice(
   const before = records.find((record) => record.id === id);
   if (!before) return null;
 
-  const usage = toUsage(before.usage);
+  const usage = toUsage(before.usage, usageTermStart(before));
   if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return null;
 
   const written = writeUsage(records, before, {
