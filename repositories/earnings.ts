@@ -1,5 +1,5 @@
 import "server-only";
-import { isCampaignCalledOff } from "@/lib/campaigns";
+import { campaignDeliverables, isCampaignCalledOff } from "@/lib/campaigns";
 import { getCampaigns } from "./campaigns.writer.server";
 import { getAffiliatePartners } from "./affiliatePartners.writer.server";
 import { getAffiliatePayouts } from "./affiliatePayouts.writer.server";
@@ -153,7 +153,7 @@ export function summarizeEarnings(
     const deal: MonthlyDeal = {
       brand: campaign.brand,
       amount: campaign.total,
-      deliverables: [campaign.reels, campaign.story].filter(Boolean).join(", "),
+      deliverables: campaignDeliverables(campaign).join(", "),
     };
 
     if (campaign.paymentStatus === "pending") {

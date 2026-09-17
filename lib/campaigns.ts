@@ -20,13 +20,45 @@ export function buildCampaignBrandOptions(brands: Brand[]): CampaignBrandOption[
     .map((brand) => ({ id: brand.id, name: brand.name }));
 }
 
-// The fixed option lists for each field: kept client-safe (no "server-only")
-// since the quick-add form renders these as <Select> options. "Scam" is a
-// valid Type (inherited from the original spreadsheet's data) but isn't
-// offered when adding a new deal; it's something you'd mark after the fact.
-export const CAMPAIGN_TYPES: CampaignType[] = ["Barter", "Paid", "Barter+Paid"];
-export const REEL_OPTIONS = ["1 Reel", "2 Reels", "5 Reels"];
-export const STORY_OPTIONS = ["1 Story", "2 Story", "5 Stories", "None"];
+// The Type field's options: kept client-safe (no "server-only") since the
+// quick-add form renders these as <Select> options. "Scam" is a valid Type
+// (inherited from the original spreadsheet's data) but isn't offered when
+// adding a new deal; it's something you'd mark after the fact.
+export const CAMPAIGN_TYPES: CampaignType[] = ["Barter", "Paid", "Barter+Paid", "UGC Ad"];
+
+// Reels and stories are counts, not a fixed menu: the form steps them up and
+// down (see CampaignFormFields), so the only limits are none at all and a
+// ceiling high enough that hitting it means a typo rather than a deal.
+export const DELIVERABLE_MAX = 99;
+
+function deliverableLabel(count: number, singular: string, plural: string): string {
+  if (count <= 0) return "";
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/** "1 Reel", "3 Reels", or "" when the deal includes none. */
+export function reelsLabel(count: number): string {
+  return deliverableLabel(count, "Reel", "Reels");
+}
+
+/** "1 Story", "3 Stories", or "" when the deal includes none. */
+export function storiesLabel(count: number): string {
+  return deliverableLabel(count, "Story", "Stories");
+}
+
+/**
+ * What a deal promises, as the phrases every view of it writes out:
+ * ["2 Reels", "1 Story"], leaving out whichever it doesn't include.
+ *
+ * A list rather than a sentence because the callers join it differently: the
+ * calendar and the campaigns table with commas, an invoice line with " + ".
+ * Kept here so the wording, and the choice to say nothing about a deliverable
+ * a deal doesn't have, is written once.
+ */
+export function campaignDeliverables(campaign: Pick<Campaign, "reels" | "story">): string[] {
+  return [reelsLabel(campaign.reels), storiesLabel(campaign.story)].filter(Boolean);
+}
+
 // Every shared status is open to a deal, in pipeline order. The content form
 // offers the same list less the deal-only ones (see CONTENT_STATUSES).
 export const STATUS_OPTIONS: CampaignStatus[] = WORKFLOW_STATUSES;
@@ -172,8 +204,11 @@ export function computeCampaignStats(items: Campaign[]): CampaignStats {
       cancelled += 1;
       continue;
     }
+    // Matched on the stored spelling rather than through campaignTypeHasCash,
+    // since a row can still carry a type the vocabulary has since moved on
+    // from. "UGC Ad" is cash, so it counts with the paid deals.
     const type = item.type.trim().toLowerCase();
-    if (type.includes("paid")) paid += 1;
+    if (type.includes("paid") || type.includes("ugc")) paid += 1;
     if (type.includes("barter")) barter += 1;
   }
 

@@ -17,7 +17,12 @@ import {
 import { createCampaign } from "@/app/(dashboard)/actions";
 import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
-import { CampaignFormFields, campaignAmounts, campaignInitialForm } from "./CampaignFormFields";
+import {
+  CampaignFormFields,
+  campaignAmounts,
+  campaignInitialForm,
+  derivedPaymentStatus,
+} from "./CampaignFormFields";
 import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
 export function NewCampaignButton({
@@ -46,7 +51,9 @@ export function NewCampaignButton({
         story: form.story,
         status: form.status,
         ...campaignAmounts(form),
-        paymentStatus: form.paymentStatus,
+        // Not asked for: a deal being struck has nothing to say about payment
+        // beyond the dates on it. See derivedPaymentStatus.
+        paymentStatus: derivedPaymentStatus(form),
         date: form.date,
         uploadDate: form.uploadDate,
         paymentDue: form.paymentDue,
@@ -84,8 +91,8 @@ export function NewCampaignButton({
         <SheetHeader>
           <SheetTitle>New campaign</SheetTitle>
           <SheetDescription>
-            Records a new campaign. Payment status defaults to
-            unmarked: fill in payment details once the deal is paid out.
+            Records a deal as it was agreed. What it only learns later, when the money lands or
+            the post goes up, is folded away at the bottom.
           </SheetDescription>
         </SheetHeader>
 
@@ -96,6 +103,7 @@ export function NewCampaignButton({
         >
           <CampaignFormFields
             idPrefix="new-campaign"
+            mode="create"
             form={form}
             setForm={setForm}
             brandOptions={brandOptions}

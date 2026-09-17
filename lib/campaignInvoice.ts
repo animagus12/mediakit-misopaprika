@@ -1,6 +1,5 @@
-import { toIsoDate } from "@/lib/campaigns";
+import { campaignDeliverables, toIsoDate } from "@/lib/campaigns";
 import { formatInvoiceDate, isInvoiceNoTaken, reservedInvoiceNumbers } from "@/lib/invoice";
-import { deliverableCount } from "@/lib/rateCard";
 import { addDaysISO, nextInvoiceNo, paymentSnapshot, termLine } from "@/lib/usageInvoice";
 import type { InvoiceLineItemInput, InvoiceData } from "@/repositories/invoice";
 import type { NewInvoice } from "@/repositories/invoices";
@@ -59,9 +58,7 @@ function invoiceNoFor(input: CampaignInvoiceInput): string {
 
 /** "1 Reel + 1 Story", leaving out a deliverable the deal did not include. */
 function deliverablesLine(campaign: Campaign): string {
-  return [campaign.reels, campaign.story]
-    .filter((value) => deliverableCount(value) > 0)
-    .join(" + ");
+  return campaignDeliverables(campaign).join(" + ");
 }
 
 /** How long the licence runs, as the invoice states it: "25 days from 10.08.2026". */

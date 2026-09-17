@@ -8,6 +8,7 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -66,6 +67,10 @@ export function NewEditorTransactionButton({ editors, variant = "default" }: New
       <SheetContent className="flex flex-col gap-0">
         <SheetHeader>
           <SheetTitle>New transaction</SheetTitle>
+          <SheetDescription>
+            A video handed to an editor. It starts Pending with no delivery date; log those on the
+            transaction when the cut comes back.
+          </SheetDescription>
         </SheetHeader>
 
         <form
@@ -73,7 +78,13 @@ export function NewEditorTransactionButton({ editors, variant = "default" }: New
           onSubmit={handleSubmit}
           className="flex-1 space-y-4 overflow-y-auto px-6"
         >
-          <EditorTransactionFormFields idPrefix="new-txn" form={form} setForm={setForm} editors={editors} />
+          <EditorTransactionFormFields
+            idPrefix="new-txn"
+            mode="create"
+            form={form}
+            setForm={setForm}
+            editors={editors}
+          />
           {error && <p className="text-xs text-destructive">{error}</p>}
         </form>
 

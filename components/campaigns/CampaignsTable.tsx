@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  campaignDeliverables,
   CAMPAIGN_FILTER_TABS,
   CAMPAIGN_SORT_GROUPS,
   DEFAULT_CAMPAIGN_SORT,
@@ -407,7 +408,7 @@ export function CampaignsTable({
                   const timing = paymentTiming({ ...campaign, amount: campaign.cash });
                   const term = usageTerm(campaign);
                   const renewals = renewalTotal(campaign.usage);
-                  const deliverables = [campaign.reels, campaign.story].filter(Boolean).join(", ");
+                  const deliverables = campaignDeliverables(campaign).join(", ");
                   // What the total is made of, shown only when it is made of
                   // more than one thing: on a deal that is all cash or all
                   // barter the breakdown is the total again, and the Deal

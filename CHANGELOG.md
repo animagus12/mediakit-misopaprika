@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## [1.23.1] - 2026-09-18
+
+### Added
+
+- **UGC Ad is a campaign type.** The New campaign and Edit sheets offer it alongside Barter, Paid and Barter+Paid (`CAMPAIGN_TYPES`, `lib/campaigns.ts`), for content made for a brand to run itself rather than a post on the page. It carries cash, so it keeps the Amount and Ad usage fee fields, takes an `MSP-MC` id like the other paid types, and counts with the paid deals in the campaigns list's figures. Which types carry money is now one answer, `campaignTypeHasCash` (`repositories/campaigns.ts`), rather than a comparison spelled out at each place that asked.
+
+### Changed
+
+- **Every other form got the same treatment as the campaign one**: ordered the way the record is actually made, asking only for what is known at the time, with the rest folded or derived.
+  - **New content** (`ContentFormFields`): the title leads, since it is the thing; the editor picker sits under it rather than above it, and now fills only an empty title instead of overwriting one just typed. Format is four buttons. Posting date and Status share a row.
+  - **New transaction** (`EditorTransactionFormFields`) asks four things: video, editor, assigned date, amount. A video just handed over has not come back, been revised or been paid for, so date delivered, revisions and status are the edit sheet's; a new job is Pending with no delivery date, as it already was by default.
+  - **Record a payout** (`PayoutFormFields`) is grouped Period / Sales / Payment, and its payment status field is gone: a payout is received on the day it arrives and pending until then, so `payoutPaymentFrom` reads the status off the date. Two fields that could disagree became one that can't.
+  - **New affiliate partner** (`PartnerFormFields`) is grouped Program / Terms, with the links page card, tracking link and partner dashboard folded away: three URLs pasted once, none of which a program needs to exist. Commission model is two buttons. Status is the edit sheet's, since a program you have just joined is active.
+  - **New brand** (`BrandFormFields`): name, then status and agency as a row, then the logo, with website and Instagram folded. The contact picker still appears only when more than one contact applies.
+  - **New editor** (`EditorFormFields`): name and revision rate share the top row, then Reaching them (phone, email) and Paying them (UPI, QR).
+  - **Three pieces are now shared** rather than repeated per form: `FieldGroup` (`components/common/FieldGroup.tsx`) for the group headings, `OptionToggle` (`components/common/OptionToggle.tsx`) for a short option list as buttons, and the existing `CountStepper`. The campaign form uses them too.
+- **The campaign form is grouped, and asks for less.** It runs in the order a deal is agreed in, under three headings (`CampaignFormFields`): **Deal** (brand, campaign, type, deliverables), **Value** (what it pays and what the licence costs and runs for) and **Progress** (deal date and status, now one row). Everything a deal only learns later folds away at the bottom. The New campaign sheet fits without scrolling.
+  - **Brand is one field, not two.** The picker is the field: "Add a new brand" sits at the top of it, in the accent colour with a + and a rule under it, since it is the one entry that isn't a brand, and it is the only thing that opens the name box. A deal that already carries a name with no link opens typed in, and the campaign name takes the brand as its placeholder, since a deal named after its own brand doesn't need typing twice.
+  - **Type is four buttons** rather than a menu, so it's visible which money fields it decides.
+  - **A deal is only asked for what its type pays in.** Barter value is gone from a Paid or UGC Ad deal and Amount from a barter one, and `campaignAmounts` zeroes what isn't asked for, so a type flipped twice can't leave money on the record that contradicts it. The rows reflow so no field sits alone beside a gap: a paid deal's Amount takes the full row, a barter deal's goods sit beside the licence length.
+  - **A new deal isn't asked for its payment status.** It has nothing to say about payment beyond its dates, so `derivedPaymentStatus` reads it off them: a date in Paid on (Delivered on, for barter) makes it received, cash with a due date makes it pending, and anything else is untracked. The edit sheet keeps the select, since a deal already on the books sometimes needs one of the three said outright.
+  - **Folded away on a new deal**, where all of it is blank: payment due, paid on, payment method, upload date and the editor link. The last two moved down from the always-visible part, since the calendar writes the upload date when a deal is scheduled and the workspace is where a video meets its editor.
+- **Ad usage (days) sits beside Ad usage fee**, in the campaign form's amounts grid rather than down in the usage rights section (`CampaignFormFields`). The term and its price are one agreement, and a licence priced with no length on it was the half that got forgotten. A barter deal has no fee but can still grant usage, so it is asked the term too, next to Barter value.
+  - **The "Ends on" picker is gone.** It set nothing of its own: it showed the upload date plus the term and wrote whatever was picked back as a length, so it was the same fact entered twice. A licence is now edited as a length in days only. The end date still shows where it is read rather than set, on the deal's usage rights panel ("30 days, ends 14/10/2026"). `termEndDayKey` and `termDaysUntil` (`lib/usageRights.ts`) had no other caller and are removed, along with the form's `pausedDays` context, which only fed that arithmetic.
+  - **Upload date pairs with what's left**: a renewed licence's Renewal (days), or the day an ended one was called off.
+- **Reels and stories are counts, stepped up and down.** Both fields were a menu of phrases ("1 Reel", "5 Stories", "None"); they are now numbers with a -/+ stepper in the campaign form, so a deal can promise any number of either and a deliverable it doesn't include is simply 0. A new deal starts at 1 reel and 0 stories.
+  - **Stored as numbers** (`CampaignRecord.reels` / `.story`). Rows written the old way still read correctly: `toDeliverableCount` (`repositories/campaigns.ts`) takes the leading count off "5 Reels" and reads "None" as 0, and the next write heals the row, the same treatment a legacy status gets.
+  - **The wording is written in one place.** `campaignDeliverables` (`lib/campaigns.ts`) turns a deal into the phrases every view of it prints, so the calendar, the campaigns table, a brand's deal history, the activity log and an invoice line all pluralise the same way and all leave out a deliverable the deal doesn't have. `deliverableCount` in `lib/rateCard.ts` had nothing left to parse and is gone.
+  - **The stepper is shared** (`components/common/CountStepper.tsx`): the same control the editor transaction form used for revisions, which now uses it too rather than keeping a second copy of the markup. It owns its bounds, so a count can't be stepped below none.
+
 ## [1.23.0] - 2026-09-16
 
 ### Added

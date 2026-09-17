@@ -13,7 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { createAffiliatePayout } from "@/app/affiliates/actions";
-import { PayoutFormFields, payoutInitialForm } from "./PayoutFormFields";
+import { PayoutFormFields, payoutInitialForm, payoutPaymentFrom } from "./PayoutFormFields";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 
 export function NewPayoutButton({ partners }: { partners: AffiliatePartner[] }) {
@@ -33,8 +33,8 @@ export function NewPayoutButton({ partners }: { partners: AffiliatePartner[] }) 
         grossSales: Number(form.grossSales) || 0,
         salesCount: Number(form.salesCount) || 0,
         commissionAmount: Number(form.commissionAmount) || 0,
-        paymentStatus: form.paymentStatus,
-        paidDate: form.paidDate,
+        // Status and date together: the date is the field, the status follows.
+        ...payoutPaymentFrom(form),
         paymentMethod: form.paymentMethod.trim(),
       });
       if (!result.success) {

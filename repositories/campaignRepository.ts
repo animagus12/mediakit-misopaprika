@@ -44,8 +44,8 @@ export interface CampaignFormValues {
   brandId: string | null;
   campaign: string;
   type: CampaignType;
-  reels: string; // one of REEL_OPTIONS
-  story: string; // one of STORY_OPTIONS
+  reels: number; // how many reels the deal includes
+  story: number; // how many stories
   status: CampaignStatus;
   amount: number;
   barterValue: number;

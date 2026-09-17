@@ -19,8 +19,41 @@ export type CampaignStatus = WorkflowStatus;
 // Full stored vocabulary, including "Scam": inherited from the original
 // spreadsheet's data. Not every value is offered when adding a new deal (see
 // lib/campaigns.ts's CAMPAIGN_TYPES); "Scam" is something you'd mark after
-// the fact, not pick up front.
-export type CampaignType = "Barter" | "Paid" | "Barter+Paid" | "Scam";
+// the fact, not pick up front. "UGC Ad" is content made for a brand to run
+// itself rather than a post on the page: a cash deal like "Paid", kept apart
+// from it because it is sold and priced as its own thing.
+export type CampaignType = "Barter" | "Paid" | "Barter+Paid" | "Scam" | "UGC Ad";
+
+// What a type is paid in. Lives with the type so the id prefix (MSP-MC/MSP-BC),
+// the campaigns list's paid count and the form's money fields can't answer it
+// differently; a new type is placed here once.
+const CASH_TYPES = new Set<CampaignType>(["Paid", "Barter+Paid", "UGC Ad"]);
+const BARTER_TYPES = new Set<CampaignType>(["Barter", "Barter+Paid"]);
+
+export function campaignTypeHasCash(type: CampaignType): boolean {
+  return CASH_TYPES.has(type);
+}
+
+export function campaignTypeHasBarter(type: CampaignType): boolean {
+  return BARTER_TYPES.has(type);
+}
+
+/**
+ * How many of a deliverable a deal includes, as a whole count.
+ *
+ * Reels and stories are stored as numbers, but rows written while they were
+ * the sheet's phrases still hold "1 Reel", "5 Stories" or "None", so the
+ * leading count is read off them and anything with no number in it reads as
+ * none. Coerced on read (see toCampaign) and healed on the next write, the
+ * same treatment toCampaignStatus gives a legacy status.
+ */
+export function toDeliverableCount(raw: unknown): number {
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0;
+  }
+  const match = typeof raw === "string" ? raw.trim().match(/^(\d+)/) : null;
+  return match ? Number(match[1]) : 0;
+}
 
 // Anything not yet wrapped up is still "active": whitelisting the terminal
 // statuses is more robust than listing every pipeline stage, since new
@@ -260,8 +293,8 @@ export interface CampaignRecord extends CampaignInvoiceLink {
   brandId: string | null; // → Brand (repositories/brands.ts); null when this deal isn't linked to a CRM brand
   campaign: string;
   type: CampaignType;
-  reels: string; // e.g. "1 Reel" (see REEL_OPTIONS)
-  story: string; // e.g. "1 Story" (see STORY_OPTIONS)
+  reels: number; // how many reels the deal includes; legacy rows hold "1 Reel" (see toDeliverableCount)
+  story: number; // how many stories; legacy rows hold "1 Story" or "None"
   // Pipeline stage (see STATUS_OPTIONS). Coerced on read (see
   // toCampaignStatus), so a legacy spelling never reaches past the store.
   status: CampaignStatus;
@@ -318,8 +351,8 @@ export interface NewCampaignInput {
   brandId: string | null;
   campaign: string;
   type: CampaignType;
-  reels: string;
-  story: string;
+  reels: number;
+  story: number;
   status: CampaignStatus;
   amount: number;
   barterValue: number;
@@ -355,6 +388,8 @@ export function toCampaign(record: CampaignRecord): Campaign {
     ...record,
     ...toInvoiceLink(record),
     status,
+    reels: toDeliverableCount(record.reels),
+    story: toDeliverableCount(record.story),
     cash,
     total: cash + record.barterValue,
     stage: PAST_STATUSES.has(status) ? "past" : "active",

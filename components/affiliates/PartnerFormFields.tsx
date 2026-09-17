@@ -1,5 +1,13 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
+import { FieldGroup } from "@/components/common/FieldGroup";
+import { OptionToggle } from "@/components/common/OptionToggle";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -86,6 +94,12 @@ export function partnerFormFrom(partner: AffiliatePartner): PartnerFormState {
 
 interface PartnerFormFieldsProps {
   idPrefix: string;
+  /**
+   * "create" leaves out the status: a program you have just joined is active.
+   * "edit" asks for it, since pausing or ending one is exactly what an edit is
+   * for.
+   */
+  mode?: "create" | "edit";
   form: PartnerFormState;
   setForm: React.Dispatch<React.SetStateAction<PartnerFormState>>;
   brands: BrandOption[];
@@ -94,6 +108,7 @@ interface PartnerFormFieldsProps {
 
 export function PartnerFormFields({
   idPrefix,
+  mode = "edit",
   form,
   setForm,
   brands,
@@ -101,191 +116,200 @@ export function PartnerFormFields({
 }: PartnerFormFieldsProps) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-name`}>Program</Label>
-          <Input
-            id={`${idPrefix}-name`}
-            required
-            autoFocus
-            placeholder="Overblaze"
-            value={form.name}
-            onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
-          />
+      <FieldGroup title="Program">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-name`}>Name</Label>
+            <Input
+              id={`${idPrefix}-name`}
+              required
+              autoFocus
+              placeholder="Overblaze"
+              value={form.name}
+              onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-code`}>Code</Label>
+            <Input
+              id={`${idPrefix}-code`}
+              required
+              placeholder="PAPRIKA10"
+              value={form.code}
+              onChange={(event) => setForm((f) => ({ ...f, code: event.target.value }))}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-code`}>Code</Label>
-          <Input
-            id={`${idPrefix}-code`}
-            required
-            placeholder="PAPRIKA10"
-            value={form.code}
-            onChange={(event) => setForm((f) => ({ ...f, code: event.target.value }))}
-          />
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-brand`}>Brand</Label>
-        <Select
-          value={form.brandId}
-          onValueChange={(value) => setForm((f) => ({ ...f, brandId: value }))}
-        >
-          <SelectTrigger id={`${idPrefix}-brand`} className="w-full">
-            <SelectValue placeholder="Not linked" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>Not linked</SelectItem>
-            {brands.map((brand) => (
-              <SelectItem key={brand.id} value={brand.id}>
-                {brand.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-[0.7rem] text-muted-foreground">
-          Links the commission to a brand in the CRM, so it shows on that brand&apos;s payments tab.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-model`}>Commission model</Label>
+          <Label htmlFor={`${idPrefix}-brand`}>Brand</Label>
           <Select
+            value={form.brandId}
+            onValueChange={(value) => setForm((f) => ({ ...f, brandId: value }))}
+          >
+            <SelectTrigger id={`${idPrefix}-brand`} className="w-full">
+              <SelectValue placeholder="Not linked" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NONE}>Not linked</SelectItem>
+              {brands.map((brand) => (
+                <SelectItem key={brand.id} value={brand.id}>
+                  {brand.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Shows the commission on that brand&apos;s payments tab.
+          </p>
+        </div>
+      </FieldGroup>
+
+      <FieldGroup title="Terms">
+        <div className="space-y-2">
+          <Label id={`${idPrefix}-model-label`}>Commission model</Label>
+          <OptionToggle
             value={form.commissionModel}
-            onValueChange={(value) =>
-              setForm((f) => ({ ...f, commissionModel: value as CommissionModel }))
-            }
-          >
-            <SelectTrigger id={`${idPrefix}-model`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COMMISSION_MODELS.map((model) => (
-                <SelectItem key={model} value={model}>
-                  {model === "percent" ? "Percent of sales" : "Flat per sale"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-rate`}>
-            {form.commissionModel === "percent" ? "Rate (%)" : "Rate (₹ per sale)"}
-          </Label>
-          <Input
-            id={`${idPrefix}-rate`}
-            type="number"
-            min={0}
-            step="0.01"
-            placeholder="10"
-            value={form.commissionRate}
-            onChange={(event) => setForm((f) => ({ ...f, commissionRate: event.target.value }))}
+            onChange={(commissionModel) => setForm((f) => ({ ...f, commissionModel }))}
+            options={COMMISSION_MODELS}
+            labelFor={(model) => (model === "percent" ? "Percent of sales" : "Flat per sale")}
+            labelledBy={`${idPrefix}-model-label`}
           />
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-status`}>Status</Label>
-          <Select
-            value={form.status}
-            onValueChange={(value) => setForm((f) => ({ ...f, status: value as AffiliateStatus }))}
-          >
-            <SelectTrigger id={`${idPrefix}-status`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {AFFILIATE_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {AFFILIATE_STATUS_LABELS[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-rate`}>
+              {form.commissionModel === "percent" ? "Rate (%)" : "Rate (₹ per sale)"}
+            </Label>
+            <Input
+              id={`${idPrefix}-rate`}
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="10"
+              value={form.commissionRate}
+              onChange={(event) => setForm((f) => ({ ...f, commissionRate: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-schedule`}>Payout schedule</Label>
+            <Select
+              value={form.payoutSchedule}
+              onValueChange={(value) =>
+                setForm((f) => ({ ...f, payoutSchedule: value as PayoutSchedule }))
+              }
+            >
+              <SelectTrigger id={`${idPrefix}-schedule`} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAYOUT_SCHEDULES.map((schedule) => (
+                  <SelectItem key={schedule} value={schedule}>
+                    {PAYOUT_SCHEDULE_LABELS[schedule]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-schedule`}>Payout schedule</Label>
-          <Select
-            value={form.payoutSchedule}
-            onValueChange={(value) =>
-              setForm((f) => ({ ...f, payoutSchedule: value as PayoutSchedule }))
-            }
-          >
-            <SelectTrigger id={`${idPrefix}-schedule`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAYOUT_SCHEDULES.map((schedule) => (
-                <SelectItem key={schedule} value={schedule}>
-                  {PAYOUT_SCHEDULE_LABELS[schedule]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-start`}>Start date</Label>
+            <Input
+              id={`${idPrefix}-start`}
+              type="date"
+              required
+              value={form.startDate}
+              onChange={(event) => setForm((f) => ({ ...f, startDate: event.target.value }))}
+            />
+          </div>
+          {/* A program being added is one you have just joined, so it starts
+              active and isn't asked about. Ending or pausing it is an edit. */}
+          {mode === "edit" && (
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-status`}>Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(value) => setForm((f) => ({ ...f, status: value as AffiliateStatus }))}
+              >
+                <SelectTrigger id={`${idPrefix}-status`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AFFILIATE_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {AFFILIATE_STATUS_LABELS[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
-      </div>
+      </FieldGroup>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-start`}>Start date</Label>
-        <Input
-          id={`${idPrefix}-start`}
-          type="date"
-          required
-          value={form.startDate}
-          onChange={(event) => setForm((f) => ({ ...f, startDate: event.target.value }))}
-        />
-      </div>
+      {/* Folded: three links that are pasted once and then left alone, none of
+          which a program needs to exist. The card join is the one that earns
+          its place, and it can only be made after the card is on the page. */}
+      <Collapsible>
+        <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+          Links page card & URLs
+          <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-linkItem`}>Links page card</Label>
+            <Select
+              value={form.linkItemId}
+              onValueChange={(value) => setForm((f) => ({ ...f, linkItemId: value }))}
+            >
+              <SelectTrigger id={`${idPrefix}-linkItem`} className="w-full">
+                <SelectValue placeholder="Not on the links page" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>Not on the links page</SelectItem>
+                {linkItems.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.label}
+                    <span className="text-muted-foreground"> · {item.section}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Joins the code to its card so clicks can be counted against sales. Without it there is
+              no conversion rate.
+            </p>
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-linkItem`}>Links page card</Label>
-        <Select
-          value={form.linkItemId}
-          onValueChange={(value) => setForm((f) => ({ ...f, linkItemId: value }))}
-        >
-          <SelectTrigger id={`${idPrefix}-linkItem`} className="w-full">
-            <SelectValue placeholder="Not on the links page" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NONE}>Not on the links page</SelectItem>
-            {linkItems.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.label}
-                <span className="text-muted-foreground"> · {item.section}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-[0.7rem] text-muted-foreground">
-          Joins the code to its card so clicks can be counted against sales. Without it there is no
-          conversion rate.
-        </p>
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-tracking`}>Tracking link</Label>
+            <Input
+              id={`${idPrefix}-tracking`}
+              type="url"
+              placeholder="https://"
+              value={form.trackingUrl}
+              onChange={(event) => setForm((f) => ({ ...f, trackingUrl: event.target.value }))}
+            />
+          </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-tracking`}>Tracking link</Label>
-        <Input
-          id={`${idPrefix}-tracking`}
-          type="url"
-          placeholder="https://"
-          value={form.trackingUrl}
-          onChange={(event) => setForm((f) => ({ ...f, trackingUrl: event.target.value }))}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-dashboard`}>Partner dashboard</Label>
-        <Input
-          id={`${idPrefix}-dashboard`}
-          type="url"
-          placeholder="https://"
-          value={form.dashboardUrl}
-          onChange={(event) => setForm((f) => ({ ...f, dashboardUrl: event.target.value }))}
-        />
-        <p className="text-[0.7rem] text-muted-foreground">
-          Where the figures below are read from, so it is one click away when a period closes.
-        </p>
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-dashboard`}>Partner dashboard</Label>
+            <Input
+              id={`${idPrefix}-dashboard`}
+              type="url"
+              placeholder="https://"
+              value={form.dashboardUrl}
+              onChange={(event) => setForm((f) => ({ ...f, dashboardUrl: event.target.value }))}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Where the figures are read from, so it is one click away when a period closes.
+            </p>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </>
   );
 }

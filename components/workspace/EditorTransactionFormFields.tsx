@@ -1,7 +1,7 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CountStepper } from "@/components/common/CountStepper";
+import { OptionToggle } from "@/components/common/OptionToggle";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -63,12 +63,24 @@ export function editorTransactionInputFromForm(form: EditorTransactionFormState)
 
 interface EditorTransactionFormFieldsProps {
   idPrefix: string;
+  /**
+   * "create" leaves out what a job only learns once it comes back: when it was
+   * delivered, how many revisions it took and whether it has been paid for.
+   * "edit" asks for everything, since any of it can be the thing being logged.
+   */
+  mode?: "create" | "edit";
   form: EditorTransactionFormState;
   setForm: React.Dispatch<React.SetStateAction<EditorTransactionFormState>>;
   editors: Editor[];
 }
 
-export function EditorTransactionFormFields({ idPrefix, form, setForm, editors }: EditorTransactionFormFieldsProps) {
+export function EditorTransactionFormFields({
+  idPrefix,
+  mode = "edit",
+  form,
+  setForm,
+  editors,
+}: EditorTransactionFormFieldsProps) {
   const editorRate = editors.find((e) => e.name === form.editor)?.revisionRate ?? 0;
   // The rate the next step will charge: pinned once a revision is on the
   // transaction, the selected editor's own rate before that.
@@ -92,6 +104,8 @@ export function EditorTransactionFormFields({ idPrefix, form, setForm, editors }
 
   return (
     <>
+      {/* What the job is and who has it: the two things true the moment a
+          video is handed over. */}
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-video`}>Video</Label>
         <Input
@@ -103,27 +117,26 @@ export function EditorTransactionFormFields({ idPrefix, form, setForm, editors }
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-editor`}>Editor</Label>
-        {editors.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No editors yet. Add one first.</p>
-        ) : (
-          <Select value={form.editor} onValueChange={(value) => setForm((f) => ({ ...f, editor: value }))}>
-            <SelectTrigger id={`${idPrefix}-editor`} className="w-full">
-              <SelectValue placeholder="Select editor" />
-            </SelectTrigger>
-            <SelectContent>
-              {editors.map((editor) => (
-                <SelectItem key={editor.id} value={editor.name}>
-                  {editor.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
       <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-editor`}>Editor</Label>
+          {editors.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No editors yet. Add one first.</p>
+          ) : (
+            <Select value={form.editor} onValueChange={(value) => setForm((f) => ({ ...f, editor: value }))}>
+              <SelectTrigger id={`${idPrefix}-editor`} className="w-full">
+                <SelectValue placeholder="Select editor" />
+              </SelectTrigger>
+              <SelectContent>
+                {editors.map((editor) => (
+                  <SelectItem key={editor.id} value={editor.name}>
+                    {editor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-videoDate`}>Assigned date</Label>
           <Input
@@ -134,85 +147,68 @@ export function EditorTransactionFormFields({ idPrefix, form, setForm, editors }
             onChange={(event) => setForm((f) => ({ ...f, videoDate: event.target.value }))}
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-deliveryDate`}>Date delivered</Label>
-          <Input
-            id={`${idPrefix}-deliveryDate`}
-            type="date"
-            min={form.videoDate}
-            value={form.deliveryDate}
-            onChange={(event) => setForm((f) => ({ ...f, deliveryDate: event.target.value }))}
-          />
-        </div>
       </div>
 
       <div className="space-y-2">
-        <Label id={`${idPrefix}-revisions-label`}>Revisions</Label>
-        <div className="flex items-center gap-3">
-          <div
-            role="group"
-            aria-labelledby={`${idPrefix}-revisions-label`}
-            className="flex items-center rounded-md border border-input"
-          >
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => stepRevisions(-1)}
-              disabled={form.revisions === 0}
-              aria-label="Remove a revision"
-            >
-              <Minus />
-            </Button>
-            <output aria-live="polite" className="min-w-8 text-center text-xs font-medium tabular-nums">
-              {form.revisions}
-            </output>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => stepRevisions(1)}
-              aria-label="Add a revision"
-            >
-              <Plus />
-            </Button>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            {stepRate > 0
-              ? `${formatMoney(stepRate)} each, added to the amount`
-              : `No revision rate set for ${form.editor || "this editor"}`}
-          </p>
-        </div>
+        <Label htmlFor={`${idPrefix}-amount`}>Amount (₹)</Label>
+        <Input
+          id={`${idPrefix}-amount`}
+          type="number"
+          min={0}
+          placeholder="0"
+          value={form.amount}
+          onChange={(event) => setForm((f) => ({ ...f, amount: event.target.value }))}
+        />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-amount`}>Amount (₹)</Label>
-          <Input
-            id={`${idPrefix}-amount`}
-            type="number"
-            min={0}
-            placeholder="0"
-            value={form.amount}
-            onChange={(event) => setForm((f) => ({ ...f, amount: event.target.value }))}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-status`}>Status</Label>
-          <Select value={form.status} onValueChange={(value) => setForm((f) => ({ ...f, status: value }))}>
-            <SelectTrigger id={`${idPrefix}-status`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {EDITOR_TRANSACTION_STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {/* A job just handed over hasn't come back, been revised or been paid
+          for, so the create sheet doesn't ask: it is delivered on no date,
+          at no revisions, and Pending (see editorTransactionInitialForm).
+          The edit sheet is where all three are answered. */}
+      {mode === "edit" && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-deliveryDate`}>Date delivered</Label>
+              <Input
+                id={`${idPrefix}-deliveryDate`}
+                type="date"
+                min={form.videoDate}
+                value={form.deliveryDate}
+                onChange={(event) => setForm((f) => ({ ...f, deliveryDate: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label id={`${idPrefix}-status-label`}>Status</Label>
+              <OptionToggle
+                value={form.status}
+                onChange={(status) => setForm((f) => ({ ...f, status }))}
+                options={EDITOR_TRANSACTION_STATUS_OPTIONS}
+                labelledBy={`${idPrefix}-status-label`}
+                columns={3}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label id={`${idPrefix}-revisions-label`}>Revisions</Label>
+            <div className="flex items-center gap-3">
+              <CountStepper
+                value={form.revisions}
+                onStep={stepRevisions}
+                labelledBy={`${idPrefix}-revisions-label`}
+                decrementLabel="Remove a revision"
+                incrementLabel="Add a revision"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {stepRate > 0
+                  ? `${formatMoney(stepRate)} each, added to the amount`
+                  : `No revision rate set for ${form.editor || "this editor"}`}
+              </p>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

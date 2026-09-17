@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { EditCampaignSheet } from "@/components/campaigns/EditCampaignSheet";
 import { CampaignStatusSelect } from "@/components/campaigns/CampaignStatusSelect";
-import type { CampaignBrandOption } from "@/lib/campaigns";
+import { reelsLabel, storiesLabel, type CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import type { Campaign } from "@/repositories/campaigns";
 
@@ -39,8 +39,8 @@ export function ActiveCampaignCard({
           </div>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="truncate">{campaign.reels || "No reels"}</span>
-          <span className="truncate">{campaign.story || "No story"}</span>
+          <span className="truncate">{reelsLabel(campaign.reels) || "No reels"}</span>
+          <span className="truncate">{storiesLabel(campaign.story) || "No story"}</span>
           {campaign.date && (
             <span className="ml-auto shrink-0 whitespace-nowrap">{campaign.date}</span>
           )}
