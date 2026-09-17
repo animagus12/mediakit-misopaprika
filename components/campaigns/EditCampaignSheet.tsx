@@ -31,8 +31,6 @@ import {
 } from "./CampaignFormFields";
 import { UsageRightsPanel } from "./UsageRightsPanel";
 import {
-  REEL_OPTIONS,
-  STORY_OPTIONS,
   CAMPAIGN_TYPES,
   isCampaignCalledOff,
   toIsoDate,
@@ -55,7 +53,6 @@ function licenceContext(campaign: Campaign): CampaignLicenceContext {
   const renewal = latestRenewal(campaign);
   return {
     status: campaign.usage.status,
-    pausedDays: campaign.usage.pausedDays,
     renewalStart: renewal ? toIsoDate(renewal.startDate) : null,
     renewalMoney: renewalTotal(campaign.usage),
   };
@@ -70,8 +67,8 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     type: CAMPAIGN_TYPES.includes(campaign.type as (typeof CAMPAIGN_TYPES)[number])
       ? (campaign.type as CampaignFormState["type"])
       : "Barter",
-    reels: campaign.reels || REEL_OPTIONS[0],
-    story: campaign.story || STORY_OPTIONS[0],
+    reels: campaign.reels,
+    story: campaign.story,
     status: campaign.status,
     amount: campaign.amount > 0 ? String(campaign.amount) : "",
     barterValue: campaign.barterValue > 0 ? String(campaign.barterValue) : "",

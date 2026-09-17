@@ -53,18 +53,6 @@ export function toRateCard(source: RateCardSource): RateCard | null {
 }
 
 /**
- * How many of a thing a deliverable field names. "5 Reels" is 5, "None" is 0.
- *
- * The stored vocabulary is fixed (see REEL_OPTIONS / STORY_OPTIONS in
- * lib/campaigns.ts) but a record edited by hand carries whatever it carries,
- * so this reads the leading count rather than matching the whole phrase.
- */
-export function deliverableCount(value: string): number {
-  const match = value.trim().match(/^(\d+)/);
-  return match ? Number(match[1]) : 0;
-}
-
-/**
  * What the card says a deal's deliverables were worth.
  *
  * The reel is the billable unit and the story rides with it, because that is
@@ -84,7 +72,7 @@ export function cardValueOf(
   deal: Pick<Campaign, "reels" | "usage">,
   card: RateCard
 ): number {
-  const packages = deliverableCount(deal.reels);
+  const packages = deal.reels;
   if (packages === 0) return 0;
   const licensed = deal.usage.days > 0 || deal.usage.indefinite ? card.usagePrice : 0;
   return packages * (card.packagePrice + licensed);
@@ -159,7 +147,7 @@ export function computeRateRealization(
     }
 
     deals += 1;
-    packages += deliverableCount(campaign.reels);
+    packages += campaign.reels;
     cardValue += dealCardValue;
     value += campaign.total;
     cash += campaign.cash;

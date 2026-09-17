@@ -1,3 +1,4 @@
+import { campaignDeliverables } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
 import { formatUsageDays, formatUsageGrant } from "@/lib/usageRights";
 import { countOf, type DiffField } from "@/lib/activityDiff";
@@ -5,7 +6,12 @@ import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
 import type { Agency } from "@/repositories/agencies";
 import type { Brand } from "@/repositories/brands";
-import { toUsage, usageTermStart, type CampaignRecord } from "@/repositories/campaigns";
+import {
+  toDeliverableCount,
+  toUsage,
+  usageTermStart,
+  type CampaignRecord,
+} from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { Editor } from "@/repositories/editors";
@@ -90,7 +96,17 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
   { label: "upload date", value: (campaign) => campaign.uploadDate },
   { label: "deal date", value: (campaign) => campaign.date },
   { label: "invoice", value: (campaign) => campaign.invoiceRef },
-  { label: "deliverables", value: (campaign) => `${campaign.reels} ${campaign.story}`.trim() },
+  // Read through toDeliverableCount for the same reason the usage term is read
+  // through toUsage: the diff sees raw records, and one written before these
+  // were counts still holds "1 Reel".
+  {
+    label: "deliverables",
+    value: (campaign) =>
+      campaignDeliverables({
+        reels: toDeliverableCount(campaign.reels),
+        story: toDeliverableCount(campaign.story),
+      }).join(", "),
+  },
   { label: "payment method", value: (campaign) => campaign.paymentMethod },
   // An id says nothing to a reader, so only the fact is recorded: same call
   // contentFields makes about the same link.

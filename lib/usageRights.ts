@@ -294,25 +294,6 @@ export function usageEndDateProblem(
 }
 
 /**
- * The day a term runs out on: its start plus its length plus any days already
- * spent paused, the same arithmetic usageTerm does. "" with no start or no
- * length, since there is then no end to show.
- */
-export function termEndDayKey(startDayKey: string, days: number, pausedDays: number): string {
-  if (!isDayKey(startDayKey) || days <= 0) return "";
-  return addDays(startDayKey, days + pausedDays);
-}
-
-/**
- * The length that makes a term starting on `startDayKey` run out on
- * `endDayKey`: the inverse of termEndDayKey. Never below one day, so an end
- * picked on or before the start still leaves a term rather than none.
- */
-export function termDaysUntil(startDayKey: string, endDayKey: string, pausedDays: number): number {
-  return Math.max(1, daysBetween(startDayKey, endDayKey) - pausedDays);
-}
-
-/**
  * The day a renewal agreed today would sensibly run from: the day after the
  * current term ends, or today when that has already passed.
  *

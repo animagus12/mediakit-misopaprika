@@ -1,4 +1,5 @@
 import "server-only";
+import { campaignDeliverables } from "@/lib/campaigns";
 import { getCampaigns } from "./campaigns.writer.server";
 import type { Campaign, CampaignPaymentStatus, CampaignStatus, CampaignUsage } from "./campaigns";
 
@@ -34,7 +35,7 @@ function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     brand: campaign.brand,
     brandId: campaign.brandId,
     campaign: campaign.campaign,
-    deliverables: [campaign.reels, campaign.story].filter(Boolean).join(", "),
+    deliverables: campaignDeliverables(campaign).join(", "),
     date: campaign.date,
     uploadDate: campaign.uploadDate,
     status: campaign.status,

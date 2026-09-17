@@ -1,5 +1,6 @@
 "use client";
 
+import { OptionToggle } from "@/components/common/OptionToggle";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +17,7 @@ import {
   type ContentFormValues,
   type EditorVideoOption,
 } from "@/lib/contentPlan";
-import type { ContentFormat, ContentStatus } from "@/repositories/contentPlan";
+import type { ContentStatus } from "@/repositories/contentPlan";
 
 // A <Select> cannot carry "" as an item value, so the "not one of these"
 // choice needs a sentinel: same shape as CampaignFormFields' NO_BRAND_LINK.
@@ -60,6 +61,19 @@ export function ContentFormFields({
 
   return (
     <>
+      {/* The title first, because it is the thing: everything under it says
+          when and in what shape. */}
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-title`}>Title</Label>
+        <Input
+          id={`${idPrefix}-title`}
+          autoFocus
+          placeholder="Katana unboxing"
+          value={form.title}
+          onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))}
+        />
+      </div>
+
       {videoOptions.length > 0 && (
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-video`}>From your editors</Label>
@@ -76,10 +90,11 @@ export function ContentFormFields({
               setForm((f) => ({
                 ...f,
                 editorTransactionId: value,
-                // The video's name becomes the title, and stays editable: the
-                // point of the picker is not retyping what the editor was
-                // already given.
-                title: option?.video ?? f.title,
+                // The video's name fills the title, so what the editor was
+                // given isn't typed twice. A title already typed is left
+                // alone, since the picker now sits under it and overwriting
+                // would take back what was just written.
+                title: f.title.trim() === "" ? option?.video ?? f.title : f.title,
               }));
             }}
           >
@@ -110,35 +125,27 @@ export function ContentFormFields({
         </div>
       )}
 
+      {/* Buttons rather than a menu: there are four, and which one it is
+          decides what the post is, so all four are worth seeing. */}
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-title`}>Title</Label>
-        <Input
-          id={`${idPrefix}-title`}
-          autoFocus
-          placeholder="Katana unboxing"
-          value={form.title}
-          onChange={(event) => setForm((f) => ({ ...f, title: event.target.value }))}
+        <Label id={`${idPrefix}-format-label`}>Format</Label>
+        <OptionToggle
+          value={form.format}
+          onChange={(format) => setForm((f) => ({ ...f, format }))}
+          options={CONTENT_FORMATS}
+          labelledBy={`${idPrefix}-format-label`}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-format`}>Format</Label>
-          <Select
-            value={form.format}
-            onValueChange={(value) => setForm((f) => ({ ...f, format: value as ContentFormat }))}
-          >
-            <SelectTrigger id={`${idPrefix}-format`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CONTENT_FORMATS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor={`${idPrefix}-postDate`}>Posting date</Label>
+          <Input
+            id={`${idPrefix}-postDate`}
+            type="date"
+            value={form.postDate}
+            onChange={(event) => setForm((f) => ({ ...f, postDate: event.target.value }))}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-status`}>Status</Label>
@@ -159,19 +166,9 @@ export function ContentFormFields({
           </Select>
         </div>
       </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-postDate`}>Posting date</Label>
-        <Input
-          id={`${idPrefix}-postDate`}
-          type="date"
-          value={form.postDate}
-          onChange={(event) => setForm((f) => ({ ...f, postDate: event.target.value }))}
-        />
-        <p className="text-[11px] text-muted-foreground">
-          Leave empty to keep it in the ideas list until you pick a day.
-        </p>
-      </div>
+      <p className="text-[11px] text-muted-foreground">
+        No posting date keeps it in the ideas list until you pick a day.
+      </p>
 
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-notes`}>Notes</Label>

@@ -12,7 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { updateAffiliatePayout } from "@/app/affiliates/actions";
-import { PayoutFormFields, payoutFormFrom } from "./PayoutFormFields";
+import { PayoutFormFields, payoutFormFrom, payoutPaymentFrom } from "./PayoutFormFields";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
 
@@ -40,8 +40,8 @@ export function EditPayoutSheet({ payout, partners, children }: EditPayoutSheetP
         grossSales: Number(form.grossSales) || 0,
         salesCount: Number(form.salesCount) || 0,
         commissionAmount: Number(form.commissionAmount) || 0,
-        paymentStatus: form.paymentStatus,
-        paidDate: form.paidDate,
+        // Status and date together: the date is the field, the status follows.
+        ...payoutPaymentFrom(form),
         paymentMethod: form.paymentMethod.trim(),
       });
       if (!result.success) {

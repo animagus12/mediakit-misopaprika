@@ -7,10 +7,12 @@ import { toIsoDate } from "@/lib/campaigns";
 import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
 import { readInvoiceRecords } from "./invoiceRecords.server";
 import {
+  campaignTypeHasCash,
   emptyUsage,
   nextSequenceId,
   toCampaign,
   toCampaignStatus,
+  toDeliverableCount,
   toInvoiceLink,
   toUsage,
   usageTermStart,
@@ -82,8 +84,8 @@ function normalize(
     brandId: input.brandId,
     campaign: input.campaign.trim(),
     type: input.type,
-    reels: input.reels,
-    story: input.story,
+    reels: toDeliverableCount(input.reels),
+    story: toDeliverableCount(input.story),
     status: input.status,
     amount: Number(input.amount) || 0,
     barterValue: Number(input.barterValue) || 0,
@@ -146,7 +148,7 @@ export async function addCampaign(input: NewCampaignInput): Promise<CampaignReco
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
 
-  const hasPaidComponent = input.type === "Paid" || input.type === "Barter+Paid";
+  const hasPaidComponent = campaignTypeHasCash(input.type);
   const id = nextSequenceId(
     records.map((r) => r.id),
     hasPaidComponent ? "MSP-MC" : "MSP-BC"

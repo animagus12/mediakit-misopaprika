@@ -1,5 +1,11 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -80,12 +86,6 @@ export function BrandFormFields({
         />
       </div>
 
-      <BrandLogoUploadField
-        value={form.logoUrl}
-        onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl }))}
-        onError={onUploadError}
-      />
-
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-status`}>Status</Label>
@@ -132,6 +132,7 @@ export function BrandFormFields({
         </div>
       </div>
 
+      {/* Only when there is a choice to make: one contact needs no picking. */}
       {eligibleContacts.length > 1 && (
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-primary-contact`}>Contact shown on table</Label>
@@ -154,26 +155,43 @@ export function BrandFormFields({
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-website`}>Website</Label>
-        <Input
-          id={`${idPrefix}-website`}
-          type="url"
-          placeholder="https://"
-          value={form.website}
-          onChange={(event) => setForm((f) => ({ ...f, website: event.target.value }))}
-        />
-      </div>
+      <BrandLogoUploadField
+        value={form.logoUrl}
+        onChange={(logoUrl) => setForm((f) => ({ ...f, logoUrl }))}
+        onError={onUploadError}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-instagram`}>Instagram</Label>
-        <Input
-          id={`${idPrefix}-instagram`}
-          value={form.instagram}
-          onChange={(event) => setForm((f) => ({ ...f, instagram: event.target.value }))}
-        />
-      </div>
+      {/* Folded: two links that are looked up once, and neither of which the
+          brand needs to exist. The logo stays out here, since that is the one
+          thing on this form the media kit reads. */}
+      <Collapsible>
+        <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+          Website & Instagram
+          <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-4">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-website`}>Website</Label>
+            <Input
+              id={`${idPrefix}-website`}
+              type="url"
+              placeholder="https://"
+              value={form.website}
+              onChange={(event) => setForm((f) => ({ ...f, website: event.target.value }))}
+            />
+          </div>
 
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-instagram`}>Instagram</Label>
+            <Input
+              id={`${idPrefix}-instagram`}
+              placeholder="@handle"
+              value={form.instagram}
+              onChange={(event) => setForm((f) => ({ ...f, instagram: event.target.value }))}
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </>
   );
 }

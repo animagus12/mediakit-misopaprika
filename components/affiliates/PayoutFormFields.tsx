@@ -1,5 +1,6 @@
 "use client";
 
+import { FieldGroup } from "@/components/common/FieldGroup";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,11 +14,7 @@ import { formatMoney } from "@/lib/invoice";
 import { expectedCommission } from "@/lib/affiliates";
 import { toIsoDate } from "@/lib/editorTransactions";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
-import {
-  PAYOUT_PAYMENT_STATUSES,
-  type AffiliatePayout,
-  type PayoutPaymentStatus,
-} from "@/repositories/affiliatePayouts";
+import type { AffiliatePayout, PayoutPaymentStatus } from "@/repositories/affiliatePayouts";
 
 export interface PayoutFormState {
   partnerId: string;
@@ -26,9 +23,25 @@ export interface PayoutFormState {
   grossSales: string;
   salesCount: string;
   commissionAmount: string;
-  paymentStatus: PayoutPaymentStatus;
+  /** yyyy-mm-dd the money arrived, "" while it hasn't: see payoutPaymentFrom. */
   paidDate: string;
   paymentMethod: string;
+}
+
+/**
+ * The payment a form state means: status and date together.
+ *
+ * A payout has two states and one of them is a date, so the date is the field
+ * and the status follows it. Asking for both let a record say "received" with
+ * no day it arrived on, which is the half of a payment record that the
+ * commission-owed figures actually read.
+ */
+export function payoutPaymentFrom(form: PayoutFormState): {
+  paymentStatus: PayoutPaymentStatus;
+  paidDate: string;
+} {
+  const paidDate = form.paidDate.trim();
+  return { paymentStatus: paidDate ? "received" : "pending", paidDate };
 }
 
 // Defaults to the month just gone, which is the period actually being entered:
@@ -52,7 +65,6 @@ export function payoutInitialForm(partners: AffiliatePartner[] = []): PayoutForm
     grossSales: "",
     salesCount: "",
     commissionAmount: "",
-    paymentStatus: "pending",
     paidDate: "",
     paymentMethod: "",
   };
@@ -66,7 +78,6 @@ export function payoutFormFrom(payout: AffiliatePayout): PayoutFormState {
     grossSales: payout.grossSales ? String(payout.grossSales) : "",
     salesCount: payout.salesCount ? String(payout.salesCount) : "",
     commissionAmount: payout.commissionAmount ? String(payout.commissionAmount) : "",
-    paymentStatus: payout.paymentStatus,
     paidDate: toIsoDate(payout.paidDate),
     paymentMethod: payout.paymentMethod,
   };
@@ -90,153 +101,141 @@ export function PayoutFormFields({ idPrefix, form, setForm, partners }: PayoutFo
 
   return (
     <>
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-partner`}>Partner</Label>
-        {partners.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No partners yet. Add one first.</p>
-        ) : (
-          <Select
-            value={form.partnerId}
-            onValueChange={(value) => setForm((f) => ({ ...f, partnerId: value }))}
-          >
-            <SelectTrigger id={`${idPrefix}-partner`} className="w-full">
-              <SelectValue placeholder="Select partner" />
-            </SelectTrigger>
-            <SelectContent>
-              {partners.map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {entry.name}
-                  <span className="text-muted-foreground"> · {entry.code}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
+      <FieldGroup title="Period">
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-periodStart`}>Period start</Label>
-          <Input
-            id={`${idPrefix}-periodStart`}
-            type="date"
-            required
-            value={form.periodStart}
-            onChange={(event) => setForm((f) => ({ ...f, periodStart: event.target.value }))}
-          />
+          <Label htmlFor={`${idPrefix}-partner`}>Partner</Label>
+          {partners.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No partners yet. Add one first.</p>
+          ) : (
+            <Select
+              value={form.partnerId}
+              onValueChange={(value) => setForm((f) => ({ ...f, partnerId: value }))}
+            >
+              <SelectTrigger id={`${idPrefix}-partner`} className="w-full">
+                <SelectValue placeholder="Select partner" />
+              </SelectTrigger>
+              <SelectContent>
+                {partners.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id}>
+                    {entry.name}
+                    <span className="text-muted-foreground"> · {entry.code}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-periodEnd`}>Period end</Label>
-          <Input
-            id={`${idPrefix}-periodEnd`}
-            type="date"
-            required
-            value={form.periodEnd}
-            onChange={(event) => setForm((f) => ({ ...f, periodEnd: event.target.value }))}
-          />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-periodStart`}>Period start</Label>
+            <Input
+              id={`${idPrefix}-periodStart`}
+              type="date"
+              required
+              value={form.periodStart}
+              onChange={(event) => setForm((f) => ({ ...f, periodStart: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-periodEnd`}>Period end</Label>
+            <Input
+              id={`${idPrefix}-periodEnd`}
+              type="date"
+              required
+              min={form.periodStart}
+              value={form.periodEnd}
+              onChange={(event) => setForm((f) => ({ ...f, periodEnd: event.target.value }))}
+            />
+          </div>
+        </div>
+      </FieldGroup>
+
+      <FieldGroup title="Sales">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-grossSales`}>Gross sales (₹)</Label>
+            <Input
+              id={`${idPrefix}-grossSales`}
+              type="number"
+              min={0}
+              placeholder="0"
+              value={form.grossSales}
+              onChange={(event) => setForm((f) => ({ ...f, grossSales: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-salesCount`}>Orders</Label>
+            <Input
+              id={`${idPrefix}-salesCount`}
+              type="number"
+              min={0}
+              placeholder="0"
+              value={form.salesCount}
+              onChange={(event) => setForm((f) => ({ ...f, salesCount: event.target.value }))}
+            />
+          </div>
+        </div>
+
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-grossSales`}>Gross sales (₹)</Label>
+          <Label htmlFor={`${idPrefix}-commission`}>Commission (₹)</Label>
           <Input
-            id={`${idPrefix}-grossSales`}
+            id={`${idPrefix}-commission`}
             type="number"
             min={0}
+            step="0.01"
             placeholder="0"
-            value={form.grossSales}
-            onChange={(event) => setForm((f) => ({ ...f, grossSales: event.target.value }))}
+            value={form.commissionAmount}
+            onChange={(event) => setForm((f) => ({ ...f, commissionAmount: event.target.value }))}
           />
+          {/* What the program's own terms imply, offered as a check rather than
+              filled in: brands net off returns before they pay, so the portal's
+              figure is the true one and a mismatch is a question to ask them. */}
+          {expected !== null && (
+            <button
+              type="button"
+              className="text-[0.7rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              onClick={() =>
+                setForm((f) => ({ ...f, commissionAmount: String(Math.round(expected * 100) / 100) }))
+              }
+            >
+              Terms imply {formatMoney(expected)} · use this
+            </button>
+          )}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-salesCount`}>Orders</Label>
-          <Input
-            id={`${idPrefix}-salesCount`}
-            type="number"
-            min={0}
-            placeholder="0"
-            value={form.salesCount}
-            onChange={(event) => setForm((f) => ({ ...f, salesCount: event.target.value }))}
-          />
-        </div>
-      </div>
+      </FieldGroup>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-commission`}>Commission (₹)</Label>
-        <Input
-          id={`${idPrefix}-commission`}
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder="0"
-          value={form.commissionAmount}
-          onChange={(event) => setForm((f) => ({ ...f, commissionAmount: event.target.value }))}
-        />
-        {/* What the program's own terms imply, offered as a check rather than
-            filled in: brands net off returns before they pay, so the portal's
-            figure is the true one and a mismatch is a question to ask them. */}
-        {expected !== null && (
-          <button
-            type="button"
-            className="text-[0.7rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            onClick={() =>
-              setForm((f) => ({ ...f, commissionAmount: String(Math.round(expected * 100) / 100) }))
-            }
-          >
-            Terms imply {formatMoney(expected)} · use this
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-paymentStatus`}>Payment</Label>
-          <Select
-            value={form.paymentStatus}
-            onValueChange={(value) =>
-              setForm((f) => ({
-                ...f,
-                paymentStatus: value as PayoutPaymentStatus,
-                // Reverting to pending drops the paid date with it, so the
-                // stored record can never claim a date it did not arrive on.
-                paidDate: value === "received" ? f.paidDate : "",
-              }))
-            }
-          >
-            <SelectTrigger id={`${idPrefix}-paymentStatus`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PAYOUT_PAYMENT_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {status === "received" ? "Received" : "Pending"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <FieldGroup title="Payment">
+        {/* No status field: a payout is received on the day it arrives and
+            pending until then, so the date is the whole answer (see
+            payoutPaymentFrom). One field that can't disagree with itself,
+            where two could. */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
+            <Input
+              id={`${idPrefix}-paidDate`}
+              type="date"
+              value={form.paidDate}
+              onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-method`}>Method</Label>
+            <Input
+              id={`${idPrefix}-method`}
+              placeholder="Bank transfer"
+              value={form.paymentMethod}
+              onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
-          <Input
-            id={`${idPrefix}-paidDate`}
-            type="date"
-            disabled={form.paymentStatus !== "received"}
-            value={form.paidDate}
-            onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-method`}>Payment method</Label>
-        <Input
-          id={`${idPrefix}-method`}
-          placeholder="Bank transfer"
-          value={form.paymentMethod}
-          onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
-        />
-      </div>
+        <p className="text-[11px] text-muted-foreground">
+          {form.paidDate.trim()
+            ? "Received. Clear the date to put it back to pending."
+            : "Pending until you fill in the day it arrived."}
+        </p>
+      </FieldGroup>
     </>
   );
 }

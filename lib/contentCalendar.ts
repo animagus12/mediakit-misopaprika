@@ -14,7 +14,7 @@ import {
   todayKey,
   weekdayIndex,
 } from "@/lib/day";
-import { isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { campaignDeliverables, isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { contentLabel, isProductionReady } from "@/lib/contentPlan";
 import { formatMoney } from "@/lib/invoice";
 import type { Campaign } from "@/repositories/campaigns";
@@ -47,8 +47,6 @@ export const WEEK_AHEAD_DAYS = 7;
 // worth warning about. Two days is the point at which "I still have to shoot
 // this" stops being a plan and starts being a problem.
 const BEHIND_DAYS = 2;
-
-const NO_STORY = "none";
 
 export type PostState = "posted" | "overdue" | "due" | "upcoming";
 
@@ -132,17 +130,10 @@ export interface UnscheduledPost {
   ageDays: number | null;
 }
 
-function normalized(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-// "None" is a real value of the Story field, and listing it as a deliverable
-// would have the calendar promising a story that was never part of the deal.
+// A deliverable the deal doesn't include is left out rather than written as
+// none, so the calendar never promises a story that was never part of it.
 export function deliverablesLabel(campaign: Campaign): string {
-  return [campaign.reels, campaign.story]
-    .map((part) => part.trim())
-    .filter((part) => part !== "" && normalized(part) !== NO_STORY)
-    .join(", ");
+  return campaignDeliverables(campaign).join(", ");
 }
 
 function joinDetail(parts: (string | null | undefined)[]): string {

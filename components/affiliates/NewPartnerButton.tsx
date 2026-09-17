@@ -84,6 +84,7 @@ export function NewPartnerButton({ brands, linkItems }: NewPartnerButtonProps) {
         >
           <PartnerFormFields
             idPrefix="new-partner"
+            mode="create"
             form={form}
             setForm={setForm}
             brands={brands}
