@@ -37,6 +37,14 @@ export interface InvoicePayee {
   closingLine: string;
   defaultQrImage: string;
   defaultStampImage: string | null;
+  // New optional fields
+  panNumber?: string;
+  address?: string;
+  instagram?: string;
+  youtube?: string;
+  // Whether to show social handles on the invoice
+  showInstagram?: boolean;
+  showYouTube?: boolean;
 }
 
 export interface InvoiceBarterDefaults {

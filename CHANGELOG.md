@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Campaigns can be put on hold without cancelling or completing them.** **On Hold** is a campaign-only status, stored and normalized with the campaign record and classified separately from active and past campaigns. It can be set in the campaign form or from the dashboard campaign card's status selector, and is shown with its own badge style. Held campaigns no longer appear in the dashboard's active campaign cards or anywhere in the content calendar, including scheduled and unscheduled posts. They remain available in the full campaigns list, with a new **On hold** filter; choosing another status takes them off hold and returns them to the appropriate view.
+- **Invoices support billing and payee details.** Issued-to details now include address, PAN and GST number; payee details include PAN and address. PAN values are validated when entered and again when an invoice is saved, then stored in uppercase. The new fields persist with invoice records and load when an existing invoice is edited.
+- **Payee social handles can appear on invoices.** Instagram and YouTube handles can be saved in invoice defaults and each can be independently enabled for the invoice. Enabled handles are rendered as linked profiles in the invoice preview.
+
+### Changed
+
+- **Linked brands no longer overwrite the invoice's editable billing name.** Brand and deep-link names are used as placeholders instead, so the billing name can be entered independently. Existing invoice edits leave the billing name blank when it was not saved, rather than substituting the default billed-to name.
+
 ## [1.23.1] - 2026-09-18
 
 ### Added

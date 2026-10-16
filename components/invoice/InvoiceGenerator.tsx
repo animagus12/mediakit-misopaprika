@@ -11,6 +11,7 @@ import {
   formStateToInvoiceInput,
   invoiceDefaultsToFormState,
   invoiceRecordToFormState,
+  isValidPanNumber,
   todayISO,
   toInvoiceDefaults,
   type InvoiceBrandOption,
@@ -31,32 +32,20 @@ function buildInitialState(
   prefill: NewInvoice | undefined,
   brandOptions: InvoiceBrandOption[],
   initialBrandId?: string,
-  initialCampaignName?: string,
-  initialClientName?: string
+  initialCampaignName?: string
 ): InvoiceFormState {
   if (invoice) return invoiceRecordToFormState(invoice);
   // Raised from a deal ("Create invoice" on a campaign): every field is
   // already answered, so the loose deep-link params below have nothing to add.
-  if (prefill) return invoiceRecordToFormState(prefill);
+  if (prefill) {
+    return { ...invoiceRecordToFormState(prefill), clientName: "" };
+  }
   const base = invoiceDefaultsToFormState(data);
-  // Deep-linked from a brand ("New invoice" on /brands/[id]): pre-select it
-  // and seed the shown client name from the brand.
   const brand = initialBrandId ? brandOptions.find((option) => option.id === initialBrandId) : undefined;
   return {
     ...base,
-    // Prefilled from a link that carried a brand + campaign but no deal the
-    // page could find, so the invoice at least starts with the right names.
     ...(initialCampaignName ? { campaignName: initialCampaignName } : {}),
-    ...(brand
-      ? {
-          brandId: brand.id,
-          clientName: brand.name,
-          clientContactName:
-            brand.contactNames.length === 1 ? brand.contactNames[0] : base.clientContactName,
-        }
-      : initialClientName
-        ? { clientName: initialClientName }
-        : {}),
+    ...(brand ? { brandId: brand.id } : {}),
   };
 }
 
@@ -74,7 +63,7 @@ interface InvoiceGeneratorProps {
   editorJobOptions?: InvoiceEditorJobOption[];
   initialBrandId?: string;
   initialCampaignName?: string;
-  initialClientName?: string;
+  clientNamePlaceholder?: string;
 }
 
 export function InvoiceGenerator({
@@ -88,11 +77,11 @@ export function InvoiceGenerator({
   editorJobOptions = [],
   initialBrandId,
   initialCampaignName,
-  initialClientName,
+  clientNamePlaceholder,
 }: InvoiceGeneratorProps) {
   const router = useRouter();
   const [state, setState] = useState<InvoiceFormState>(() =>
-    buildInitialState(data, invoice, prefill, brandOptions, initialBrandId, initialCampaignName, initialClientName)
+    buildInitialState(data, invoice, prefill, brandOptions, initialBrandId, initialCampaignName)
   );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
@@ -124,27 +113,12 @@ export function InvoiceGenerator({
     []
   );
 
-  // Links the invoice to a CRM brand and pulls the brand name onto the invoice
-  // (and its sole contact, when there's exactly one and no name typed yet).
-  // The snapshot fields stay editable: this is a convenience, not a lock.
+  // Link the invoice to the CRM brand without filling the editable billing name.
   const selectBrand = useCallback(
     (brandId: string | null) => {
-      setState((prev) => {
-        if (!brandId) return { ...prev, brandId: null };
-        const brand = brandOptions.find((option) => option.id === brandId);
-        if (!brand) return { ...prev, brandId };
-        return {
-          ...prev,
-          brandId,
-          clientName: brand.name,
-          clientContactName:
-            !prev.clientContactName.trim() && brand.contactNames.length === 1
-              ? brand.contactNames[0]
-              : prev.clientContactName,
-        };
-      });
+      setState((prev) => ({ ...prev, brandId }));
     },
-    [brandOptions]
+    []
   );
 
   const selectEditorJob = useCallback((editorTransactionId: string | null) => {
@@ -202,6 +176,9 @@ export function InvoiceGenerator({
       clientName: "",
       clientContactName: "",
       clientEmail: "",
+      clientAddress: "",
+      clientPanNumber: "",
+      clientGstNumber: "",
       advance: 0,
       date: todayISO(),
       due: todayISO(data.dueInDays),
@@ -215,6 +192,10 @@ export function InvoiceGenerator({
   // number, campaign name, payee details, line items, …), then the URL swaps
   // to the saved record so a second Save updates it rather than duplicating.
   const save = useCallback(() => {
+    if (!isValidPanNumber(state.clientPanNumber) || !isValidPanNumber(state.panNumber)) {
+      showToast("Enter a valid 10-character PAN before saving");
+      return;
+    }
     const input = formStateToInvoiceInput(state);
     startSaveTransition(async () => {
       if (invoice) {
@@ -284,6 +265,7 @@ export function InvoiceGenerator({
       <InvoiceControls
         state={state}
         actions={actions}
+        clientNamePlaceholder={prefill?.client.name || clientNamePlaceholder}
         brandHandle={data.brandHandle}
         presets={data.presets}
         billedToPlaceholder={data.billedToPlaceholder}
@@ -298,7 +280,7 @@ export function InvoiceGenerator({
 
       <main className={styles.stage}>
         <div className={styles.stageInner}>
-          <InvoicePreview state={state} billedToPlaceholder={data.billedToPlaceholder} />
+          <InvoicePreview state={state} />
         </div>
       </main>
 

@@ -107,7 +107,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
         linkedCampaign={linkedCampaign}
         initialBrandId={brandId}
         initialCampaignName={campaign}
-        initialClientName={client}
+        clientNamePlaceholder={client}
       />
     </AppShell>
   );

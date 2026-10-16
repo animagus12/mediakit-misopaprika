@@ -7,21 +7,20 @@ import {
   formatMoney,
   lineItemTotal,
 } from "@/lib/invoice";
-import type { InvoiceContact } from "@/repositories/invoice";
+import { SocialIcon } from "@/components/links/SocialIcon";
 import type { InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
 
 interface InvoicePreviewProps {
   state: InvoiceFormState;
-  billedToPlaceholder: InvoiceContact;
 }
 
 export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
-  function InvoicePreview({ state, billedToPlaceholder }, ref) {
+  function InvoicePreview({ state }, ref) {
     const subtotal = computeSubtotal(state.items);
     const balanceDue = computeBalanceDue(subtotal, state.advance);
-    const clientName = state.clientName || billedToPlaceholder.name;
-    const clientEmail = state.clientEmail || billedToPlaceholder.email;
+    const instagramHandle = state.instagramHandle.trim().replace(/^@+/, "");
+    const youtubeHandle = state.youtubeHandle.trim().replace(/^@+/, "");
 
     return (
       <div className={styles.page} ref={ref}>
@@ -42,8 +41,15 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
               {state.clientContactName && (
                 <p className={styles.val}>{state.clientContactName}</p>
               )}
-              <p className={styles.val}>{clientName}</p>
-              <p className={styles.val}>{clientEmail}</p>
+              {state.clientName && <p className={styles.val}>{state.clientName}</p>}
+              {state.clientEmail && <p className={styles.val}>{state.clientEmail}</p>}
+              {state.clientAddress && <p className={styles.val}>{state.clientAddress}</p>}
+              {state.clientPanNumber && (
+                <p className={styles.val}><strong>PAN:</strong> {state.clientPanNumber}</p>
+              )}
+              {state.clientGstNumber && (
+                <p className={styles.val}><strong>GST:</strong> {state.clientGstNumber}</p>
+              )}
             </div>
             <div className={styles.metaRight}>
               <p className={styles.lbl}>
@@ -62,6 +68,36 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
               <p className={styles.lbl}>PAY TO:</p>
               <p className={styles.val}>{state.payName}</p>
               <p className={styles.val}>{state.payEmail}</p>
+              {state.panNumber && <p className={styles.val}><strong>PAN:</strong> {state.panNumber}</p>}
+              {state.address && <p className={styles.val}>{state.address}</p>}
+              {state.showInstagram && instagramHandle && (
+                <p className={styles.val}>
+                  <a
+                    className={styles.socialLink}
+                    href={`https://www.instagram.com/${encodeURIComponent(instagramHandle)}/`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Instagram profile for @${instagramHandle}`}
+                  >
+                    <SocialIcon platform="instagram" size={14} />
+                    <span>@{instagramHandle}</span>
+                  </a>
+                </p>
+              )}
+              {state.showYouTube && youtubeHandle && (
+                <p className={styles.val}>
+                  <a
+                    className={styles.socialLink}
+                    href={`https://www.youtube.com/@${encodeURIComponent(youtubeHandle)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`YouTube channel for @${youtubeHandle}`}
+                  >
+                    <SocialIcon platform="youtube" size={14} />
+                    <span>@{youtubeHandle}</span>
+                  </a>
+                </p>
+              )}
             </div>
             <div className={styles.metaRight}>
               <p className={styles.lbl}>PAYMENT METHOD</p>
