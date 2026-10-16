@@ -309,6 +309,19 @@
   word-break: break-word;
 }
 
+.socialLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 1px;
+}
+
+.socialLink svg {
+  flex: 0 0 auto;
+}
+
 .metaRight .val {
   letter-spacing: 0.09em;
 }

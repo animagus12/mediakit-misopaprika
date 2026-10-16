@@ -48,6 +48,10 @@ export const CAMPAIGN_STATUS_STYLES: Record<CampaignStatus, StatusStyle> = {
     className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
   },
   Cancelled: { variant: "destructive" },
+  "On Hold": {
+    variant: "outline",
+    className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+  },
   // Dashed and muted: it marks a row as written out of the record, not as wrong.
   Redacted: { variant: "outline", className: "border-dashed text-muted-foreground/70" },
 };

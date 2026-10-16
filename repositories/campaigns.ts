@@ -14,7 +14,7 @@ export type CampaignPaymentStatus = "received" | "pending" | "unknown";
 
 // A deal uses the whole shared vocabulary (see ./workflowStatus), including
 // the pre-production and Redacted statuses an own post never has.
-export type CampaignStatus = WorkflowStatus;
+export type CampaignStatus = WorkflowStatus | "On Hold";
 
 // Full stored vocabulary, including "Scam": inherited from the original
 // spreadsheet's data. Not every value is offered when adding a new deal (see
@@ -55,13 +55,14 @@ export function toDeliverableCount(raw: unknown): number {
   return match ? Number(match[1]) : 0;
 }
 
-// Anything not yet wrapped up is still "active": whitelisting the terminal
-// statuses is more robust than listing every pipeline stage, since new
-// pipeline stages (e.g. "In Route") show up more often than new terminal ones.
+// Whitelisting terminal statuses is more robust than listing every pipeline
+// stage, since new stages (e.g. "In Route") show up more often than terminal
+// ones. "On Hold" is classified separately: it is neither active nor past.
 const PAST_STATUSES = new Set<CampaignStatus>(["Posted", "Cancelled", "Redacted"]);
 
 /**
- * The status a stored deal carries, in the shared vocabulary.
+ * The status a stored deal carries, in the shared vocabulary plus the
+ * campaign-only "On Hold" state.
  *
  * Rows still spelled the sheet's old way ("Completed", "Todo") are read as
  * their shared name. Anything else unrecognised, a blank included, reads as
@@ -69,9 +70,10 @@ const PAST_STATUSES = new Set<CampaignStatus>(["Posted", "Cancelled", "Redacted"
  * a deal as delivered or ready.
  */
 export function toCampaignStatus(raw: string | null | undefined): CampaignStatus {
+  if (raw?.trim().toLowerCase() === "on hold") return "On Hold";
   return toWorkflowStatus(raw) ?? "Discussion";
 }
-export type CampaignStage = "active" | "past";
+export type CampaignStage = "active" | "past" | "on-hold";
 
 // --- Usage rights --------------------------------------------------------
 // How long a brand may keep running the content as an ad, and what happened
@@ -337,7 +339,7 @@ export interface Campaign extends CampaignRecord {
    */
   cash: number;
   total: number; // cash + barterValue, derived, never stored, so it can't drift
-  stage: CampaignStage; // derived from status, see PAST_STATUSES
+  stage: CampaignStage; // derived from status; held deals are neither active nor past
   paidDate: string; // "" rather than absent: see toCampaign
   editorTransactionId: string | null; // null rather than absent: see toCampaign
   usage: CampaignUsage; // whole rather than absent: see toUsage
@@ -392,7 +394,7 @@ export function toCampaign(record: CampaignRecord): Campaign {
     story: toDeliverableCount(record.story),
     cash,
     total: cash + record.barterValue,
-    stage: PAST_STATUSES.has(status) ? "past" : "active",
+    stage: status === "On Hold" ? "on-hold" : PAST_STATUSES.has(status) ? "past" : "active",
     paidDate: record.paidDate?.trim() ?? "",
     // An empty string is what a cleared <Select> leaves behind and a row
     // written before the field existed has nothing at all; both mean the same

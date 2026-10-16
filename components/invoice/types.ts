@@ -13,6 +13,9 @@ export interface InvoiceFormState {
   clientName: string;
   clientContactName: string;
   clientEmail: string;
+  clientAddress: string;
+  clientPanNumber: string;
+  clientGstNumber: string;
   items: InvoiceLineItem[];
   advance: number;
   barterOn: boolean;
@@ -30,6 +33,13 @@ export interface InvoiceFormState {
   closing: string;
   qrImage: string | null;
   stampImage: string | null;
+  // New optional payee fields
+  panNumber: string;
+  address: string;
+  instagramHandle: string;
+  youtubeHandle: string;
+  showInstagram: boolean;
+  showYouTube: boolean;
 }
 
 export interface InvoiceFormActions {

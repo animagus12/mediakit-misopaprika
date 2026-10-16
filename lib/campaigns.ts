@@ -61,7 +61,7 @@ export function campaignDeliverables(campaign: Pick<Campaign, "reels" | "story">
 
 // Every shared status is open to a deal, in pipeline order. The content form
 // offers the same list less the deal-only ones (see CONTENT_STATUSES).
-export const STATUS_OPTIONS: CampaignStatus[] = WORKFLOW_STATUSES;
+export const STATUS_OPTIONS: CampaignStatus[] = [...WORKFLOW_STATUSES, "On Hold"];
 
 // A Server Action is reachable by direct POST, so the status is checked at
 // the boundary rather than trusted from the <Select> that produced it.
@@ -175,6 +175,7 @@ export function campaignLabel(campaign: string, brand: string): string {
 export interface SplitCampaigns {
   active: Campaign[];
   past: Campaign[];
+  onHold: Campaign[];
 }
 
 export function splitCampaigns(items: Campaign[]): SplitCampaigns {
@@ -184,7 +185,10 @@ export function splitCampaigns(items: Campaign[]): SplitCampaigns {
   const past = items
     .filter((item) => item.stage === "past")
     .sort((a, b) => parseSheetDate(b.date) - parseSheetDate(a.date));
-  return { active, past };
+  const onHold = items
+    .filter((item) => item.stage === "on-hold")
+    .sort((a, b) => parseSheetDate(a.date) - parseSheetDate(b.date));
+  return { active, past, onHold };
 }
 
 export interface CampaignStats {
@@ -220,11 +224,12 @@ export function computeCampaignStats(items: Campaign[]): CampaignStats {
 // stay testable and out of the UI, per the project's architecture guide: 
 // same split as lib/invoice.ts's filterInvoices/sortInvoices.
 
-export type CampaignFilter = "all" | "active" | "posted" | "pending-payment" | "cancelled";
+export type CampaignFilter = "all" | "active" | "on-hold" | "posted" | "pending-payment" | "cancelled";
 
 export const CAMPAIGN_FILTER_TABS: { value: CampaignFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "active", label: "Active" },
+  { value: "on-hold", label: "On hold" },
   { value: "posted", label: "Posted" },
   { value: "pending-payment", label: "Pending payment" },
   { value: "cancelled", label: "Cancelled" },
@@ -240,6 +245,8 @@ function matchesCampaignFilter(item: Campaign, filter: CampaignFilter): boolean 
       return true;
     case "active":
       return item.stage === "active";
+    case "on-hold":
+      return item.status === "On Hold";
     case "posted":
       return item.status === "Posted";
     case "pending-payment":

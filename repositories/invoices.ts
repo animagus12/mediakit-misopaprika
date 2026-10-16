@@ -13,6 +13,9 @@ export interface InvoiceClient {
   name: string;
   contactName: string;
   email: string;
+  address?: string;
+  panNumber?: string;
+  gstNumber?: string;
 }
 
 export interface InvoiceBarter {
@@ -31,6 +34,12 @@ export interface InvoicePaymentSnapshot {
   closingLine: string;
   qrImage: string | null;
   stampImage: string | null;
+  panNumber?: string;
+  address?: string;
+  instagram?: string;
+  youtube?: string;
+  showInstagram?: boolean;
+  showYouTube?: boolean;
 }
 
 // Shape as persisted (JSON seed / Redis).

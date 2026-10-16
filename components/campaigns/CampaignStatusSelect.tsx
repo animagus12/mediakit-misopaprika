@@ -6,6 +6,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -93,11 +94,13 @@ export function CampaignStatusSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {STATUS_OPTIONS.map((option) => (
+        {STATUS_OPTIONS.filter((option) => option !== "On Hold").map((option) => (
           <SelectItem key={option} value={option}>
             {option}
           </SelectItem>
         ))}
+        <SelectSeparator />
+        <SelectItem value="On Hold">On Hold</SelectItem>
       </SelectContent>
     </Select>
   );

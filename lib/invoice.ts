@@ -34,6 +34,10 @@ export function formatInvoiceDate(iso: string): string {
   return `${d}.${m}.${y}`;
 }
 
+export function isValidPanNumber(panNumber: string): boolean {
+  return !panNumber.trim() || /^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(panNumber.trim());
+}
+
 export function todayISO(offsetDays = 0): string {
   const date = new Date();
   date.setDate(date.getDate() + offsetDays);
@@ -379,6 +383,13 @@ export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData)
       closingLine: state.closing,
       defaultQrImage: state.qrImage || current.payee.defaultQrImage,
       defaultStampImage: state.stampImage,
+      // Persist new optional fields
+      panNumber: state.panNumber.trim().toUpperCase(),
+      address: state.address,
+      instagram: state.instagramHandle,
+      youtube: state.youtubeHandle,
+      showInstagram: state.showInstagram ?? current.payee.showInstagram ?? false,
+      showYouTube: state.showYouTube ?? current.payee.showYouTube ?? false,
     },
     barter: {
       defaultEnabled: state.barterOn,
@@ -574,6 +585,9 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
     clientName: "",
     clientContactName: "",
     clientEmail: "",
+    clientAddress: "",
+    clientPanNumber: "",
+    clientGstNumber: "",
     items: itemsWithStableIds(data.defaultItems),
     advance: 0,
     barterOn: data.barter.defaultEnabled,
@@ -591,6 +605,13 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
     closing: data.payee.closingLine,
     qrImage: data.payee.defaultQrImage,
     stampImage: data.payee.defaultStampImage,
+    // New optional fields
+    panNumber: data.payee.panNumber || "",
+    address: data.payee.address || "",
+    instagramHandle: data.payee.instagram || "",
+    youtubeHandle: data.payee.youtube || "",
+    showInstagram: data.payee.showInstagram ?? false,
+    showYouTube: data.payee.showYouTube ?? false,
   };
 }
 
@@ -608,6 +629,9 @@ export function invoiceRecordToFormState(record: NewInvoice): InvoiceFormState {
     clientName: record.client.name,
     clientContactName: record.client.contactName,
     clientEmail: record.client.email,
+    clientAddress: record.client.address || "",
+    clientPanNumber: record.client.panNumber || "",
+    clientGstNumber: record.client.gstNumber || "",
     items: itemsWithStableIds(record.items),
     advance: record.advance,
     barterOn: record.barter.enabled,
@@ -625,6 +649,13 @@ export function invoiceRecordToFormState(record: NewInvoice): InvoiceFormState {
     closing: record.payment.closingLine,
     qrImage: record.payment.qrImage,
     stampImage: record.payment.stampImage,
+    // New optional fields
+    panNumber: record.payment.panNumber || "",
+    address: record.payment.address || "",
+    instagramHandle: record.payment.instagram || "",
+    youtubeHandle: record.payment.youtube || "",
+    showInstagram: record.payment.showInstagram ?? false,
+    showYouTube: record.payment.showYouTube ?? false,
   };
 }
 
@@ -643,6 +674,9 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
       name: state.clientName,
       contactName: state.clientContactName,
       email: state.clientEmail,
+      address: state.clientAddress,
+      panNumber: state.clientPanNumber.trim().toUpperCase(),
+      gstNumber: state.clientGstNumber,
     },
     items: state.items.map((item) => ({
       desc: item.desc,
@@ -671,6 +705,13 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
       closingLine: state.closing,
       qrImage: state.qrImage,
       stampImage: state.stampImage,
+      // New optional fields persisted on invoices
+      panNumber: state.panNumber.trim().toUpperCase(),
+      address: state.address || "",
+      instagram: state.instagramHandle || "",
+      youtube: state.youtubeHandle || "",
+      showInstagram: state.showInstagram,
+      showYouTube: state.showYouTube,
     },
   };
 }

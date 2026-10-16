@@ -193,7 +193,7 @@ function timingOf(status: WorkflowStatus, dayKey: string, today: string): PostTi
 function scheduledFromCampaign(campaign: Campaign, today: string): ScheduledPost | null {
   // A deal that was called off never belonged on a schedule, matching
   // selectDuePayments and selectAttentionItems.
-  if (isCampaignCalledOff(campaign.status)) return null;
+  if (isCampaignCalledOff(campaign.status) || campaign.status === "On Hold") return null;
   const dayKey = toIsoDate(campaign.uploadDate);
   // toIsoDate answers "" for a blank or malformed date; both mean the deal has
   // no day to sit on, and the unscheduled list picks it up instead.
@@ -279,7 +279,12 @@ export function selectUnscheduledPosts(
   const today = todayKey(now);
 
   const deals = campaigns
-    .filter((campaign) => campaign.stage === "active" && toIsoDate(campaign.uploadDate) === "")
+    .filter(
+      (campaign): campaign is Campaign & { status: WorkflowStatus } =>
+        campaign.stage === "active" &&
+        campaign.status !== "On Hold" &&
+        toIsoDate(campaign.uploadDate) === ""
+    )
     .map((campaign): UnscheduledPost => {
       const dealDayKey = toIsoDate(campaign.date);
       return {

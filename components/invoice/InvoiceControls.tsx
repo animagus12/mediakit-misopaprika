@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
   formatInvoiceStatus,
   formatMoney,
   INVOICE_STATUS_OPTIONS,
+  isValidPanNumber,
   isInvoiceNoTaken,
   type InvoiceBrandOption,
   type InvoiceEditorJobOption,
@@ -36,6 +38,7 @@ const NO_LINK = "__none__";
 interface InvoiceControlsProps {
   state: InvoiceFormState;
   actions: InvoiceFormActions;
+  clientNamePlaceholder?: string;
   brandHandle: string;
   presets: InvoicePreset[];
   billedToPlaceholder: InvoiceContact;
@@ -52,6 +55,7 @@ interface InvoiceControlsProps {
 export function InvoiceControls({
   state,
   actions,
+  clientNamePlaceholder,
   brandHandle,
   presets,
   billedToPlaceholder,
@@ -64,6 +68,8 @@ export function InvoiceControls({
   onImageUploadError,
 }: InvoiceControlsProps) {
   const numberClash = isInvoiceNoTaken(state.invoiceNo, takenInvoiceNumbers);
+  const clientPanInvalid = !isValidPanNumber(state.clientPanNumber);
+  const payeePanInvalid = !isValidPanNumber(state.panNumber);
   const linkedBrand = state.brandId ? brandOptions.find((option) => option.id === state.brandId) : undefined;
   // A linked invoice bills its campaign's brand (see withLinkedBrand), so the
   // picker can't disagree with it. A campaign with no brand leaves it free.
@@ -166,7 +172,7 @@ export function InvoiceControls({
       </fieldset>
 
       <fieldset className={styles.fieldset}>
-        <legend className={styles.legend}>Billed to</legend>
+        <legend className={styles.legend}>Billing details</legend>
 
         {brandOptions.length > 0 && (
           <>
@@ -219,7 +225,7 @@ export function InvoiceControls({
         </Label>
         <Input
           id="clientName"
-          placeholder={billedToPlaceholder.name}
+          placeholder={linkedBrand?.name || clientNamePlaceholder || billedToPlaceholder.name}
           value={state.clientName}
           onChange={(e) => actions.setField("clientName", e.target.value)}
         />
@@ -231,6 +237,38 @@ export function InvoiceControls({
           placeholder={billedToPlaceholder.email}
           value={state.clientEmail}
           onChange={(e) => actions.setField("clientEmail", e.target.value)}
+        />
+        <Label className={styles.fieldLabel} htmlFor="clientAddress">
+          Address
+        </Label>
+        <Textarea
+          id="clientAddress"
+          value={state.clientAddress}
+          onChange={(e) => actions.setField("clientAddress", e.target.value)}
+        />
+        <Label className={styles.fieldLabel} htmlFor="clientPanNumber">
+          PAN number
+        </Label>
+        <Input
+          id="clientPanNumber"
+          placeholder="ABCDE1234F"
+          maxLength={10}
+          aria-invalid={clientPanInvalid}
+          value={state.clientPanNumber}
+          onChange={(e) => actions.setField("clientPanNumber", e.target.value)}
+        />
+        {clientPanInvalid && (
+          <p className="mt-1 text-[11px] text-destructive" role="alert">
+            Enter a valid 10-character PAN (for example, ABCDE1234F).
+          </p>
+        )}
+        <Label className={styles.fieldLabel} htmlFor="clientGstNumber">
+          GST number
+        </Label>
+        <Input
+          id="clientGstNumber"
+          value={state.clientGstNumber}
+          onChange={(e) => actions.setField("clientGstNumber", e.target.value)}
         />
       </fieldset>
 
@@ -372,7 +410,7 @@ export function InvoiceControls({
       </fieldset>
 
       <fieldset className={styles.fieldset}>
-        <legend className={styles.legend}>Your details</legend>
+        <legend className={styles.legend}>Payee details</legend>
         <Label className={styles.fieldLabel} htmlFor="payName">
           Name
         </Label>
@@ -389,7 +427,81 @@ export function InvoiceControls({
           value={state.payEmail}
           onChange={(e) => actions.setField("payEmail", e.target.value)}
         />
+        <Label className={styles.fieldLabel} htmlFor="panNumber">
+          PAN number
+        </Label>
+        <Input
+          id="panNumber"
+          placeholder="ABCDE1234F"
+          maxLength={10}
+          aria-invalid={payeePanInvalid}
+          value={state.panNumber}
+          onChange={(e) => actions.setField("panNumber", e.target.value)}
+        />
+        {payeePanInvalid && (
+          <p className="mt-1 text-[11px] text-destructive" role="alert">
+            Enter a valid 10-character PAN (for example, ABCDE1234F).
+          </p>
+        )}
 
+        <Label className={styles.fieldLabel} htmlFor="address">
+          Address
+        </Label>
+        <Textarea
+          id="address"
+          value={state.address}
+          onChange={(e) => actions.setField("address", e.target.value)}
+        />
+
+        <div className={styles.toggle}>
+          <Checkbox
+            id="showInstagram"
+            checked={state.showInstagram}
+            onCheckedChange={(checked) => actions.setField("showInstagram", checked === true)}
+          />
+          <Label htmlFor="showInstagram" className={styles.toggleLabel}>
+            Show Instagram handle on invoice
+          </Label>
+        </div>
+        {state.showInstagram && (
+          <>
+            <Label className={styles.fieldLabel} htmlFor="instagramHandle">
+              Instagram handle
+            </Label>
+            <Input
+              id="instagramHandle"
+              value={state.instagramHandle}
+              onChange={(e) => actions.setField("instagramHandle", e.target.value)}
+            />
+          </>
+        )}
+
+        <div className={styles.toggle}>
+          <Checkbox
+            id="showYouTube"
+            checked={state.showYouTube}
+            onCheckedChange={(checked) => actions.setField("showYouTube", checked === true)}
+          />
+          <Label htmlFor="showYouTube" className={styles.toggleLabel}>
+            Show YouTube handle on invoice
+          </Label>
+        </div>
+        {state.showYouTube && (
+          <>
+            <Label className={styles.fieldLabel} htmlFor="youtubeHandle">
+              YouTube handle
+            </Label>
+            <Input
+              id="youtubeHandle"
+              value={state.youtubeHandle}
+              onChange={(e) => actions.setField("youtubeHandle", e.target.value)}
+            />
+          </>
+        )}
+      </fieldset>
+
+      <fieldset className={styles.fieldset}>
+        <legend className={styles.legend}>Payment details</legend>
         <Label className={styles.fieldLabel} htmlFor="paymentMode">
           Payment method shown
         </Label>
@@ -462,7 +574,6 @@ export function InvoiceControls({
             </div>
           </>
         )}
-
         <Label className={styles.fieldLabel} htmlFor="gstNote">
           Footer note
         </Label>

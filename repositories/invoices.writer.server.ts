@@ -1,7 +1,13 @@
 import "server-only";
 import { getRedis } from "@/lib/cache";
 import type { RecordChange } from "@/lib/activityDiff";
-import { buildInvoiceNumber, invoiceNoKey, isInvoiceNoTaken, withLinkedBrand } from "@/lib/invoice";
+import {
+  buildInvoiceNumber,
+  invoiceNoKey,
+  isInvoiceNoTaken,
+  isValidPanNumber,
+  withLinkedBrand,
+} from "@/lib/invoice";
 import { getCampaigns } from "./campaigns.writer.server";
 import type { Campaign } from "./campaigns";
 import { INVOICES_KEY, readInvoiceRecords as readRecords } from "./invoiceRecords.server";
@@ -44,6 +50,15 @@ export async function getInvoice(id: string): Promise<Invoice | null> {
 // Trims free text and coerces numbers so a record is clean regardless of what
 // the form handed over: same defensive shape as brands.writer.server.ts.
 function normalize(input: NewInvoice): NewInvoice {
+  const clientPanNumber = input.client.panNumber?.trim() || "";
+  const payeePanNumber = input.payment.panNumber?.trim() || "";
+  if (!isValidPanNumber(clientPanNumber)) {
+    throw new Error("Issued-to PAN must be a valid 10-character PAN (for example, ABCDE1234F)");
+  }
+  if (!isValidPanNumber(payeePanNumber)) {
+    throw new Error("Payee PAN must be a valid 10-character PAN (for example, ABCDE1234F)");
+  }
+
   return {
     status: input.status,
     invoiceNo: input.invoiceNo.trim(),
@@ -56,6 +71,9 @@ function normalize(input: NewInvoice): NewInvoice {
       name: input.client.name.trim(),
       contactName: input.client.contactName.trim(),
       email: input.client.email.trim(),
+      address: input.client.address?.trim() || "",
+      panNumber: clientPanNumber.toUpperCase(),
+      gstNumber: input.client.gstNumber?.trim() || "",
     },
     items: input.items.map((item) => ({
       desc: item.desc.trim(),
@@ -84,6 +102,13 @@ function normalize(input: NewInvoice): NewInvoice {
       closingLine: input.payment.closingLine.trim(),
       qrImage: input.payment.qrImage,
       stampImage: input.payment.stampImage,
+      // New optional payment fields
+      panNumber: payeePanNumber.toUpperCase(),
+      address: input.payment.address?.trim() || "",
+      instagram: input.payment.instagram?.trim() || "",
+      youtube: input.payment.youtube?.trim() || "",
+      showInstagram: Boolean(input.payment.showInstagram),
+      showYouTube: Boolean(input.payment.showYouTube),
     },
   };
 }
