@@ -1,6 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+### Added
+### Changed
+## Removed
+
+## [1.24.0] - 2026-10-16
 
 ### Added
 
