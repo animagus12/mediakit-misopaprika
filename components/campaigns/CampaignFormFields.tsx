@@ -145,7 +145,7 @@ export function campaignInitialForm(): CampaignFormState {
     amount: "",
     barterValue: "",
     paymentStatus: "unknown",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayKey(),
     uploadDate: "",
     paymentDue: "",
     paidDate: "",

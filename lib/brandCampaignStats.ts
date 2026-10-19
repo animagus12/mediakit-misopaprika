@@ -2,6 +2,7 @@ import { isCampaignCalledOff } from "@/lib/campaigns";
 import { computePaymentReliability, type PaymentReliability } from "@/lib/paymentReliability";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { CampaignStatus } from "@/repositories/campaigns";
+import { isDayKey, todayKey } from "@/lib/day";
 
 // Client-safe aggregation over BrandCampaignRecord[]: kept out of
 // repositories/brandCampaigns.ts (which is "server-only", since it fetches
@@ -32,7 +33,8 @@ export function parseSheetDate(date: string | null): number {
   const match = date?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return Number.NEGATIVE_INFINITY;
   const [, day, month, year] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day)).getTime();
+  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
 }
 
 export interface BrandStats {
@@ -143,7 +145,7 @@ function dueLabel(days: number): string {
 // this row carries a deal's brand, campaign and total, which are the wrong
 // numbers for a renewal.
 export function selectDuePayments(records: BrandCampaignRecord[], now: Date = new Date()): DuePayment[] {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const today = Date.parse(`${todayKey(now)}T00:00:00.000Z`);
 
   return records
     .filter(

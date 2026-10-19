@@ -4,10 +4,13 @@
 
 ### Added
 
+- **Backup and restore for workspace records.** The protected **Backup & restore** page exports a validated JSON backup, restores from an uploaded file, and creates or restores encrypted online snapshots in Vercel Blob. The snapshot viewer shows capture time and record counts without exposing saved contents. Only the newest three online snapshots are retained. A protected daily job creates a snapshot at 12:30 PM IST. Backups cover supported workspace records and recent activity, but exclude credentials, visitor analytics, and uploaded files; keep `SESSION_SECRET` stable to decrypt online snapshots.
 - **Deleted records can be recovered from Trash.** Deleting brands (including their contacts, notes, campaign assignments and CRM links), contacts, notes, invoices, affiliate payouts, editor transactions, calendar items, and saved link-page sections/items/social handles now keeps a recoverable snapshot. A short-lived Undo action appears after deletion, and the protected **Trash** page can restore records or permanently delete them. Restoring invoices and brands also reconnects their surviving campaign and invoice relationships.
 - **Global search is available throughout the dashboard.** Search brands, campaigns, invoices, and contacts from the navigation bar, or open search from anywhere by pressing Shift twice.
 
 ### Changed
+
+- **Date and time behavior follows IST.** Calendar and earnings date boundaries, date defaults and payout periods no longer depend on the server's timezone. Scheduled link date-time inputs are interpreted as IST, and backup, Trash, note, activity, and social-stat timestamps are displayed in IST. Daily YouTube and Instagram refreshes run at 11:30 AM and 12:00 PM IST; the online backup runs at 12:30 PM IST.
 
 ## Removed
 

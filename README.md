@@ -47,8 +47,29 @@ domain models only; no parsing or mapping lives in a component.
 
 ## Scheduled jobs
 
-`vercel.json` runs two crons that refresh cached social stats: YouTube at
-06:00 UTC and Instagram at 06:30 UTC. Both require `CRON_SECRET`.
+`vercel.json` runs daily crons that refresh cached social stats (YouTube at
+11:30 AM IST and Instagram at 12:00 PM IST) and save an encrypted online backup
+at 12:30 PM IST. All cron routes require `CRON_SECRET`. The backup job also
+requires `BLOB_READ_WRITE_TOKEN` and retains only the newest three online
+snapshots. These are the jobs' daily IST firing times.
+
+## Backup and restore
+
+Use **Backup & restore** in the dashboard to download a versioned JSON snapshot
+of workspace records, create an encrypted online snapshot in Vercel Blob, or
+restore from either source. Online snapshots are timestamped, paginated, and
+the newest three are kept; creating another removes the oldest. A daily
+snapshot is created automatically at 12:30 PM IST. Restoring
+replaces all supported records in the current workspace, so the app asks for
+confirmation first. A preview shows the snapshot timestamp, record counts, and
+which drafts or published pages are present without exposing record contents;
+timestamps in the viewer are shown in IST.
+Backups include brands, campaigns, invoices, calendar and editor records,
+affiliate records, media kit and links drafts and published content, Trash,
+and recent activity. They exclude credentials and visitor analytics; uploaded
+files in external storage are not copied (only their record links are
+retained). Online snapshots use `SESSION_SECRET` for encryption; keep it stable
+or previously saved online backups cannot be decrypted.
 
 ## Scripts
 

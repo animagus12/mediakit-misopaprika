@@ -13,6 +13,7 @@ import {
 import { formatMoney } from "@/lib/invoice";
 import { expectedCommission } from "@/lib/affiliates";
 import { toIsoDate } from "@/lib/editorTransactions";
+import { addMonths, daysInMonth, monthKeyOf, todayKey } from "@/lib/day";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 import type { AffiliatePayout, PayoutPaymentStatus } from "@/repositories/affiliatePayouts";
 
@@ -47,13 +48,9 @@ export function payoutPaymentFrom(form: PayoutFormState): {
 // Defaults to the month just gone, which is the period actually being entered:
 // a payout is filed after its period closes, never during it.
 function lastMonthRange(now: Date = new Date()): { start: string; end: string } {
-  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const end = new Date(now.getFullYear(), now.getMonth(), 0);
-  const iso = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-      date.getDate()
-    ).padStart(2, "0")}`;
-  return { start: iso(start), end: iso(end) };
+  const previousMonth = addMonths(monthKeyOf(todayKey(now)), -1);
+  const monthDays = daysInMonth(previousMonth);
+  return { start: `${previousMonth}-01`, end: monthDays[monthDays.length - 1] };
 }
 
 export function payoutInitialForm(partners: AffiliatePartner[] = []): PayoutFormState {

@@ -19,19 +19,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { formatTimestampIST } from "@/lib/time";
 
 interface TrashManagerProps {
   entries: TrashEntry[];
 }
 
 function formatDeletedAt(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return `${formatTimestampIST(iso)} IST`;
 }
 
 export function TrashManager({ entries }: TrashManagerProps) {
