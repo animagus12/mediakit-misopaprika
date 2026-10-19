@@ -5,6 +5,7 @@
 ### Added
 
 - **Deleted records can be recovered from Trash.** Deleting brands (including their contacts, notes, campaign assignments and CRM links), contacts, notes, invoices, affiliate payouts, editor transactions, calendar items, and saved link-page sections/items/social handles now keeps a recoverable snapshot. A short-lived Undo action appears after deletion, and the protected **Trash** page can restore records or permanently delete them. Restoring invoices and brands also reconnects their surviving campaign and invoice relationships.
+- **Global search is available throughout the dashboard.** Search brands, campaigns, invoices, and contacts from the navigation bar, or open search from anywhere by pressing Shift twice.
 
 ### Changed
 
