@@ -33,6 +33,7 @@ import {
 import { todayKey } from "@/lib/day";
 import { formatMoney } from "@/lib/invoice";
 import type { EditorVideoOption } from "@/lib/contentPlan";
+import { calculateTdsAmount } from "@/lib/tds";
 import {
   campaignTypeHasBarter,
   campaignTypeHasCash,
@@ -63,6 +64,8 @@ export interface CampaignFormState {
   paymentDue: string;
   paidDate: string;
   paymentMethod: string;
+  tdsRate: string;
+  tdsAmount: string;
   /** The editing job behind the deal's video, or null when there wasn't one. */
   editorTransactionId: string | null;
   /** Kept as a string like the money fields, so the input can be left empty. */
@@ -147,6 +150,8 @@ export function campaignInitialForm(): CampaignFormState {
     paymentDue: "",
     paidDate: "",
     paymentMethod: "",
+    tdsRate: "",
+    tdsAmount: "",
     editorTransactionId: null,
     usageDays: "",
     usageIndefinite: false,
@@ -217,6 +222,12 @@ export function CampaignFormFields({
   const linkedVideo = form.editorTransactionId
     ? videoOptions.find((option) => option.id === form.editorTransactionId)
     : undefined;
+  const { amount: cashAmount, usageFee } = campaignAmounts(form);
+  const tdsRate = Number(form.tdsRate);
+  const estimatedTds =
+    form.tdsRate.trim() && Number.isFinite(tdsRate) && tdsRate >= 0 && tdsRate <= 100
+      ? calculateTdsAmount(cashAmount + usageFee, tdsRate)
+      : null;
 
   // One Brand field, not two: the picker is the field, and the name box
   // appears under it only for a brand that isn't in the CRM yet. A deal that
@@ -605,6 +616,65 @@ export function CampaignFormFields({
                   value={form.paymentMethod}
                   onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
                 />
+              </div>
+              <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">TDS withheld</p>
+                  <p className="text-xs text-muted-foreground">
+                    Track the tax deducted from this payment.
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`${idPrefix}-tdsRate`}>Deduction rate</Label>
+                    <div className="relative">
+                      <Input
+                        id={`${idPrefix}-tdsRate`}
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.01"
+                        placeholder="e.g. 10"
+                        className="pr-9"
+                        value={form.tdsRate}
+                        onChange={(event) => setForm((f) => ({ ...f, tdsRate: event.target.value }))}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`${idPrefix}-tdsAmount`}>Actual TDS deducted</Label>
+                    <Input
+                      id={`${idPrefix}-tdsAmount`}
+                      type="number"
+                      min={0}
+                      step="1"
+                      placeholder="Enter amount from the brand"
+                      value={form.tdsAmount}
+                      onChange={(event) => setForm((f) => ({ ...f, tdsAmount: event.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the amount shown by the brand. Leave blank to use the estimate.
+                    </p>
+                  </div>
+                </div>
+                {estimatedTds !== null && (
+                  <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">
+                        {form.tdsAmount.trim() ? "Estimated from rate" : "Estimated TDS"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatMoney(cashAmount + usageFee)} × {form.tdsRate}%
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums">
+                      {formatMoney(estimatedTds)}
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           ) : (

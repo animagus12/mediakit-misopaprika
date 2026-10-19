@@ -74,6 +74,8 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
   { label: "type", value: (campaign) => campaign.type },
   { label: "payment due", value: (campaign) => campaign.paymentDue },
   { label: "paid on", value: (campaign) => campaign.paidDate },
+  { label: "TDS rate", value: (campaign) => campaign.tdsRate },
+  { label: "TDS amount", value: (campaign) => campaign.tdsAmount, format: money },
   // Read through toUsage so a record still holding its term in months compares
   // as the days it converts to, rather than logging "usage term added". No
   // licence reads as "", so describeChanges says "added" rather than "0 to 30".

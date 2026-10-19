@@ -34,6 +34,11 @@ export function campaignTypeHasCash(type: CampaignType): boolean {
   return CASH_TYPES.has(type);
 }
 
+function normalizeOptionalMoney(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value) || value < 0) return null;
+  return value;
+}
+
 export function campaignTypeHasBarter(type: CampaignType): boolean {
   return BARTER_TYPES.has(type);
 }
@@ -315,6 +320,8 @@ export interface CampaignRecord extends CampaignInvoiceLink {
    */
   paidDate?: string;
   paymentMethod: string;
+  tdsRate?: number | null;
+  tdsAmount?: number | null;
   /**
    * The EditorTransaction this deal's video was cut by, or null when it was
    * not sent to an editor. Absent on rows that predate the field.
@@ -341,6 +348,8 @@ export interface Campaign extends CampaignRecord {
   total: number; // cash + barterValue, derived, never stored, so it can't drift
   stage: CampaignStage; // derived from status; held deals are neither active nor past
   paidDate: string; // "" rather than absent: see toCampaign
+  tdsRate: number | null;
+  tdsAmount: number | null;
   editorTransactionId: string | null; // null rather than absent: see toCampaign
   usage: CampaignUsage; // whole rather than absent: see toUsage
   /** True when `paymentDue` is the linked invoice's due date: see withInvoiceDueDate in lib/invoice.ts. */
@@ -364,6 +373,10 @@ export interface NewCampaignInput {
   paymentDue?: string;
   paidDate?: string;
   paymentMethod?: string;
+  /** Optional TDS rate used to estimate withholding on the campaign's cash value. */
+  tdsRate?: number | null;
+  /** Actual TDS withheld, when entered; null means use the rate-based estimate. */
+  tdsAmount?: number | null;
   /** The editing job behind the video, or null when there wasn't one. */
   editorTransactionId?: string | null;
   /** The base licence term in days. Renewals are added separately, never through a form. */
@@ -396,6 +409,8 @@ export function toCampaign(record: CampaignRecord): Campaign {
     total: cash + record.barterValue,
     stage: status === "On Hold" ? "on-hold" : PAST_STATUSES.has(status) ? "past" : "active",
     paidDate: record.paidDate?.trim() ?? "",
+    tdsRate: normalizeOptionalMoney(record.tdsRate),
+    tdsAmount: normalizeOptionalMoney(record.tdsAmount),
     // An empty string is what a cleared <Select> leaves behind and a row
     // written before the field existed has nothing at all; both mean the same
     // thing, so both settle on null and no reader downstream has to test for
