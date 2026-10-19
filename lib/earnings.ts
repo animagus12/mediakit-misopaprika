@@ -2,17 +2,19 @@ import { addMonths, monthKeyOf, todayKey } from "@/lib/day";
 import type { MonthlyEarnings } from "@/repositories/earnings";
 
 export function monthLabel(month: string): string {
-  const [year, monthNum] = month.split("-");
-  const date = new Date(Number(year), Number(monthNum) - 1, 1);
-  return date.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  const [year, monthNum] = month.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", {
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(Date.UTC(year, monthNum - 1, 1)));
 }
 
 // "YYYY-MM", in the reader's zone rather than the server's.
 //
-// This used to be `toISOString().slice(0, 7)`, which is UTC: for the first
-// five and a half hours of every month, IST is already into the new month
-// while UTC is still in the old one, so the dashboard highlighted the wrong
-// row and the trend compared the wrong pair. lib/day.ts pins the zone once.
+// Derive the month from the reader's current civil day, not from an instant's
+// serialized date: IST crosses into a new month before that date does.
+// lib/day.ts pins the zone once.
 export function currentMonthKey(now: Date = new Date()): string {
   return monthKeyOf(todayKey(now));
 }
@@ -33,10 +35,12 @@ export interface MonthTrend {
   label: string;
 }
 
-// Just the month, for a label that has to name a comparison in four
-// characters. Anchored at UTC midnight and formatted in UTC, so the key maps
-// to exactly one month regardless of where this renders.
-const MONTH_ONLY = new Intl.DateTimeFormat("en-IN", { month: "short", timeZone: "UTC" });
+// Date-only month keys are anchored at the start of the month and formatted
+// in IST, independently of the server or browser timezone.
+const MONTH_ONLY = new Intl.DateTimeFormat("en-IN", {
+  month: "short",
+  timeZone: "Asia/Kolkata",
+});
 
 function monthOnly(key: string): string {
   const [year, month] = key.split("-").map(Number);

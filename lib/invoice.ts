@@ -11,6 +11,7 @@ import { isCampaignCalledOff, toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
+import { addDays, todayKey } from "./day";
 
 export interface InvoiceLineItem extends InvoiceLineItemInput {
   id: string;
@@ -39,9 +40,7 @@ export function isValidPanNumber(panNumber: string): boolean {
 }
 
 export function todayISO(offsetDays = 0): string {
-  const date = new Date();
-  date.setDate(date.getDate() + offsetDays);
-  return date.toISOString().slice(0, 10);
+  return addDays(todayKey(), offsetDays);
 }
 
 /**

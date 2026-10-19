@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { removeEditorTransaction } from "@/app/workspace/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 
 interface DeleteEditorTransactionButtonProps {
   id: string;
@@ -26,7 +28,8 @@ export function DeleteEditorTransactionButton({ id, video }: DeleteEditorTransac
 
   function handleDelete() {
     startTransition(async () => {
-      await removeEditorTransaction(id);
+      const result = await removeEditorTransaction(id);
+      showUndoToast(video, result, restoreTrashItem);
     });
   }
 
@@ -48,8 +51,8 @@ export function DeleteEditorTransactionButton({ id, video }: DeleteEditorTransac
         <AlertDialogHeader>
           <AlertDialogTitle>Remove &ldquo;{video}&rdquo;?</AlertDialogTitle>
           <AlertDialogDescription>
-            This deletes the transaction from the workspace for good. To keep the record but leave it
-            out of payouts, set its status to Cancelled instead.
+            This moves the transaction to Trash, where it can be restored. To keep the record but
+            leave it out of payouts, set its status to Cancelled instead.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

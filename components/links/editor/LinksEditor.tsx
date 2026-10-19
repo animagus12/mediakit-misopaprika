@@ -6,12 +6,15 @@ import Link from "next/link";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { publishLinks, saveLinks } from "@/app/links-editor/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import { LinksPublicView } from "@/components/links/LinksPublicView";
 import { Button } from "@/components/ui/button";
 import { linksSummary } from "@/lib/linkStats";
 import { blankItem, blankSection, moveItem, visiblePageNow } from "@/lib/links";
 import type { LinksAnalytics } from "@/repositories/linkStats";
 import type { LinkKind, LinkProfile, LinkSection, LinksData } from "@/repositories/links";
+import type { LinkTrashDeletion } from "@/repositories/trash";
 import type {
   InstagramTokenStatus,
   SocialStats,
@@ -47,6 +50,7 @@ export function LinksEditor({
   analytics,
 }: LinksEditorProps) {
   const [state, setState] = useState<LinksData>(data);
+  const [pendingLinkDeletes, setPendingLinkDeletes] = useState<LinkTrashDeletion[]>([]);
   const [isSaving, startSaveTransition] = useTransition();
   const [isPublishing, startPublishTransition] = useTransition();
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
@@ -99,11 +103,22 @@ export function LinksEditor({
   }, []);
 
   const removeSocial = useCallback((index: number) => {
+    const record = state.profile.socials[index];
+    if (!record) return;
+    setPendingLinkDeletes((current) => [
+      ...current,
+      {
+        type: "linksSocial",
+        record,
+        index,
+        label: record.platform || record.url || "Social link",
+      },
+    ]);
     setState((prev) => ({
       ...prev,
       profile: { ...prev.profile, socials: prev.profile.socials.filter((_, i) => i !== index) },
     }));
-  }, []);
+  }, [state.profile.socials]);
 
   const addSection = useCallback(() => {
     setState((prev) => ({ ...prev, sections: [...prev.sections, blankSection()] }));
@@ -117,11 +132,39 @@ export function LinksEditor({
   );
 
   const removeSection = useCallback((sectionId: string) => {
+    const index = state.sections.findIndex((section) => section.id === sectionId);
+    const record = state.sections[index];
+    if (!record) return;
+    const pendingItems = pendingLinkDeletes
+      .filter(
+        (deletion): deletion is Extract<LinkTrashDeletion, { type: "linksItem" }> =>
+          deletion.type === "linksItem" && deletion.sectionId === sectionId
+      )
+      .sort((a, b) => a.index - b.index);
+    const sectionRecord = { ...record, items: [...record.items] };
+    for (const deletion of pendingItems) {
+      sectionRecord.items.splice(
+        Math.max(0, Math.min(deletion.index, sectionRecord.items.length)),
+        0,
+        deletion.record
+      );
+    }
+    setPendingLinkDeletes((current) => [
+      ...current.filter(
+        (deletion) => deletion.type !== "linksItem" || deletion.sectionId !== sectionId
+      ),
+      {
+        type: "linksSection",
+        record: sectionRecord,
+        index,
+        label: record.title || "Untitled section",
+      },
+    ]);
     setState((prev) => ({
       ...prev,
       sections: prev.sections.filter((section) => section.id !== sectionId),
     }));
-  }, []);
+  }, [pendingLinkDeletes, state.sections]);
 
   const reorderSections = useCallback((fromIndex: number, toIndex: number) => {
     setState((prev) => ({ ...prev, sections: moveItem(prev.sections, fromIndex, toIndex) }));
@@ -149,12 +192,26 @@ export function LinksEditor({
 
   const removeItem = useCallback(
     (sectionId: string, itemId: string) => {
+      const section = state.sections.find((entry) => entry.id === sectionId);
+      const index = section?.items.findIndex((item) => item.id === itemId) ?? -1;
+      const record = index < 0 ? undefined : section?.items[index];
+      if (!record) return;
+      setPendingLinkDeletes((current) => [
+        ...current,
+        {
+          type: "linksItem",
+          record,
+          sectionId,
+          index,
+          label: record.label || "Untitled link",
+        },
+      ]);
       mapSection(sectionId, (section) => ({
         ...section,
         items: section.items.filter((item) => item.id !== itemId),
       }));
     },
-    [mapSection]
+    [mapSection, state.sections]
   );
 
   const reorderItems = useCallback(
@@ -202,24 +259,67 @@ export function LinksEditor({
 
   const revert = useCallback(() => {
     setState(data);
+    setPendingLinkDeletes([]);
     toast.info("Reverted to the last saved draft");
   }, [data]);
 
-  const save = useCallback(() => {
-    startSaveTransition(async () => {
-      const result = await saveLinks(state);
-      if (result.success) toast.success("Draft saved");
-      else toast.error(result.error);
+  const pendingDeletions = useCallback((): LinkTrashDeletion[] => {
+    return pendingLinkDeletes.filter((deletion) => {
+      if (deletion.type === "linksSection") {
+        return !state.sections.some((section) => section.id === deletion.record.id);
+      }
+      if (deletion.type === "linksItem") {
+        return !state.sections
+          .find((section) => section.id === deletion.sectionId)
+          ?.items.some((item) => item.id === deletion.record.id);
+      }
+      return !state.profile.socials.some(
+        (social) =>
+          social.platform === deletion.record.platform &&
+          social.url === deletion.record.url &&
+          social.enabled === deletion.record.enabled
+      );
     });
-  }, [state]);
+  }, [pendingLinkDeletes, state.profile.socials, state.sections]);
+
+  function showSavedDeletionToasts(deletions: LinkTrashDeletion[], trashIds: string[]) {
+    deletions.forEach((deletion, index) => {
+      const trashId = trashIds[index];
+      if (trashId) {
+        showUndoToast(deletion.label, { success: true, trashId }, restoreTrashItem);
+      }
+    });
+  }
+
+  const save = useCallback(() => {
+    const deletions = pendingDeletions();
+    startSaveTransition(async () => {
+      const result = await saveLinks(state, deletions);
+      if (result.success) {
+        if (result.warning) toast.error(result.warning);
+        else toast.success("Draft saved");
+        showSavedDeletionToasts(deletions, result.trashIds);
+        setPendingLinkDeletes([]);
+      } else {
+        toast.error(result.error);
+      }
+    });
+  }, [pendingDeletions, state]);
 
   const publish = useCallback(() => {
+    const deletions = pendingDeletions();
     startPublishTransition(async () => {
-      const result = await publishLinks(state);
-      if (result.success) toast.success("Published: live at /links");
-      else toast.error(result.error);
+      const result = await publishLinks(state, deletions);
+      if (result.success) {
+        if (result.warning) toast.error(result.warning);
+        else toast.success("Published: live at /links");
+        showSavedDeletionToasts(deletions, result.trashIds);
+        setPendingLinkDeletes([]);
+      } else {
+        toast.error(result.error);
+      }
     });
-  }, [state]);
+  }, [pendingDeletions, state]);
 
   const actions = useMemo<LinksEditorActions>(
     () => ({

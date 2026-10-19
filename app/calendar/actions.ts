@@ -9,6 +9,8 @@ import {
   updateContentItem as writeContentItem,
 } from "@/repositories/contentPlan.writer.server";
 import { recordActivity } from "@/repositories/activity.writer.server";
+import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import { getContentItemRecord } from "@/repositories/contentPlan.writer.server";
 import { revalidateStores } from "@/lib/revalidation";
 import { campaignLabel, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import {
@@ -25,7 +27,9 @@ import type { ActivityAction } from "@/repositories/activity";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { PostSource } from "@/lib/contentCalendar";
 
-export type CalendarResult = { success: true } | { success: false; error: string };
+export type CalendarResult =
+  | { success: true; trashId?: string }
+  | { success: false; error: string };
 
 function failure(err: unknown, fallback: string): CalendarResult {
   return { success: false, error: err instanceof Error ? err.message : fallback };
@@ -241,19 +245,32 @@ export async function updateContentItem(
 }
 
 export async function deleteContentItem(id: string): Promise<CalendarResult> {
+  let trashId: string | null = null;
+  let removed: Awaited<ReturnType<typeof removeContentItem>> = null;
   try {
+    const record = await getContentItemRecord(id);
+    if (!record) return { success: false, error: "That entry no longer exists" };
+    trashId = await addTrashEntry({ type: "contentItem", record }, contentLabel(record.title));
     // The writer answers the record it removed, because a title cannot be read
     // back once the row is gone and the event has to name it.
-    const removed = await removeContentItem(id);
-    if (!removed) return { success: false, error: "That entry no longer exists" };
+    removed = await removeContentItem(id);
+    if (!removed) {
+      await removeTrashEntry(trashId);
+      return { success: false, error: "That entry no longer exists" };
+    }
+    await activateTrashEntry(trashId);
     revalidateStores("contentPlan");
     await recordActivity({
       action: "content.deleted",
       entity: { type: "content", id: removed.id, label: contentLabel(removed.title) },
       detail: removed.format,
     });
-    return { success: true };
+    return { success: true, trashId };
   } catch (err) {
+    if (trashId) {
+      if (removed) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return failure(err, "Couldn't delete the entry");
   }
 }

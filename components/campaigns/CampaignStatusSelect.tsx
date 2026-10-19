@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { updateCampaign } from "@/app/(dashboard)/actions";
 import { STATUS_OPTIONS, CAMPAIGN_TYPES, toIsoDate } from "@/lib/campaigns";
+import { todayKey } from "@/lib/day";
 import { cn } from "@/lib/utils";
 import type { Campaign, CampaignStatus } from "@/repositories/campaigns";
 
@@ -57,7 +58,7 @@ export function CampaignStatusSelect({
         amount: campaign.amount,
         barterValue: campaign.barterValue,
         paymentStatus: campaign.paymentStatus,
-        date: toIsoDate(campaign.date) || new Date().toISOString().slice(0, 10),
+        date: toIsoDate(campaign.date) || todayKey(),
         uploadDate: toIsoDate(campaign.uploadDate),
         invoiceRef: campaign.invoiceRef,
         paymentDue: toIsoDate(campaign.paymentDue),

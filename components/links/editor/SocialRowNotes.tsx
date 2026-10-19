@@ -1,4 +1,5 @@
 import type { InstagramTokenStatus, SocialStatUpdate, SocialStatsFreshness } from "@/repositories/socialStats";
+import { formatTimestampIST } from "@/lib/time";
 
 interface SocialRowNotesProps {
   /** The platform typed into the row; anything unrecognised renders nothing. */
@@ -7,18 +8,17 @@ interface SocialRowNotesProps {
   instagramToken: InstagramTokenStatus;
 }
 
-// Fixed locale and UTC so the server render and the client hydration produce
+// Fixed locale and IST so the server render and the client hydration produce
 // the same string: a viewer's timezone would otherwise change the date and
 // trip a hydration mismatch. (The relative part is computed server-side, for
 // the same reason; see SocialStatUpdate.)
-const STAMP = new Intl.DateTimeFormat("en-GB", {
+const STAMP_OPTIONS: Intl.DateTimeFormatOptions = {
   day: "numeric",
   month: "short",
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
-  timeZone: "UTC",
-});
+};
 
 // globals.css has no warning/success token, so meaning-carrying colour follows
 // the destructive variant's shape: a raw palette hue at low opacity.
@@ -54,7 +54,7 @@ function LastUpdated({ noun, update }: { noun: string; update: SocialStatUpdate 
   }
   return (
     <p className={MUTED}>
-      {noun} updated {ago(update.hoursAgo)} · {STAMP.format(new Date(update.at))} UTC
+      {noun} updated {ago(update.hoursAgo)} · {formatTimestampIST(update.at, STAMP_OPTIONS)} IST
     </p>
   );
 }
@@ -91,12 +91,12 @@ function InstagramToken({ status }: { status: InstagramTokenStatus }) {
     );
   }
 
-  const on = STAMP.format(new Date(status.expiresAt));
+  const on = formatTimestampIST(status.expiresAt, STAMP_OPTIONS);
 
   if (status.state === "ok") {
     return (
       <p className={MUTED}>
-        Access token renews itself: valid to {on} UTC ({status.daysRemaining} days). Nothing to do.
+        Access token renews itself: valid to {on} IST ({status.daysRemaining} days). Nothing to do.
       </p>
     );
   }
@@ -104,8 +104,8 @@ function InstagramToken({ status }: { status: InstagramTokenStatus }) {
   return (
     <p className={`${ALERT} ${status.state === "expired" ? EXPIRED : OVERDUE}`}>
       {status.state === "expired"
-        ? `Access token expired on ${on} UTC. Reconnect Instagram and set a fresh INSTAGRAM_ACCESS_TOKEN: the follower count is stale until you do.`
-        : `Access token expires ${on} UTC (${status.daysRemaining} days) and the daily job has not renewed it. Check the refresh-instagram cron before it lapses.`}
+        ? `Access token expired on ${on} IST. Reconnect Instagram and set a fresh INSTAGRAM_ACCESS_TOKEN: the follower count is stale until you do.`
+        : `Access token expires ${on} IST (${status.daysRemaining} days) and the daily job has not renewed it. Check the refresh-instagram cron before it lapses.`}
     </p>
   );
 }

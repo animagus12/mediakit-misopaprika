@@ -78,6 +78,16 @@ export async function deleteContact(id: string): Promise<Contact | null> {
   return removed;
 }
 
+export async function restoreContacts(records: Contact[]): Promise<void> {
+  if (records.length === 0) return;
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const contacts = await readContacts();
+  const existing = new Set(contacts.map((contact) => contact.id));
+  const missing = records.filter((record) => !existing.has(record.id));
+  if (missing.length > 0) await redis.set(CONTACTS_KEY, [...contacts, ...missing]);
+}
+
 // Cascade for brand deletion: only direct contacts (brandId match), never
 // agency contacts, since those still rep the agency's other brands.
 export async function deleteContactsForBrand(brandId: string): Promise<void> {

@@ -19,8 +19,10 @@ import {
 } from "@/repositories/affiliatePayouts.writer.server";
 import type { AffiliatePayoutUpdate, NewAffiliatePayout } from "@/repositories/affiliatePayouts";
 import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.server";
+import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
+import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 
-type ActionResult = { success: true } | { success: false; error: string };
+type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
 // A payout's own label is a period, which says nothing on its own: the log
 // reads "Commission period Overblaze, Mar 2026". Resolving the partner is the
@@ -126,8 +128,21 @@ export async function updateAffiliatePayout(input: AffiliatePayoutUpdate): Promi
 }
 
 export async function removeAffiliatePayout(id: string): Promise<ActionResult> {
+  let trashId: string | null = null;
+  let removed: Awaited<ReturnType<typeof deleteAffiliatePayout>> = null;
   try {
-    const removed = await deleteAffiliatePayout(id);
+    const record = (await getAffiliatePayouts()).find((entry) => entry.id === id);
+    if (!record) return { success: true };
+    trashId = await addTrashEntry(
+      { type: "affiliatePayout", record },
+      await partnerLabel(record.partnerId, record.periodEnd)
+    );
+    removed = await deleteAffiliatePayout(id);
+    if (!removed) {
+      await removeTrashEntry(trashId);
+      return { success: true };
+    }
+    await activateTrashEntry(trashId);
     revalidateStores("affiliatePayouts", "affiliatePartners");
     if (removed) {
       await recordActivity({
@@ -140,8 +155,12 @@ export async function removeAffiliatePayout(id: string): Promise<ActionResult> {
         amount: removed.commissionAmount || undefined,
       });
     }
-    return { success: true };
+    return { success: true, trashId: trashId ?? undefined };
   } catch (err) {
+    if (trashId) {
+      if (removed) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return {
       success: false,
       error: err instanceof Error ? err.message : "Couldn't remove the payout",

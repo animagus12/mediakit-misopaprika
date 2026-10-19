@@ -59,5 +59,7 @@ export const config = {
     "/affiliates/:path*",
     "/brands/:path*",
     "/activity",
+    "/trash",
+    "/backup",
   ],
 };

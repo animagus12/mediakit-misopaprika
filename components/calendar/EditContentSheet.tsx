@@ -26,6 +26,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { deleteContentItem, updateContentItem } from "@/app/calendar/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import { toIsoDate } from "@/lib/campaigns";
 import {
   contentLabel,
@@ -80,11 +82,8 @@ export function EditContentSheet({ item, trigger, videoOptions = [] }: EditConte
   function handleDelete() {
     startTransition(async () => {
       const result = await deleteContentItem(item.id);
-      if (!result.success) {
-        toast.error("Couldn't delete", { description: result.error });
-        return;
-      }
-      toast.success(`${contentLabel(item.title)} removed`);
+      showUndoToast(contentLabel(item.title), result, restoreTrashItem);
+      if (!result.success) return;
       setOpen(false);
     });
   }
@@ -141,8 +140,7 @@ export function EditContentSheet({ item, trigger, videoOptions = [] }: EditConte
               {isPending ? "Saving…" : "Save"}
             </Button>
           </div>
-          {/* Deleting is the one thing here that can't be undone from the UI,
-              so it sits apart from the pair above and asks first. Shelving
+          {/* Deleting is separate from the pair above and asks first. Shelving
               rather than removing is what the "Cancelled" status is for. */}
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -155,8 +153,8 @@ export function EditContentSheet({ item, trigger, videoOptions = [] }: EditConte
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete {contentLabel(item.title)}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This removes it from the plan for good. To keep the record but take it off the
-                  calendar, set its status to Cancelled instead.
+                  This moves it to Trash, where it can be restored. To keep the record but take it
+                  off the calendar, set its status to Cancelled instead.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

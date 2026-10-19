@@ -88,3 +88,11 @@ export async function deleteAffiliatePayout(id: string): Promise<AffiliatePayout
   );
   return removed;
 }
+
+export async function restoreAffiliatePayout(record: AffiliatePayout): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const payouts = await readPayouts();
+  if (payouts.some((payout) => payout.id === record.id)) return;
+  await redis.set(AFFILIATE_PAYOUTS_KEY, [...payouts, record]);
+}

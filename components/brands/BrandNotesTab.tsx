@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { createBrandNote, removeBrandNote } from "@/app/brands/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import type { BrandNote } from "@/repositories/brandNotes";
+import { formatTimestampIST } from "@/lib/time";
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${formatTimestampIST(iso)} IST`;
 }
 
 interface BrandNotesTabProps {
@@ -40,7 +43,8 @@ export function BrandNotesTab({ brandId, notes }: BrandNotesTabProps) {
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await removeBrandNote(id);
+      const result = await removeBrandNote(id);
+      showUndoToast("Note", result, restoreTrashItem);
     });
   }
 

@@ -28,7 +28,7 @@ export type { UsageTransition };
 
 // The creator's civil day, in the format the store keeps dates in. Every
 // "stamp this with today" write goes through here rather than reading the
-// server clock in the writer: rendering happens on a UTC host, so a payment
+// server clock in the writer: rendering happens on a host outside India, so a payment
 // collected at 10am IST would otherwise be filed under the previous day for
 // the first five and a half hours of every one. lib/day.ts pins the zone.
 function today(): string {
