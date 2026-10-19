@@ -76,7 +76,8 @@ export async function getCampaigns(): Promise<Campaign[]> {
 // part of (the base term), and rewriting it wholesale here would drop the
 // renewals the form never sees. addCampaign and updateCampaign compose it.
 function normalize(
-  input: NewCampaignInput
+  input: NewCampaignInput,
+  existing?: CampaignRecord
 ): Omit<CampaignRecord, "id" | "invoiceRef" | "invoiceId" | "usage"> {
   return {
     date: input.date,
@@ -94,6 +95,8 @@ function normalize(
     paymentDue: input.paymentDue?.trim() ?? "",
     paidDate: input.paidDate?.trim() ?? "",
     paymentMethod: input.paymentMethod?.trim() ?? "",
+    tdsRate: input.tdsRate === undefined ? existing?.tdsRate ?? null : input.tdsRate,
+    tdsAmount: input.tdsAmount === undefined ? existing?.tdsAmount ?? null : input.tdsAmount,
     editorTransactionId: input.editorTransactionId?.trim() || null,
   };
 }
@@ -181,7 +184,7 @@ export async function updateCampaign(
   const usage = toUsage(before.usage, usageTermStart(before));
   const after: CampaignRecord = {
     ...before,
-    ...normalize(input),
+    ...normalize(input, before),
     invoiceRef: input.invoiceRef?.trim() ?? before.invoiceRef,
     // Not form-settable: the foreign key is written by linkCampaignInvoice
     // once a saved invoice is matched to the deal, and an edit of the

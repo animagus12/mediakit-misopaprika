@@ -34,6 +34,7 @@ import type { InvoiceStatus } from "@/repositories/invoices";
 import { toCampaign } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { validateTdsValues } from "@/lib/tds";
 
 export interface CreatedBrand {
   id: string;
@@ -162,6 +163,8 @@ export async function createCampaign(
   input: CampaignFormValues
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
+  if (tdsProblem) return { success: false, error: tdsProblem };
   try {
     const { brandId, brand, createdBrand } = await resolveOrCreateBrandId(input.brandId, input.brand, input.status);
     const record = await campaignRepository.create({ ...input, brandId, brand });
@@ -185,6 +188,8 @@ export async function updateCampaign(
   input: CampaignFormUpdate
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
+  if (tdsProblem) return { success: false, error: tdsProblem };
   // Checked against the upload and deal dates in this same submission, so a
   // form that moves both at once is judged on what it will save.
   if (input.usageEndedOn !== undefined) {

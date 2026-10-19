@@ -1,4 +1,4 @@
-import { BadgePercent, Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, Sparkles, UserRound } from "lucide-react";
+import { BadgePercent, Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, ReceiptText, Sparkles, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Sidebar sections. Grouping lives here rather than in the sidebar component
@@ -90,6 +90,14 @@ export const navEntries: NavEntry[] = [
     title: "Affiliates",
     description: "Creator codes, commission periods, and how well each code converts.",
     Icon: BadgePercent,
+    access: "protected",
+    group: "manage",
+  },
+  {
+    href: "/taxes",
+    title: "TDS & tax",
+    description: "Review TDS withheld from brand payments by financial year.",
+    Icon: ReceiptText,
     access: "protected",
     group: "manage",
   },

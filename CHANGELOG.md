@@ -1,8 +1,13 @@
 # Changelog
 
 ## [Unreleased]
+
 ### Added
+
+- **TDS tracking and tax summaries.** Campaigns can record a deduction rate and actual TDS withheld, with a rate-based estimate when the actual amount is not entered. The new **TDS & tax** page summarizes received payments by Indian financial year and brand, and distinguishes estimated from actual deductions. TDS inputs are validated and campaign changes refresh the summary.
+
 ### Changed
+
 ## Removed
 
 ## [1.24.0] - 2026-10-16

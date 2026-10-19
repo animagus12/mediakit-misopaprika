@@ -56,6 +56,8 @@ export interface CampaignFormValues {
   paymentDue?: string; // "yyyy-mm-dd"
   paidDate?: string; // "yyyy-mm-dd", the day the money actually landed
   paymentMethod?: string;
+  tdsRate?: number | null;
+  tdsAmount?: number | null;
   editorTransactionId?: string | null; // the editing job behind the video, or null
   usageDays?: number; // base ad-usage licence term in days; 0 or absent = not tracked
   usageIndefinite?: boolean; // granted with no end date; absent on update keeps the stored setting
@@ -164,6 +166,8 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
+      tdsRate: input.tdsRate,
+      tdsAmount: input.tdsAmount,
       editorTransactionId: input.editorTransactionId,
       usageDays: input.usageDays,
       usageIndefinite: input.usageIndefinite,
@@ -190,6 +194,8 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
+      tdsRate: input.tdsRate,
+      tdsAmount: input.tdsAmount,
       editorTransactionId: input.editorTransactionId,
       usageDays: input.usageDays,
       usageIndefinite: input.usageIndefinite,

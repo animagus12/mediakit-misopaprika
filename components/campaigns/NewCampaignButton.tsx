@@ -59,6 +59,8 @@ export function NewCampaignButton({
         paymentDue: form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
+        tdsRate: form.tdsRate.trim() ? Number(form.tdsRate) : null,
+        tdsAmount: form.tdsAmount.trim() ? Number(form.tdsAmount) : null,
         editorTransactionId: form.editorTransactionId,
         usageDays: Number(form.usageDays) || 0,
         usageIndefinite: form.usageIndefinite,
