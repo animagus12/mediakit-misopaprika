@@ -5,6 +5,8 @@ import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { removeBrand } from "@/app/brands/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 
 interface DeleteBrandButtonProps {
   id: string;
@@ -19,6 +21,7 @@ export function DeleteBrandButton({ id, name }: DeleteBrandButtonProps) {
     if (!window.confirm(`Remove "${name}" and all its contacts/notes from the brand CRM?`)) return;
     startTransition(async () => {
       const result = await removeBrand(id);
+      showUndoToast(name, result, restoreTrashItem);
       if (result.success) router.push("/brands");
     });
   }

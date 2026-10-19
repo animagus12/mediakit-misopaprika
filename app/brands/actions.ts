@@ -31,8 +31,15 @@ import type { NewBrandNote } from "@/repositories/brandNotes";
 import { setCampaignContact, deleteCampaignContactsForBrand } from "@/repositories/campaignContacts.writer.server";
 import { syncCampaignsWithBrand } from "@/repositories/campaigns.writer.server";
 import { detachInvoicesFromBrand } from "@/repositories/invoices.writer.server";
+import { getContacts } from "@/repositories/contacts.writer.server";
+import { getBrandNotes } from "@/repositories/brandNotes.writer.server";
+import { getCampaignContacts } from "@/repositories/campaignContacts.writer.server";
+import { getCampaigns } from "@/repositories/campaigns.writer.server";
+import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
+import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import type { TrashPayload } from "@/repositories/trash";
 
-type ActionResult = { success: true } | { success: false; error: string };
+type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
 function toActionError(err: unknown, fallback: string): ActionResult {
   return { success: false, error: err instanceof Error ? err.message : fallback };
@@ -127,7 +134,29 @@ export async function assignBrandLogo(brandId: string, logoUrl: string): Promise
 }
 
 export async function removeBrand(id: string): Promise<ActionResult> {
+  let trashId: string | null = null;
+  let deletionStarted = false;
   try {
+    const [brand, contacts, notes, campaignContacts, campaigns, invoices] = await Promise.all([
+      getBrands().then((brands) => brands.find((entry) => entry.id === id) ?? null),
+      getContacts(),
+      getBrandNotes(),
+      getCampaignContacts(),
+      getCampaigns(),
+      readInvoiceRecords(),
+    ]);
+    if (!brand) return { success: true };
+    const payload: TrashPayload = {
+      type: "brand",
+      record: brand,
+      contacts: contacts.filter((contact) => contact.brandId === id),
+      notes: notes.filter((note) => note.brandId === id),
+      campaignContacts: campaignContacts.filter((contact) => contact.brandId === id),
+      campaignIds: campaigns.filter((campaign) => campaign.brandId === id).map((campaign) => campaign.id),
+      invoiceIds: invoices.filter((invoice) => invoice.brandId === id).map((invoice) => invoice.id),
+    };
+    trashId = await addTrashEntry(payload, brand.name);
+    deletionStarted = true;
     // Direct contacts/notes/campaign-contact assignments only belong to this
     // brand: agency contacts stay, since they still rep the agency's other
     // brands.
@@ -142,15 +171,22 @@ export async function removeBrand(id: string): Promise<ActionResult> {
       detachInvoicesFromBrand(id),
     ]);
     const removed = await deleteBrandRecord(id);
-    revalidateStores("brands", "contacts", "brandNotes", "campaignContacts", "campaigns", "invoices");
-    if (removed) {
-      await recordActivity({
-        action: "brand.deleted",
-        entity: { type: "brand", id: removed.id, label: removed.name },
-      });
+    if (!removed) {
+      await removeTrashEntry(trashId);
+      return { success: true };
     }
-    return { success: true };
+    await activateTrashEntry(trashId);
+    revalidateStores("brands", "contacts", "brandNotes", "campaignContacts", "campaigns", "invoices");
+    await recordActivity({
+      action: "brand.deleted",
+      entity: { type: "brand", id: removed.id, label: removed.name },
+    });
+    return { success: true, trashId };
   } catch (err) {
+    if (trashId) {
+      if (deletionStarted) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return toActionError(err, "Couldn't remove the brand");
   }
 }
@@ -270,8 +306,18 @@ export async function updateContact(input: ContactUpdate): Promise<ActionResult>
 // brandId is no longer a parameter: revalidateStores() derives the affected
 // pages from the store, so the caller does not have to know them.
 export async function removeContact(id: string): Promise<ActionResult> {
+  let trashId: string | null = null;
+  let removed: Awaited<ReturnType<typeof deleteContactRecord>> = null;
   try {
-    const removed = await deleteContactRecord(id);
+    const record = (await getContacts()).find((contact) => contact.id === id);
+    if (!record) return { success: true };
+    trashId = await addTrashEntry({ type: "contact", record }, record.name);
+    removed = await deleteContactRecord(id);
+    if (!removed) {
+      await removeTrashEntry(trashId);
+      return { success: true };
+    }
+    await activateTrashEntry(trashId);
     revalidateStores("contacts", "brands");
     if (removed) {
       await recordActivity({
@@ -279,8 +325,12 @@ export async function removeContact(id: string): Promise<ActionResult> {
         entity: { type: "contact", id: removed.id, label: removed.name },
       });
     }
-    return { success: true };
+    return { success: true, trashId: trashId ?? undefined };
   } catch (err) {
+    if (trashId) {
+      if (removed) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return toActionError(err, "Couldn't remove the contact");
   }
 }
@@ -296,11 +346,22 @@ export async function createBrandNote(input: NewBrandNote): Promise<ActionResult
 }
 
 export async function removeBrandNote(id: string): Promise<ActionResult> {
+  let trashId: string | null = null;
+  let deleted = false;
   try {
+    const note = (await getBrandNotes()).find((entry) => entry.id === id);
+    if (!note) return { success: true };
+    trashId = await addTrashEntry({ type: "brandNote", record: note }, note.body.slice(0, 80));
     await deleteBrandNoteRecord(id);
+    deleted = true;
+    await activateTrashEntry(trashId);
     revalidateStores("brandNotes");
-    return { success: true };
+    return { success: true, trashId };
   } catch (err) {
+    if (trashId) {
+      if (deleted) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return toActionError(err, "Couldn't remove the note");
   }
 }

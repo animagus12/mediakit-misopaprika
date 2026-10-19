@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createContact, removeContact } from "@/app/brands/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import type { Contact } from "@/repositories/contacts";
 
 interface AgencyContactsSectionProps {
@@ -39,7 +41,8 @@ export function AgencyContactsSection({ agencyId, contacts }: AgencyContactsSect
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await removeContact(id);
+      const result = await removeContact(id);
+      showUndoToast("Contact", result, restoreTrashItem);
     });
   }
 

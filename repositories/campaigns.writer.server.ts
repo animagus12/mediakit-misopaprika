@@ -446,6 +446,62 @@ export async function syncCampaignsWithBrand(brandId: string, name: string | nul
   return changed;
 }
 
+export async function restoreCampaignBrandLinks(brandId: string, campaignIds: string[]): Promise<void> {
+  if (campaignIds.length === 0) return;
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const ids = new Set(campaignIds);
+  const records = await readRecords();
+  await redis.set(
+    CAMPAIGNS_KEY,
+    records.map((record) =>
+      ids.has(record.id) && record.brandId === null ? { ...record, brandId } : record
+    )
+  );
+}
+
+export async function restoreCampaignInvoiceLinks(
+  links: {
+    campaignId: string;
+    invoiceLink: { invoiceId: string; invoiceRef: string } | null;
+    renewalLinks: { renewalId: string; invoiceId: string }[];
+  }[],
+  invoiceId: string
+): Promise<void> {
+  if (links.length === 0) return;
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const byCampaign = new Map(links.map((link) => [link.campaignId, link]));
+  const records = await readRecords();
+  await redis.set(
+    CAMPAIGNS_KEY,
+    records.map((record): CampaignRecord => {
+      const link = byCampaign.get(record.id);
+      if (!link) return record;
+      const renewalIds = new Map(link.renewalLinks.map((renewal) => [renewal.renewalId, renewal.invoiceId]));
+      const currentUsage = toUsage(record.usage, usageTermStart(record));
+      const usage = {
+        ...currentUsage,
+        renewals: currentUsage.renewals.map((renewal) => {
+          const previousInvoiceId = renewalIds.get(renewal.id);
+          return previousInvoiceId && !renewal.invoiceId
+            ? { ...renewal, invoiceId: previousInvoiceId }
+            : renewal;
+        }),
+      };
+      const invoiceLink = link.invoiceLink;
+      return {
+        ...record,
+        invoiceId: record.invoiceId || (invoiceLink ? invoiceId : ""),
+        invoiceRef: record.invoiceId || record.invoiceRef || !invoiceLink
+          ? record.invoiceRef
+          : invoiceLink.invoiceRef,
+        usage,
+      };
+    })
+  );
+}
+
 /**
  * Points a deal at the invoice record that bills it, or clears the link with
  * "".

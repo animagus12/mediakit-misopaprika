@@ -16,6 +16,8 @@ import {
 import type { EditorTransactionUpdate, NewEditorTransaction } from "@/repositories/editorTransactions";
 import { addEditor, getEditors, updateEditor as updateEditorRecord } from "@/repositories/editors.writer.server";
 import type { EditorUpdate, NewEditor } from "@/repositories/editors";
+import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import { getEditorTransactionRecord } from "@/repositories/editorTransactions.writer.server";
 
 export async function createEditor(
   input: NewEditor
@@ -181,9 +183,19 @@ export async function changeEditorTransactionRevision(
 
 export async function removeEditorTransaction(
   id: string
-): Promise<{ success: true } | { success: false; error: string }> {
+): Promise<{ success: true; trashId?: string } | { success: false; error: string }> {
+  let trashId: string | null = null;
+  let removed: Awaited<ReturnType<typeof deleteEditorTransaction>> = null;
   try {
-    const removed = await deleteEditorTransaction(id);
+    const record = await getEditorTransactionRecord(id);
+    if (!record) return { success: true };
+    trashId = await addTrashEntry({ type: "editorTransaction", record }, record.video);
+    removed = await deleteEditorTransaction(id);
+    if (!removed) {
+      await removeTrashEntry(trashId);
+      return { success: true };
+    }
+    await activateTrashEntry(trashId);
     revalidateStores("editorTransactions");
     if (removed) {
       await recordActivity({
@@ -193,8 +205,12 @@ export async function removeEditorTransaction(
         amount: removed.amount ?? undefined,
       });
     }
-    return { success: true };
+    return { success: true, trashId: trashId ?? undefined };
   } catch (err) {
+    if (trashId) {
+      if (removed) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return {
       success: false,
       error: err instanceof Error ? err.message : "Couldn't remove the transaction",

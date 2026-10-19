@@ -47,6 +47,16 @@ export async function deleteBrandNote(id: string): Promise<void> {
   );
 }
 
+export async function restoreBrandNotes(records: BrandNote[]): Promise<void> {
+  if (records.length === 0) return;
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const notes = await readBrandNotes();
+  const existing = new Set(notes.map((note) => note.id));
+  const missing = records.filter((record) => !existing.has(record.id));
+  if (missing.length > 0) await redis.set(BRAND_NOTES_KEY, [...notes, ...missing]);
+}
+
 // Cascade for brand deletion.
 export async function deleteBrandNotesForBrand(brandId: string): Promise<void> {
   const redis = getRedis();

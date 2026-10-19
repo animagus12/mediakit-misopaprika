@@ -14,6 +14,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { removeContact, updateContact } from "@/app/brands/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import { ContactFormFields, type ContactFormState } from "./ContactFormFields";
 import type { Contact } from "@/repositories/contacts";
 
@@ -72,7 +74,8 @@ export function ContactCard({ contact, brandId, agencyId, agencyName }: ContactC
     event.stopPropagation();
     if (!window.confirm(`Remove ${contact.name} from contacts?`)) return;
     startTransition(async () => {
-      await removeContact(contact.id);
+      const result = await removeContact(contact.id);
+      showUndoToast(contact.name, result, restoreTrashItem);
     });
   }
 
