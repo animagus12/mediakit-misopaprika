@@ -47,3 +47,15 @@ export async function deleteCampaignContactsForBrand(brandId: string): Promise<v
     records.filter((record) => record.brandId !== brandId)
   );
 }
+
+export async function restoreCampaignContacts(records: CampaignContact[]): Promise<void> {
+  if (records.length === 0) return;
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const current = await readCampaignContacts();
+  const assignments = new Set(current.map((record) => record.campaignId));
+  await redis.set(
+    CAMPAIGN_CONTACTS_KEY,
+    [...current, ...records.filter((record) => !assignments.has(record.campaignId))]
+  );
+}

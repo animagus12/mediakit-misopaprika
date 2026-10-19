@@ -183,6 +183,20 @@ export async function detachInvoicesFromBrand(brandId: string): Promise<number> 
   return changed;
 }
 
+export async function restoreInvoicesForBrand(invoiceIds: string[], brandId: string): Promise<void> {
+  if (invoiceIds.length === 0) return;
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const ids = new Set(invoiceIds);
+  const records = await readRecords();
+  await redis.set(
+    INVOICES_KEY,
+    records.map((record): InvoiceRecord =>
+      ids.has(record.id) && record.brandId === null ? { ...record, brandId } : record
+    )
+  );
+}
+
 // Writes just the status, leaving every other field untouched: mirrors
 // setCampaignPaymentStatus in campaigns.writer.server.ts, and backs the
 // dashboard's "Mark received" keeping a linked invoice in step.
@@ -211,4 +225,13 @@ export async function deleteInvoice(id: string): Promise<InvoiceRecord | null> {
     records.filter((record) => record.id !== id)
   );
   return removed;
+}
+
+export async function restoreInvoice(record: InvoiceRecord): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  if (records.some((entry) => entry.id === record.id)) return;
+  assertInvoiceNoFree(record.invoiceNo, records);
+  await redis.set(INVOICES_KEY, [...records, record]);
 }

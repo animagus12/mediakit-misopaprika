@@ -120,3 +120,12 @@ export async function deleteBrand(id: string): Promise<Brand | null> {
   );
   return removed;
 }
+
+export async function restoreBrand(record: Brand): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const brands = await readBrands();
+  if (brands.some((brand) => brand.id === record.id)) return;
+  assertNameAvailable(brands, record.name);
+  await redis.set(BRANDS_KEY, [...brands, record]);
+}

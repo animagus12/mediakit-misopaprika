@@ -34,6 +34,10 @@ export async function getEditorTransactions(): Promise<EditorTransaction[]> {
   return records.map(toEditorTransaction);
 }
 
+export async function getEditorTransactionRecord(id: string): Promise<EditorTransactionRecord | null> {
+  return (await readRecords()).find((record) => record.id === id) ?? null;
+}
+
 export async function addEditorTransaction(input: NewEditorTransaction): Promise<void> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
@@ -167,4 +171,12 @@ export async function deleteEditorTransaction(id: string): Promise<EditorTransac
     records.filter((record) => record.id !== id)
   );
   return removed;
+}
+
+export async function restoreEditorTransaction(record: EditorTransactionRecord): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  if (records.some((entry) => entry.id === record.id)) return;
+  await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
 }

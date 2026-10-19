@@ -35,6 +35,10 @@ export async function getContentItems(): Promise<ContentItem[]> {
   return (await readRecords()).map(toContentItem);
 }
 
+export async function getContentItemRecord(id: string): Promise<ContentItemRecord | null> {
+  return (await readRecords()).find((record) => record.id === id) ?? null;
+}
+
 // Trims free text so a record is clean regardless of what the form handed
 // over: same defensive shape as the other writers here. format and status are
 // closed unions, so there is nothing to normalise about them.
@@ -92,6 +96,14 @@ export async function deleteContentItem(id: string): Promise<ContentItemRecord |
   if (!removed) return null;
   await redis.set(CONTENT_PLAN_KEY, records.filter((record) => record.id !== id));
   return removed;
+}
+
+export async function restoreContentItem(record: ContentItemRecord): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  if (records.some((entry) => entry.id === record.id)) return;
+  await redis.set(CONTENT_PLAN_KEY, [...records, record]);
 }
 
 // Writes just the posting day, leaving every other field untouched: the

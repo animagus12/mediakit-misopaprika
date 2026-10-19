@@ -4,6 +4,8 @@ import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { removeInvoice } from "@/app/invoices/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 
 interface DeleteInvoiceButtonProps {
   id: string;
@@ -17,11 +19,12 @@ export function DeleteInvoiceButton({ id, label }: DeleteInvoiceButtonProps) {
   // destructive and the row is otherwise click-to-open, so a single stray
   // click must never remove a record.
   function handleDoubleClick() {
-    if (!window.confirm(`You are about to delete invoice ${label}. This can't be undone. Continue?`)) {
+    if (!window.confirm(`You are about to delete invoice ${label}. It can be restored from Trash. Continue?`)) {
       return;
     }
     startTransition(async () => {
-      await removeInvoice(id);
+      const result = await removeInvoice(id);
+      showUndoToast(`Invoice ${label}`, result, restoreTrashItem);
     });
   }
 
@@ -33,8 +36,8 @@ export function DeleteInvoiceButton({ id, label }: DeleteInvoiceButtonProps) {
       className="text-destructive hover:bg-destructive/10 hover:text-destructive"
       disabled={isPending}
       onDoubleClick={handleDoubleClick}
-      title="Double-click to delete this invoice"
-      aria-label={`Double-click to delete invoice ${label}`}
+      title="Double-click to move this invoice to Trash"
+      aria-label={`Double-click to move invoice ${label} to Trash`}
     >
       <Trash2 />
     </Button>

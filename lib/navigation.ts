@@ -1,4 +1,4 @@
-import { BadgePercent, Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, ReceiptText, Sparkles, UserRound } from "lucide-react";
+import { BadgePercent, Building2, CalendarDays, Clapperboard, FileText, Handshake, History, LayoutDashboard, Link2, ReceiptText, Sparkles, Trash2, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Sidebar sections. Grouping lives here rather than in the sidebar component
@@ -114,6 +114,14 @@ export const navEntries: NavEntry[] = [
     title: "Activity",
     description: "Everything you have changed, newest first.",
     Icon: History,
+    access: "protected",
+    group: "manage",
+  },
+  {
+    href: "/trash",
+    title: "Trash",
+    description: "Restore deleted records or permanently remove them.",
+    Icon: Trash2,
     access: "protected",
     group: "manage",
   },

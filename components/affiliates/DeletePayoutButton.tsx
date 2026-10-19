@@ -4,6 +4,8 @@ import { useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { removeAffiliatePayout } from "@/app/affiliates/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 
 interface DeletePayoutButtonProps {
   id: string;
@@ -16,7 +18,8 @@ export function DeletePayoutButton({ id, label }: DeletePayoutButtonProps) {
   function handleDelete() {
     if (!window.confirm(`Remove the ${label} payout?`)) return;
     startTransition(async () => {
-      await removeAffiliatePayout(id);
+      const result = await removeAffiliatePayout(id);
+      showUndoToast(`Payout ${label}`, result, restoreTrashItem);
     });
   }
 

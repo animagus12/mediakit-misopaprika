@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { createBrandNote, removeBrandNote } from "@/app/brands/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import type { BrandNote } from "@/repositories/brandNotes";
 
 function formatTimestamp(iso: string): string {
@@ -40,7 +42,8 @@ export function BrandNotesTab({ brandId, notes }: BrandNotesTabProps) {
 
   function handleDelete(id: string) {
     startTransition(async () => {
-      await removeBrandNote(id);
+      const result = await removeBrandNote(id);
+      showUndoToast("Note", result, restoreTrashItem);
     });
   }
 

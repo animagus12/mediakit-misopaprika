@@ -19,9 +19,11 @@ import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
 import { invoiceFields } from "@/lib/activityFields";
 import type { InvoiceData } from "@/repositories/invoice";
-import type { InvoiceStatus, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
+import type { InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
+import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
+import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 
-type ActionResult = { success: true } | { success: false; error: string };
+type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
 function toActionError(err: unknown, fallback: string): { success: false; error: string } {
   return { success: false, error: err instanceof Error ? err.message : fallback };
@@ -187,25 +189,53 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
 }
 
 export async function removeInvoice(id: string): Promise<ActionResult> {
+  let trashId: string | null = null;
+  let removed: InvoiceRecord | null = null;
   try {
-    const removed = await deleteInvoice(id);
+    const [records, campaigns] = await Promise.all([readInvoiceRecords(), campaignRepository.getAll()]);
+    const record = records.find((entry) => entry.id === id);
+    if (!record) return { success: true };
+    const campaignLinks = campaigns.flatMap((campaign) => {
+      const linkedRenewals = campaign.usage.renewals
+        .filter((renewal) => renewal.invoiceId === id)
+        .map((renewal) => ({ renewalId: renewal.id, invoiceId: renewal.invoiceId }));
+      if (campaign.invoiceId !== id && linkedRenewals.length === 0) return [];
+      return [{
+        campaignId: campaign.id,
+        invoiceLink: campaign.invoiceId === id
+          ? { invoiceId: campaign.invoiceId, invoiceRef: campaign.invoiceRef }
+          : null,
+        renewalLinks: linkedRenewals,
+      }];
+    });
+    trashId = await addTrashEntry(
+      { type: "invoice", record, campaignLinks },
+      buildInvoiceNumber(record.invoiceNo)
+    );
+    removed = await deleteInvoice(id);
+    if (!removed) {
+      await removeTrashEntry(trashId);
+      return { success: true };
+    }
     // A deal pointing at an invoice that no longer exists would resolve to
     // nothing on every read; clearing the key returns it to its typed
     // reference, which is where it was before the invoice was raised.
     if (removed) {
+      const removedInvoice = removed;
       const campaigns = await campaignRepository.getAll();
-      const linked = campaigns.find((campaign) => campaign.invoiceId === removed.id);
+      const linked = campaigns.find((campaign) => campaign.invoiceId === removedInvoice.id);
       if (linked) await campaignRepository.linkInvoice(linked.id, "");
       // A renewal left pointing at it would hide its "Raise invoice" action for
       // good, since that only shows on a renewal with no invoice.
       for (const campaign of campaigns) {
         for (const renewal of campaign.usage.renewals) {
-          if (renewal.invoiceId === removed.id) {
+          if (renewal.invoiceId === removedInvoice.id) {
             await campaignRepository.linkRenewalInvoice(campaign.id, renewal.id, "");
           }
         }
       }
     }
+    await activateTrashEntry(trashId);
     revalidateStores("invoices", "campaigns");
     if (removed) {
       await recordActivity({
@@ -215,8 +245,12 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
         amount: computeSubtotal(removed.items),
       });
     }
-    return { success: true };
+    return { success: true, trashId };
   } catch (err) {
+    if (trashId) {
+      if (removed) await activateTrashEntry(trashId);
+      else await removeTrashEntry(trashId);
+    }
     return toActionError(err, "Couldn't remove the invoice");
   }
 }
