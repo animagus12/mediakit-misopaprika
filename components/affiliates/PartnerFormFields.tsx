@@ -28,6 +28,7 @@ import {
   type PayoutSchedule,
 } from "@/repositories/affiliatePartners";
 import { toIsoDate } from "@/lib/editorTransactions";
+import { todayKey } from "@/lib/day";
 
 // A card on the /links page, offered as the join target. Passed in already
 // flattened by the page: the form has no business walking the links tree.
@@ -69,7 +70,7 @@ export function partnerInitialForm(): PartnerFormState {
     commissionModel: "percent",
     commissionRate: "",
     status: "active",
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: todayKey(),
     dashboardUrl: "",
     payoutSchedule: "monthly",
     linkItemId: NONE,

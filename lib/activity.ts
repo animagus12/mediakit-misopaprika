@@ -181,14 +181,8 @@ export function describeActivity(activity: Activity): ActivityDescription {
   };
 }
 
-// One fixed zone, not the viewer's and not UTC.
-//
-// UTC is what SocialRowNotes uses, because it is a client component and a
-// viewer's timezone would change the string between the server render and
-// hydration. Nothing here has that problem: every activity component is a
-// server component, so the string is produced once. And UTC is actively
-// wrong for the reader, who is in IST: an edit made at 01:00 files under the
-// previous day, because 01:00 IST is 19:30 UTC the day before.
+// One fixed zone, not the viewer's: an edit is grouped under the day it
+// happened in IST, independent of where the server or browser is running.
 //
 // The locale stays fixed for the same reason it is fixed elsewhere: the
 // output should not depend on where the page is rendered.

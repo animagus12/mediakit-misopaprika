@@ -21,6 +21,7 @@ import {
 import { formatMoney } from "@/lib/invoice";
 import type { NewEditorTransaction } from "@/repositories/editorTransactions";
 import type { Editor } from "@/repositories/editors";
+import { todayKey } from "@/lib/day";
 
 export interface EditorTransactionFormState {
   video: string;
@@ -34,7 +35,7 @@ export interface EditorTransactionFormState {
 }
 
 export function editorTransactionInitialForm(editors: Editor[] = []): EditorTransactionFormState {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayKey();
   return {
     video: "",
     videoDate: today,

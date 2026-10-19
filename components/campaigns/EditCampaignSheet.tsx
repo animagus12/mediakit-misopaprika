@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { CampaignInvoiceOption } from "@/lib/invoice";
+import { todayKey } from "@/lib/day";
 import {
   CampaignFormFields,
   campaignAmounts,
@@ -73,7 +74,7 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     amount: campaign.amount > 0 ? String(campaign.amount) : "",
     barterValue: campaign.barterValue > 0 ? String(campaign.barterValue) : "",
     paymentStatus: campaign.paymentStatus,
-    date: toIsoDate(campaign.date) || new Date().toISOString().slice(0, 10),
+    date: toIsoDate(campaign.date) || todayKey(),
     uploadDate: toIsoDate(campaign.uploadDate),
     paymentDue: toIsoDate(campaign.paymentDue),
     paidDate: toIsoDate(campaign.paidDate),

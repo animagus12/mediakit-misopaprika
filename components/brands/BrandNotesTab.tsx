@@ -9,9 +9,10 @@ import { createBrandNote, removeBrandNote } from "@/app/brands/actions";
 import { restoreTrashItem } from "@/app/trash/actions";
 import { showUndoToast } from "@/components/common/undo-toast";
 import type { BrandNote } from "@/repositories/brandNotes";
+import { formatTimestampIST } from "@/lib/time";
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return `${formatTimestampIST(iso)} IST`;
 }
 
 interface BrandNotesTabProps {

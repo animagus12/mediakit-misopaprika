@@ -1,4 +1,5 @@
 import { formatInvoiceDate } from "@/lib/invoice";
+import { addDays, isDayKey } from "@/lib/day";
 import { formatUsageDays } from "@/lib/usageRights";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { InvoicePaymentSnapshot, NewInvoice } from "@/repositories/invoices";
@@ -69,15 +70,10 @@ export function termLine(days: number, startDate: string): string {
 /**
  * Adds `days` to a yyyy-mm-dd date.
  *
- * Calendar arithmetic in UTC on both ends. Parsing at local midnight and
- * formatting with toISOString, as this used to, lands on the previous day
- * anywhere east of UTC: in IST every due date came out one day short.
+ * Calendar arithmetic on date-only keys, independent of the machine timezone.
  */
 export function addDaysISO(iso: string, days: number): string {
-  const date = new Date(`${iso}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return iso;
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  return isDayKey(iso) ? addDays(iso, days) : iso;
 }
 
 /**

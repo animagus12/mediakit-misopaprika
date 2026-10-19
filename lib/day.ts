@@ -5,13 +5,12 @@
 //
 //   * Turning an *instant* into a date needs a timezone, and the zone is
 //     fixed rather than the server's or the viewer's. The reader is in IST;
-//     rendering happens on a UTC server, so "today" read off the server clock
+//     rendering happens on a server outside India, so "today" read off its clock
 //     files everything before 05:30 IST under the previous day. lib/activity.ts
 //     made the same call for its day headings and shares the formatter below.
 //   * Arithmetic *between* dates ("five days after the 28th") needs no zone at
-//     all, and is done here in UTC precisely so no zone can shift the answer.
-//     Working in local time would drop or duplicate a day across a DST
-//     boundary, which IST doesn't have but the server's zone might.
+//     all, and uses fixed-length calendar-day steps so no machine timezone can
+//     shift the answer.
 //
 // A "day key" throughout is yyyy-mm-dd, and a "month key" is yyyy-mm. Both
 // sort correctly as plain strings, which is why the calendar compares dates
@@ -32,13 +31,13 @@ const DAY_LABEL = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
   day: "numeric",
   month: "short",
-  timeZone: "UTC",
+  timeZone: CALENDAR_TIME_ZONE,
 });
 
 const MONTH_LABEL = new Intl.DateTimeFormat("en-GB", {
   month: "long",
   year: "numeric",
-  timeZone: "UTC",
+  timeZone: CALENDAR_TIME_ZONE,
 });
 
 const DAY_MS = 86_400_000;
@@ -70,8 +69,8 @@ export function monthKeyOf(dayKey: string): string {
   return dayKey.slice(0, 7);
 }
 
-// Anchoring a day key at UTC midnight is what makes the arithmetic below
-// zone-proof: every key maps to exactly one instant, and back again.
+// A fixed epoch anchor makes date-key arithmetic independent of the machine
+// timezone: every key maps to exactly one value and back again.
 function toUtcMs(dayKey: string): number {
   const [year, month, day] = dayKey.split("-").map(Number);
   if (!year || !month || !day) return Number.NaN;
@@ -141,7 +140,7 @@ export function weekdayIndex(dayKey: string): number {
   return (new Date(toUtcMs(dayKey)).getUTCDay() + 6) % 7;
 }
 
-/** "Mon 7 Sep". Formatted in UTC because that is where the key is anchored. */
+/** "Mon 7 Sep". Formatting the anchored date key uses IST consistently. */
 export function formatDayLabel(dayKey: string): string {
   return DAY_LABEL.format(new Date(toUtcMs(dayKey)));
 }
@@ -155,7 +154,7 @@ const WEEK_RANGE = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "short",
   year: "numeric",
-  timeZone: "UTC",
+  timeZone: CALENDAR_TIME_ZONE,
 });
 
 /** The Monday of the week `dayKey` falls in. */

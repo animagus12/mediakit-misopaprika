@@ -1,3 +1,5 @@
+import { isDayKey } from "@/lib/day";
+
 // Exact values the quick-add form offers for Status. Kept client-safe (no
 // "server-only") since the form renders these as <Select> options.
 export const EDITOR_TRANSACTION_STATUS_OPTIONS = ["Paid", "Pending", "Cancelled"];
@@ -78,7 +80,8 @@ export function parseSheetDate(date: string): number {
   const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return Number.NaN;
   const [, day, month, year] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day)).getTime();
+  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NaN;
 }
 
 // Turnaround time in days between the assigned date and the delivered date.

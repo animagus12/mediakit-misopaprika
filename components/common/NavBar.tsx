@@ -25,6 +25,7 @@ import {
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
 import { SidebarTrigger } from "../ui/sidebar";
+import GlobalSearch from "@/components/common/GlobalSearch";
 import { currentNavTitle } from "@/lib/navigation";
 
 // Touch targets follow the pointer, not the viewport: a phone in landscape is
@@ -66,6 +67,7 @@ const NavBar = () => {
       </div>
 
       <div className="flex items-center gap-1">
+        <GlobalSearch />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className={iconButton}>

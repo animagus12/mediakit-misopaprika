@@ -6,6 +6,7 @@ import type {
 } from "@/repositories/campaigns";
 import { WORKFLOW_STATUSES } from "@/repositories/workflowStatus";
 import type { Brand } from "@/repositories/brands";
+import { isDayKey } from "@/lib/day";
 
 // View-model for the "Link to brand" picker: same "flat option list, never
 // the full domain object" discipline as lib/invoice.ts's buildInvoiceBrandOptions.
@@ -143,7 +144,8 @@ function parseSheetDate(date: string): number {
   const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!match) return Number.NEGATIVE_INFINITY;
   const [, day, month, year] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day)).getTime();
+  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
 }
 
 // The sheet's dates are DD/MM/YYYY; <input type="date"> gives/needs yyyy-mm-dd.

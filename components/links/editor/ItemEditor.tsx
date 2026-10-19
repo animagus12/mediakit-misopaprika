@@ -39,6 +39,7 @@ import {
 } from "@/repositories/links";
 import type { LinksEditorActions } from "./types";
 import { useSortableRow } from "./SortableList";
+import { fromISTDateTimeInput, toISTDateTimeInput } from "@/lib/time";
 
 const KIND_ICONS: Record<LinkKind, LucideIcon> = {
   link: Link2,
@@ -55,23 +56,6 @@ interface ItemEditorProps {
    * added in the current draft reads 0 until it has been live.
    */
   linkStats: LinkPerformance;
-}
-
-// <input type="datetime-local"> speaks local wall-clock time while the model
-// stores UTC ISO strings, so both directions convert explicitly rather than
-// slicing the ISO string (which would silently shift the time by the offset).
-function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-function fromLocalInput(value: string): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorProps) {
@@ -328,8 +312,8 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
             <Input
               id={`${item.id}-starts`}
               type="datetime-local"
-              value={toLocalInput(item.startsAt)}
-              onChange={(event) => patch({ startsAt: fromLocalInput(event.target.value) })}
+              value={toISTDateTimeInput(item.startsAt)}
+              onChange={(event) => patch({ startsAt: fromISTDateTimeInput(event.target.value) })}
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -337,8 +321,8 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
             <Input
               id={`${item.id}-ends`}
               type="datetime-local"
-              value={toLocalInput(item.endsAt)}
-              onChange={(event) => patch({ endsAt: fromLocalInput(event.target.value) })}
+              value={toISTDateTimeInput(item.endsAt)}
+              onChange={(event) => patch({ endsAt: fromISTDateTimeInput(event.target.value) })}
             />
           </div>
         </div>
