@@ -4,6 +4,14 @@
 
 ### Added
 
+### Changed
+
+## Removed
+
+## [1.25.0] - 2026-10-10
+
+### Added
+
 - **Campaigns support reel types and recoverable deletion.** Campaigns can record reel types, and deleted campaigns can be restored from Trash with their campaign contacts. Deletions are also recorded in activity.
 - **Invoice previews support multiple pages.** Invoice line items can be paginated in the preview, and invoice inputs now validate entries and display errors.
 
