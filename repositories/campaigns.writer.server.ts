@@ -5,12 +5,14 @@ import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
 import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
+import { getTrashedCampaignIds } from "./trash.writer.server";
 import { readInvoiceRecords } from "./invoiceRecords.server";
 import {
   campaignTypeHasCash,
   emptyUsage,
   nextSequenceId,
   toCampaign,
+  toCampaignReelTypes,
   toCampaignStatus,
   toDeliverableCount,
   toInvoiceLink,
@@ -48,6 +50,7 @@ async function readRecords(): Promise<CampaignRecord[]> {
   return (stored ?? SEED).map((record) => ({
     ...record,
     ...toInvoiceLink(record),
+    reelTypes: toCampaignReelTypes(record.reelTypes, record.reels),
     status: toCampaignStatus(record.status),
   }));
 }
@@ -70,6 +73,33 @@ export async function getCampaigns(): Promise<Campaign[]> {
   return records.map((record) => withInvoiceDueDate(toCampaign(record), dueDates));
 }
 
+export async function getCampaignRecord(id: string): Promise<CampaignRecord | null> {
+  const records = await readRecords();
+  return records.find((record) => record.id === id) ?? null;
+}
+
+export async function deleteCampaign(id: string): Promise<CampaignRecord | null> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const removed = records.find((record) => record.id === id);
+  if (!removed) return null;
+  await redis.set(CAMPAIGNS_KEY, records.filter((record) => record.id !== id));
+  return removed;
+}
+
+export async function restoreCampaign(record: CampaignRecord): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const existing = records.find((item) => item.id === record.id);
+  if (existing) {
+    if (JSON.stringify(existing) === JSON.stringify(record)) return;
+    throw new Error("A campaign with this ID already exists");
+  }
+  await redis.set(CAMPAIGNS_KEY, [...records, record]);
+}
+
 // Trims free text and coerces numbers so a record is clean regardless of
 // what the form handed over: same defensive shape as brands.writer.server.ts.
 // The usage licence is left out: it is the one field a form only ever sets
@@ -86,6 +116,7 @@ function normalize(
     campaign: input.campaign.trim(),
     type: input.type,
     reels: toDeliverableCount(input.reels),
+    reelTypes: toCampaignReelTypes(input.reelTypes ?? existing?.reelTypes, input.reels),
     story: toDeliverableCount(input.story),
     status: input.status,
     amount: Number(input.amount) || 0,
@@ -149,11 +180,11 @@ function usageFee(input: NewCampaignInput, stored: number): number {
 export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
-  const records = await readRecords();
+  const [records, trashedIds] = await Promise.all([readRecords(), getTrashedCampaignIds()]);
 
   const hasPaidComponent = campaignTypeHasCash(input.type);
   const id = nextSequenceId(
-    records.map((r) => r.id),
+    [...records.map((record) => record.id), ...trashedIds],
     hasPaidComponent ? "MSP-MC" : "MSP-BC"
   );
   const invoiceRef = input.invoiceRef?.trim() ?? "";

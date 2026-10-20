@@ -14,6 +14,7 @@ import {
   isValidPanNumber,
   todayISO,
   toInvoiceDefaults,
+  validateInvoiceInput,
   type InvoiceBrandOption,
   type InvoiceEditorJobOption,
   type InvoiceLineItem,
@@ -85,6 +86,7 @@ export function InvoiceGenerator({
   );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -192,11 +194,18 @@ export function InvoiceGenerator({
   // number, campaign name, payee details, line items, …), then the URL swaps
   // to the saved record so a second Save updates it rather than duplicating.
   const save = useCallback(() => {
+    setHasAttemptedSave(true);
     if (!isValidPanNumber(state.clientPanNumber) || !isValidPanNumber(state.panNumber)) {
       showToast("Enter a valid 10-character PAN before saving");
       return;
     }
     const input = formStateToInvoiceInput(state);
+    const validationError = validateInvoiceInput(input);
+    if (validationError) {
+      showToast(validationError);
+      return;
+    }
+
     startSaveTransition(async () => {
       if (invoice) {
         const result = await updateInvoiceAction({ id: invoice.id, ...input });
@@ -273,6 +282,7 @@ export function InvoiceGenerator({
         brandOptions={brandOptions}
         editorJobOptions={editorJobOptions}
         isSaving={isSaving}
+        hasAttemptedSave={hasAttemptedSave}
         isExisting={invoice != null}
         linkedCampaign={linkedCampaign}
         onImageUploadError={showToast}

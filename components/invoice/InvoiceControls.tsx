@@ -46,6 +46,7 @@ interface InvoiceControlsProps {
   brandOptions: InvoiceBrandOption[];
   editorJobOptions: InvoiceEditorJobOption[];
   isSaving: boolean;
+  hasAttemptedSave: boolean;
   isExisting: boolean;
   /** The campaign (or renewal) this invoice bills, or null for a one-off. */
   linkedCampaign: InvoiceLinkedCampaign | null;
@@ -63,6 +64,7 @@ export function InvoiceControls({
   brandOptions,
   editorJobOptions,
   isSaving,
+  hasAttemptedSave,
   isExisting,
   linkedCampaign,
   onImageUploadError,
@@ -100,9 +102,16 @@ export function InvoiceControls({
         <Input
           id="invoiceNo"
           inputMode="numeric"
+          required
+          aria-invalid={hasAttemptedSave && !state.invoiceNo.trim()}
           value={state.invoiceNo}
           onChange={(e) => actions.setField("invoiceNo", e.target.value)}
         />
+        {hasAttemptedSave && !state.invoiceNo.trim() && (
+          <p className="mt-1 text-[11px] text-destructive" role="alert">
+            Enter an invoice number.
+          </p>
+        )}
         {numberClash && (
           <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
             {buildInvoiceNumber(state.invoiceNo)} is already used by another invoice.
@@ -296,6 +305,7 @@ export function InvoiceControls({
             item={item}
             index={index}
             canRemove={state.items.length > 1}
+            showValidationErrors={hasAttemptedSave}
             onChange={actions.updateItem}
             onRemove={actions.removeItem}
           />
@@ -316,6 +326,7 @@ export function InvoiceControls({
           type="number"
           min={0}
           step={1}
+          aria-invalid={hasAttemptedSave && (!Number.isFinite(state.advance) || state.advance < 0)}
           value={state.advance}
           onChange={(e) => actions.setField("advance", Number(e.target.value))}
         />
@@ -342,6 +353,7 @@ export function InvoiceControls({
                 type="number"
                 min={0}
                 step={1}
+                aria-invalid={hasAttemptedSave && (!Number.isFinite(state.barterVal) || state.barterVal < 0)}
                 value={state.barterVal}
                 onChange={(e) => actions.setField("barterVal", Number(e.target.value))}
               />
@@ -592,25 +604,27 @@ export function InvoiceControls({
         />
       </fieldset>
 
-      <Button
-        type="button"
-        className="mt-2.5 w-full"
-        onClick={actions.save}
-        disabled={isSaving}
-      >
-        {isSaving ? "Saving…" : isExisting ? "Save changes" : "Save invoice"}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        className="mt-2.5 w-full"
-        onClick={actions.download}
-      >
-        Download PDF
-      </Button>
-      <Button type="button" variant="ghost" className="mt-2.5 w-full" onClick={actions.reset}>
-        Reset fields
-      </Button>
+      <div className={styles.actionBar}>
+        <Button
+          type="button"
+          className="w-full"
+          onClick={actions.save}
+          disabled={isSaving}
+        >
+          {isSaving ? "Saving…" : isExisting ? "Save changes" : "Save invoice"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={actions.download}
+        >
+          Download PDF
+        </Button>
+        <Button type="button" variant="ghost" className="w-full" onClick={actions.reset}>
+          Reset fields
+        </Button>
+      </div>
     </aside>
   );
 }

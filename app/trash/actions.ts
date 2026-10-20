@@ -6,6 +6,7 @@ import { restoreAffiliatePayout } from "@/repositories/affiliatePayouts.writer.s
 import { restoreBrand } from "@/repositories/brands.writer.server";
 import { restoreBrandNotes } from "@/repositories/brandNotes.writer.server";
 import {
+  restoreCampaign,
   restoreCampaignBrandLinks,
   restoreCampaignInvoiceLinks,
 } from "@/repositories/campaigns.writer.server";
@@ -53,6 +54,11 @@ export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
         await restoreInvoice(entry.payload.record);
         await restoreCampaignInvoiceLinks(entry.payload.campaignLinks, entry.payload.record.id);
         revalidateStores("invoices", "campaigns");
+        break;
+      case "campaign":
+        await restoreCampaign(entry.payload.record);
+        await restoreCampaignContacts(entry.payload.contacts);
+        revalidateStores("campaigns", "campaignContacts");
         break;
       case "editorTransaction":
         await restoreEditorTransaction(entry.payload.record);

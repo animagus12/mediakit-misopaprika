@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Unlink } from "lucide-react";
 import { CountStepper } from "@/components/common/CountStepper";
 import { FieldGroup } from "@/components/common/FieldGroup";
 import { OptionToggle } from "@/components/common/OptionToggle";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,8 @@ import {
   PAYMENT_STATUS_OPTIONS,
   isCampaignCancelled,
   paymentStatusLabel,
+  reelTypesLabel,
+  CAMPAIGN_REEL_TYPES,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
 import { todayKey } from "@/lib/day";
@@ -38,6 +41,7 @@ import {
   campaignTypeHasBarter,
   campaignTypeHasCash,
   type CampaignPaymentStatus,
+  type CampaignReelType,
   type CampaignStatus,
   type CampaignType,
   type UsageStatus,
@@ -54,6 +58,7 @@ export interface CampaignFormState {
   campaign: string;
   type: CampaignType;
   reels: number;
+  reelTypes: CampaignReelType[];
   story: number;
   status: CampaignStatus;
   amount: string;
@@ -140,6 +145,7 @@ export function campaignInitialForm(): CampaignFormState {
     campaign: "",
     type: "Barter",
     reels: 1,
+    reelTypes: ["Organic Reel"],
     story: 0,
     status: "Scripting",
     amount: "",
@@ -222,6 +228,9 @@ export function CampaignFormFields({
   const linkedVideo = form.editorTransactionId
     ? videoOptions.find((option) => option.id === form.editorTransactionId)
     : undefined;
+  const linkedVideoIsClaimed = Boolean(form.editorTransactionId && linkedVideo?.linked);
+  const linkedVideoIsMissing = Boolean(form.editorTransactionId && !linkedVideo);
+  const availableVideoOptions = videoOptions.filter((option) => !option.linked);
   const { amount: cashAmount, usageFee } = campaignAmounts(form);
   const tdsRate = Number(form.tdsRate);
   const estimatedTds =
@@ -259,6 +268,15 @@ export function CampaignFormFields({
   const showEndedOn = status === "ended";
   const total = amounts.amount + amounts.usageFee + amounts.barterValue;
   const renewalMoney = licence?.renewalMoney ?? 0;
+
+  function stepReels(delta: number) {
+    setForm((current) => {
+      const reels = Math.max(0, Math.min(DELIVERABLE_MAX, current.reels + delta));
+      const reelTypes = current.reelTypes.slice(0, reels);
+      while (reelTypes.length < reels) reelTypes.push("Organic Reel");
+      return { ...current, reels, reelTypes };
+    });
+  }
 
   // The money fields, built once and laid out below: which of them a deal has
   // depends on its type, so the rows they sit in change shape with it.
@@ -395,7 +413,7 @@ export function CampaignFormFields({
             fields the form asks for, and seeing all four at once is what makes
             that switch obvious. */}
         <div className="space-y-2">
-          <Label id={`${idPrefix}-type-label`}>Type</Label>
+          <Label id={`${idPrefix}-type-label`}>Deal type</Label>
           <OptionToggle
             value={form.type}
             onChange={(type) => setForm((f) => ({ ...f, type }))}
@@ -413,7 +431,7 @@ export function CampaignFormFields({
             <Label id={`${idPrefix}-reels-label`}>Reels</Label>
             <CountStepper
               value={form.reels}
-              onStep={(delta) => setForm((f) => ({ ...f, reels: f.reels + delta }))}
+              onStep={stepReels}
               labelledBy={`${idPrefix}-reels-label`}
               decrementLabel="One reel fewer"
               incrementLabel="One reel more"
@@ -432,6 +450,45 @@ export function CampaignFormFields({
             />
           </div>
         </div>
+        {form.reels > 0 && (
+          <Collapsible>
+            <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+              <span>Video types · {form.reels} {form.reels === 1 ? "reel" : "reels"}</span>
+              <span className="ml-auto truncate text-right">{reelTypesLabel(form.reelTypes)}</span>
+              <ChevronDown className="size-3.5 shrink-0 transition group-data-[state=open]/trigger:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="max-h-56 space-y-2 overflow-y-auto pt-3">
+              {form.reelTypes.map((type, index) => (
+                <div key={`${idPrefix}-reel-type-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-center gap-3">
+                  <Label htmlFor={`${idPrefix}-reel-type-${index}`} className="text-xs">
+                    Reel {index + 1}
+                  </Label>
+                  <Select
+                    value={type}
+                    onValueChange={(value) => {
+                      if (!CAMPAIGN_REEL_TYPES.includes(value as CampaignReelType)) return;
+                      setForm((current) => ({
+                        ...current,
+                        reelTypes: current.reelTypes.map((currentType, currentIndex) =>
+                          currentIndex === index ? value as CampaignReelType : currentType
+                        ),
+                      }));
+                    }}
+                  >
+                    <SelectTrigger id={`${idPrefix}-reel-type-${index}`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAMPAIGN_REEL_TYPES.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </FieldGroup>
 
       <FieldGroup title="Value">
@@ -755,40 +812,71 @@ export function CampaignFormFields({
               copy of this picker, nothing on the deal is renamed by the
               choice: a campaign is called what the brand calls it, not what
               the job was filed under. */}
-          {videoOptions.length > 0 && (
+          {(videoOptions.length > 0 || form.editorTransactionId) && (
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-video`}>From your editors</Label>
               <Select
-                value={form.editorTransactionId ?? NO_VIDEO}
-                onValueChange={(value) =>
-                  setForm((f) => ({
-                    ...f,
-                    editorTransactionId: value === NO_VIDEO ? null : value,
-                  }))
+                value={
+                  form.editorTransactionId && linkedVideo && !linkedVideo.linked
+                    ? form.editorTransactionId
+                    : NO_VIDEO
                 }
+                onValueChange={(value) => {
+                  if (value === NO_VIDEO) {
+                    if (!linkedVideoIsClaimed) {
+                      setForm((f) => ({ ...f, editorTransactionId: null }));
+                    }
+                    return;
+                  }
+                  if (availableVideoOptions.some((option) => option.id === value)) {
+                    setForm((f) => ({ ...f, editorTransactionId: value }));
+                  }
+                }}
               >
                 <SelectTrigger id={`${idPrefix}-video`} className="w-full">
                   <SelectValue placeholder="Not sent to an editor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_VIDEO}>Not sent to an editor</SelectItem>
-                  {videoOptions.map((option) => (
+                  <SelectItem value={NO_VIDEO} disabled={linkedVideoIsClaimed}>
+                    {linkedVideoIsClaimed || linkedVideoIsMissing
+                      ? "Choose another video"
+                      : "Not sent to an editor"}
+                  </SelectItem>
+                  {availableVideoOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.video}
                       <span className="text-muted-foreground">
                         {" "}
                         {option.editor}
-                        {option.linked ? " · already linked" : ""}
                       </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {form.editorTransactionId && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+                    {linkedVideo
+                      ? `Linked: ${linkedVideo.video} · ${linkedVideo.editor}`
+                      : "This video link is no longer available."}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setForm((f) => ({ ...f, editorTransactionId: null }))}
+                  >
+                    <Unlink />
+                    Unlink
+                  </Button>
+                </div>
+              )}
               {/* A link whose job has since been deleted would otherwise show as
                   the empty placeholder, reading as "not linked" when it is. */}
-              {form.editorTransactionId && !linkedVideo && (
+              {linkedVideoIsMissing && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                  The editing job behind this is gone. Pick another, or set it to not sent to an editor.
+                  The editing job behind this is gone. Unlink it or choose another video.
                 </p>
               )}
             </div>

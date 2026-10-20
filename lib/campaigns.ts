@@ -1,6 +1,7 @@
 import type {
   Campaign,
   CampaignPaymentStatus,
+  CampaignReelType,
   CampaignStatus,
   CampaignType,
 } from "@/repositories/campaigns";
@@ -26,6 +27,7 @@ export function buildCampaignBrandOptions(brands: Brand[]): CampaignBrandOption[
 // (inherited from the original spreadsheet's data) but isn't offered when
 // adding a new deal; it's something you'd mark after the fact.
 export const CAMPAIGN_TYPES: CampaignType[] = ["Barter", "Paid", "Barter+Paid", "UGC Ad"];
+export const CAMPAIGN_REEL_TYPES: CampaignReelType[] = ["Organic Reel", "UGC Ad"];
 
 // Reels and stories are counts, not a fixed menu: the form steps them up and
 // down (see CampaignFormFields), so the only limits are none at all and a
@@ -47,6 +49,15 @@ export function storiesLabel(count: number): string {
   return deliverableLabel(count, "Story", "Stories");
 }
 
+export function reelTypesLabel(reelTypes: readonly CampaignReelType[]): string {
+  const organic = reelTypes.filter((type) => type === "Organic Reel").length;
+  const ugc = reelTypes.filter((type) => type === "UGC Ad").length;
+  return [
+    deliverableLabel(organic, "Organic Reel", "Organic Reels"),
+    deliverableLabel(ugc, "UGC Ad", "UGC Ads"),
+  ].filter(Boolean).join(", ");
+}
+
 /**
  * What a deal promises, as the phrases every view of it writes out:
  * ["2 Reels", "1 Story"], leaving out whichever it doesn't include.
@@ -56,8 +67,14 @@ export function storiesLabel(count: number): string {
  * Kept here so the wording, and the choice to say nothing about a deliverable
  * a deal doesn't have, is written once.
  */
-export function campaignDeliverables(campaign: Pick<Campaign, "reels" | "story">): string[] {
-  return [reelsLabel(campaign.reels), storiesLabel(campaign.story)].filter(Boolean);
+export function campaignDeliverables(
+  campaign: Pick<Campaign, "reels" | "story"> & Partial<Pick<Campaign, "reelTypes">>
+): string[] {
+  const reelTypes = campaign.reelTypes ?? Array.from(
+    { length: campaign.reels },
+    () => "Organic Reel" as CampaignReelType
+  );
+  return [reelTypesLabel(reelTypes), storiesLabel(campaign.story)].filter(Boolean);
 }
 
 // Every shared status is open to a deal, in pipeline order. The content form

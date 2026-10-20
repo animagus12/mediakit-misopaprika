@@ -3,9 +3,20 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, Unlink } from "lucide-react";
+import { FileText, Trash2, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Sheet,
   SheetClose,
@@ -17,6 +28,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { unlinkCampaignInvoice, updateCampaign } from "@/app/(dashboard)/actions";
+import { deleteCampaign } from "@/app/campaigns/actions";
+import { restoreTrashItem } from "@/app/trash/actions";
+import { showUndoToast } from "@/components/common/undo-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -34,6 +48,7 @@ import { UsageRightsPanel } from "./UsageRightsPanel";
 import {
   CAMPAIGN_TYPES,
   isCampaignCalledOff,
+  campaignLabel,
   toIsoDate,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
@@ -69,6 +84,7 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
       ? (campaign.type as CampaignFormState["type"])
       : "Barter",
     reels: campaign.reels,
+    reelTypes: campaign.reelTypes,
     story: campaign.story,
     status: campaign.status,
     amount: campaign.amount > 0 ? String(campaign.amount) : "",
@@ -166,6 +182,7 @@ export function EditCampaignSheet({
         campaign: form.campaign.trim(),
         type: form.type,
         reels: form.reels,
+        reelTypes: form.reelTypes,
         story: form.story,
         status: form.status,
         ...campaignAmounts(form),
@@ -198,6 +215,15 @@ export function EditCampaignSheet({
       }
       notifyCreatedBrand(result.createdBrand, router);
       setOpen(false);
+    });
+  }
+
+  function handleDelete() {
+    startTransition(async () => {
+      const label = campaignLabel(campaign.campaign, campaign.brand);
+      const result = await deleteCampaign(campaign.id);
+      showUndoToast(label, result, restoreTrashItem);
+      if (result.success) setOpen(false);
     });
   }
 
@@ -323,15 +349,42 @@ export function EditCampaignSheet({
           </div>
         </div>
 
-        <SheetFooter className="flex-row">
-          <SheetClose asChild>
-            <Button type="button" variant="outline" className="flex-1">
-              Cancel
+        <SheetFooter>
+          <div className="flex flex-row gap-2">
+            <SheetClose asChild>
+              <Button type="button" variant="outline" className="flex-1">
+                Cancel
+              </Button>
+            </SheetClose>
+            <Button type="submit" form={formId} className="flex-1" disabled={isPending || !form.brand.trim()}>
+              {isPending ? "Saving…" : "Save changes"}
             </Button>
-          </SheetClose>
-          <Button type="submit" form={formId} className="flex-1" disabled={isPending || !form.brand.trim()}>
-            {isPending ? "Saving…" : "Save changes"}
-          </Button>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" disabled={isPending} className="self-start">
+                <Trash2 />
+                Delete campaign
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete {campaignLabel(campaign.campaign, campaign.brand)}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This moves the campaign to Trash, where it can be restored. Its linked invoices and
+                  editor records won&apos;t be deleted.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={handleDelete} disabled={isPending}>
+                  Delete campaign
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </SheetFooter>
       </SheetContent>
     </Sheet>

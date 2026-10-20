@@ -8,6 +8,19 @@
 
 ## Removed
 
+## [1.25.0] - 2026-10-10
+
+### Added
+
+- **Campaigns support reel types and recoverable deletion.** Campaigns can record reel types, and deleted campaigns can be restored from Trash with their campaign contacts. Deletions are also recorded in activity.
+- **Invoice previews support multiple pages.** Invoice line items can be paginated in the preview, and invoice inputs now validate entries and display errors.
+
+### Changed
+
+- **Editor videos can only be linked once.** Videos already linked to a calendar entry or campaign are hidden from other records' editor-video choices. Existing links remain visible while editing and can be removed with **Unlink**.
+
+## Removed
+
 ## [1.24.2] - 2026-10-19
 
 ### Added

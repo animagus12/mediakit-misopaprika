@@ -86,8 +86,8 @@ export interface EditorVideoOption {
   /** DD/MM/YYYY the cut came back. */
   deliveryDate: string;
   /**
-   * Already linked to something: an entry on the plan, or a brand deal.
-   * Shown rather than hidden, see below.
+   * Already linked to an entry on the plan or a brand deal. Forms exclude
+   * these from new choices while still recognizing a record's current link.
    */
   linked: boolean;
 }
@@ -97,12 +97,8 @@ const CANCELLED = "cancelled";
 
 /**
  * Every video that went to an editor, newest delivery first, with the ones
- * already spoken for marked and sorted last.
- *
- * Marked rather than filtered out, for two reasons: a record being edited has
- * to be able to show its own current link, which a filtered list could not
- * offer back; and "which of these have I already used" is exactly the
- * question the picker is there to answer, so hiding the answer would be odd.
+ * already linked marked and sorted last. Forms use that mark to offer only
+ * available videos while keeping a record's existing link identifiable.
  *
  * `linkedRecords` is typed on the one field it reads, so both stores that can
  * claim a job count toward the mark: an entry on the content plan and a brand

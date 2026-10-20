@@ -53,6 +53,7 @@ export function CampaignStatusSelect({
         campaign: campaign.campaign,
         type,
         reels: campaign.reels,
+        reelTypes: campaign.reelTypes,
         story: campaign.story,
         status: nextStatus,
         amount: campaign.amount,

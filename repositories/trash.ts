@@ -3,6 +3,7 @@ import type { Brand } from "./brands";
 import type { BrandNote } from "./brandNotes";
 import type { CampaignContact } from "./campaignContacts";
 import type { Contact } from "./contacts";
+import type { CampaignRecord } from "./campaigns";
 import type { ContentItemRecord } from "./contentPlan";
 import type { EditorTransactionRecord } from "./editorTransactions";
 import type { InvoiceRecord } from "./invoices";
@@ -43,6 +44,7 @@ export type TrashPayload =
         renewalLinks: { renewalId: string; invoiceId: string }[];
       }[];
     }
+  | { type: "campaign"; record: CampaignRecord; contacts: CampaignContact[] }
   | { type: "editorTransaction"; record: EditorTransactionRecord }
   | { type: "contentItem"; record: ContentItemRecord }
   | (LinkTrashDeletion & { targets: LinkTrashTarget[] });
@@ -67,6 +69,8 @@ export function trashTypeLabel(type: TrashPayload["type"]): string {
       return "Affiliate payout";
     case "invoice":
       return "Invoice";
+    case "campaign":
+      return "Campaign";
     case "editorTransaction":
       return "Editor transaction";
     case "contentItem":

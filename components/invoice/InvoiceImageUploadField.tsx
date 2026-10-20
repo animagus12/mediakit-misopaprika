@@ -34,7 +34,7 @@ export function InvoiceImageUploadField({
       onChange(blob.url);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
-      onError(reason ? `Upload failed(${reason}` : "Upload failed) try a different image");
+      onError(reason ? `Upload failed: ${reason}` : "Upload failed. Try a different image.");
     } finally {
       setIsUploading(false);
     }
@@ -50,9 +50,17 @@ export function InvoiceImageUploadField({
         type="file"
         accept="image/*"
         disabled={isUploading}
-        onChange={(e) => handleFile(e.target.files?.[0])}
+        onChange={(e) => {
+          const file = e.currentTarget.files?.[0];
+          e.currentTarget.value = "";
+          void handleFile(file);
+        }}
       />
-      {isUploading && <p className={styles.fieldLabel}>Uploading…</p>}
+      {isUploading && (
+        <p className={styles.fieldLabel} role="status">
+          Uploading…
+        </p>
+      )}
       {value && (
         <div className={styles.uploadPreview}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

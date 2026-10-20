@@ -46,8 +46,8 @@ export default async function CampaignsPage() {
     getInvoices().catch(() => []),
   ]);
   const brandOptions = buildCampaignBrandOptions(brands);
-  // Both stores that can claim a cut are counted, so a job already on the
-  // plan or on another deal is offered marked rather than as free.
+  // Both stores that can claim a cut are counted, so a job on the plan or
+  // another deal is hidden from the choices for this one.
   const videoOptions = buildEditorVideoOptions(editorTransactions, [...contentItems, ...campaigns]);
   const invoiceOptions = buildCampaignInvoiceOptions(invoices, campaigns);
 

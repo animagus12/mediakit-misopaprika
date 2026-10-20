@@ -11,6 +11,7 @@ interface InvoiceLineItemEditorProps {
   item: InvoiceLineItem;
   index: number;
   canRemove: boolean;
+  showValidationErrors: boolean;
   onChange: (id: string, field: "desc" | "sub" | "qty" | "price", value: string) => void;
   onRemove: (id: string) => void;
 }
@@ -19,6 +20,7 @@ export function InvoiceLineItemEditor({
   item,
   index,
   canRemove,
+  showValidationErrors,
   onChange,
   onRemove,
 }: InvoiceLineItemEditorProps) {
@@ -44,9 +46,16 @@ export function InvoiceLineItemEditor({
       </Label>
       <Input
         id={`${item.id}-desc`}
+        required
+        aria-invalid={showValidationErrors && !item.desc.trim()}
         value={item.desc}
         onChange={(e) => onChange(item.id, "desc", e.target.value)}
       />
+      {showValidationErrors && !item.desc.trim() && (
+        <p className="mt-1 text-[11px] text-destructive" role="alert">
+          Add a description for this line.
+        </p>
+      )}
 
       <Label className={styles.fieldLabel} htmlFor={`${item.id}-sub`}>
         Sub-line (optional bullet)
@@ -67,6 +76,9 @@ export function InvoiceLineItemEditor({
             type="number"
             min={1}
             step={1}
+            aria-invalid={
+              showValidationErrors && (!Number.isInteger(item.qty) || item.qty <= 0)
+            }
             value={item.qty}
             onChange={(e) => onChange(item.id, "qty", e.target.value)}
           />
@@ -80,6 +92,7 @@ export function InvoiceLineItemEditor({
             type="number"
             min={0}
             step={1}
+            aria-invalid={showValidationErrors && (!Number.isFinite(item.price) || item.price < 0)}
             value={item.price}
             onChange={(e) => onChange(item.id, "price", e.target.value)}
           />

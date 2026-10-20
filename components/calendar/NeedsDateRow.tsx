@@ -6,24 +6,31 @@ import { cn } from "@/lib/utils";
 import type { UnscheduledPost } from "@/lib/contentCalendar";
 import { PostCardBody } from "./PostCard";
 import { PostListRow } from "./PostListRow";
-import { useOptionalScheduleDrag, type ScheduleDragData } from "./useScheduleDrag";
+import {
+  useOptionalBoardDrag,
+  useOptionalScheduleDrag,
+  type ScheduleDragData,
+} from "./useScheduleDrag";
 
 type NeedsDateRowProps = Omit<ComponentProps<typeof PostListRow>, "wasJustDragged"> & {
   post: UnscheduledPost;
 };
 
-// A Needs a date row that can be picked up and dropped on a day in the month
-// or week above it. Outside a date view (the board) it is a plain row.
+// A Needs a date row that can be picked up and dropped on a day in month/week
+// views, or moved to a stage on the board when it is a creator-owned post.
 //
 // The row stays in its list, faded, while the overlay follows the pointer, and
 // leaves the list the moment it is dropped rather than after the round trip.
 export function NeedsDateRow({ post, ...rowProps }: NeedsDateRowProps) {
   const drag = useOptionalScheduleDrag();
+  const boardDrag = useOptionalBoardDrag();
+  const canDrag = Boolean(drag || (boardDrag && post.source === "own"));
+  const wasJustDragged = drag?.wasJustDragged ?? boardDrag?.wasJustDragged;
   const data: ScheduleDragData = { kind: "unscheduled", post };
   const { setNodeRef, listeners, isDragging } = useDraggable({
-    id: post.key,
+    id: `needs-date:${post.key}`,
     data,
-    disabled: !drag,
+    disabled: !canDrag,
   });
 
   if (drag?.isPlaced(post.key)) return null;
@@ -31,16 +38,16 @@ export function NeedsDateRow({ post, ...rowProps }: NeedsDateRowProps) {
   return (
     <div
       ref={setNodeRef}
-      {...(drag ? listeners : {})}
+      {...(canDrag ? listeners : {})}
       className={cn(
         "min-w-0 select-none transition-opacity",
         // manipulation, not none: the list must still scroll under a thumb.
         // The touch sensor's hold delay is what separates a scroll from a drag.
-        drag && "cursor-grab touch-manipulation active:cursor-grabbing",
+        canDrag && "cursor-grab touch-manipulation active:cursor-grabbing",
         isDragging && "opacity-40"
       )}
     >
-      <PostListRow {...rowProps} wasJustDragged={drag?.wasJustDragged} />
+      <PostListRow {...rowProps} wasJustDragged={wasJustDragged} />
     </div>
   );
 }

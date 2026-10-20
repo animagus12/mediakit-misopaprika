@@ -46,7 +46,8 @@ function waitingLabel(post: UnscheduledPost): string {
 // Work that is committed to but has no day yet, so it appears on neither the
 // month nor the week. Deals and the creator's own ideas share one list because
 // they raise the same question, and each row's menu answers it in a tap. Beside
-// the month or week, a row can also be dragged onto a day (see NeedsDateRow).
+// month/week, a row can also be dragged onto a day; on the board, creator-owned
+// posts can be dragged to another stage (see NeedsDateRow).
 export function NeedsDateCard({
   posts,
   today,

@@ -228,24 +228,56 @@ function useScheduleDragState(period: CalendarPeriod) {
 type ScheduleDrag = Omit<ReturnType<typeof useScheduleDragState>, "contextProps">;
 
 const ScheduleDragContext = createContext<ScheduleDrag | null>(null);
+const BoardDragContext = createContext<{ wasJustDragged: () => boolean } | null>(null);
 
 /**
- * One drag context for the month or week and the Needs a date list under it,
- * so an undated post can be dropped straight onto a day. It spans both cards
- * because a drag can only land on a droppable in its own context.
+ * One drag context for the calendar and the Needs a date list under it, so
+ * undated posts can be dropped onto a day or, on the board, an eligible stage.
+ * It spans both cards because a drag can only land on a droppable in its own
+ * context.
  *
- * `period` is null on the board, which has no days to drop on and runs its
- * own context; the list's rows then stay put.
+ * `period` is null on the board, which has no days to drop on; board stages
+ * and eligible backlog rows share the board's stage-drag context instead.
  */
 export function ScheduleDragProvider({
   period,
+  board = false,
   children,
 }: {
   period: CalendarPeriod | null;
+  board?: boolean;
   children: ReactNode;
 }) {
-  if (!period) return children;
+  if (!period) return board ? <BoardDragProvider>{children}</BoardDragProvider> : children;
   return <PeriodDragProvider period={period}>{children}</PeriodDragProvider>;
+}
+
+function BoardDragProvider({ children }: { children: ReactNode }) {
+  const sensors = useCalendarSensors();
+  const justDragged = useRef(false);
+  const drag = { wasJustDragged: () => justDragged.current };
+
+  return (
+    <BoardDragContext value={drag}>
+      <DndContext
+        id="calendar-board"
+        sensors={sensors}
+        onDragStart={() => {
+          justDragged.current = true;
+        }}
+        onDragEnd={() => {
+          setTimeout(() => {
+            justDragged.current = false;
+          });
+        }}
+        onDragCancel={() => {
+          justDragged.current = false;
+        }}
+      >
+        {children}
+      </DndContext>
+    </BoardDragContext>
+  );
 }
 
 function PeriodDragProvider({ period, children }: { period: CalendarPeriod; children: ReactNode }) {
@@ -269,4 +301,9 @@ export function useScheduleDrag(): ScheduleDrag {
 /** The shared drag state, or null where there are no days to drop on. */
 export function useOptionalScheduleDrag(): ScheduleDrag | null {
   return use(ScheduleDragContext);
+}
+
+/** The shared drag state for a board and its Needs a date list. */
+export function useOptionalBoardDrag(): { wasJustDragged: () => boolean } | null {
+  return use(BoardDragContext);
 }
