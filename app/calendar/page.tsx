@@ -136,10 +136,9 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const contentById = new Map(contentItems.map((item) => [item.id, item]));
   const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
   // Built once for the page: every sheet on it offers the same list, and the
-  // "already planned" marks are computed against the same content items the
-  // rest of the page is rendering.
-  // Both stores that can claim a cut are counted, so a job already on the
-  // plan or on a deal is offered marked rather than as free.
+  // link availability is computed against the same content items the rest
+  // of the page is rendering. Both stores that can claim a cut are counted,
+  // so a job on the plan or a deal is hidden from other records' choices.
   const videoOptions = buildEditorVideoOptions(editorTransactions, [
     ...contentItems,
     ...campaigns,
@@ -175,9 +174,12 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               hrefs={statHrefs}
             />
 
-            {/* One drag context around the calendar and Needs a date, so an
-                undated post can be dragged straight onto a day. */}
-            <ScheduleDragProvider period={viewData.view === "board" ? null : viewData.period}>
+            {/* The calendar and Needs a date share a drag context, so an
+                undated post can go straight onto a day or board stage. */}
+            <ScheduleDragProvider
+              period={viewData.view === "board" ? null : viewData.period}
+              board={viewData.view === "board"}
+            >
               {/* The calendar leads: it carries both what is planned and the
                   stage each post is at, which is what this page is opened for. */}
               <CalendarViewCard

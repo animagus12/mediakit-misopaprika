@@ -1,7 +1,12 @@
 "use client";
 
-import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { DndContext, useDroppable, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
+import {
+  useDndMonitor,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -27,7 +32,7 @@ import type { ContentItem } from "@/repositories/contentPlan";
 import { EditablePostCard, PostCardBody } from "./PostCard";
 import { POST_TONES, STAGE_DOTS } from "./postTone";
 import { StageFilter } from "./StageFilter";
-import { CalendarDragOverlay, useCalendarSensors } from "./useScheduleDrag";
+import { CalendarDragOverlay, useOptionalBoardDrag } from "./useScheduleDrag";
 
 interface CalendarBoardProps {
   columns: BoardColumn[];
@@ -103,9 +108,8 @@ export function CalendarBoard({
       movePostOnBoard(current, move.postKey, move.target)
   );
   const [, startTransition] = useTransition();
-  const sensors = useCalendarSensors();
+  const boardDrag = useOptionalBoardDrag();
   const [activePost, setActivePost] = useState<BoardPost | null>(null);
-  const justDragged = useRef(false);
   // The phone's open tab. Starts on the earliest stage with anything in it,
   // since an empty first tab reads as an empty board.
   const [tab, setTab] = useState<PipelineStage>(
@@ -160,31 +164,28 @@ export function CalendarBoard({
   }
 
   function handleDragStart(event: DragStartEvent) {
-    justDragged.current = true;
-    setActivePost((event.active.data.current?.post as BoardPost | undefined) ?? null);
+    const postKey = event.active.data.current?.post?.key;
+    const post = board.flatMap((column) => column.posts).find((entry) => entry.key === postKey);
+    setActivePost(post ?? null);
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setActivePost(null);
-    setTimeout(() => {
-      justDragged.current = false;
-    });
-    const post = event.active.data.current?.post as BoardPost | undefined;
-    if (!post || !event.over) return;
-    moveTo(post, String(event.over.id) as PipelineStage);
+    const postKey = event.active.data.current?.post?.key;
+    const post = board.flatMap((column) => column.posts).find((entry) => entry.key === postKey);
+    const target = PIPELINE_STAGES.find((stage) => stage === String(event.over?.id));
+    if (!post || !target) return;
+    moveTo(post, target);
   }
 
+  useDndMonitor({
+    onDragStart: handleDragStart,
+    onDragEnd: handleDragEnd,
+    onDragCancel: () => setActivePost(null),
+  });
+
   return (
-    <DndContext
-      id="calendar-board"
-      sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => {
-        setActivePost(null);
-        justDragged.current = false;
-      }}
-    >
+    <>
       {/* Tabs on a phone, where one column is all that fits; hidden from lg,
           where every column is on screen with its own header. */}
       <StageFilter
@@ -211,7 +212,7 @@ export function CalendarBoard({
                 dragId={post.key}
                 dragData={{ post }}
                 draggable={post.movable}
-                wasJustDragged={() => justDragged.current}
+                wasJustDragged={boardDrag?.wasJustDragged ?? (() => false)}
                 item={post.source === "own" ? contentById.get(post.id) : undefined}
                 campaign={post.source === "campaign" ? campaignById.get(post.id) : undefined}
                 videoOptions={videoOptions}
@@ -269,6 +270,6 @@ export function CalendarBoard({
           </div>
         )}
       </CalendarDragOverlay>
-    </DndContext>
+    </>
   );
 }

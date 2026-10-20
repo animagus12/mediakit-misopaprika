@@ -9,6 +9,8 @@
 
 ### Changed
 
+- **Editor videos can only be linked once.** Videos already linked to a calendar entry or campaign are hidden from other records' editor-video choices. Existing links remain visible while editing and can be removed with **Unlink**.
+
 ## Removed
 
 ## [1.24.2] - 2026-10-19

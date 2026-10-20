@@ -1,6 +1,8 @@
 "use client";
 
+import { Unlink } from "lucide-react";
 import { OptionToggle } from "@/components/common/OptionToggle";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +60,9 @@ export function ContentFormFields({
   const linked = form.editorTransactionId
     ? videoOptions.find((option) => option.id === form.editorTransactionId)
     : undefined;
+  const linkedVideoIsClaimed = Boolean(form.editorTransactionId && linked?.linked);
+  const linkedVideoIsMissing = Boolean(form.editorTransactionId && !linked);
+  const availableVideoOptions = videoOptions.filter((option) => !option.linked);
 
   return (
     <>
@@ -74,19 +79,23 @@ export function ContentFormFields({
         />
       </div>
 
-      {videoOptions.length > 0 && (
+      {(videoOptions.length > 0 || form.editorTransactionId) && (
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-video`}>From your editors</Label>
           <Select
-            value={form.editorTransactionId ?? NO_VIDEO}
+            value={
+              form.editorTransactionId && linked && !linked.linked
+                ? form.editorTransactionId
+                : NO_VIDEO
+            }
             onValueChange={(value) => {
               if (value === NO_VIDEO) {
-                // Unlinking leaves the title alone: it has been typed by now,
-                // and silently blanking it would lose work.
-                setForm((f) => ({ ...f, editorTransactionId: null }));
+                if (!linkedVideoIsClaimed) {
+                  setForm((f) => ({ ...f, editorTransactionId: null }));
+                }
                 return;
               }
-              const option = videoOptions.find((o) => o.id === value);
+              const option = availableVideoOptions.find((o) => o.id === value);
               setForm((f) => ({
                 ...f,
                 editorTransactionId: value,
@@ -102,24 +111,46 @@ export function ContentFormFields({
               <SelectValue placeholder="Not from an editor" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={NO_VIDEO}>Not from an editor</SelectItem>
-              {videoOptions.map((option) => (
+              <SelectItem value={NO_VIDEO} disabled={linkedVideoIsClaimed}>
+                {linkedVideoIsClaimed || linkedVideoIsMissing
+                  ? "Choose another video"
+                  : "Not from an editor"}
+              </SelectItem>
+              {availableVideoOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.video}
                   <span className="text-muted-foreground">
                     {" "}
                     {option.editor}
-                    {option.linked ? " · already linked" : ""}
                   </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {form.editorTransactionId && (
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+                {linked
+                  ? `Linked: ${linked.video} · ${linked.editor}`
+                  : "This video link is no longer available."}
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setForm((f) => ({ ...f, editorTransactionId: null }))}
+              >
+                <Unlink />
+                Unlink
+              </Button>
+            </div>
+          )}
           {/* A link whose job has since been deleted would otherwise show as
               the empty placeholder, reading as "not linked" when it is. */}
-          {form.editorTransactionId && !linked && (
+          {linkedVideoIsMissing && (
             <p className="text-[11px] text-amber-600 dark:text-amber-400">
-              The editing job behind this is gone. Pick another, or set it to not from an editor.
+              The editing job behind this is gone. Unlink it or choose another video.
             </p>
           )}
         </div>

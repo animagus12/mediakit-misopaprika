@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Unlink } from "lucide-react";
 import { CountStepper } from "@/components/common/CountStepper";
 import { FieldGroup } from "@/components/common/FieldGroup";
 import { OptionToggle } from "@/components/common/OptionToggle";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -227,6 +228,9 @@ export function CampaignFormFields({
   const linkedVideo = form.editorTransactionId
     ? videoOptions.find((option) => option.id === form.editorTransactionId)
     : undefined;
+  const linkedVideoIsClaimed = Boolean(form.editorTransactionId && linkedVideo?.linked);
+  const linkedVideoIsMissing = Boolean(form.editorTransactionId && !linkedVideo);
+  const availableVideoOptions = videoOptions.filter((option) => !option.linked);
   const { amount: cashAmount, usageFee } = campaignAmounts(form);
   const tdsRate = Number(form.tdsRate);
   const estimatedTds =
@@ -808,40 +812,71 @@ export function CampaignFormFields({
               copy of this picker, nothing on the deal is renamed by the
               choice: a campaign is called what the brand calls it, not what
               the job was filed under. */}
-          {videoOptions.length > 0 && (
+          {(videoOptions.length > 0 || form.editorTransactionId) && (
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-video`}>From your editors</Label>
               <Select
-                value={form.editorTransactionId ?? NO_VIDEO}
-                onValueChange={(value) =>
-                  setForm((f) => ({
-                    ...f,
-                    editorTransactionId: value === NO_VIDEO ? null : value,
-                  }))
+                value={
+                  form.editorTransactionId && linkedVideo && !linkedVideo.linked
+                    ? form.editorTransactionId
+                    : NO_VIDEO
                 }
+                onValueChange={(value) => {
+                  if (value === NO_VIDEO) {
+                    if (!linkedVideoIsClaimed) {
+                      setForm((f) => ({ ...f, editorTransactionId: null }));
+                    }
+                    return;
+                  }
+                  if (availableVideoOptions.some((option) => option.id === value)) {
+                    setForm((f) => ({ ...f, editorTransactionId: value }));
+                  }
+                }}
               >
                 <SelectTrigger id={`${idPrefix}-video`} className="w-full">
                   <SelectValue placeholder="Not sent to an editor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_VIDEO}>Not sent to an editor</SelectItem>
-                  {videoOptions.map((option) => (
+                  <SelectItem value={NO_VIDEO} disabled={linkedVideoIsClaimed}>
+                    {linkedVideoIsClaimed || linkedVideoIsMissing
+                      ? "Choose another video"
+                      : "Not sent to an editor"}
+                  </SelectItem>
+                  {availableVideoOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
                       {option.video}
                       <span className="text-muted-foreground">
                         {" "}
                         {option.editor}
-                        {option.linked ? " · already linked" : ""}
                       </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {form.editorTransactionId && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+                    {linkedVideo
+                      ? `Linked: ${linkedVideo.video} · ${linkedVideo.editor}`
+                      : "This video link is no longer available."}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setForm((f) => ({ ...f, editorTransactionId: null }))}
+                  >
+                    <Unlink />
+                    Unlink
+                  </Button>
+                </div>
+              )}
               {/* A link whose job has since been deleted would otherwise show as
                   the empty placeholder, reading as "not linked" when it is. */}
-              {form.editorTransactionId && !linkedVideo && (
+              {linkedVideoIsMissing && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                  The editing job behind this is gone. Pick another, or set it to not sent to an editor.
+                  The editing job behind this is gone. Unlink it or choose another video.
                 </p>
               )}
             </div>
