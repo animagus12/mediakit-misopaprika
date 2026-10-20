@@ -23,6 +23,7 @@ export type CampaignStatus = WorkflowStatus | "On Hold";
 // itself rather than a post on the page: a cash deal like "Paid", kept apart
 // from it because it is sold and priced as its own thing.
 export type CampaignType = "Barter" | "Paid" | "Barter+Paid" | "Scam" | "UGC Ad";
+export type CampaignReelType = "Organic Reel" | "UGC Ad";
 
 // What a type is paid in. Lives with the type so the id prefix (MSP-MC/MSP-BC),
 // the campaigns list's paid count and the form's money fields can't answer it
@@ -301,6 +302,7 @@ export interface CampaignRecord extends CampaignInvoiceLink {
   campaign: string;
   type: CampaignType;
   reels: number; // how many reels the deal includes; legacy rows hold "1 Reel" (see toDeliverableCount)
+  reelTypes?: CampaignReelType[]; // one type per reel; absent on older records, which default to Organic Reel
   story: number; // how many stories; legacy rows hold "1 Story" or "None"
   // Pipeline stage (see STATUS_OPTIONS). Coerced on read (see
   // toCampaignStatus), so a legacy spelling never reaches past the store.
@@ -338,6 +340,7 @@ export interface CampaignRecord extends CampaignInvoiceLink {
 }
 
 export interface Campaign extends CampaignRecord {
+  reelTypes: CampaignReelType[];
   /**
    * The deal's cash: `amount` plus the ad usage fee. Derived, never stored.
    *
@@ -363,6 +366,7 @@ export interface NewCampaignInput {
   campaign: string;
   type: CampaignType;
   reels: number;
+  reelTypes?: CampaignReelType[];
   story: number;
   status: CampaignStatus;
   amount: number;
@@ -404,6 +408,7 @@ export function toCampaign(record: CampaignRecord): Campaign {
     ...toInvoiceLink(record),
     status,
     reels: toDeliverableCount(record.reels),
+    reelTypes: toCampaignReelTypes(record.reelTypes, record.reels),
     story: toDeliverableCount(record.story),
     cash,
     total: cash + record.barterValue,
@@ -420,6 +425,15 @@ export function toCampaign(record: CampaignRecord): Campaign {
     // Set by withInvoiceDueDate once the invoices are read alongside.
     paymentDueFromInvoice: false,
   };
+}
+
+export function toCampaignReelTypes(raw: unknown, reels: unknown): CampaignReelType[] {
+  const count = toDeliverableCount(reels);
+  const values = Array.isArray(raw) ? raw : [];
+  return Array.from({ length: count }, (_, index) => {
+    const value: unknown = values[index];
+    return value === "UGC Ad" ? "UGC Ad" : "Organic Reel";
+  });
 }
 
 // Highest existing "<prefix><digits>" id + 1, zero-padded to at least 4

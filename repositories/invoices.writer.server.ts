@@ -6,6 +6,7 @@ import {
   invoiceNoKey,
   isInvoiceNoTaken,
   isValidPanNumber,
+  validateInvoiceInput,
   withLinkedBrand,
 } from "@/lib/invoice";
 import { getCampaigns } from "./campaigns.writer.server";
@@ -50,6 +51,9 @@ export async function getInvoice(id: string): Promise<Invoice | null> {
 // Trims free text and coerces numbers so a record is clean regardless of what
 // the form handed over: same defensive shape as brands.writer.server.ts.
 function normalize(input: NewInvoice): NewInvoice {
+  const validationError = validateInvoiceInput(input);
+  if (validationError) throw new Error(validationError);
+
   const clientPanNumber = input.client.panNumber?.trim() || "";
   const payeePanNumber = input.payment.panNumber?.trim() || "";
   if (!isValidPanNumber(clientPanNumber)) {

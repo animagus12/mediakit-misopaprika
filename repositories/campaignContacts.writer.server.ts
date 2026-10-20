@@ -48,6 +48,16 @@ export async function deleteCampaignContactsForBrand(brandId: string): Promise<v
   );
 }
 
+export async function deleteCampaignContactsForCampaign(campaignId: string): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readCampaignContacts();
+  await redis.set(
+    CAMPAIGN_CONTACTS_KEY,
+    records.filter((record) => record.campaignId !== campaignId)
+  );
+}
+
 export async function restoreCampaignContacts(records: CampaignContact[]): Promise<void> {
   if (records.length === 0) return;
   const redis = getRedis();

@@ -106,6 +106,7 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
     value: (campaign) =>
       campaignDeliverables({
         reels: toDeliverableCount(campaign.reels),
+        reelTypes: campaign.reelTypes,
         story: toDeliverableCount(campaign.story),
       }).join(", "),
   },

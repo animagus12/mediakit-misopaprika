@@ -22,6 +22,11 @@ export async function getTrashEntry(id: string): Promise<TrashEntry | null> {
   return (await readTrash()).find((entry) => entry.id === id) ?? null;
 }
 
+export async function getTrashedCampaignIds(): Promise<string[]> {
+  return (await readTrash())
+    .flatMap((entry) => entry.payload.type === "campaign" ? [entry.payload.record.id] : []);
+}
+
 export async function addTrashEntry(payload: TrashPayload, label: string): Promise<string> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);

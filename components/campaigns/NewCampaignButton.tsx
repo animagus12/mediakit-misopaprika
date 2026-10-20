@@ -48,6 +48,7 @@ export function NewCampaignButton({
         campaign: form.campaign.trim(),
         type: form.type,
         reels: form.reels,
+        reelTypes: form.reelTypes,
         story: form.story,
         status: form.status,
         ...campaignAmounts(form),

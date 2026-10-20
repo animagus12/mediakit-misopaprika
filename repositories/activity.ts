@@ -42,6 +42,7 @@ export type ActivityAction =
   | "contact.deleted"
   | "campaign.created"
   | "campaign.updated"
+  | "campaign.deleted"
   | "campaign.payment_received"
   | "campaign.payment_reverted"
   | "campaign.scheduled"
@@ -89,6 +90,7 @@ export const activityActions: readonly ActivityAction[] = [
   "contact.deleted",
   "campaign.created",
   "campaign.updated",
+  "campaign.deleted",
   "campaign.payment_received",
   "campaign.payment_reverted",
   "campaign.scheduled",

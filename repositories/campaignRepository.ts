@@ -16,6 +16,7 @@ import type {
   Campaign,
   CampaignPaymentStatus,
   CampaignRecord,
+  CampaignReelType,
   CampaignStatus,
   CampaignType,
 } from "./campaigns";
@@ -45,6 +46,7 @@ export interface CampaignFormValues {
   campaign: string;
   type: CampaignType;
   reels: number; // how many reels the deal includes
+  reelTypes?: CampaignReelType[];
   story: number; // how many stories
   status: CampaignStatus;
   amount: number;
@@ -156,6 +158,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       campaign: input.campaign,
       type: input.type,
       reels: input.reels,
+      reelTypes: input.reelTypes,
       story: input.story,
       status: input.status,
       amount: input.amount,
@@ -184,6 +187,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       campaign: input.campaign,
       type: input.type,
       reels: input.reels,
+      reelTypes: input.reelTypes,
       story: input.story,
       status: input.status,
       amount: input.amount,

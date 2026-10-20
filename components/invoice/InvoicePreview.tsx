@@ -1,4 +1,3 @@
-import { forwardRef } from "react";
 import {
   buildInvoiceNumber,
   computeBalanceDue,
@@ -8,6 +7,7 @@ import {
   lineItemTotal,
 } from "@/lib/invoice";
 import { SocialIcon } from "@/components/links/SocialIcon";
+import type { InvoiceLineItem } from "@/lib/invoice";
 import type { InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
 
@@ -15,15 +15,34 @@ interface InvoicePreviewProps {
   state: InvoiceFormState;
 }
 
-export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
-  function InvoicePreview({ state }, ref) {
-    const subtotal = computeSubtotal(state.items);
-    const balanceDue = computeBalanceDue(subtotal, state.advance);
-    const instagramHandle = state.instagramHandle.trim().replace(/^@+/, "");
-    const youtubeHandle = state.youtubeHandle.trim().replace(/^@+/, "");
+const FIRST_PAGE_ITEM_LIMIT = 2;
+const CONTINUATION_PAGE_ITEM_LIMIT = 4;
 
-    return (
-      <div className={styles.page} ref={ref}>
+function paginateItems(items: InvoiceLineItem[]): InvoiceLineItem[][] {
+  if (items.length <= FIRST_PAGE_ITEM_LIMIT) return [items];
+
+  const pages = [items.slice(0, FIRST_PAGE_ITEM_LIMIT)];
+  for (let index = FIRST_PAGE_ITEM_LIMIT; index < items.length; index += CONTINUATION_PAGE_ITEM_LIMIT) {
+    pages.push(items.slice(index, index + CONTINUATION_PAGE_ITEM_LIMIT));
+  }
+  return pages;
+}
+
+export function InvoicePreview({ state }: InvoicePreviewProps) {
+  const subtotal = computeSubtotal(state.items);
+  const balanceDue = computeBalanceDue(subtotal, state.advance);
+  const instagramHandle = state.instagramHandle.trim().replace(/^@+/, "");
+  const youtubeHandle = state.youtubeHandle.trim().replace(/^@+/, "");
+  const pages = paginateItems(state.items);
+
+  return (
+    <div className={styles.pages}>
+      {pages.map((pageItems, pageIndex) => {
+        const isFirstPage = pageIndex === 0;
+        const isLastPage = pageIndex === pages.length - 1;
+
+        return (
+          <div className={styles.page} key={pageIndex}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className={`${styles.band} ${styles.bandTop}`} src="/invoice/band-top.png" alt="" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -34,7 +53,13 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
             <div className={styles.rule} />
             <h2>INVOICE</h2>
           </div>
+          {!isFirstPage && (
+            <p className={styles.continued}>
+              {buildInvoiceNumber(state.invoiceNo)} · CONTINUED · PAGE {pageIndex + 1} OF {pages.length}
+            </p>
+          )}
 
+          {isFirstPage && (
           <div className={styles.meta}>
             <div className={styles.metaLeft}>
               <p className={styles.lbl}>ISSUED TO:</p>
@@ -62,7 +87,9 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
               )}
             </div>
           </div>
+          )}
 
+          {isFirstPage && (
           <div className={`${styles.meta} ${styles.metaSecond}`}>
             <div className={styles.metaLeft}>
               <p className={styles.lbl}>PAY TO:</p>
@@ -130,6 +157,7 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
               )}
             </div>
           </div>
+          )}
 
           <table className={styles.items}>
             <colgroup>
@@ -147,7 +175,7 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
               </tr>
             </thead>
             <tbody>
-              {state.items.map((item) => (
+              {pageItems.map((item) => (
                 <tr key={item.id}>
                   <td>
                     {item.desc}
@@ -161,6 +189,14 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
             </tbody>
           </table>
 
+          {!isLastPage && (
+            <p className={styles.continuedFooter}>
+              Continued on page {pageIndex + 2} →
+            </p>
+          )}
+
+          {isLastPage && (
+          <>
           <table className={styles.totals}>
             <colgroup>
               <col className={styles.colDesc} />
@@ -212,8 +248,12 @@ export const InvoicePreview = forwardRef<HTMLDivElement, InvoicePreviewProps>(
             </div>
             <p className={styles.gst}>{state.gstNote}</p>
           </div>
+          </>
+          )}
         </div>
       </div>
-    );
-  }
-);
+        );
+      })}
+    </div>
+  );
+}

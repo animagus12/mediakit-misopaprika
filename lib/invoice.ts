@@ -39,6 +39,31 @@ export function isValidPanNumber(panNumber: string): boolean {
   return !panNumber.trim() || /^[A-Z]{5}[0-9]{4}[A-Z]$/i.test(panNumber.trim());
 }
 
+export function validateInvoiceInput(input: NewInvoice): string | null {
+  if (!input.invoiceNo.trim()) return "Enter an invoice number";
+  if (input.items.length === 0) return "Add at least one line item";
+
+  for (const [index, item] of input.items.entries()) {
+    const lineNumber = index + 1;
+    if (!item.desc.trim()) return `Enter a description for line ${lineNumber}`;
+    if (!Number.isInteger(item.qty) || item.qty <= 0) {
+      return `Enter a whole quantity greater than zero for line ${lineNumber}`;
+    }
+    if (!Number.isFinite(item.price) || item.price < 0) {
+      return `Enter a valid non-negative price for line ${lineNumber}`;
+    }
+  }
+
+  if (!Number.isFinite(input.advance) || input.advance < 0) {
+    return "Advance received must be a non-negative amount";
+  }
+  if (input.barter.enabled && (!Number.isFinite(input.barter.value) || input.barter.value < 0)) {
+    return "Barter value must be a non-negative amount";
+  }
+
+  return null;
+}
+
 export function todayISO(offsetDays = 0): string {
   return addDays(todayKey(), offsetDays);
 }

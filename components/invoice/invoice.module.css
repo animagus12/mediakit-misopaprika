@@ -30,11 +30,23 @@
   flex: 0 0 var(--invoice-panel-width);
   background: var(--invoice-panel);
   border-right: 1px solid var(--invoice-panel-line);
-  padding: 22px 22px 60px;
+  padding: 22px 22px 0;
   position: sticky;
   top: 0;
   max-height: 100vh;
   overflow-y: auto;
+}
+
+.actionBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  margin: 18px -22px 0;
+  padding: 12px 22px 16px;
+  border-top: 1px solid var(--invoice-panel-line);
+  background: var(--invoice-panel);
 }
 
 .stage {
@@ -49,6 +61,12 @@
 
 .stageInner {
   transform-origin: top center;
+}
+
+.pages {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 /* Scale the fixed A4 sheet down to whatever width .stage actually has: 
@@ -495,6 +513,23 @@
   margin: 0 0 0 -18mm;
 }
 
+.continued {
+  margin: 5mm 0 0;
+  text-align: right;
+  font-size: 8.5pt;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.continuedFooter {
+  margin: auto 0 0;
+  padding-top: 5mm;
+  text-align: center;
+  font-size: 9pt;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
 /* ---------- print ---------- */
 @page {
   size: A4;
@@ -506,8 +541,9 @@
   :global(body) {
     background: #fff;
     width: 210mm;
-    height: 297mm;
-    overflow: hidden;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
   }
 
   .panel,
@@ -517,6 +553,7 @@
 
   .app {
     display: block;
+    min-height: 0;
   }
 
   .stage {
@@ -525,9 +562,24 @@
     overflow: visible;
   }
 
+  .stageInner {
+    display: block;
+  }
+
+  .pages {
+    display: block;
+  }
+
   .page {
     box-shadow: none;
     margin: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .page:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 }
 

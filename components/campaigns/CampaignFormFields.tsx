@@ -28,6 +28,8 @@ import {
   PAYMENT_STATUS_OPTIONS,
   isCampaignCancelled,
   paymentStatusLabel,
+  reelTypesLabel,
+  CAMPAIGN_REEL_TYPES,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
 import { todayKey } from "@/lib/day";
@@ -38,6 +40,7 @@ import {
   campaignTypeHasBarter,
   campaignTypeHasCash,
   type CampaignPaymentStatus,
+  type CampaignReelType,
   type CampaignStatus,
   type CampaignType,
   type UsageStatus,
@@ -54,6 +57,7 @@ export interface CampaignFormState {
   campaign: string;
   type: CampaignType;
   reels: number;
+  reelTypes: CampaignReelType[];
   story: number;
   status: CampaignStatus;
   amount: string;
@@ -140,6 +144,7 @@ export function campaignInitialForm(): CampaignFormState {
     campaign: "",
     type: "Barter",
     reels: 1,
+    reelTypes: ["Organic Reel"],
     story: 0,
     status: "Scripting",
     amount: "",
@@ -259,6 +264,15 @@ export function CampaignFormFields({
   const showEndedOn = status === "ended";
   const total = amounts.amount + amounts.usageFee + amounts.barterValue;
   const renewalMoney = licence?.renewalMoney ?? 0;
+
+  function stepReels(delta: number) {
+    setForm((current) => {
+      const reels = Math.max(0, Math.min(DELIVERABLE_MAX, current.reels + delta));
+      const reelTypes = current.reelTypes.slice(0, reels);
+      while (reelTypes.length < reels) reelTypes.push("Organic Reel");
+      return { ...current, reels, reelTypes };
+    });
+  }
 
   // The money fields, built once and laid out below: which of them a deal has
   // depends on its type, so the rows they sit in change shape with it.
@@ -395,7 +409,7 @@ export function CampaignFormFields({
             fields the form asks for, and seeing all four at once is what makes
             that switch obvious. */}
         <div className="space-y-2">
-          <Label id={`${idPrefix}-type-label`}>Type</Label>
+          <Label id={`${idPrefix}-type-label`}>Deal type</Label>
           <OptionToggle
             value={form.type}
             onChange={(type) => setForm((f) => ({ ...f, type }))}
@@ -413,7 +427,7 @@ export function CampaignFormFields({
             <Label id={`${idPrefix}-reels-label`}>Reels</Label>
             <CountStepper
               value={form.reels}
-              onStep={(delta) => setForm((f) => ({ ...f, reels: f.reels + delta }))}
+              onStep={stepReels}
               labelledBy={`${idPrefix}-reels-label`}
               decrementLabel="One reel fewer"
               incrementLabel="One reel more"
@@ -432,6 +446,45 @@ export function CampaignFormFields({
             />
           </div>
         </div>
+        {form.reels > 0 && (
+          <Collapsible>
+            <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
+              <span>Video types · {form.reels} {form.reels === 1 ? "reel" : "reels"}</span>
+              <span className="ml-auto truncate text-right">{reelTypesLabel(form.reelTypes)}</span>
+              <ChevronDown className="size-3.5 shrink-0 transition group-data-[state=open]/trigger:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="max-h-56 space-y-2 overflow-y-auto pt-3">
+              {form.reelTypes.map((type, index) => (
+                <div key={`${idPrefix}-reel-type-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-center gap-3">
+                  <Label htmlFor={`${idPrefix}-reel-type-${index}`} className="text-xs">
+                    Reel {index + 1}
+                  </Label>
+                  <Select
+                    value={type}
+                    onValueChange={(value) => {
+                      if (!CAMPAIGN_REEL_TYPES.includes(value as CampaignReelType)) return;
+                      setForm((current) => ({
+                        ...current,
+                        reelTypes: current.reelTypes.map((currentType, currentIndex) =>
+                          currentIndex === index ? value as CampaignReelType : currentType
+                        ),
+                      }));
+                    }}
+                  >
+                    <SelectTrigger id={`${idPrefix}-reel-type-${index}`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CAMPAIGN_REEL_TYPES.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </FieldGroup>
 
       <FieldGroup title="Value">
