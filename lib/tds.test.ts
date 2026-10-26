@@ -1,12 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeCampaign, makeRenewal, makeUsage } from "@/lib/testing/fixtures";
-import {
-  calculateTdsAmount,
-  currentFinancialYearStart,
-  financialYearStart,
-  summarizeTds,
-  tdsFinancialYears,
-} from "./tds";
+import { calculateTdsAmount, summarizeTds, tdsFinancialYears } from "./tds";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -26,56 +20,6 @@ describe("calculateTdsAmount", () => {
     expect(calculateTdsAmount(10000, -1)).toBe(0);
     expect(calculateTdsAmount(Number.NaN, 10)).toBe(0);
     expect(calculateTdsAmount(10000, Number.POSITIVE_INFINITY)).toBe(0);
-  });
-});
-
-describe("financialYearStart", () => {
-  it("puts 31 March in the year that started the previous April", () => {
-    expect(financialYearStart("31/03/2026")).toBe(2025);
-  });
-
-  it("starts a new financial year on 1 April", () => {
-    expect(financialYearStart("01/04/2026")).toBe(2026);
-    expect(financialYearStart("1/4/2026")).toBe(2026);
-    expect(financialYearStart("31/12/2026")).toBe(2026);
-    expect(financialYearStart("01/01/2027")).toBe(2026);
-  });
-
-  it("tolerates surrounding whitespace", () => {
-    expect(financialYearStart(" 15/08/2026 ")).toBe(2026);
-  });
-
-  it("rejects dates that do not exist", () => {
-    expect(financialYearStart("31/02/2026")).toBeNull();
-    expect(financialYearStart("00/04/2026")).toBeNull();
-    expect(financialYearStart("10/13/2026")).toBeNull();
-  });
-
-  // Current behaviour: only DD/MM/YYYY is understood. Step 4 moves this helper
-  // to a shared module that reads both formats, and should flip this.
-  it("does not read yyyy-mm-dd or blank input", () => {
-    expect(financialYearStart("2026-04-01")).toBeNull();
-    expect(financialYearStart("")).toBeNull();
-  });
-});
-
-describe("currentFinancialYearStart", () => {
-  // The year turns on the creator's civil day in IST, not the server's UTC
-  // clock: 18:30 UTC on 31 March is already 1 April in India.
-  it("is still the old year at 23:59 IST on 31 March", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-31T18:29:00.000Z"));
-    expect(currentFinancialYearStart()).toBe(2025);
-  });
-
-  it("turns over at midnight IST on 1 April", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-03-31T18:30:00.000Z"));
-    expect(currentFinancialYearStart()).toBe(2026);
-  });
-
-  it("accepts an explicit instant", () => {
-    expect(currentFinancialYearStart(new Date("2027-02-10T00:00:00.000Z"))).toBe(2026);
   });
 });
 
@@ -179,7 +123,7 @@ describe("summarizeTds", () => {
         makeCampaign({ id: "B", paymentStatus: "unknown", paidDate: "10/05/2026", tdsRate: 10 }),
         makeCampaign({ id: "C", paidDate: "", tdsRate: 10 }),
         makeCampaign({ id: "D", paidDate: "10/05/2026" }),
-        makeCampaign({ id: "E", paidDate: "2026-05-10", tdsRate: 10 }),
+        makeCampaign({ id: "E", paidDate: "not a date", tdsRate: 10 }),
       ],
       2026
     );
@@ -200,6 +144,29 @@ describe("summarizeTds", () => {
 
     expect(summary.totalCash).toBe(10000);
     expect(summary.totalTds).toBe(1000);
+  });
+
+  it("files a yyyy-mm-dd paid date by its financial year too", () => {
+    const campaigns = [
+      makeCampaign({ id: "A", paidDate: "2026-03-31", tdsAmount: 100 }),
+      makeCampaign({ id: "B", paidDate: "2026-04-01", tdsAmount: 200 }),
+    ];
+
+    expect(summarizeTds(campaigns, 2025).payments.map((p) => p.campaignId)).toEqual(["A"]);
+    expect(summarizeTds(campaigns, 2026).payments.map((p) => p.campaignId)).toEqual(["B"]);
+  });
+
+  it("sorts payments newest first across both date formats", () => {
+    const summary = summarizeTds(
+      [
+        makeCampaign({ id: "A", paidDate: "05/06/2026", tdsAmount: 1 }),
+        makeCampaign({ id: "B", paidDate: "2026-07-01", tdsAmount: 1 }),
+        makeCampaign({ id: "C", paidDate: "2026-05-20", tdsAmount: 1 }),
+      ],
+      2026
+    );
+
+    expect(summary.payments.map((p) => p.campaignId)).toEqual(["B", "A", "C"]);
   });
 
   it("sorts payments newest first, then by brand", () => {

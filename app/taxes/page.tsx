@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import AppShell from "@/components/common/AppShell";
+import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -13,7 +12,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatMoney } from "@/lib/invoice";
-import { currentFinancialYearStart, summarizeTds, tdsFinancialYears } from "@/lib/tds";
+import { currentFinancialYearStart, financialYearLabel, resolveFinancialYearParam } from "@/lib/financialYear";
+import { summarizeTds, tdsFinancialYears } from "@/lib/tds";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import type { Campaign } from "@/repositories/campaigns";
 
@@ -25,15 +25,11 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 interface TaxesPageProps {
-  searchParams: Promise<{ fy?: string }>;
-}
-
-function financialYearLabel(start: number): string {
-  return `FY ${start}-${String(start + 1).slice(-2)}`;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default async function TaxesPage({ searchParams }: TaxesPageProps) {
-  const { fy } = await searchParams;
+  const params = await searchParams;
   let campaigns: Campaign[] = [];
   let error: string | null = null;
   try {
@@ -43,11 +39,7 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
   }
 
   const years = tdsFinancialYears(campaigns);
-  const requestedYear = fy && /^\d{4}$/.test(fy) ? Number(fy) : null;
-  const selectedYear =
-    requestedYear !== null && years.includes(requestedYear)
-      ? requestedYear
-      : currentFinancialYearStart();
+  const selectedYear = resolveFinancialYearParam(params.fy, years) ?? currentFinancialYearStart();
   const summary = summarizeTds(campaigns, selectedYear);
 
   return (
@@ -68,13 +60,7 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
           </Card>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {years.map((year) => (
-            <Button key={year} asChild variant={year === selectedYear ? "default" : "outline"} size="sm">
-              <Link href={`/taxes?fy=${year}`}>{financialYearLabel(year)}</Link>
-            </Button>
-          ))}
-        </div>
+        <FinancialYearFilter pathname="/taxes" searchParams={params} years={years} selected={selectedYear} />
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>

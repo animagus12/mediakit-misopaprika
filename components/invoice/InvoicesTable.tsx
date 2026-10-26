@@ -20,7 +20,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   buildInvoiceNumber,
   filterInvoices,
-  findDuplicateInvoiceNumbers,
   formatInvoiceDate,
   formatInvoiceStatus,
   formatMoney,
@@ -46,6 +45,8 @@ const DEFAULT_SORT: SortState = { column: "issueDate", direction: "desc" };
 
 interface InvoicesTableProps {
   invoices: Invoice[];
+  /** Invoice numbers used more than once across every invoice, not only these. */
+  duplicateNumbers: string[];
 }
 
 function SortHeader({
@@ -76,7 +77,7 @@ function SortHeader({
   );
 }
 
-export function InvoicesTable({ invoices }: InvoicesTableProps) {
+export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: InvoicesTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -129,7 +130,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
     );
   }
 
-  const duplicateNumbers = useMemo(() => findDuplicateInvoiceNumbers(invoices), [invoices]);
+  const duplicateNumbers = useMemo(() => new Set(duplicateList), [duplicateList]);
 
   const filtered = useMemo(
     () => filterInvoices(invoices, { filter: tab, query }),

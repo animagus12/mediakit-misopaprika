@@ -1,9 +1,17 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { computeInvoiceStats, formatMoney, type InvoiceFilter } from "@/lib/invoice";
+import { financialYearHref } from "@/lib/financialYear";
+import {
+  computeInvoiceStats,
+  findDuplicateInvoiceNumbers,
+  formatMoney,
+  invoicesInFinancialYear,
+  type InvoiceFilter,
+} from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import type { Invoice } from "@/repositories/invoices";
 import { InvoicesTable } from "./InvoicesTable";
@@ -20,12 +28,30 @@ const STAT_TONES = {
 interface InvoiceListSectionProps {
   invoices: Invoice[];
   error?: string | null;
+  /** The financial year on show (by issue date), or null for every invoice. */
+  financialYear?: number | null;
+  /** Years the filter offers, newest first. No filter is shown when empty. */
+  financialYears?: number[];
+  /** The page's search params, kept by the year filter's links. */
+  searchParams?: Record<string, string | string[] | undefined>;
 }
 
-export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps) {
-  const stats = computeInvoiceStats(invoices);
+export function InvoiceListSection({
+  invoices,
+  error,
+  financialYear = null,
+  financialYears = [],
+  searchParams = {},
+}: InvoiceListSectionProps) {
+  // The stat cards and the table both read the chosen year; duplicate numbers
+  // are found across every invoice, since a number reused in another year is
+  // still a clash.
+  const visibleInvoices = invoicesInFinancialYear(invoices, financialYear);
+  const stats = computeInvoiceStats(visibleInvoices);
+  const duplicateNumbers = [...findDuplicateInvoiceNumbers(invoices)];
 
-  // Each tile is a shortcut into the matching table view (?tab=…).
+  // Each tile is a shortcut into the matching table view (?tab=…), in the
+  // same financial year.
   const statCards: {
     label: string;
     value: string | number;
@@ -80,11 +106,25 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
         </Card>
       ) : (
         <>
+          {financialYears.length > 0 && (
+            <FinancialYearFilter
+              pathname="/invoices"
+              searchParams={searchParams}
+              years={financialYears}
+              selected={financialYear}
+              includeAll
+            />
+          )}
+
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {statCards.map((card) => (
               <Link
                 key={card.label}
-                href={card.tab === "all" ? "/invoices" : `/invoices?tab=${card.tab}`}
+                href={financialYearHref(
+                  "/invoices",
+                  card.tab === "all" ? {} : { tab: card.tab },
+                  financialYear
+                )}
                 className="rounded-lg outline-offset-2 transition hover:ring-2 hover:ring-ring/30 focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Card className={cn("h-full", card.tone.card)}>
@@ -100,7 +140,7 @@ export function InvoiceListSection({ invoices, error }: InvoiceListSectionProps)
           </div>
 
           <Suspense fallback={<div className="h-64 rounded-md border border-border" />}>
-            <InvoicesTable invoices={invoices} />
+            <InvoicesTable invoices={visibleInvoices} duplicateNumbers={duplicateNumbers} />
           </Suspense>
         </>
       )}

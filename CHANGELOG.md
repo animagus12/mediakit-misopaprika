@@ -5,6 +5,7 @@
 ### Added
 
 - **Automated checks now guard the money calculations.** Earnings, TDS, invoice totals, editor costs, margins and the payments-due summary are covered by tests that run with `npm test`, so a change that shifts any of these figures is caught before it ships.
+- **Invoices and the monthly breakdown can be viewed one financial year at a time.** **Invoices** and the **Monthly breakdown** on **Campaigns** now have year buttons (FY 2026-27 and so on, April to March) next to **All**, which stays the default so nothing changes until you pick a year. On **Invoices** the year goes by issue date and the stat cards add up only that year's invoices; the breakdown shows all of the year's months with a total row underneath. The year stays in the page address, so a filtered view survives a reload and can be bookmarked.
 
 ### Changed
 

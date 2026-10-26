@@ -1,4 +1,4 @@
-import { todayKey } from "@/lib/day";
+import { financialYearStart, financialYearsPresent, toFinancialDayKey } from "@/lib/financialYear";
 import type { Campaign } from "@/repositories/campaigns";
 
 export interface TdsPayment {
@@ -45,41 +45,14 @@ export function validateTdsValues(
   return null;
 }
 
-export function financialYearStart(date: string): number | null {
-  const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return null;
-  const [, dayText, monthText, yearText] = match;
-  const day = Number(dayText);
-  const month = Number(monthText);
-  const year = Number(yearText);
-  const check = new Date(Date.UTC(year, month - 1, day));
-  if (
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    check.getUTCFullYear() !== year ||
-    check.getUTCMonth() !== month - 1 ||
-    check.getUTCDate() !== day
-  ) {
-    return null;
-  }
-  return month >= 4 ? year : year - 1;
-}
-
-export function currentFinancialYearStart(now: Date = new Date()): number {
-  const [year, month] = todayKey(now).split("-").map(Number);
-  return month >= 4 ? year : year - 1;
-}
-
 export function tdsFinancialYears(campaigns: Campaign[], now: Date = new Date()): number[] {
-  const years = new Set<number>([currentFinancialYearStart(now)]);
+  const paidDates: string[] = [];
   for (const campaign of campaigns) {
     if (campaign.paymentStatus !== "received" || !campaign.paidDate) continue;
     if (campaign.tdsRate === null && campaign.tdsAmount === null) continue;
-    const year = financialYearStart(campaign.paidDate);
-    if (year !== null) years.add(year);
+    paidDates.push(campaign.paidDate);
   }
-  return [...years].sort((a, b) => b - a);
+  return financialYearsPresent(paidDates, now);
 }
 
 export function summarizeTds(campaigns: Campaign[], year: number): TdsSummary {
@@ -104,11 +77,14 @@ export function summarizeTds(campaigns: Campaign[], year: number): TdsSummary {
     });
   }
 
-  payments.sort((a, b) => {
-    const [aDay, aMonth, aYear] = a.paidDate.split("/").map(Number);
-    const [bDay, bMonth, bYear] = b.paidDate.split("/").map(Number);
-    return bYear - aYear || bMonth - aMonth || bDay - aDay || a.brand.localeCompare(b.brand);
-  });
+  // Day keys sort as plain strings, and read both date formats a paid date
+  // can arrive in. Every payment here has one: the year filter above skips
+  // any date that does not parse.
+  payments.sort(
+    (a, b) =>
+      (toFinancialDayKey(b.paidDate) ?? "").localeCompare(toFinancialDayKey(a.paidDate) ?? "") ||
+      a.brand.localeCompare(b.brand)
+  );
 
   const brandMap = new Map<string, TdsBrandTotal>();
   for (const payment of payments) {

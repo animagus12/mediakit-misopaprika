@@ -12,6 +12,7 @@ import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
 import { addDays, todayKey } from "./day";
+import { financialYearsPresent, isInFinancialYear } from "./financialYear";
 import { roundMoney } from "./money";
 
 export interface InvoiceLineItem extends InvoiceLineItemInput {
@@ -553,6 +554,33 @@ export function filterInvoices(
   return invoices.filter(
     (invoice) => matchesInvoiceFilter(invoice, filter, now) && matchesInvoiceQuery(invoice, needle)
   );
+}
+
+// Invoices are filed by financial year on their issue date: the date the
+// bill is dated with, and the one a year's sales are counted by.
+
+/** Every financial year an invoice was issued in, plus the current one, newest first. */
+export function invoiceFinancialYears(
+  invoices: Pick<Invoice, "issueDate">[],
+  now: Date = new Date()
+): number[] {
+  return financialYearsPresent(
+    invoices.map((invoice) => invoice.issueDate),
+    now
+  );
+}
+
+/**
+ * The invoices issued in one financial year. A null year is the "All" view
+ * and keeps every invoice, including any without a readable issue date,
+ * which no single year can claim.
+ */
+export function invoicesInFinancialYear<T extends Pick<Invoice, "issueDate">>(
+  invoices: T[],
+  year: number | null
+): T[] {
+  if (year === null) return invoices;
+  return invoices.filter((invoice) => isInFinancialYear(invoice.issueDate, year));
 }
 
 export type InvoiceSortColumn = "issueDate" | "dueDate" | "subtotal" | "balanceDue" | "status";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeMonthlyEarnings } from "@/lib/testing/fixtures";
-import { cashReceived, computeMarginSeries } from "./earnings";
+import { cashReceived, computeMarginSeries, sumMonthlyEarnings } from "./earnings";
 
 describe("computeMarginSeries", () => {
   it("nets each month's cash and commission against its editing cost", () => {
@@ -100,5 +100,21 @@ describe("cashReceived", () => {
         makeMonthlyEarnings("2026-05", { paid: 4000, commission: 1500, barter: 6000, pending: 9000, total: 11500 })
       )
     ).toBe(5500);
+  });
+});
+
+describe("sumMonthlyEarnings", () => {
+  it("adds each figure across the months on its own", () => {
+    const totals = sumMonthlyEarnings([
+      makeMonthlyEarnings("2026-05", { paid: 4000, barter: 1000, commission: 500, pending: 2000, total: 5500 }),
+      makeMonthlyEarnings("2026-04", { paid: 0.1, commission: 0.2, total: 0.3 }),
+    ]);
+
+    expect(totals).toEqual({ total: 5500.3, paid: 4000.1, barter: 1000, commission: 500.2, pending: 2000 });
+    expect(cashReceived(totals)).toBe(4500.3);
+  });
+
+  it("is all zeroes for no months", () => {
+    expect(sumMonthlyEarnings([])).toEqual({ total: 0, paid: 0, barter: 0, commission: 0, pending: 0 });
   });
 });

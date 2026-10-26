@@ -1,9 +1,17 @@
 import { ChevronRight, ChevronDown } from "lucide-react";
+import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatMoney } from "@/lib/invoice";
-import { cashReceived, monthLabel, currentMonthKey, monthsAgoKey } from "@/lib/earnings";
+import {
+  cashReceived,
+  monthLabel,
+  currentMonthKey,
+  monthsAgoKey,
+  sumMonthlyEarnings,
+} from "@/lib/earnings";
+import { filterMonthsByFinancialYear, financialYearLabel } from "@/lib/financialYear";
 import type { MonthlyEarnings } from "@/repositories/earnings";
 
 // The month-by-month record of what every deal brought in, expandable to the
@@ -106,41 +114,120 @@ function MonthRow({
   );
 }
 
-export function MonthlyEarningsLedger({ monthly }: { monthly: MonthlyEarnings[] }) {
+// The year's figures added up, under its months: what a filing or a review of
+// the year actually asks for. Same columns as a month, so it reads as one more
+// row of the same table.
+function TotalsRow({
+  months,
+  label,
+  showCommission,
+}: {
+  months: MonthlyEarnings[];
+  label: string;
+  showCommission: boolean;
+}) {
+  const totals = sumMonthlyEarnings(months);
+  return (
+    <div
+      className={`${monthGrid(showCommission)} mt-1 border-t border-foreground/10 px-3 pt-2 pb-1 font-medium`}
+    >
+      {/* Holds the chevron's width so the label lines up with the months. */}
+      <span className="size-3" />
+      <span className="min-w-0 truncate">{label} total</span>
+      <span className="text-right tabular-nums">{formatMoney(totals.paid)}</span>
+      <span className="text-right tabular-nums">{formatMoney(totals.barter)}</span>
+      {showCommission && (
+        <span className="text-right tabular-nums text-violet-600 dark:text-violet-400">
+          {formatMoney(totals.commission)}
+        </span>
+      )}
+      <span className="text-right tabular-nums text-muted-foreground">{formatMoney(totals.pending)}</span>
+      <span className="text-right font-semibold tabular-nums">{formatMoney(cashReceived(totals))}</span>
+    </div>
+  );
+}
+
+interface MonthlyEarningsLedgerProps {
+  monthly: MonthlyEarnings[];
+  /** The financial year on show, or null for every month (the default view). */
+  financialYear?: number | null;
+  /** Years the filter offers, newest first. No filter is shown when empty. */
+  financialYears?: number[];
+  /** The page's search params, kept by the year filter's links. */
+  searchParams?: Record<string, string | string[] | undefined>;
+}
+
+export function MonthlyEarningsLedger({
+  monthly,
+  financialYear = null,
+  financialYears = [],
+  searchParams = {},
+}: MonthlyEarningsLedgerProps) {
   if (monthly.length === 0) return null;
 
+  // A chosen year shows all of its months (twelve at most) with a total
+  // underneath. The "All" view keeps the recent months open and folds the
+  // rest away, as it always has.
+  const months = filterMonthsByFinancialYear(monthly, financialYear);
   const cutoff = monthsAgoKey(RECENT_MONTHS);
-  const recent = monthly.filter((m) => m.month >= cutoff);
-  const older = monthly.filter((m) => m.month < cutoff);
+  const recent = financialYear === null ? months.filter((m) => m.month >= cutoff) : months;
+  const older = financialYear === null ? months.filter((m) => m.month < cutoff) : [];
   const thisMonth = currentMonthKey();
+  // Decided on every month, not just the year's, so the columns stay put
+  // when switching between years.
   const showCommission = monthly.some((m) => m.commission > 0);
   const MONTH_GRID = monthGrid(showCommission);
 
   return (
     <Card>
       <CardHeader className="gap-3">
-        <CardDescription>Monthly breakdown</CardDescription>
-        <div className="-mx-4 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
-          <div className={`${MONTH_GRID} border-b border-foreground/10 px-3 pb-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground/70 uppercase`}>
-            <span />
-            <span>Month</span>
-            <span className="text-right">Cash</span>
-            <span className="text-right">Barter</span>
-            {showCommission && <span className="text-right">Commission</span>}
-            <span className="text-right">Pending</span>
-            <span className="text-right">Received</span>
-          </div>
-          <div className="space-y-0.5 pt-1">
-            {recent.map((m) => (
-              <MonthRow
-                key={m.month}
-                month={m}
-                highlight={m.month === thisMonth}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardDescription>Monthly breakdown</CardDescription>
+          {financialYears.length > 0 && (
+            <FinancialYearFilter
+              pathname="/campaigns"
+              searchParams={searchParams}
+              years={financialYears}
+              selected={financialYear}
+              includeAll
+              preserveScroll
+            />
+          )}
+        </div>
+        {months.length === 0 && financialYear !== null ? (
+          <p className="text-xs text-muted-foreground">
+            Nothing recorded in {financialYearLabel(financialYear)} yet.
+          </p>
+        ) : (
+          <div className="-mx-4 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
+            <div className={`${MONTH_GRID} border-b border-foreground/10 px-3 pb-2 text-[0.7rem] font-medium tracking-wide text-muted-foreground/70 uppercase`}>
+              <span />
+              <span>Month</span>
+              <span className="text-right">Cash</span>
+              <span className="text-right">Barter</span>
+              {showCommission && <span className="text-right">Commission</span>}
+              <span className="text-right">Pending</span>
+              <span className="text-right">Received</span>
+            </div>
+            <div className="space-y-0.5 pt-1">
+              {recent.map((m) => (
+                <MonthRow
+                  key={m.month}
+                  month={m}
+                  highlight={m.month === thisMonth}
+                  showCommission={showCommission}
+                />
+              ))}
+            </div>
+            {financialYear !== null && (
+              <TotalsRow
+                months={months}
+                label={financialYearLabel(financialYear)}
                 showCommission={showCommission}
               />
-            ))}
+            )}
           </div>
-        </div>
+        )}
       </CardHeader>
 
       {older.length > 0 && (

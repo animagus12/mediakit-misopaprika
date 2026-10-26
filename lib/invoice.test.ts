@@ -10,6 +10,8 @@ import {
   editorJobTakenMessage,
   findEditorJobHolder,
   holdsEditorJob,
+  invoiceFinancialYears,
+  invoicesInFinancialYear,
   isInvoiceOverdue,
   paymentStatusForInvoice,
 } from "./invoice";
@@ -129,6 +131,57 @@ describe("computeInvoiceStats", () => {
 
     expect(stats.totalBilled).toBe(10000);
     expect(stats.totalOutstanding).toBe(10000);
+  });
+});
+
+describe("invoicesInFinancialYear", () => {
+  const invoices = [
+    makeInvoice({ id: "march", issueDate: "2026-03-31" }),
+    makeInvoice({ id: "april", issueDate: "2026-04-01" }),
+    makeInvoice({ id: "next-march", issueDate: "2027-03-31" }),
+    makeInvoice({ id: "undated", issueDate: "" }),
+  ];
+
+  it("keeps the invoices issued from 1 April to 31 March", () => {
+    expect(invoicesInFinancialYear(invoices, 2026).map((invoice) => invoice.id)).toEqual([
+      "april",
+      "next-march",
+    ]);
+    expect(invoicesInFinancialYear(invoices, 2025).map((invoice) => invoice.id)).toEqual(["march"]);
+  });
+
+  it("keeps every invoice, undated ones included, for the All view", () => {
+    expect(invoicesInFinancialYear(invoices, null)).toEqual(invoices);
+  });
+
+  it("feeds the stat cards only the year's invoices", () => {
+    const stats = computeInvoiceStats(
+      invoicesInFinancialYear(
+        [
+          makeInvoice({ id: "old", status: "paid", issueDate: "2026-03-10" }),
+          makeInvoice({ id: "new", status: "sent", issueDate: "2026-04-10", advance: 1000 }),
+        ],
+        2026
+      ),
+      BEFORE_DUE
+    );
+
+    expect(stats).toEqual({ count: 1, totalBilled: 10000, totalOutstanding: 9000, overdueCount: 0 });
+  });
+});
+
+describe("invoiceFinancialYears", () => {
+  it("offers each issue year once plus the current one, newest first", () => {
+    const years = invoiceFinancialYears(
+      [
+        makeInvoice({ issueDate: "2024-06-01" }),
+        makeInvoice({ issueDate: "2025-01-15" }),
+        makeInvoice({ issueDate: "" }),
+      ],
+      new Date("2026-10-27T06:00:00.000Z")
+    );
+
+    expect(years).toEqual([2026, 2024]);
   });
 });
 
