@@ -191,6 +191,7 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
                 campaignId={alert.campaignId}
                 brand={alert.brand}
                 term={alert.term}
+                defaultTdsRate={alert.tdsRate}
                 // Renewing is a decision like pausing or ending, so the row
                 // leaves the queue the moment it is made rather than waiting
                 // for the revalidation to land. Wrapped in a transition

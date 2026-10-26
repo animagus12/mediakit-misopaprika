@@ -12,6 +12,7 @@ import type {
   CampaignRecord,
   CampaignStatus,
   UsageRenewalFormValues,
+  UsageRenewalTdsValues,
   UsageTransition,
 } from "@/repositories/campaignRepository";
 import type { ActivityAction } from "@/repositories/activity";
@@ -566,6 +567,8 @@ export async function renewCampaignUsage(
   if (input.days <= 0) {
     return { success: false, error: "A renewal needs a term of at least one day" };
   }
+  const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
+  if (tdsProblem) return { success: false, error: tdsProblem };
   try {
     const change = await campaignRepository.renewUsage(campaignId, input);
     if (!change) return { success: false, error: "That campaign no longer exists" };
@@ -665,6 +668,40 @@ export async function setUsageRenewalPaymentStatus(
     return { success: true };
   } catch (err) {
     return usageFailure(err, "Couldn't update the renewal payment");
+  }
+}
+
+/**
+ * Records the TDS withheld from one renewal's fee, or clears it with nulls.
+ *
+ * Its own action because the rest of a renewal is fixed once recorded (see
+ * UsageRightsPanel), while the tax a brand held back is often only known
+ * after the money lands.
+ */
+export async function setUsageRenewalTds(
+  campaignId: string,
+  renewalId: string,
+  input: UsageRenewalTdsValues
+): Promise<UsageResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  if (!campaignId.trim() || !renewalId.trim()) {
+    return { success: false, error: "This renewal has no ID to update" };
+  }
+  const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
+  if (tdsProblem) return { success: false, error: tdsProblem };
+  try {
+    const change = await campaignRepository.setRenewalTds(campaignId, renewalId, {
+      tdsRate: input.tdsRate,
+      tdsAmount: input.tdsAmount,
+    });
+    if (!change) return { success: false, error: "That renewal no longer exists" };
+    revalidateUsagePaths();
+    await recordUsageEvent("campaign.updated", change.after, "renewal TDS");
+    return { success: true };
+  } catch (err) {
+    return usageFailure(err, "Couldn't save the renewal TDS");
   }
 }
 

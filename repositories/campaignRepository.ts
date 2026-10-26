@@ -8,6 +8,7 @@ import {
   setCampaignUploadDate,
   setUsageRenewalInvoice,
   setUsageRenewalPayment,
+  setUsageRenewalTds,
   transitionCampaignUsage,
   updateCampaign as writeCampaignUpdate,
 } from "./campaigns.writer.server";
@@ -90,6 +91,14 @@ export interface UsageRenewalFormValues {
   paymentDue: string; // "yyyy-mm-dd"
   paidDate: string; // "yyyy-mm-dd"
   paymentMethod: string;
+  tdsRate?: number | null; // percent; null or absent when not recorded
+  tdsAmount?: number | null; // actual TDS withheld; null uses the rate's estimate
+}
+
+/** The TDS recorded on one renewal; null on either clears it. */
+export interface UsageRenewalTdsValues {
+  tdsRate: number | null;
+  tdsAmount: number | null;
 }
 
 export interface ICampaignRepository {
@@ -130,6 +139,13 @@ export interface ICampaignRepository {
     campaignId: string,
     renewalId: string,
     status: CampaignPaymentStatus
+  ): Promise<RecordChange<CampaignRecord> | null>;
+  // Records (or clears) the TDS withheld from one renewal's fee, the one part
+  // of a renewal that can change after it is recorded.
+  setRenewalTds(
+    campaignId: string,
+    renewalId: string,
+    tds: UsageRenewalTdsValues
   ): Promise<RecordChange<CampaignRecord> | null>;
   // Points the deal at the invoice record that bills it, once that invoice
   // exists, or clears the link with "". `invoiceRef` replaces the deal's typed
@@ -246,6 +262,8 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
       paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
       paymentMethod: input.paymentMethod,
+      tdsRate: input.tdsRate ?? null,
+      tdsAmount: input.tdsAmount ?? null,
     });
   }
 
@@ -260,6 +278,14 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       status,
       status === "received" ? today() : ""
     );
+  }
+
+  async setRenewalTds(
+    campaignId: string,
+    renewalId: string,
+    tds: UsageRenewalTdsValues
+  ): Promise<RecordChange<CampaignRecord> | null> {
+    return setUsageRenewalTds(campaignId, renewalId, tds);
   }
 
   async linkInvoice(campaignId: string, invoiceId: string, invoiceRef?: string): Promise<CampaignRecord | null> {

@@ -25,8 +25,10 @@ import {
 import { renewCampaignUsage } from "@/app/(dashboard)/actions";
 import { PAYMENT_STATUS_OPTIONS, paymentStatusLabel } from "@/lib/campaigns";
 import { buildInvoiceNumber } from "@/lib/invoice";
+import { parseTdsInput } from "@/lib/tds";
 import { defaultRenewalStart, formatUsageDays, type UsageTerm } from "@/lib/usageRights";
 import type { CampaignPaymentStatus } from "@/repositories/campaigns";
+import { TdsFields } from "./TdsFields";
 
 interface RenewFormState {
   days: string;
@@ -36,13 +38,17 @@ interface RenewFormState {
   paymentDue: string;
   paidDate: string;
   paymentMethod: string;
+  tdsRate: string;
+  tdsAmount: string;
 }
 
 // Ninety days, a quarter, is the term most licences are written for, so it is
 // what the field opens on; the amount deliberately is not guessed from the deal, since
 // a renewal is negotiated separately and a prefilled price is one nobody
-// re-reads before saving.
-function initialForm(term: UsageTerm): RenewFormState {
+// re-reads before saving. The TDS rate is: a brand withholds at the same rate
+// on every payment it makes, so the deal's rate is the likely answer, and it
+// only estimates until the actual amount is entered.
+function initialForm(term: UsageTerm, defaultTdsRate: number | null): RenewFormState {
   return {
     days: "90",
     amount: "",
@@ -51,6 +57,8 @@ function initialForm(term: UsageTerm): RenewFormState {
     paymentDue: "",
     paidDate: "",
     paymentMethod: "",
+    tdsRate: defaultTdsRate === null ? "" : String(defaultTdsRate),
+    tdsAmount: "",
   };
 }
 
@@ -58,6 +66,8 @@ interface RenewUsageSheetProps {
   campaignId: string;
   brand: string;
   term: UsageTerm;
+  /** The deal's TDS rate, which a new renewal's rate opens on; null leaves it blank. */
+  defaultTdsRate: number | null;
   trigger: ReactNode;
   /** Fired once the renewal is saved, so a list can drop the row it came from. */
   onRenewed?: () => void;
@@ -75,16 +85,18 @@ export function RenewUsageSheet({
   campaignId,
   brand,
   term,
+  defaultTdsRate,
   trigger,
   onRenewed,
 }: RenewUsageSheetProps) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<RenewFormState>(() => initialForm(term));
+  const [form, setForm] = useState<RenewFormState>(() => initialForm(term, defaultTdsRate));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const formId = `renew-usage-${campaignId}`;
   const days = Number(form.days) || 0;
+  const amount = Number(form.amount) || 0;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -93,11 +105,13 @@ export function RenewUsageSheet({
       const result = await renewCampaignUsage(campaignId, {
         startDate: form.startDate,
         days,
-        amount: Number(form.amount) || 0,
+        amount,
         paymentStatus: form.paymentStatus,
         paymentDue: form.paymentDue,
         paidDate: form.paidDate,
         paymentMethod: form.paymentMethod.trim(),
+        tdsRate: parseTdsInput(form.tdsRate),
+        tdsAmount: parseTdsInput(form.tdsAmount),
       });
       if (!result.success) {
         setError(result.error);
@@ -132,7 +146,7 @@ export function RenewUsageSheet({
         // from a term that keeps moving, so a form built once would offer a
         // stale date the longer the page stayed open.
         if (next) {
-          setForm(initialForm(term));
+          setForm(initialForm(term, defaultTdsRate));
           setError(null);
         }
       }}
@@ -247,6 +261,20 @@ export function RenewUsageSheet({
               onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
             />
           </div>
+
+          <TdsFields
+            idPrefix={formId}
+            rate={form.tdsRate}
+            amount={form.tdsAmount}
+            onRateChange={(value) => setForm((f) => ({ ...f, tdsRate: value }))}
+            onAmountChange={(value) => setForm((f) => ({ ...f, tdsAmount: value }))}
+            gross={amount}
+            description={
+              defaultTdsRate === null
+                ? "Track the tax deducted from this renewal's fee."
+                : "The rate starts at the deal's. Change it if this payment differs."
+            }
+          />
 
           {error && <p className="text-xs text-destructive">{error}</p>}
         </form>

@@ -8,6 +8,7 @@ import {
   CircleSlash,
   FileText,
   PauseCircle,
+  Percent,
   PlayCircle,
   RefreshCw,
   Undo2,
@@ -24,10 +25,12 @@ import {
 } from "@/app/(dashboard)/actions";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
 import { paymentStatusLabel } from "@/lib/campaigns";
+import { resolveTds } from "@/lib/tds";
 import { formatUsageDays, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign, UsageRenewalRecord } from "@/repositories/campaigns";
 import { RenewUsageSheet } from "./RenewUsageSheet";
+import { RenewalTdsSheet } from "./RenewalTdsSheet";
 
 // Same vocabulary the campaigns table and the dashboard card use, so a
 // licence looks the same wherever it is read.
@@ -52,6 +55,13 @@ function renewalStatusClass(renewal: UsageRenewalRecord): string {
   return "";
 }
 
+// " · TDS ₹1,000" (or "≈ ₹1,000" while only the rate is known), "" when none.
+function renewalTdsLabel(renewal: UsageRenewalRecord): string {
+  const tds = resolveTds(renewal.amount, renewal.tdsRate, renewal.tdsAmount);
+  if (!tds) return "";
+  return ` · TDS ${tds.estimated ? "≈ " : ""}${formatMoney(tds.amount)}`;
+}
+
 /**
  * The licence as it stands on one deal, and everything that has been bought
  * against it.
@@ -66,7 +76,8 @@ function renewalStatusClass(renewal: UsageRenewalRecord): string {
  * Read-only except for the two things that are genuinely one click: moving the
  * licence between its states, and collecting a fee. Changing a renewal's terms
  * after the fact is deliberately absent: what was agreed was agreed, and a
- * mistake is corrected by recording a new renewal.
+ * mistake is corrected by recording a new renewal. The TDS withheld from a fee
+ * is the exception (see RenewalTdsSheet): it is often only known later.
  */
 export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
   const [isPending, startTransition] = useTransition();
@@ -161,6 +172,7 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             campaignId={campaign.id}
             brand={campaign.brand}
             term={term}
+            defaultTdsRate={campaign.tdsRate}
             trigger={
               <Button type="button" size="sm" variant="outline" disabled={isPending}>
                 <RefreshCw />
@@ -222,45 +234,67 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
                 <p className="text-[11px] text-muted-foreground tabular-nums">
                   from {renewal.startDate}
                   {renewal.paidDate ? ` · paid ${renewal.paidDate}` : ""}
+                  {renewalTdsLabel(renewal)}
                 </p>
-                {renewal.invoiceId && (
-                  <span className="inline-flex items-center gap-1">
-                    <Link
-                      href={`/invoices/${renewal.invoiceId}`}
-                      className="text-[11px] text-foreground hover:underline"
+                <div className="flex flex-wrap items-center gap-x-3">
+                  {renewal.invoiceId && (
+                    <span className="inline-flex items-center gap-1">
+                      <Link
+                        href={`/invoices/${renewal.invoiceId}`}
+                        className="text-[11px] text-foreground hover:underline"
+                      >
+                        View invoice
+                      </Link>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon-xs"
+                            variant="ghost"
+                            aria-label="Unlink renewal invoice"
+                            disabled={isPending}
+                            onClick={() => unlinkInvoice(renewal)}
+                          >
+                            <Unlink />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Unlink invoice</TooltipContent>
+                      </Tooltip>
+                    </span>
+                  )}
+                  {!renewal.invoiceId && renewal.amount > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-auto px-0 text-[11px] hover:bg-transparent hover:underline"
+                      disabled={isPending}
+                      onClick={() => raiseInvoice(renewal)}
                     >
-                      View invoice
-                    </Link>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                      <FileText />
+                      Raise invoice
+                    </Button>
+                  )}
+                  {renewal.amount > 0 && (
+                    <RenewalTdsSheet
+                      campaignId={campaign.id}
+                      brand={campaign.brand}
+                      renewal={renewal}
+                      trigger={
                         <Button
                           type="button"
-                          size="icon-xs"
+                          size="sm"
                           variant="ghost"
-                          aria-label="Unlink renewal invoice"
+                          className="h-auto px-0 text-[11px] hover:bg-transparent hover:underline"
                           disabled={isPending}
-                          onClick={() => unlinkInvoice(renewal)}
                         >
-                          <Unlink />
+                          <Percent />
+                          {renewal.tdsRate === null && renewal.tdsAmount === null ? "Add TDS" : "Edit TDS"}
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Unlink invoice</TooltipContent>
-                    </Tooltip>
-                  </span>
-                )}
-                {!renewal.invoiceId && renewal.amount > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-auto px-0 text-[11px] hover:bg-transparent hover:underline"
-                    disabled={isPending}
-                    onClick={() => raiseInvoice(renewal)}
-                  >
-                    <FileText />
-                    Raise invoice
-                  </Button>
-                )}
+                      }
+                    />
+                  )}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <Badge variant="outline" className={renewalStatusClass(renewal)}>

@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeCampaign, makeRenewal, makeUsage } from "@/lib/testing/fixtures";
-import { calculateTdsAmount, summarizeTds, tdsFinancialYears } from "./tds";
+import type { CampaignRecord, StoredUsageRenewal } from "@/repositories/campaigns";
+import {
+  calculateTdsAmount,
+  estimateTdsFromRateInput,
+  resolveTds,
+  summarizeTds,
+  tdsFinancialYears,
+  validateTdsValues,
+} from "./tds";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -59,6 +67,8 @@ describe("summarizeTds", () => {
     expect(summary.payments).toEqual([
       {
         campaignId: "B",
+        renewalId: null,
+        source: "deal",
         campaign: "Launch",
         brand: "Beta",
         paidDate: "12/05/2026",
@@ -69,6 +79,8 @@ describe("summarizeTds", () => {
       },
       {
         campaignId: "A",
+        renewalId: null,
+        source: "deal",
         campaign: "Launch",
         brand: "Acme",
         paidDate: "10/05/2026",
@@ -133,15 +145,14 @@ describe("summarizeTds", () => {
     expect(summary.totalTds).toBe(0);
   });
 
-  // Current behaviour: renewal fees carry no TDS fields and are never read
-  // here. Step 6 adds TDS on renewals.
-  it("ignores usage renewal money", () => {
+  it("leaves out renewals with no TDS recorded", () => {
     const renewals = [makeRenewal({ amount: 5000, paidDate: "15/06/2026" })];
     const summary = summarizeTds(
       [makeCampaign({ amount: 10000, paidDate: "10/05/2026", tdsRate: 10, usage: makeUsage({ renewals }) })],
       2026
     );
 
+    expect(summary.payments.map((p) => p.source)).toEqual(["deal"]);
     expect(summary.totalCash).toBe(10000);
     expect(summary.totalTds).toBe(1000);
   });
@@ -199,5 +210,182 @@ describe("summarizeTds", () => {
       { brand: "Acme", paymentCount: 2, tdsAmount: 500 },
       { brand: "Unknown brand", paymentCount: 1, tdsAmount: 100 },
     ]);
+  });
+});
+
+describe("TDS on usage renewals", () => {
+  const dealWithRenewals = (renewals: StoredUsageRenewal[], deal: Partial<CampaignRecord> = {}) =>
+    makeCampaign({
+      id: "MSP-MC0007",
+      brand: "Acme",
+      campaign: "Summer",
+      amount: 20000,
+      paidDate: "10/05/2026",
+      tdsRate: 10,
+      usage: makeUsage({ days: 30, renewals }),
+      ...deal,
+    });
+
+  it("lists a received renewal as its own row, marked as a renewal", () => {
+    const summary = summarizeTds(
+      [dealWithRenewals([makeRenewal({ id: "R0001", amount: 5000, paidDate: "15/06/2026", tdsRate: 10 })])],
+      2026
+    );
+
+    expect(summary.payments).toEqual([
+      {
+        campaignId: "MSP-MC0007",
+        renewalId: "R0001",
+        source: "renewal",
+        campaign: "Summer",
+        brand: "Acme",
+        paidDate: "15/06/2026",
+        cashAmount: 5000,
+        tdsRate: 10,
+        tdsAmount: 500,
+        estimated: true,
+      },
+      {
+        campaignId: "MSP-MC0007",
+        renewalId: null,
+        source: "deal",
+        campaign: "Summer",
+        brand: "Acme",
+        paidDate: "10/05/2026",
+        cashAmount: 20000,
+        tdsRate: 10,
+        tdsAmount: 2000,
+        estimated: true,
+      },
+    ]);
+    expect(summary.totalCash).toBe(25000);
+    expect(summary.totalTds).toBe(2500);
+  });
+
+  it("uses a renewal's actual TDS over its rate", () => {
+    const summary = summarizeTds(
+      [dealWithRenewals([makeRenewal({ amount: 5000, paidDate: "15/06/2026", tdsRate: 10, tdsAmount: 450 })])],
+      2026
+    );
+
+    expect(summary.payments.find((p) => p.source === "renewal")).toMatchObject({
+      tdsAmount: 450,
+      estimated: false,
+    });
+  });
+
+  it("counts a renewal with TDS even when the deal itself has none", () => {
+    const summary = summarizeTds(
+      [
+        dealWithRenewals([makeRenewal({ amount: 4000, paidDate: "15/06/2026", tdsAmount: 400 })], {
+          tdsRate: null,
+        }),
+      ],
+      2026
+    );
+
+    expect(summary.payments.map((p) => p.source)).toEqual(["renewal"]);
+    expect(summary.totalTds).toBe(400);
+  });
+
+  it("files a renewal by its own paid date, not the deal's, across the 31 March / 1 April boundary", () => {
+    const campaigns = [
+      dealWithRenewals(
+        [
+          makeRenewal({ id: "R0001", amount: 3000, paidDate: "31/03/2027", tdsAmount: 300 }),
+          makeRenewal({ id: "R0002", amount: 3000, paidDate: "01/04/2027", tdsAmount: 300 }),
+        ],
+        { paidDate: "10/05/2026" }
+      ),
+    ];
+
+    expect(summarizeTds(campaigns, 2026).payments.map((p) => p.renewalId)).toEqual(["R0001", null]);
+    expect(summarizeTds(campaigns, 2027).payments.map((p) => p.renewalId)).toEqual(["R0002"]);
+  });
+
+  it("leaves out pending and undated renewals", () => {
+    const summary = summarizeTds(
+      [
+        dealWithRenewals(
+          [
+            makeRenewal({ id: "R0001", paymentStatus: "pending", paidDate: "15/06/2026", tdsRate: 10 }),
+            makeRenewal({ id: "R0002", paidDate: "", tdsRate: 10 }),
+          ],
+          { tdsRate: null }
+        ),
+      ],
+      2026
+    );
+
+    expect(summary.payments).toEqual([]);
+  });
+
+  it("adds renewals to their brand's totals", () => {
+    const summary = summarizeTds(
+      [
+        dealWithRenewals([
+          makeRenewal({ id: "R0001", amount: 5000, paidDate: "15/06/2026", tdsAmount: 500 }),
+          makeRenewal({ id: "R0002", amount: 5000, paidDate: "15/07/2026", tdsAmount: 500 }),
+        ]),
+        makeCampaign({ id: "B", brand: "Beta", amount: 25000, paidDate: "12/05/2026", tdsAmount: 2500 }),
+      ],
+      2026
+    );
+
+    expect(summary.brands).toEqual([
+      { brand: "Acme", paymentCount: 3, tdsAmount: 3000 },
+      { brand: "Beta", paymentCount: 1, tdsAmount: 2500 },
+    ]);
+  });
+
+  it("offers the financial years renewal TDS was paid in", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-27T06:00:00.000Z"));
+    const years = tdsFinancialYears([
+      dealWithRenewals([makeRenewal({ paidDate: "15/06/2024", tdsRate: 10 })], { tdsRate: null }),
+    ]);
+
+    expect(years).toEqual([2026, 2024]);
+  });
+
+  it("reads renewals stored before the TDS fields existed as carrying none", () => {
+    const legacy: StoredUsageRenewal = {
+      id: "R0001",
+      startDate: "01/06/2026",
+      days: 30,
+      amount: 3000,
+      paymentStatus: "received",
+      paymentDue: "",
+      paidDate: "15/06/2026",
+      paymentMethod: "",
+      invoiceId: "",
+      recordedAt: "2026-06-01T00:00:00.000Z",
+    };
+    const campaign = dealWithRenewals([legacy], { tdsRate: null });
+
+    expect(campaign.usage.renewals[0]).toMatchObject({ tdsRate: null, tdsAmount: null });
+    expect(summarizeTds([campaign], 2026).payments).toEqual([]);
+  });
+});
+
+describe("TDS form helpers", () => {
+  it("resolves the actual amount first, then the rate's estimate, else nothing", () => {
+    expect(resolveTds(10000, 10, 900)).toEqual({ amount: 900, estimated: false });
+    expect(resolveTds(10000, 10, null)).toEqual({ amount: 1000, estimated: true });
+    expect(resolveTds(10000, null, null)).toBeNull();
+  });
+
+  it("estimates from a typed rate only while it is between 0 and 100", () => {
+    expect(estimateTdsFromRateInput("10", 5000)).toBe(500);
+    expect(estimateTdsFromRateInput("  ", 5000)).toBeNull();
+    expect(estimateTdsFromRateInput("101", 5000)).toBeNull();
+    expect(estimateTdsFromRateInput("-1", 5000)).toBeNull();
+  });
+
+  it("rejects a rate outside 0 to 100 and a negative amount", () => {
+    expect(validateTdsValues(10, 500)).toBeNull();
+    expect(validateTdsValues(null, null)).toBeNull();
+    expect(validateTdsValues(101, null)).toMatch(/rate/);
+    expect(validateTdsValues(null, -1)).toMatch(/non-negative/);
   });
 });

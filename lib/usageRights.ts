@@ -241,6 +241,8 @@ export interface UsageAlert {
   campaign: string;
   /** The deal's own value, for ranking a list of decisions by what is at stake. */
   amount: number;
+  /** The deal's TDS rate, which a renewal recorded from the alert opens on. */
+  tdsRate: number | null;
   term: UsageTerm;
 }
 
@@ -263,6 +265,7 @@ export function selectExpiringUsage(campaigns: Campaign[], now: Date = new Date(
       brand: campaign.brand,
       campaign: campaign.campaign,
       amount: campaign.total,
+      tdsRate: campaign.tdsRate,
       term: usageTerm(campaign, now),
     }))
     .filter((alert) => alert.term.state === "expiring" || alert.term.state === "expired")

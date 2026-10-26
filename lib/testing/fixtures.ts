@@ -64,6 +64,8 @@ export function makeRenewal(overrides: Partial<UsageRenewalRecord> = {}): UsageR
     paymentMethod: "",
     invoiceId: "",
     recordedAt: "2026-06-01T00:00:00.000Z",
+    tdsRate: null,
+    tdsAmount: null,
     ...overrides,
   };
 }

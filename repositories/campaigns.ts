@@ -119,6 +119,14 @@ export interface UsageRenewalRecord {
    */
   invoiceId: string;
   recordedAt: string; // ISO, when the renewal was agreed in the app
+  /**
+   * TDS withheld from this renewal's fee, the same pair a deal carries: the
+   * rate estimates it, and an entered amount wins over the estimate (see
+   * summarizeTds in lib/tds.ts). null when not recorded. Absent on renewals
+   * written before the fields existed, which toUsage reads as null.
+   */
+  tdsRate: number | null;
+  tdsAmount: number | null;
 }
 
 export interface CampaignUsage {
@@ -172,8 +180,16 @@ export function emptyUsage(): CampaignUsage {
   return { days: 0, indefinite: false, fee: 0, status: "active", pausedOn: "", pausedDays: 0, endedOn: "", renewals: [] };
 }
 
-/** A renewal as stored: one written before terms moved to days carries `months`. */
-export type StoredUsageRenewal = Omit<UsageRenewalRecord, "days"> & { days?: number; months?: number };
+/**
+ * A renewal as stored: one written before terms moved to days carries
+ * `months`, and one written before TDS on renewals carries no TDS fields.
+ */
+export type StoredUsageRenewal = Omit<UsageRenewalRecord, "days" | "tdsRate" | "tdsAmount"> & {
+  days?: number;
+  months?: number;
+  tdsRate?: number | null;
+  tdsAmount?: number | null;
+};
 
 /** A licence as stored, in either the days shape or the months one before it. */
 export type StoredUsage = Omit<CampaignUsage, "days" | "indefinite" | "fee" | "renewals"> & {
@@ -235,6 +251,8 @@ export function toUsage(raw: StoredUsage | undefined, termStart: string): Campai
       ? raw.renewals.map(({ months, days, ...renewal }) => ({
           ...renewal,
           days: termDays({ days, months }, renewal.startDate ?? ""),
+          tdsRate: normalizeOptionalMoney(renewal.tdsRate),
+          tdsAmount: normalizeOptionalMoney(renewal.tdsAmount),
         }))
       : [],
   };

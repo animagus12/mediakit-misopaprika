@@ -400,6 +400,8 @@ export async function addCampaignUsageRenewal(
     // is the contract of the write and must not wait on a second store.
     invoiceId: "",
     recordedAt: new Date().toISOString(),
+    tdsRate: input.tdsRate,
+    tdsAmount: input.tdsAmount,
   };
 
   const written = writeUsage(records, before, {
@@ -441,6 +443,39 @@ export async function setUsageRenewalPayment(
     renewals: usage.renewals.map((renewal) =>
       renewal.id === renewalId
         ? { ...renewal, paymentStatus: status, paidDate: paidDate.trim() }
+        : renewal
+    ),
+  });
+  await redis.set(CAMPAIGNS_KEY, written.records);
+  return { before, after: written.after };
+}
+
+/**
+ * Records the TDS withheld from one renewal's fee, or clears it with nulls.
+ *
+ * The one part of a renewal that can change after it is recorded: the terms
+ * were agreed when it was, but how much tax the brand held back is often only
+ * known once the money lands or its certificate arrives.
+ */
+export async function setUsageRenewalTds(
+  id: string,
+  renewalId: string,
+  tds: Pick<UsageRenewalRecord, "tdsRate" | "tdsAmount">
+): Promise<RecordChange<CampaignRecord> | null> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before) return null;
+
+  const usage = toUsage(before.usage, usageTermStart(before));
+  if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return null;
+
+  const written = writeUsage(records, before, {
+    ...usage,
+    renewals: usage.renewals.map((renewal) =>
+      renewal.id === renewalId
+        ? { ...renewal, tdsRate: tds.tdsRate, tdsAmount: tds.tdsAmount }
         : renewal
     ),
   });
