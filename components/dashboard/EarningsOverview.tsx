@@ -10,6 +10,8 @@ import {
   currentMonthKey,
   monthsAgoKey,
   computeMonthTrend,
+  cashReceived,
+  computeMarginSeries,
   type MonthMargin,
 } from "@/lib/earnings";
 import type { MonthForecast } from "@/lib/cashTiming";
@@ -52,8 +54,11 @@ export function EarningsOverview({
   // Commission earns a tile only in a month that had some. It is a fifth
   // figure on a row built for four, and a permanent zero would cost every
   // other tile a quarter of its width to say nothing.
+  //
+  // Received is money only (cash plus commission). Barter is product, never
+  // money in the account, and already has its own tile beside it.
   const stats: Array<{ label: string; value: number; tone: StatTone }> = [
-    { label: "Received", value: thisMonth.total, tone: "neutral" },
+    { label: "Received", value: cashReceived(thisMonth), tone: "neutral" },
     { label: "Cash", value: thisMonth.paid, tone: "cash" },
     { label: "Barter value", value: thisMonth.barter, tone: "barter" },
     ...(thisMonth.commission > 0
@@ -66,8 +71,19 @@ export function EarningsOverview({
   // -1 because the window includes the month in progress: monthsAgoKey(6)
   // would put seven columns under a heading that promises six.
   const cutoff = monthsAgoKey(RECENT_MONTHS - 1);
-  const recent = summary.monthly.filter((m) => m.month >= cutoff);
-  const recentMargins = margins.filter((m) => m.month >= cutoff);
+  // One column per month that either earned or paid for editing, so a month
+  // that only paid an editor still gets an empty bar for the margin line to
+  // sit over. The line and the bars must cover the same months in the same
+  // order, or MarginTrend's points drift off the columns they belong to.
+  const earningsByMonth = new Map(summary.monthly.map((m) => [m.month, m]));
+  const marginByMonth = new Map(margins.map((m) => [m.month, m]));
+  const recentMonths = [...new Set([...earningsByMonth.keys(), ...marginByMonth.keys()])]
+    .filter((month) => month >= cutoff)
+    .sort((a, b) => b.localeCompare(a));
+  const recent = recentMonths.map((month) => earningsByMonth.get(month) ?? { month, ...EMPTY_MONTH });
+  const recentMargins = recent.map(
+    (month) => marginByMonth.get(month.month) ?? computeMarginSeries([month], new Map())[0]
+  );
 
   return (
     <section className="mb-6 space-y-3">

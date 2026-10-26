@@ -12,6 +12,7 @@ import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
 import { addDays, todayKey } from "./day";
+import { roundMoney } from "./money";
 
 export interface InvoiceLineItem extends InvoiceLineItemInput {
   id: string;
@@ -769,11 +770,72 @@ export interface InvoiceEditorJobOption {
   status: string;
 }
 
+/** The fields that decide whether an invoice holds an editor job. */
+export type InvoiceEditorJobClaim = Pick<Invoice, "id" | "invoiceNo" | "status" | "editorTransactionId">;
+
+/**
+ * Whether an invoice holds the editor job it links to.
+ *
+ * A void invoice does not: it was withdrawn, and voiding one to reissue it is
+ * exactly when the job has to move to the replacement. A draft does, since it
+ * is on its way to being issued and a second draft for the same edit is the
+ * duplicate this guards against. Truthiness rather than a null check, since a
+ * record stored before the link existed has no such field at all.
+ */
+export function holdsEditorJob(invoice: Pick<Invoice, "status" | "editorTransactionId">): boolean {
+  return Boolean(invoice.editorTransactionId) && invoice.status !== "void";
+}
+
+/**
+ * The other invoice already holding an editor job, or null when it is free.
+ *
+ * One edit is one cost: linked to two invoices, its cost is netted off both
+ * and the margin reads lower than it is. `exceptInvoiceId` is the invoice
+ * being edited, which never blocks its own link.
+ */
+export function findEditorJobHolder<T extends InvoiceEditorJobClaim>(
+  jobId: string | null,
+  invoices: T[],
+  exceptInvoiceId?: string | null
+): T | null {
+  if (!jobId) return null;
+  return (
+    invoices.find(
+      (invoice) => invoice.id !== exceptInvoiceId && holdsEditorJob(invoice) && invoice.editorTransactionId === jobId
+    ) ?? null
+  );
+}
+
+/** The error a save shows when the job it links is held by another invoice. */
+export function editorJobTakenMessage(holder: Pick<Invoice, "invoiceNo">): string {
+  return `That editor job is already linked to ${buildInvoiceNumber(holder.invoiceNo)}. Unlink it there first.`;
+}
+
 // Most recent (by assigned date) first: the job a fresh invoice is most
 // likely to bill for. Cancelled jobs are dropped: nothing to bill against.
-export function buildInvoiceEditorJobOptions(transactions: EditorTransaction[]): InvoiceEditorJobOption[] {
+//
+// With `claims`, the list is for the editor's picker: jobs another invoice
+// already holds are hidden, the same "linked once" rule the calendar and
+// campaign video pickers follow (buildEditorVideoOptions). The invoice being
+// edited keeps its own link visible even when legacy data shares it. Without
+// `claims` every job is returned, which is what the margin lookups need: they
+// resolve the job an invoice already links, whoever else links it.
+export function buildInvoiceEditorJobOptions(
+  transactions: EditorTransaction[],
+  claims?: { invoices: InvoiceEditorJobClaim[]; currentInvoiceId?: string | null }
+): InvoiceEditorJobOption[] {
+  const ownLink = claims?.currentInvoiceId
+    ? (claims.invoices.find((invoice) => invoice.id === claims.currentInvoiceId)?.editorTransactionId ?? null)
+    : null;
+  const heldElsewhere = new Set(
+    (claims?.invoices ?? [])
+      .filter((invoice) => invoice.id !== claims?.currentInvoiceId && holdsEditorJob(invoice))
+      .map((invoice) => invoice.editorTransactionId)
+  );
+
   return transactions
     .filter((txn) => txn.status.trim().toLowerCase() !== "cancelled")
+    .filter((txn) => txn.id === ownLink || !heldElsewhere.has(txn.id))
     .slice()
     .sort((a, b) => {
       const delta = parseSheetDate(b.videoDate) - parseSheetDate(a.videoDate);
@@ -825,21 +887,31 @@ export interface InvoiceMarginTotals {
  *
  * Drafts and void invoices are excluded, matching computeInvoiceStats: a
  * draft has not been issued, so nothing has been billed to net a cost off.
+ *
+ * Each editor job's cost is netted off once, however many invoices link it.
+ * Saving refuses a second link now, but data saved before that rule can still
+ * hold one job on two invoices (a deal and its renewal, say). Both still count
+ * as billed; the edit was only paid for once.
  */
 export function computeInvoiceMarginTotals(
   invoices: Invoice[],
   jobs: InvoiceEditorJobOption[]
 ): InvoiceMarginTotals {
   const totals: InvoiceMarginTotals = { invoices: 0, billed: 0, editorCost: 0, margin: 0 };
+  const costed = new Set<string>();
   for (const invoice of invoices) {
     if (invoice.status === "void" || invoice.status === "draft") continue;
     const margin = computeInvoiceMargin(invoice, jobs);
-    if (!margin) continue;
+    if (!margin || !invoice.editorTransactionId) continue;
+    const editorCost = costed.has(invoice.editorTransactionId) ? 0 : margin.editorCost;
+    costed.add(invoice.editorTransactionId);
     totals.invoices += 1;
     totals.billed += invoice.subtotal;
-    totals.editorCost += margin.editorCost;
-    totals.margin += margin.margin;
+    totals.editorCost += editorCost;
   }
+  totals.billed = roundMoney(totals.billed);
+  totals.editorCost = roundMoney(totals.editorCost);
+  totals.margin = roundMoney(totals.billed - totals.editorCost);
   return totals;
 }
 

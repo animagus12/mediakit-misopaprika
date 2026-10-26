@@ -35,7 +35,7 @@ import {
   computeInvoiceStats,
 } from "@/lib/invoice";
 import { computeEditorPayouts, computeMonthlyEditorCost } from "@/lib/editorTransactions";
-import { computeMarginSeries, currentMonthKey } from "@/lib/earnings";
+import { cashReceived, computeMarginSeries, currentMonthKey } from "@/lib/earnings";
 import { computeCollectionLag, computeMonthForecast } from "@/lib/cashTiming";
 import { computeRateRealization, toRateCard } from "@/lib/rateCard";
 import { computeFallthroughRate, computePipelineValue } from "@/lib/dealFlow";
@@ -219,7 +219,7 @@ async function EarningsSection() {
   return (
     <EarningsOverview
       summary={earnings}
-      forecast={computeMonthForecast(campaigns, thisMonth?.total ?? 0)}
+      forecast={computeMonthForecast(campaigns, thisMonth ? cashReceived(thisMonth) : 0)}
       margins={computeMarginSeries(earnings.monthly, computeMonthlyEditorCost(editorTransactions))}
     />
   );

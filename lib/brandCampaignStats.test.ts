@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeBrandCampaignRecord, makeDuePayment } from "@/lib/testing/fixtures";
-import { selectDuePayments, summarizeDuePayments } from "./brandCampaignStats";
+import { makeBrandCampaignRecord, makeDuePayment, makeRenewal } from "@/lib/testing/fixtures";
+import { emptyUsage } from "@/repositories/campaigns";
+import { computeBrandStats, selectDuePayments, summarizeDuePayments } from "./brandCampaignStats";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -102,6 +103,34 @@ describe("summarizeDuePayments", () => {
       windowDays: 30,
       cashInWindow: 6000,
       windowCount: 3,
+    });
+  });
+});
+
+describe("computeBrandStats", () => {
+  it("keeps barter out of cash received while total received still counts it", () => {
+    const stats = computeBrandStats([
+      makeBrandCampaignRecord({
+        campaignId: "1",
+        amount: 6000,
+        barterValue: 4000,
+        paymentStatus: "received",
+        usage: {
+          ...emptyUsage(),
+          renewals: [
+            makeRenewal({ id: "R1", amount: 2000, paymentStatus: "received" }),
+            makeRenewal({ id: "R2", amount: 1500, paymentStatus: "pending" }),
+          ],
+        },
+      }),
+      makeBrandCampaignRecord({ campaignId: "2", amount: 3000, barterValue: 1000, paymentStatus: "pending" }),
+    ]);
+
+    expect(stats).toMatchObject({
+      totalReceived: 12000,
+      cashReceived: 8000,
+      pending: 5500,
+      renewalReceived: 2000,
     });
   });
 });

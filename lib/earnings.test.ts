@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { makeMonthlyEarnings } from "@/lib/testing/fixtures";
-import { computeMarginSeries } from "./earnings";
+import { cashReceived, computeMarginSeries } from "./earnings";
 
 describe("computeMarginSeries", () => {
   it("nets each month's cash and commission against its editing cost", () => {
@@ -56,10 +56,7 @@ describe("computeMarginSeries", () => {
     expect(series.map((m) => m.month)).toEqual(["2026-06", "2026-04"]);
   });
 
-  // KNOWN BUG, fixed in step 3: the series is built only from months that had
-  // income, so editing paid for in a month with none (here April) vanishes
-  // from the chart instead of showing as a loss.
-  it("drops editing cost in a month with no income", () => {
+  it("keeps a month that paid for editing but received nothing", () => {
     const series = computeMarginSeries(
       [makeMonthlyEarnings("2026-05", { paid: 5000 })],
       new Map([
@@ -70,6 +67,38 @@ describe("computeMarginSeries", () => {
 
     expect(series).toEqual([
       { month: "2026-05", cash: 5000, editorCost: 1000, margin: 4000, marginPercent: 80 },
+      { month: "2026-04", cash: 0, editorCost: 800, margin: -800, marginPercent: null },
     ]);
+  });
+
+  it("orders the union of both inputs newest first", () => {
+    const series = computeMarginSeries(
+      [makeMonthlyEarnings("2026-06", { paid: 1 }), makeMonthlyEarnings("2026-03", { paid: 2 })],
+      new Map([
+        ["2026-04", 300],
+        ["2026-07", 100],
+      ])
+    );
+
+    expect(series.map((m) => m.month)).toEqual(["2026-07", "2026-06", "2026-04", "2026-03"]);
+  });
+
+  it("rounds away floating point drift in cash and margin", () => {
+    const series = computeMarginSeries(
+      [makeMonthlyEarnings("2026-05", { paid: 0.1, commission: 0.2 })],
+      new Map([["2026-05", 0.1]])
+    );
+
+    expect(series[0]).toMatchObject({ cash: 0.3, editorCost: 0.1, margin: 0.2 });
+  });
+});
+
+describe("cashReceived", () => {
+  it("is deal cash plus commission and never barter or pending", () => {
+    expect(
+      cashReceived(
+        makeMonthlyEarnings("2026-05", { paid: 4000, commission: 1500, barter: 6000, pending: 9000, total: 11500 })
+      )
+    ).toBe(5500);
   });
 });

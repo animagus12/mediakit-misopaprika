@@ -3,6 +3,9 @@ import { getRedis } from "@/lib/cache";
 import type { RecordChange } from "@/lib/activityDiff";
 import {
   buildInvoiceNumber,
+  editorJobTakenMessage,
+  findEditorJobHolder,
+  holdsEditorJob,
   invoiceNoKey,
   isInvoiceNoTaken,
   isValidPanNumber,
@@ -128,6 +131,20 @@ function assertInvoiceNoFree(invoiceNo: string, records: InvoiceRecord[], except
   }
 }
 
+// One editing job is one cost, so it bills against one invoice: linked to two,
+// the margin after editing subtracts it twice. Refused here for the same
+// reason assertInvoiceNoFree is: the editor's picker already hides held jobs,
+// but a form opened before another invoice took the job would not know.
+function assertEditorJobFree(
+  invoice: Pick<InvoiceRecord, "status" | "editorTransactionId">,
+  records: InvoiceRecord[],
+  exceptId?: string
+): void {
+  if (!holdsEditorJob(invoice)) return;
+  const holder = findEditorJobHolder(invoice.editorTransactionId, records, exceptId);
+  if (holder) throw new Error(editorJobTakenMessage(holder));
+}
+
 export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
@@ -140,6 +157,7 @@ export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
     createdAt: now,
     updatedAt: now,
   };
+  assertEditorJobFree(record, records);
   await redis.set(INVOICES_KEY, [...records, record]);
   return record;
 }
@@ -166,6 +184,13 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
     assertInvoiceNoFree(input.invoiceNo, records, input.id);
   }
   const after: InvoiceRecord = { ...before, ...normalize(input), updatedAt: new Date().toISOString() };
+  // Only when this save takes a job it did not already hold (a new link, or a
+  // void invoice coming back): an invoice that shares a job from before the
+  // rule should still take other edits, and is fixed by unlinking one side.
+  const takesJob =
+    holdsEditorJob(after) &&
+    (after.editorTransactionId !== before.editorTransactionId || !holdsEditorJob(before));
+  if (takesJob) assertEditorJobFree(after, records, input.id);
   await redis.set(INVOICES_KEY, records.map((record) => (record.id === input.id ? after : record)));
   return { before, after };
 }
@@ -237,5 +262,9 @@ export async function restoreInvoice(record: InvoiceRecord): Promise<void> {
   const records = await readRecords();
   if (records.some((entry) => entry.id === record.id)) return;
   assertInvoiceNoFree(record.invoiceNo, records);
-  await redis.set(INVOICES_KEY, [...records, record]);
+  // The job may have been linked to another invoice while this one sat in
+  // Trash. The invoice comes back without the link rather than not at all,
+  // since the job's cost already belongs to the one that holds it now.
+  const jobTaken = holdsEditorJob(record) && findEditorJobHolder(record.editorTransactionId, records, record.id);
+  await redis.set(INVOICES_KEY, [...records, jobTaken ? { ...record, editorTransactionId: null } : record]);
 }

@@ -35,8 +35,11 @@ export interface MonthlyEarnings {
    * which is tracked separately below.
    *
    * The name undersells that, so it is worth saying: a deal still awaiting
-   * payment contributes to `pending` and to nothing else here. The dashboard
-   * renders this column as "Received" for the same reason.
+   * payment contributes to `pending` and to nothing else here.
+   *
+   * Not what a "Received" label shows: this counts barter, which is product
+   * rather than money. Those surfaces read cashReceived (lib/earnings.ts),
+   * which is `paid` plus `commission`.
    */
   total: number;
   paid: number;

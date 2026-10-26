@@ -4,12 +4,15 @@
 
 ### Added
 
-- **Automated checks now guard the money calculations.** Earnings, TDS, invoice totals, editor costs, margins and the payments-due summary are covered by tests that run with `npm test`, so a change that shifts any of these figures is caught before it ships. Three figures known to be wrong (the margin chart, invoice margin totals and the Received tile) are pinned as they are today and marked to be corrected next.
+- **Automated checks now guard the money calculations.** Earnings, TDS, invoice totals, editor costs, margins and the payments-due summary are covered by tests that run with `npm test`, so a change that shifts any of these figures is caught before it ships.
 
 ### Changed
 
 - **The TDS & tax page and every save now require login.** The **TDS & tax** page was reachable without signing in; it now redirects to the login page like the rest of the dashboard. Every save, delete, restore and search also checks the login itself, so an expired session shows "Your session has expired. Log in again." instead of changing anything.
 - **Older backups stay restorable as the app grows.** New backups are written as version 2, and restore accepts both version 1 and version 2 files and online snapshots even when they lack a collection added later. Before you confirm a restore, the dialog (and the online snapshot preview) lists any collections the backup does not contain; restoring clears those in the workspace, all in one step. Backups from a newer version of the app are refused rather than partly restored.
+- **Received now means money in the account.** The dashboard's **Received** tile, the **Received** column in the monthly breakdown on Campaigns and a brand's **Total received** now count cash and affiliate commission only. Barter keeps its own tile and column, and the month's forecast beside the tiles counts cash only to match.
+- **The cash-kept line no longer skips months that only paid an editor.** A month where editing was paid for but no money came in now shows on the dashboard chart as an empty bar with a negative margin, instead of disappearing along with its editing cost.
+- **An editor job can be linked to only one invoice.** The invoice editor's job picker hides jobs already linked to another invoice (a void invoice releases its job), and saving an invoice with a job another invoice holds is refused with a message naming that invoice. **Margin after editing** now subtracts each job's cost once, even where older invoices already share a job.
 
 ## Removed
 

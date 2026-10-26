@@ -62,7 +62,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         linkedCampaign={linkedCampaign}
         takenInvoiceNumbers={takenInvoiceNumbers}
         brandOptions={buildInvoiceBrandOptions(brands, contacts)}
-        editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions)}
+        editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions, { invoices, currentInvoiceId: id })}
       />
     </AppShell>
   );

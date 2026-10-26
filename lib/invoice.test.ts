@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeEditorJob, makeInvoice } from "@/lib/testing/fixtures";
+import { makeEditorJob, makeEditorTransaction, makeInvoice } from "@/lib/testing/fixtures";
 import {
+  buildInvoiceEditorJobOptions,
   computeBalanceDue,
   computeInvoiceMargin,
   computeInvoiceMarginTotals,
   computeInvoiceStats,
   computeSubtotal,
+  editorJobTakenMessage,
+  findEditorJobHolder,
+  holdsEditorJob,
   isInvoiceOverdue,
   paymentStatusForInvoice,
 } from "./invoice";
@@ -200,18 +204,110 @@ describe("computeInvoiceMarginTotals", () => {
     expect(totals).toEqual({ invoices: 2, billed: 14000, editorCost: 1600, margin: 12400 });
   });
 
-  // KNOWN BUG, fixed in step 3: one editor job linked to two invoices (a deal
-  // and its renewal, say) has its cost subtracted once per invoice, so the
-  // 1,000 the edit cost is counted as 2,000.
-  it("counts one editor job's cost once per invoice it is linked to", () => {
+  it("nets one editor job's cost once however many invoices link it", () => {
     const totals = computeInvoiceMarginTotals(
       [
         makeInvoice({ id: "1", status: "sent", editorTransactionId: "ET0001" }),
-        makeInvoice({ id: "2", status: "paid", editorTransactionId: "ET0001" }),
+        makeInvoice({
+          id: "2",
+          status: "paid",
+          editorTransactionId: "ET0001",
+          items: [{ desc: "", sub: "", qty: 1, price: 3000 }],
+        }),
       ],
       [makeEditorJob({ id: "ET0001", amount: 1000 })]
     );
 
-    expect(totals).toEqual({ invoices: 2, billed: 20000, editorCost: 2000, margin: 18000 });
+    expect(totals).toEqual({ invoices: 2, billed: 13000, editorCost: 1000, margin: 12000 });
+  });
+
+  it("rounds away floating point drift in the totals", () => {
+    const totals = computeInvoiceMarginTotals(
+      [
+        makeInvoice({ id: "1", editorTransactionId: "ET0001", items: [{ desc: "", sub: "", qty: 1, price: 0.1 }] }),
+        makeInvoice({ id: "2", editorTransactionId: "ET0002", items: [{ desc: "", sub: "", qty: 1, price: 0.2 }] }),
+      ],
+      [makeEditorJob({ id: "ET0001", amount: 0 }), makeEditorJob({ id: "ET0002", amount: 0.1 })]
+    );
+
+    expect(totals).toEqual({ invoices: 2, billed: 0.3, editorCost: 0.1, margin: 0.2 });
+  });
+});
+
+describe("holdsEditorJob", () => {
+  it("is true for a linked invoice in any status but void", () => {
+    expect(holdsEditorJob({ status: "draft", editorTransactionId: "ET0001" })).toBe(true);
+    expect(holdsEditorJob({ status: "sent", editorTransactionId: "ET0001" })).toBe(true);
+    expect(holdsEditorJob({ status: "paid", editorTransactionId: "ET0001" })).toBe(true);
+    expect(holdsEditorJob({ status: "void", editorTransactionId: "ET0001" })).toBe(false);
+    expect(holdsEditorJob({ status: "sent", editorTransactionId: null })).toBe(false);
+  });
+});
+
+describe("findEditorJobHolder", () => {
+  const invoices = [
+    makeInvoice({ id: "1", invoiceNo: "0001", status: "sent", editorTransactionId: "ET0001" }),
+    makeInvoice({ id: "2", invoiceNo: "0002", status: "void", editorTransactionId: "ET0002" }),
+  ];
+
+  it("finds the other invoice holding the job", () => {
+    expect(findEditorJobHolder("ET0001", invoices)?.id).toBe("1");
+  });
+
+  it("never blocks the invoice being edited on its own link", () => {
+    expect(findEditorJobHolder("ET0001", invoices, "1")).toBeNull();
+  });
+
+  it("treats a job linked only from a void invoice as free", () => {
+    expect(findEditorJobHolder("ET0002", invoices)).toBeNull();
+  });
+
+  it("is null with no job to look for", () => {
+    expect(findEditorJobHolder(null, invoices)).toBeNull();
+  });
+
+  it("names the holding invoice in the error a save shows", () => {
+    expect(editorJobTakenMessage(invoices[0])).toContain("0001");
+  });
+});
+
+describe("buildInvoiceEditorJobOptions", () => {
+  const transactions = [
+    makeEditorTransaction({ id: "ET0001", videoDate: "01/05/2026" }),
+    makeEditorTransaction({ id: "ET0002", videoDate: "02/05/2026" }),
+    makeEditorTransaction({ id: "ET0003", videoDate: "03/05/2026" }),
+    makeEditorTransaction({ id: "ET0004", videoDate: "04/05/2026", status: "Cancelled" }),
+  ];
+
+  it("returns every job that is not cancelled, newest first, without claims", () => {
+    expect(buildInvoiceEditorJobOptions(transactions).map((job) => job.id)).toEqual([
+      "ET0003",
+      "ET0002",
+      "ET0001",
+    ]);
+  });
+
+  it("hides jobs another invoice holds from a new invoice's picker", () => {
+    const invoices = [
+      makeInvoice({ id: "1", editorTransactionId: "ET0001" }),
+      makeInvoice({ id: "2", status: "void", editorTransactionId: "ET0002" }),
+    ];
+
+    expect(buildInvoiceEditorJobOptions(transactions, { invoices }).map((job) => job.id)).toEqual([
+      "ET0003",
+      "ET0002",
+    ]);
+  });
+
+  it("keeps the edited invoice's own link visible even when legacy data shares it", () => {
+    const invoices = [
+      makeInvoice({ id: "1", editorTransactionId: "ET0001" }),
+      makeInvoice({ id: "2", editorTransactionId: "ET0001" }),
+      makeInvoice({ id: "3", editorTransactionId: "ET0003" }),
+    ];
+
+    expect(
+      buildInvoiceEditorJobOptions(transactions, { invoices, currentInvoiceId: "2" }).map((job) => job.id)
+    ).toEqual(["ET0002", "ET0001"]);
   });
 });

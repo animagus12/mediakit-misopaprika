@@ -152,7 +152,7 @@ export function BrandPaymentsTab({
           <CardHeader>
             <CardDescription>Total received</CardDescription>
             <CardTitle className={cn("text-base tabular-nums", STAT_TONES.cash.value)}>
-              {formatMoney(stats.totalReceived)}
+              {formatMoney(stats.cashReceived)}
             </CardTitle>
           </CardHeader>
         </Card>

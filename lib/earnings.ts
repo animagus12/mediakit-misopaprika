@@ -1,4 +1,5 @@
 import { addMonths, monthKeyOf, todayKey } from "@/lib/day";
+import { roundMoney, sumMoney } from "@/lib/money";
 import type { MonthlyEarnings } from "@/repositories/earnings";
 
 export function monthLabel(month: string): string {
@@ -22,6 +23,17 @@ export function currentMonthKey(now: Date = new Date()): string {
 // "YYYY-MM" strings compare chronologically as plain strings.
 export function monthsAgoKey(count: number, now: Date = new Date()): string {
   return addMonths(currentMonthKey(now), -count);
+}
+
+/**
+ * Spendable money received in a month: deal cash plus affiliate commission.
+ *
+ * MonthlyEarnings.total also counts barter, which is product rather than
+ * money. Anything labelled "Received" or netted against a cash cost reads
+ * this instead, and barter keeps its own figure beside it.
+ */
+export function cashReceived(month: Pick<MonthlyEarnings, "paid" | "commission">): number {
+  return sumMoney([month.paid, month.commission]);
 }
 
 function monthlyTotal(monthly: MonthlyEarnings[], key: string): number {
@@ -116,18 +128,29 @@ export interface MonthMargin {
  * case only when no cash came in either, so a caller can tell "kept all of it"
  * apart from "there was nothing to keep".
  *
- * Order follows `monthly`, which is newest-first.
+ * The reverse holds too: a month that paid for editing but received nothing
+ * still appears, with zero cash and a negative margin. Building the series
+ * from `monthly` alone dropped those months, and with them the editing bill
+ * paid ahead of the income it was for, which is exactly the month a creator
+ * most needs to see.
+ *
+ * Newest-first, like `monthly`: the months are the union of both inputs.
  */
 export function computeMarginSeries(
   monthly: MonthlyEarnings[],
   editorCostByMonth: Map<string, number>
 ): MonthMargin[] {
-  return monthly.map((month) => {
-    const editorCost = editorCostByMonth.get(month.month) ?? 0;
-    const cash = month.paid + month.commission;
-    const margin = cash - editorCost;
+  const cashByMonth = new Map(monthly.map((month) => [month.month, cashReceived(month)]));
+  const months = [...new Set([...cashByMonth.keys(), ...editorCostByMonth.keys()])].sort((a, b) =>
+    b.localeCompare(a)
+  );
+
+  return months.map((month) => {
+    const cash = cashByMonth.get(month) ?? 0;
+    const editorCost = roundMoney(editorCostByMonth.get(month) ?? 0);
+    const margin = roundMoney(cash - editorCost);
     return {
-      month: month.month,
+      month,
       cash,
       editorCost,
       margin,

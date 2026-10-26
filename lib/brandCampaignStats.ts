@@ -41,6 +41,12 @@ export interface BrandStats {
   campaignCount: number; // excludes cancelled
   totalBilled: number; // sum of Total, excluding cancelled
   totalReceived: number; // sum of Total where Payment column says received
+  /**
+   * Money only: the cash half of received deals plus received renewals.
+   * totalReceived also counts barter, which is product rather than money, so
+   * a figure labelled "received" reads this one instead.
+   */
+  cashReceived: number;
   pending: number; // sum of Total where Payment column says pending
   lastCollabDate: string | null; // DD/MM/YYYY, most recent non-cancelled record
   // Ad-usage renewal fees, broken out of the totals above rather than kept
@@ -56,6 +62,7 @@ export const EMPTY_STATS: BrandStats = {
   campaignCount: 0,
   totalBilled: 0,
   totalReceived: 0,
+  cashReceived: 0,
   pending: 0,
   lastCollabDate: null,
   renewalReceived: 0,
@@ -74,7 +81,10 @@ export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
 
     stats.campaignCount += 1;
     stats.totalBilled += record.total;
-    if (record.paymentStatus === "received") stats.totalReceived += record.total;
+    if (record.paymentStatus === "received") {
+      stats.totalReceived += record.total;
+      stats.cashReceived += record.amount;
+    }
     if (record.paymentStatus === "pending") stats.pending += record.total;
 
     for (const renewal of record.usage.renewals) {
@@ -83,6 +93,7 @@ export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
       if (renewal.paymentStatus === "received") {
         stats.renewalReceived += renewal.amount;
         stats.totalReceived += renewal.amount;
+        stats.cashReceived += renewal.amount;
       } else if (renewal.paymentStatus === "pending") {
         stats.renewalPending += renewal.amount;
         stats.pending += renewal.amount;

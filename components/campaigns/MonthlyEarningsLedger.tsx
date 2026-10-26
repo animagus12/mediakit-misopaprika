@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { formatMoney } from "@/lib/invoice";
-import { monthLabel, currentMonthKey, monthsAgoKey } from "@/lib/earnings";
+import { cashReceived, monthLabel, currentMonthKey, monthsAgoKey } from "@/lib/earnings";
 import type { MonthlyEarnings } from "@/repositories/earnings";
 
 // The month-by-month record of what every deal brought in, expandable to the
@@ -64,8 +64,9 @@ function MonthRow({
         </span>
       )}
       <span className="text-right tabular-nums text-muted-foreground">{formatMoney(month.pending)}</span>
+      {/* Money only: barter has its own column and is never in the account. */}
       <span className={highlight ? "text-right font-semibold tabular-nums" : "text-right font-medium tabular-nums"}>
-        {formatMoney(month.total)}
+        {formatMoney(cashReceived(month))}
       </span>
     </div>
   );
