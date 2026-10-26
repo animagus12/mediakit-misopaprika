@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Automated checks now guard the money calculations.** Earnings, TDS, invoice totals, editor costs, margins and the payments-due summary are covered by tests that run with `npm test`, so a change that shifts any of these figures is caught before it ships. Three figures known to be wrong (the margin chart, invoice margin totals and the Received tile) are pinned as they are today and marked to be corrected next.
+
 ### Changed
 
 - **The TDS & tax page and every save now require login.** The **TDS & tax** page was reachable without signing in; it now redirects to the login page like the rest of the dashboard. Every save, delete, restore and search also checks the login itself, so an expired session shows "Your session has expired. Log in again." instead of changing anything.
