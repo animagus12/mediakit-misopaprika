@@ -35,6 +35,7 @@ import { toCampaign } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { validateTdsValues } from "@/lib/tds";
+import { requireSession } from "@/lib/session.server";
 
 export interface CreatedBrand {
   id: string;
@@ -133,6 +134,9 @@ async function applyInvoiceLink(campaignId: string, invoiceId: string | null): P
 export async function unlinkCampaignInvoice(
   campaignId: string
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim()) return { success: false, error: "This deal has no campaign ID to update" };
   try {
     const [campaigns, invoices] = await Promise.all([campaignRepository.getAll(), getInvoices()]);
@@ -162,6 +166,9 @@ function revalidateCampaignPaths(): void {
 export async function createCampaign(
   input: CampaignFormValues
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
@@ -187,6 +194,9 @@ export async function createCampaign(
 export async function updateCampaign(
   input: CampaignFormUpdate
 ): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
@@ -281,6 +291,9 @@ export interface MarkPaymentResult {
 export async function markCampaignPaymentReceived(
   campaignId: string
 ): Promise<MarkPaymentResult | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
@@ -324,6 +337,9 @@ export async function unmarkCampaignPaymentReceived(
   campaignId: string,
   previousInvoiceStatus?: InvoiceStatus | null
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
@@ -408,6 +424,9 @@ export async function setCampaignUsageState(
   campaignId: string,
   transition: UsageTransition
 ): Promise<UsageResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
@@ -538,6 +557,9 @@ export async function renewCampaignUsage(
   campaignId: string,
   input: UsageRenewalFormValues
 ): Promise<RenewResult | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
@@ -595,6 +617,9 @@ export async function setUsageRenewalPaymentStatus(
   renewalId: string,
   status: CampaignPaymentStatus
 ): Promise<UsageResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim() || !renewalId.trim()) {
     return { success: false, error: "This renewal has no ID to update" };
   }
@@ -667,6 +692,9 @@ export async function unlinkRenewalInvoice(
   campaignId: string,
   renewalId: string
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim() || !renewalId.trim()) {
     return { success: false, error: "This renewal has no ID to update" };
   }
@@ -686,6 +714,9 @@ export async function raiseInvoiceForRenewal(
   campaignId: string,
   renewalId: string
 ): Promise<RenewResult | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!campaignId.trim() || !renewalId.trim()) {
     return { success: false, error: "This renewal has no ID to bill for" };
   }

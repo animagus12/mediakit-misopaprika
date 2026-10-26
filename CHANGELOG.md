@@ -6,6 +6,9 @@
 
 ### Changed
 
+- **The TDS & tax page and every save now require login.** The **TDS & tax** page was reachable without signing in; it now redirects to the login page like the rest of the dashboard. Every save, delete, restore and search also checks the login itself, so an expired session shows "Your session has expired. Log in again." instead of changing anything.
+- **Older backups stay restorable as the app grows.** New backups are written as version 2, and restore accepts both version 1 and version 2 files and online snapshots even when they lack a collection added later. Before you confirm a restore, the dialog (and the online snapshot preview) lists any collections the backup does not contain; restoring clears those in the workspace, all in one step. Backups from a newer version of the app are refused rather than partly restored.
+
 ## Removed
 
 ## [1.25.0] - 2026-10-10

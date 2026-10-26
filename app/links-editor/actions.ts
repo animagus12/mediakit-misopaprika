@@ -11,6 +11,7 @@ import {
   removeTrashEntry,
   setTrashEntryTargets,
 } from "@/repositories/trash.writer.server";
+import { requireSession } from "@/lib/session.server";
 
 type ActionResult =
   | { success: true; trashIds: string[]; warning?: string }
@@ -65,6 +66,9 @@ async function saveWithTrash(
 }
 
 export async function saveLinks(data: LinksData, deletions: LinkTrashDeletion[] = []): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const result = await saveWithTrash(data, deletions, ["draft"], false);
     revalidatePath("/links-editor");
@@ -78,6 +82,9 @@ export async function saveLinks(data: LinksData, deletions: LinkTrashDeletion[] 
 // on screen when Publish was clicked even if Save was never pressed: same
 // contract as publishMediaKit.
 export async function publishLinks(data: LinksData, deletions: LinkTrashDeletion[] = []): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const result = await saveWithTrash(data, deletions, ["draft", "published"], true);
     if (!result.success) return result;

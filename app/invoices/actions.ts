@@ -22,6 +22,7 @@ import type { InvoiceData } from "@/repositories/invoice";
 import type { InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
 import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import { requireSession } from "@/lib/session.server";
 
 type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
@@ -109,6 +110,9 @@ async function syncLinkedCampaignPayment(
 }
 
 export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await saveInvoiceData(data);
     revalidateStores("invoiceDefaults");
@@ -127,6 +131,9 @@ export async function createInvoice(
   input: NewInvoice,
   campaignId?: string
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const record = await addInvoice(input);
     // An invoice can be raised already marked paid against a deal that already
@@ -150,6 +157,9 @@ export async function createInvoice(
 }
 
 export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateInvoiceRecord(input);
     // Outside the write above for the same reason as the dashboard's mark
@@ -189,6 +199,9 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
 }
 
 export async function removeInvoice(id: string): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed: InvoiceRecord | null = null;
   try {

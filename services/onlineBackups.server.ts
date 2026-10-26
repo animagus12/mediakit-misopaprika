@@ -5,7 +5,10 @@ import {
   MAX_BACKUP_BYTES,
   createBackupSnapshot,
   parseBackupSnapshot,
+  previewBackup,
   restoreBackupSnapshot,
+  type BackupPreview,
+  type ParsedBackup,
 } from "./backups.server";
 
 const BACKUP_PREFIX = "mediakit-backups/";
@@ -31,35 +34,6 @@ export interface OnlineBackupSummary {
 export interface OnlineBackupPage {
   snapshots: OnlineBackupSummary[];
   nextCursor: string | null;
-}
-
-export interface OnlineBackupPreview {
-  exportedAt: string;
-  counts: {
-    brands: number;
-    campaigns: number;
-    invoices: number;
-    calendarItems: number;
-    contacts: number;
-    agencies: number;
-    affiliatePartners: number;
-    affiliatePayouts: number;
-    editorTransactions: number;
-    editors: number;
-    brandNotes: number;
-    campaignContacts: number;
-    trashEntries: number;
-    activityEntries: number;
-    invoiceDefaultsSaved: boolean;
-    linksDraftSaved: boolean;
-    linksPublishedSaved: boolean;
-    mediaKitDraftSaved: boolean;
-    mediaKitPublishedSaved: boolean;
-  };
-}
-
-function recordCount(value: unknown): number {
-  return Array.isArray(value) ? value.length : 0;
 }
 
 export function isOnlineBackupConfigured(): boolean {
@@ -217,7 +191,10 @@ export async function listOnlineBackups(cursor?: string): Promise<OnlineBackupPa
   return { snapshots, nextCursor: page.hasMore ? page.cursor ?? null : null };
 }
 
-async function readOnlineBackup(id: string) {
+// Decrypted snapshots go through the same tolerant parseBackupSnapshot as a
+// downloaded file, so an online save made before a collection existed still
+// restores, with that collection reported as missing in the preview.
+async function readOnlineBackup(id: string): Promise<ParsedBackup> {
   requireBlobStore();
   if (!SNAPSHOT_ID_PATTERN.test(id)) throw new Error("Invalid online backup identifier.");
 
@@ -247,42 +224,16 @@ async function readOnlineBackup(id: string) {
     throw new Error("The decrypted online backup is not valid JSON.");
   }
 
-  const snapshot = parseBackupSnapshot(value);
-  if (!snapshot) throw new Error("The online backup is not a supported MediaKit backup.");
-  return snapshot;
+  const parsed = parseBackupSnapshot(value);
+  if (!parsed) throw new Error("The online backup is not a supported MediaKit backup.");
+  return parsed;
 }
 
-export async function previewOnlineBackup(id: string): Promise<OnlineBackupPreview> {
-  const snapshot = await readOnlineBackup(id);
-  const records = snapshot.records;
-
-  return {
-    exportedAt: snapshot.exportedAt,
-    counts: {
-      brands: recordCount(records.brands),
-      campaigns: recordCount(records.campaigns),
-      invoices: recordCount(records.invoices),
-      calendarItems: recordCount(records.content_plan),
-      contacts: recordCount(records.contacts),
-      agencies: recordCount(records.agencies),
-      affiliatePartners: recordCount(records.affiliate_partners),
-      affiliatePayouts: recordCount(records.affiliate_payouts),
-      editorTransactions: recordCount(records.editor_transactions),
-      editors: recordCount(records.editors),
-      brandNotes: recordCount(records.brand_notes),
-      campaignContacts: recordCount(records.campaign_contacts),
-      trashEntries: recordCount(records.trash),
-      activityEntries: records.activity.length,
-      invoiceDefaultsSaved: records.invoice_draft !== null,
-      linksDraftSaved: records.links_draft !== null,
-      linksPublishedSaved: records.links_published !== null,
-      mediaKitDraftSaved: records.mediakit_draft !== null,
-      mediaKitPublishedSaved: records.mediakit_published !== null,
-    },
-  };
+export async function previewOnlineBackup(id: string): Promise<BackupPreview> {
+  return previewBackup(await readOnlineBackup(id));
 }
 
 export async function restoreOnlineBackup(id: string): Promise<void> {
-  const snapshot = await readOnlineBackup(id);
+  const { snapshot } = await readOnlineBackup(id);
   await restoreBackupSnapshot(snapshot);
 }

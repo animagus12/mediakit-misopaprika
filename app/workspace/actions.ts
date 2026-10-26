@@ -18,10 +18,14 @@ import { addEditor, getEditors, updateEditor as updateEditorRecord } from "@/rep
 import type { EditorUpdate, NewEditor } from "@/repositories/editors";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { getEditorTransactionRecord } from "@/repositories/editorTransactions.writer.server";
+import { requireSession } from "@/lib/session.server";
 
 export async function createEditor(
   input: NewEditor
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await addEditor(input);
     revalidateStores("editors");
@@ -41,6 +45,9 @@ export async function createEditor(
 export async function updateEditor(
   input: EditorUpdate
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     // Transactions are filed under the editor's name, so a rename has to carry
     // them along or that editor's history detaches: read the old name before
@@ -75,6 +82,9 @@ export async function updateEditor(
 export async function createEditorTransaction(
   input: NewEditorTransaction
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await addEditorTransaction(input);
     revalidateStores("editorTransactions");
@@ -96,6 +106,9 @@ export async function createEditorTransaction(
 export async function updateEditorTransaction(
   input: EditorTransactionUpdate
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateEditorTransactionRecord(input);
     revalidateStores("editorTransactions");
@@ -120,6 +133,9 @@ export async function setEditorTransactionStatus(
   id: string,
   status: string
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!isEditorTransactionStatus(status)) return { success: false, error: "Pick a status" };
   try {
     const change = await setEditorTransactionStatusRecord(id, status);
@@ -153,6 +169,9 @@ export async function changeEditorTransactionRevision(
   id: string,
   delta: 1 | -1
 ): Promise<{ success: true; charged: number } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (delta !== 1 && delta !== -1) return { success: false, error: "Invalid revision change" };
   try {
     const editors = await getEditors();
@@ -184,6 +203,9 @@ export async function changeEditorTransactionRevision(
 export async function removeEditorTransaction(
   id: string
 ): Promise<{ success: true; trashId?: string } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed: Awaited<ReturnType<typeof deleteEditorTransaction>> = null;
   try {

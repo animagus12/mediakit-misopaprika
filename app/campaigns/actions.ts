@@ -13,10 +13,14 @@ import {
 } from "@/repositories/campaignContacts.writer.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import type { TrashPayload } from "@/repositories/trash";
+import { requireSession } from "@/lib/session.server";
 
 type DeleteCampaignResult = { success: true; trashId?: string } | { success: false; error: string };
 
 export async function deleteCampaign(id: string): Promise<DeleteCampaignResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed = false;
 

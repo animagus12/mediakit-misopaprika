@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Cloud, DatabaseBackup, Download, Eye, RefreshCw, RotateCcw, Upload } from "lucide-react";
+import {
+  ChevronDown,
+  CircleAlert,
+  Cloud,
+  DatabaseBackup,
+  Download,
+  Eye,
+  RefreshCw,
+  RotateCcw,
+  Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -61,8 +71,14 @@ interface OnlineBackup {
   size: number;
 }
 
-function isOnlineBackupPreview(value: unknown): value is OnlineBackupPreview {
-  if (typeof value !== "object" || value === null || !("exportedAt" in value) || !("counts" in value)) {
+function isBackupPreview(value: unknown): value is BackupPreview {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("exportedAt" in value) ||
+    !("counts" in value) ||
+    !("missingCollections" in value)
+  ) {
     return false;
   }
   if (
@@ -70,7 +86,9 @@ function isOnlineBackupPreview(value: unknown): value is OnlineBackupPreview {
     !Number.isFinite(Date.parse(value.exportedAt)) ||
     typeof value.counts !== "object" ||
     value.counts === null ||
-    Array.isArray(value.counts)
+    Array.isArray(value.counts) ||
+    !Array.isArray(value.missingCollections) ||
+    !value.missingCollections.every((label) => typeof label === "string")
   ) {
     return false;
   }
@@ -88,7 +106,10 @@ interface OnlineBackupPage {
   nextCursor: string | null;
 }
 
-interface OnlineBackupPreview {
+// Mirrors BackupPreview in services/backups.server.ts, which this client
+// component cannot import. The same shape comes back for a chosen file
+// (POST /api/backup?preview=1) and for an online snapshot.
+interface BackupPreview {
   exportedAt: string;
   counts: {
     brands: number;
@@ -111,11 +132,17 @@ interface OnlineBackupPreview {
     mediaKitDraftSaved: boolean;
     mediaKitPublishedSaved: boolean;
   };
+  missingCollections: string[];
 }
 
 type RestoreSource =
   | { type: "file"; file: File }
   | { type: "online"; snapshot: OnlineBackup };
+
+type DialogPreview =
+  | { status: "loading" }
+  | { status: "ready"; preview: BackupPreview }
+  | { status: "error"; message: string };
 
 function getErrorMessage(value: unknown, fallback: string): string {
   if (typeof value === "object" && value !== null && "error" in value) {
@@ -154,6 +181,41 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Reads what a backup contains without restoring it. The server runs the same
+// validation a restore does, so a file it rejects here would fail to restore.
+async function fetchBackupPreview(source: RestoreSource): Promise<BackupPreview> {
+  const response =
+    source.type === "file"
+      ? await fetch("/api/backup?preview=1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: await source.file.text(),
+        })
+      : await fetch(`/api/backup/snapshots/${encodeURIComponent(source.snapshot.id)}`);
+  const result: unknown = await response.json();
+  if (!response.ok) {
+    throw new Error(getErrorMessage(result, "Couldn't preview this backup."));
+  }
+  if (!isBackupPreview(result)) {
+    throw new Error("The backup preview response was invalid.");
+  }
+  return result;
+}
+
+// Collections added after a backup was made are absent from it. Restoring
+// clears them here, so this is shown wherever a restore can be started.
+function MissingCollectionsNotice({ labels }: { labels: string[] }) {
+  if (labels.length === 0) return null;
+  return (
+    <div className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+      <CircleAlert className="mt-0.5 size-3.5 shrink-0" />
+      <p className="min-w-0 break-words">
+        Not in this backup: {labels.join(", ")}. Restoring clears these in this workspace.
+      </p>
+    </div>
+  );
+}
+
 async function fetchSnapshotPage(cursor?: string, signal?: AbortSignal): Promise<OnlineBackupPage> {
   const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
   const response = await fetch(`/api/backup/snapshots${query}`, { signal });
@@ -182,7 +244,11 @@ export function BackupRestorePanel() {
   const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(null);
   const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<Record<string, OnlineBackupPreview>>({});
+  const [previews, setPreviews] = useState<Record<string, BackupPreview>>({});
+  const [dialogPreview, setDialogPreview] = useState<DialogPreview | null>(null);
+  // Bumped on every open and close, so a preview that resolves after the
+  // dialog moved on to another backup (or closed) is dropped, not shown.
+  const dialogPreviewRequest = useRef(0);
 
   const loadSnapshots = useCallback(async (cursor?: string, append = false) => {
     try {
@@ -241,14 +307,48 @@ export function BackupRestorePanel() {
     }
   }
 
+  function openRestoreDialog(source: RestoreSource) {
+    setRestoreSource(source);
+    setDialogOpen(true);
+    const request = ++dialogPreviewRequest.current;
+    const cached = source.type === "online" ? previews[source.snapshot.id] : undefined;
+    if (cached) {
+      setDialogPreview({ status: "ready", preview: cached });
+      return;
+    }
+
+    setDialogPreview({ status: "loading" });
+    fetchBackupPreview(source)
+      .then((preview) => {
+        if (dialogPreviewRequest.current !== request) return;
+        setDialogPreview({ status: "ready", preview });
+        if (source.type === "online") {
+          setPreviews((current) => ({ ...current, [source.snapshot.id]: preview }));
+        }
+      })
+      .catch((error: unknown) => {
+        if (dialogPreviewRequest.current !== request) return;
+        setDialogPreview({
+          status: "error",
+          message: error instanceof Error ? error.message : "Couldn't preview this backup.",
+        });
+      });
+  }
+
+  function closeRestoreDialog() {
+    dialogPreviewRequest.current++;
+    setDialogOpen(false);
+    setRestoreSource(null);
+    setDialogPreview(null);
+  }
+
   function selectBackup(file: File | undefined) {
     if (!file) return;
     if (file.size > MAX_BACKUP_BYTES) {
       toast.error("Backup file is too large", { description: "Choose a JSON file no larger than 10 MB." });
       return;
     }
-    setRestoreSource({ type: "file", file });
-    setDialogOpen(true);
+    openRestoreDialog({ type: "file", file });
   }
 
   async function restoreBackup() {
@@ -274,8 +374,7 @@ export function BackupRestorePanel() {
         throw new Error(getErrorMessage(result, "Couldn't restore the backup."));
       }
 
-      setDialogOpen(false);
-      setRestoreSource(null);
+      closeRestoreDialog();
       toast.success("Backup restored");
       router.refresh();
     } catch (error) {
@@ -322,14 +421,7 @@ export function BackupRestorePanel() {
 
     setPreviewLoadingId(snapshot.id);
     try {
-      const response = await fetch(`/api/backup/snapshots/${encodeURIComponent(snapshot.id)}`);
-      const result: unknown = await response.json();
-      if (!response.ok) {
-        throw new Error(getErrorMessage(result, "Couldn't preview this backup."));
-      }
-      if (!isOnlineBackupPreview(result)) {
-        throw new Error("The backup preview response was invalid.");
-      }
+      const result = await fetchBackupPreview({ type: "online", snapshot });
       setPreviews((current) => ({ ...current, [snapshot.id]: result }));
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : "Couldn't preview this backup.");
@@ -474,10 +566,7 @@ export function BackupRestorePanel() {
                       size="sm"
                       variant="outline"
                       disabled={isRestoring || isCreatingOnlineBackup}
-                      onClick={() => {
-                        setRestoreSource({ type: "online", snapshot });
-                        setDialogOpen(true);
-                      }}
+                      onClick={() => openRestoreDialog({ type: "online", snapshot })}
                     >
                       <RotateCcw />
                       Restore this save
@@ -500,6 +589,7 @@ export function BackupRestorePanel() {
                           timeStyle: "short",
                         })} IST
                       </p>
+                      <MissingCollectionsNotice labels={preview.missingCollections} />
                       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                         {PREVIEW_COUNT_LABELS.map(([key, label]) => (
                           <div key={key}>
@@ -560,9 +650,8 @@ export function BackupRestorePanel() {
       <AlertDialog
         open={dialogOpen}
         onOpenChange={(open) => {
-          if (isRestoring) return;
-          setDialogOpen(open);
-          if (!open) setRestoreSource(null);
+          if (isRestoring || open) return;
+          closeRestoreDialog();
         }}
       >
         <AlertDialogContent>
@@ -576,11 +665,20 @@ export function BackupRestorePanel() {
                 : "Restoring this file will replace all supported records currently in this workspace. This cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {dialogPreview?.status === "loading" && (
+            <p className="text-xs text-muted-foreground">Checking what this backup contains…</p>
+          )}
+          {dialogPreview?.status === "error" && (
+            <p role="alert" className="break-words text-xs text-destructive">{dialogPreview.message}</p>
+          )}
+          {dialogPreview?.status === "ready" && (
+            <MissingCollectionsNotice labels={dialogPreview.preview.missingCollections} />
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={!restoreSource || isRestoring}
+              disabled={!restoreSource || isRestoring || dialogPreview?.status !== "ready"}
               onClick={(event) => {
                 event.preventDefault();
                 void restoreBackup();

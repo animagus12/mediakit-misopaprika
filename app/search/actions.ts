@@ -12,6 +12,7 @@ import type { Contact } from "@/repositories/contacts";
 import type { Invoice } from "@/repositories/invoices";
 import type { GlobalSearchResult } from "@/lib/globalSearch";
 import { buildInvoiceNumber } from "@/lib/invoice";
+import { requireSession } from "@/lib/session.server";
 
 type SearchResponse =
   | { success: true; results: GlobalSearchResult[] }
@@ -132,6 +133,9 @@ function contactResults(
 }
 
 export async function searchRecords(rawQuery: string): Promise<SearchResponse> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (typeof rawQuery !== "string") {
     return { success: false, error: "Enter a search term" };
   }

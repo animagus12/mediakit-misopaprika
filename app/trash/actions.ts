@@ -17,10 +17,14 @@ import { restoreEditorTransaction } from "@/repositories/editorTransactions.writ
 import { restoreInvoice, restoreInvoicesForBrand } from "@/repositories/invoices.writer.server";
 import { restoreLinksDeletion } from "@/repositories/links.writer.server";
 import { clearTrash, getTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import { requireSession } from "@/lib/session.server";
 
 type TrashActionResult = { success: true } | { success: false; error: string };
 
 export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const entry = await getTrashEntry(id);
     if (!entry) return { success: false, error: "That Trash item no longer exists" };
@@ -92,6 +96,9 @@ export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
 }
 
 export async function deleteTrashItem(id: string): Promise<TrashActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const entry = await getTrashEntry(id);
     if (!entry) return { success: false, error: "That Trash item no longer exists" };
@@ -107,6 +114,9 @@ export async function deleteTrashItem(id: string): Promise<TrashActionResult> {
 }
 
 export async function emptyTrash(): Promise<TrashActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await clearTrash();
     revalidatePath("/trash");
