@@ -1,4 +1,6 @@
 import { isDayKey } from "@/lib/day";
+import { isPayer, isPaymentMethod } from "@/lib/payers";
+import type { NewEditorTransaction } from "@/repositories/editorTransactions";
 
 // Exact values the quick-add form offers for Status. Kept client-safe (no
 // "server-only") since the form renders these as <Select> options.
@@ -16,6 +18,64 @@ export const DEFAULT_EDITOR_TRANSACTION_AMOUNT = 400;
 
 export function isEditorTransactionStatus(value: string): boolean {
   return EDITOR_TRANSACTION_STATUS_OPTIONS.includes(value);
+}
+
+// Matched the way computeEditorPayouts reads status, so a record imported as
+// " paid " counts as paid everywhere.
+export function isPaidEditorStatus(status: string): boolean {
+  return status.trim().toLowerCase() === "paid";
+}
+
+/**
+ * The paid date a transaction carries after its status changes.
+ *
+ * Becoming Paid stamps `today` unless a date is already recorded; leaving
+ * Paid clears it, since a date on unpaid work would read as a payment that
+ * never happened. Picking Paid again on work already paid keeps whatever it
+ * has, so a record from before paid dates existed isn't stamped with a day
+ * it wasn't paid on. `restore` is the undo path: the exact date the status
+ * change being undone took away.
+ *
+ * Dates are passed through untouched, so the caller picks the format (the
+ * store's DD/MM/YYYY throughout today).
+ */
+export function paidDateAfterStatusChange(
+  before: { status: string; paidDate?: string },
+  nextStatus: string,
+  today: string,
+  restore?: string
+): string {
+  if (!isPaidEditorStatus(nextStatus)) return "";
+  if (restore !== undefined) return restore;
+  const current = before.paidDate?.trim() ?? "";
+  if (isPaidEditorStatus(before.status)) return current;
+  return current || today;
+}
+
+function isOptionalDayKey(value: unknown): boolean {
+  return value === "" || (typeof value === "string" && isDayKey(value));
+}
+
+/**
+ * What's wrong with a submitted transaction, or null when it can be saved.
+ *
+ * Run by the server actions as well as implied by the form, because an action
+ * is reachable by a direct POST and the client's types are only a promise.
+ * Dates arrive as yyyy-mm-dd from <input type="date">.
+ */
+export function validateEditorTransactionInput(input: NewEditorTransaction): string | null {
+  if (typeof input.video !== "string" || !input.video.trim()) return "Enter the video";
+  if (typeof input.editor !== "string" || !input.editor.trim()) return "Pick an editor";
+  if (typeof input.status !== "string" || !isEditorTransactionStatus(input.status)) return "Pick a status";
+  if (input.amount !== null && (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount < 0)) {
+    return "Amount must be a non-negative number";
+  }
+  if (typeof input.videoDate !== "string" || !isDayKey(input.videoDate)) return "Enter a valid assigned date";
+  if (!isOptionalDayKey(input.deliveryDate)) return "Enter a valid delivery date";
+  if (!isOptionalDayKey(input.paidDate)) return "Enter a valid paid date";
+  if (input.paidBy !== undefined && !isPayer(input.paidBy)) return "Pick who paid";
+  if (input.paymentMethod !== undefined && !isPaymentMethod(input.paymentMethod)) return "Pick a payment method";
+  return null;
 }
 
 export interface RevisionState {
@@ -195,6 +255,65 @@ export function computeMonthlyEditorCost(
     if (month === "") continue;
 
     byMonth.set(month, (byMonth.get(month) ?? 0) + amount);
+  }
+
+  return byMonth;
+}
+
+export interface EditorCashOutflowMonth {
+  /** Everything paid out in the month, estimated part included. */
+  amount: number;
+  /**
+   * The part of `amount` filed by delivery (or assigned) date because the
+   * transaction has no paid date: work marked Paid before paid dates were
+   * recorded. A cash-flow view should say these months are estimates.
+   */
+  estimatedAmount: number;
+  count: number;
+  estimatedCount: number;
+}
+
+/**
+ * What actually left for editors, month by month.
+ *
+ * The cash counterpart to computeMonthlyEditorCost: only Paid transactions,
+ * bucketed on the day they were paid. A transaction with no paid date falls
+ * back to its delivery date, then its assigned date, and is counted in
+ * estimatedAmount so the caller can flag the month rather than present a
+ * guess as a bank statement.
+ *
+ * Keyed "YYYY-MM" like computeMonthlyEditorCost. Zero, missing and undatable
+ * amounts are dropped.
+ */
+export function computeEditorCashOutflowByMonth(
+  transactions: {
+    videoDate: string;
+    deliveryDate: string;
+    paidDate?: string;
+    amount: number | null;
+    status: string;
+  }[]
+): Map<string, EditorCashOutflowMonth> {
+  const byMonth = new Map<string, EditorCashOutflowMonth>();
+
+  for (const txn of transactions) {
+    if (!isPaidEditorStatus(txn.status)) continue;
+    const amount = txn.amount ?? 0;
+    if (amount === 0) continue;
+
+    const paidOn = toIsoDate(txn.paidDate ?? "");
+    const estimated = paidOn === "";
+    const month = (paidOn || toIsoDate(txn.deliveryDate) || toIsoDate(txn.videoDate)).slice(0, 7);
+    if (month === "") continue;
+
+    const bucket = byMonth.get(month) ?? { amount: 0, estimatedAmount: 0, count: 0, estimatedCount: 0 };
+    bucket.amount += amount;
+    bucket.count += 1;
+    if (estimated) {
+      bucket.estimatedAmount += amount;
+      bucket.estimatedCount += 1;
+    }
+    byMonth.set(month, bucket);
   }
 
   return byMonth;

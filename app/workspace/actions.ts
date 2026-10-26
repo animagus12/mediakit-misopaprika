@@ -4,7 +4,8 @@ import { revalidateStores } from "@/lib/revalidation";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
 import { editorFields, editorTransactionFields } from "@/lib/activityFields";
-import { isEditorTransactionStatus } from "@/lib/editorTransactions";
+import { isDayKey } from "@/lib/day";
+import { isEditorTransactionStatus, validateEditorTransactionInput } from "@/lib/editorTransactions";
 import {
   addEditorTransaction,
   changeEditorTransactionRevisions,
@@ -85,6 +86,8 @@ export async function createEditorTransaction(
   const denied = await requireSession();
   if (denied) return denied;
 
+  const invalid = validateEditorTransactionInput(input);
+  if (invalid) return { success: false, error: invalid };
   try {
     await addEditorTransaction(input);
     revalidateStores("editorTransactions");
@@ -109,6 +112,8 @@ export async function updateEditorTransaction(
   const denied = await requireSession();
   if (denied) return denied;
 
+  const invalid = validateEditorTransactionInput(input);
+  if (invalid) return { success: false, error: invalid };
   try {
     const change = await updateEditorTransactionRecord(input);
     revalidateStores("editorTransactions");
@@ -129,16 +134,28 @@ export async function updateEditorTransaction(
   }
 }
 
+/**
+ * `restorePaidDate` (yyyy-mm-dd, or "" for none) is only sent by Undo, to put
+ * back the paid date the change being undone cleared rather than stamping
+ * today's.
+ */
 export async function setEditorTransactionStatus(
   id: string,
-  status: string
+  status: string,
+  restorePaidDate?: string
 ): Promise<{ success: true } | { success: false; error: string }> {
   const denied = await requireSession();
   if (denied) return denied;
 
-  if (!isEditorTransactionStatus(status)) return { success: false, error: "Pick a status" };
+  if (typeof status !== "string" || !isEditorTransactionStatus(status)) {
+    return { success: false, error: "Pick a status" };
+  }
+  const restoreIsValid =
+    restorePaidDate === undefined ||
+    (typeof restorePaidDate === "string" && (restorePaidDate === "" || isDayKey(restorePaidDate)));
+  if (!restoreIsValid) return { success: false, error: "Enter a valid paid date" };
   try {
-    const change = await setEditorTransactionStatusRecord(id, status);
+    const change = await setEditorTransactionStatusRecord(id, status, restorePaidDate);
     if (!change) return { success: false, error: "That transaction no longer exists" };
     revalidateStores("editorTransactions");
     const detail = describeChanges(change, editorTransactionFields);

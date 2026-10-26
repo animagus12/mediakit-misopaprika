@@ -1,5 +1,6 @@
 import { campaignDeliverables } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
+import { payerLabel, toPayer } from "@/lib/payers";
 import { formatUsageDays, formatUsageGrant } from "@/lib/usageRights";
 import { countOf, type DiffField } from "@/lib/activityDiff";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
@@ -158,6 +159,12 @@ export const editorTransactionFields: readonly DiffField<EditorTransactionRecord
   // ?? 0: a record from before revisions existed has no count, and reading
   // that as a change to 0 would log an edit nobody made.
   { label: "revisions", value: (record) => record.revisions ?? 0 },
+  // Records from before payment details existed carry none of these, which
+  // renders as "" exactly like a cleared value, so they never log a change
+  // nobody made.
+  { label: "paid on", value: (record) => record.paidDate },
+  { label: "paid by", value: (record) => payerLabel(toPayer(record.paidBy)) },
+  { label: "payment method", value: (record) => record.paymentMethod },
   { label: "editor", value: (record) => record.editor },
   { label: "video", value: (record) => record.video },
   { label: "delivery date", value: (record) => record.deliveryDate },

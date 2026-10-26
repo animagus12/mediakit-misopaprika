@@ -78,6 +78,7 @@ export function EditorTransactionsTable({ transactions, editors }: EditorTransac
               Editor
             </SortableHead>
             <TableHead className="h-9">Status</TableHead>
+            <TableHead className="hidden h-9 md:table-cell">Paid on</TableHead>
             <TableHead className="h-9 w-8">
               <span className="sr-only">Actions</span>
             </TableHead>
