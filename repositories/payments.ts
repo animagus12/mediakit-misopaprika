@@ -201,6 +201,19 @@ export function isVirtualEntryId(id: string): boolean {
   return id.startsWith(LEGACY_ID_PREFIX);
 }
 
+/** The legacy field and target a virtual entry's id names, or null for any other id. */
+export function parseVirtualEntryId(id: string): { kind: LegacyKind; target: PaymentTarget } | null {
+  if (!isVirtualEntryId(id)) return null;
+  const [kind, targetKind, first, second, ...rest] = id.slice(LEGACY_ID_PREFIX.length).split(":");
+  if ((kind !== "status" && kind !== "advance") || rest.length > 0 || !first) return null;
+  if (targetKind === "deal" && second === undefined) return { kind, target: { kind: "deal", campaignId: first } };
+  if (targetKind === "invoice" && second === undefined) return { kind, target: { kind: "invoice", invoiceId: first } };
+  if (targetKind === "renewal" && second) {
+    return { kind, target: { kind: "renewal", campaignId: first, renewalId: second } };
+  }
+  return null;
+}
+
 /** A stored record as the ledger reads it. `bucketFallback` is the target's day key. */
 export function toLedgerEntry(record: PaymentRecord, bucketFallback: string): LedgerEntry {
   return {

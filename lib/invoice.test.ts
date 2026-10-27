@@ -13,7 +13,6 @@ import {
   invoiceFinancialYears,
   invoicesInFinancialYear,
   isInvoiceOverdue,
-  paymentStatusForInvoice,
 } from "./invoice";
 
 afterEach(() => {
@@ -182,32 +181,6 @@ describe("invoiceFinancialYears", () => {
     );
 
     expect(years).toEqual([2026, 2024]);
-  });
-});
-
-describe("paymentStatusForInvoice", () => {
-  const live = { status: "Posted" as const, paymentStatus: "pending" as const };
-
-  it("marks the deal received when its invoice is paid", () => {
-    expect(paymentStatusForInvoice(live, "paid")).toBe("received");
-    expect(paymentStatusForInvoice({ ...live, paymentStatus: "unknown" }, "paid")).toBe("received");
-  });
-
-  it("marks the deal pending when its invoice is sent", () => {
-    expect(paymentStatusForInvoice({ ...live, paymentStatus: "received" }, "sent")).toBe("pending");
-    expect(paymentStatusForInvoice({ ...live, paymentStatus: "unknown" }, "sent")).toBe("pending");
-  });
-
-  it("returns null when the deal already says so", () => {
-    expect(paymentStatusForInvoice({ ...live, paymentStatus: "received" }, "paid")).toBeNull();
-    expect(paymentStatusForInvoice(live, "sent")).toBeNull();
-  });
-
-  it("says nothing for drafts, void invoices or called-off deals", () => {
-    expect(paymentStatusForInvoice(live, "draft")).toBeNull();
-    expect(paymentStatusForInvoice(live, "void")).toBeNull();
-    expect(paymentStatusForInvoice({ ...live, status: "Cancelled" }, "paid")).toBeNull();
-    expect(paymentStatusForInvoice({ ...live, status: "Redacted" }, "sent")).toBeNull();
   });
 });
 

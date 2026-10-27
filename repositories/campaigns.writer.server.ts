@@ -131,10 +131,47 @@ export async function restoreCampaign(record: CampaignRecord): Promise<void> {
 // The usage licence is left out: it is the one field a form only ever sets
 // part of (the base term), and rewriting it wholesale here would drop the
 // renewals the form never sees. addCampaign and updateCampaign compose it.
+//
+// On a deal with cash, the payment is the ledger's (see lib/payments.ts): a
+// form can say the money is not tracked or expected, never that it arrived.
+// A stored "received" from before the ledger is kept, with the paid date,
+// method and actual TDS it came with, until its payment is recorded or edited
+// (paymentLedger.server.ts moves it into the ledger then). The TDS rate is
+// what the brand is expected to withhold.
+function cashPaymentFields(
+  input: NewCampaignInput,
+  existing: CampaignRecord | undefined
+): Pick<CampaignRecord, "paymentStatus" | "paidDate" | "paymentMethod" | "tdsAmount"> {
+  // A barter-only deal turning into one with cash: its date and status were
+  // the barter's (they move to barterStatus, see barterStatusOf), so the cash
+  // starts as expected, or not tracked when the form says so.
+  const wasBarterOnly = existing !== undefined && !campaignTypeHasCash(existing.type);
+  if (wasBarterOnly) {
+    return { paymentStatus: input.paymentStatus === "unknown" ? "unknown" : "pending", paidDate: "", paymentMethod: "", tdsAmount: null };
+  }
+  return {
+    paymentStatus:
+      existing?.paymentStatus === "received" ? "received" : input.paymentStatus === "unknown" ? "unknown" : "pending",
+    paidDate: existing?.paidDate ?? "",
+    paymentMethod: existing?.paymentMethod ?? "",
+    tdsAmount: existing?.tdsAmount ?? null,
+  };
+}
+
+// Where a Barter+Paid deal's barter half stands. A barter-only deal turning
+// into one with cash brings its delivery status along as the barter half's.
+function barterStatusOf(input: NewCampaignInput, existing: CampaignRecord | undefined): CampaignPaymentStatus | undefined {
+  if (input.type !== "Barter+Paid") return existing?.barterStatus;
+  if (existing && !campaignTypeHasCash(existing.type)) return existing.paymentStatus;
+  return input.barterStatus ?? existing?.barterStatus;
+}
+
 function normalize(
   input: NewCampaignInput,
   existing?: CampaignRecord
 ): Omit<CampaignRecord, "id" | "invoiceRef" | "invoiceId" | "usage"> {
+  const hasCash = campaignTypeHasCash(input.type);
+  const barterStatus = barterStatusOf(input, existing);
   return {
     date: input.date,
     brand: input.brand.trim(),
@@ -147,14 +184,24 @@ function normalize(
     status: input.status,
     amount: Number(input.amount) || 0,
     barterValue: Number(input.barterValue) || 0,
-    paymentStatus: input.paymentStatus,
+    ...(hasCash
+      ? cashPaymentFields(input, existing)
+      : {
+          paymentStatus: input.paymentStatus,
+          paidDate: input.paidDate?.trim() ?? "",
+          paymentMethod: input.paymentMethod?.trim() ?? "",
+          tdsAmount: input.tdsAmount === undefined ? existing?.tdsAmount ?? null : input.tdsAmount,
+        }),
+    ...(barterStatus !== undefined ? { barterStatus } : {}),
     uploadDate: input.uploadDate?.trim() ?? "",
     paymentDue: input.paymentDue?.trim() ?? "",
-    paidDate: input.paidDate?.trim() ?? "",
-    paymentMethod: input.paymentMethod?.trim() ?? "",
     tdsRate: input.tdsRate === undefined ? existing?.tdsRate ?? null : input.tdsRate,
-    tdsAmount: input.tdsAmount === undefined ? existing?.tdsAmount ?? null : input.tdsAmount,
-    editorTransactionId: input.editorTransactionId?.trim() || null,
+    // Absent keeps the link: a caller that has no job on screen must not
+    // unlink the one the deal has.
+    editorTransactionId:
+      input.editorTransactionId === undefined
+        ? existing?.editorTransactionId ?? null
+        : input.editorTransactionId?.trim() || null,
   };
 }
 
@@ -238,6 +285,12 @@ export async function updateCampaign(
   const records = await readRecords();
   const before = records.find((record) => record.id === input.id);
   if (!before) return null;
+  if (campaignTypeHasCash(before.type) && !campaignTypeHasCash(input.type)) {
+    const payments = await readPaymentRecords();
+    if (payments.some((payment) => payment.target.kind === "deal" && payment.target.campaignId === input.id)) {
+      throw new Error("Delete this deal's recorded payments before making it barter only");
+    }
+  }
   const usage = toUsage(before.usage, usageTermStart(before));
   const after: CampaignRecord = {
     ...before,
@@ -268,32 +321,65 @@ export async function updateCampaign(
   return { before, after };
 }
 
-// Writes just the paymentStatus and the day the money landed, leaving every
-// other field untouched. Powers the dashboard's one-click "Mark received"
-// action on the payments-due list (and its Undo, which puts it back to
-// "pending" and clears the date again).
-//
-// The date is passed in rather than read off the clock here: what counts as
-// "today" is the creator's civil day, which is a policy decision and lives one
-// layer up in campaignRepository, next to the other date conversions.
-// Answers the record it wrote, so a caller can name the deal without a
-// second read of the list this already fetched.
-export async function setCampaignPaymentStatus(
-  id: string,
-  status: CampaignPaymentStatus,
-  paidDate: string
-): Promise<CampaignRecord> {
+/**
+ * Clears the payment a deal (or one renewal, with `renewalId`) recorded before
+ * the payment ledger, once that payment has been written into the ledger
+ * (paymentLedger.server.ts). A stored "received" goes back to "pending" and
+ * its paid date, method and actual TDS go with it, since the ledger entry now
+ * holds them; the expected TDS rate stays. A Barter+Paid deal's single status
+ * covered its barter half too, so that half is marked delivered first.
+ *
+ * The only write to these fields outside the forms. Writes nothing when there
+ * is nothing to clear.
+ */
+export async function demoteCampaignLegacyPayment(id: string, renewalId: string | null): Promise<void> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  const found = records.find((r) => r.id === id);
-  if (!found) throw new Error(`Campaign "${id}" not found`);
-  const updated: CampaignRecord = { ...found, paymentStatus: status, paidDate: paidDate.trim() };
+  const before = records.find((record) => record.id === id);
+  if (!before) return;
+
+  let after: CampaignRecord = before;
+  if (renewalId === null) {
+    if (before.paymentStatus !== "received") return;
+    after = {
+      ...before,
+      ...(before.type === "Barter+Paid" && before.barterStatus === undefined ? { barterStatus: "received" as const } : {}),
+      paymentStatus: "pending",
+      paidDate: "",
+      paymentMethod: "",
+      tdsAmount: null,
+    };
+  } else {
+    const usage = toUsage(before.usage, usageTermStart(before));
+    const renewal = usage.renewals.find((entry) => entry.id === renewalId);
+    if (!renewal || renewal.paymentStatus !== "received") return;
+    after = writeUsage(records, before, {
+      ...usage,
+      renewals: usage.renewals.map((entry) =>
+        entry.id === renewalId
+          ? { ...entry, paymentStatus: "pending", paidDate: "", paymentMethod: "", tdsAmount: null }
+          : entry
+      ),
+    }).after;
+  }
+  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
+}
+
+/**
+ * Sets a deal with no payment tracked to expected: an invoice was sent for it,
+ * so money is now owed. Writes nothing on a deal already tracked.
+ */
+export async function markCampaignPaymentExpected(id: string): Promise<void> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before || before.paymentStatus !== "unknown" || !campaignTypeHasCash(before.type)) return;
   await redis.set(
     CAMPAIGNS_KEY,
-    records.map((record): CampaignRecord => (record.id === id ? updated : record))
+    records.map((record): CampaignRecord => (record.id === id ? { ...before, paymentStatus: "pending" } : record))
   );
-  return updated;
 }
 
 /**
@@ -414,9 +500,11 @@ export async function transitionCampaignUsage(
 
 /**
  * Storage-shaped (DD/MM/YYYY) renewal input; the id, the timestamp and the
- * invoice link are assigned here or attached afterwards.
+ * invoice link are assigned here or attached afterwards. Its money is
+ * recorded as payments (see paymentLedger.server.ts), so a new renewal is
+ * always expected (free: not tracked), never already received.
  */
-export type NewUsageRenewal = Omit<UsageRenewalRecord, "id" | "recordedAt" | "invoiceId">;
+export type NewUsageRenewal = Pick<UsageRenewalRecord, "startDate" | "days" | "amount" | "paymentDue" | "tdsRate">;
 
 /**
  * Extends the licence by another term, priced separately from the deal.
@@ -438,21 +526,22 @@ export async function addCampaignUsageRenewal(
   if (!before) return null;
 
   const usage = toUsage(before.usage, usageTermStart(before));
+  const amount = Number(input.amount) || 0;
   const renewal: UsageRenewalRecord = {
     id: nextSequenceId(usage.renewals.map((entry) => entry.id), "R"),
     startDate: input.startDate.trim(),
     days: Math.max(0, Math.round(Number(input.days) || 0)),
-    amount: Number(input.amount) || 0,
-    paymentStatus: input.paymentStatus,
+    amount,
+    paymentStatus: amount > 0 ? "pending" : "unknown",
     paymentDue: input.paymentDue.trim(),
-    paidDate: input.paidDate.trim(),
-    paymentMethod: input.paymentMethod.trim(),
+    paidDate: "",
+    paymentMethod: "",
     // Attached by setUsageRenewalInvoice once the invoice exists: the renewal
     // is the contract of the write and must not wait on a second store.
     invoiceId: "",
     recordedAt: new Date().toISOString(),
     tdsRate: input.tdsRate,
-    tdsAmount: input.tdsAmount,
+    tdsAmount: null,
   };
 
   const written = writeUsage(records, before, {
@@ -468,50 +557,17 @@ export async function addCampaignUsageRenewal(
 }
 
 /**
- * Marks one renewal's money as collected, or puts it back to pending.
+ * Sets the TDS rate a renewal's brand is expected to withhold, or clears it
+ * with null.
  *
- * Its own write rather than a branch of setCampaignPaymentStatus: a renewal is
- * a separate transaction from the deal that spawned it, and a deal can be paid
- * while the renewal against it is still owed.
- */
-export async function setUsageRenewalPayment(
-  id: string,
-  renewalId: string,
-  status: CampaignPaymentStatus,
-  paidDate: string
-): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
-
-  const usage = toUsage(before.usage, usageTermStart(before));
-  if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return null;
-
-  const written = writeUsage(records, before, {
-    ...usage,
-    renewals: usage.renewals.map((renewal) =>
-      renewal.id === renewalId
-        ? { ...renewal, paymentStatus: status, paidDate: paidDate.trim() }
-        : renewal
-    ),
-  });
-  await redis.set(CAMPAIGNS_KEY, written.records);
-  return { before, after: written.after };
-}
-
-/**
- * Records the TDS withheld from one renewal's fee, or clears it with nulls.
- *
- * The one part of a renewal that can change after it is recorded: the terms
- * were agreed when it was, but how much tax the brand held back is often only
- * known once the money lands or its certificate arrives.
+ * The rate only: what was actually withheld is recorded on each payment (see
+ * paymentLedger.server.ts). An actual amount stored before the ledger is kept
+ * as it was.
  */
 export async function setUsageRenewalTds(
   id: string,
   renewalId: string,
-  tds: Pick<UsageRenewalRecord, "tdsRate" | "tdsAmount">
+  tds: Pick<UsageRenewalRecord, "tdsRate">
 ): Promise<RecordChange<CampaignRecord> | null> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
@@ -525,9 +581,7 @@ export async function setUsageRenewalTds(
   const written = writeUsage(records, before, {
     ...usage,
     renewals: usage.renewals.map((renewal) =>
-      renewal.id === renewalId
-        ? { ...renewal, tdsRate: tds.tdsRate, tdsAmount: tds.tdsAmount }
-        : renewal
+      renewal.id === renewalId ? { ...renewal, tdsRate: tds.tdsRate } : renewal
     ),
   });
   await redis.set(CAMPAIGNS_KEY, written.records);

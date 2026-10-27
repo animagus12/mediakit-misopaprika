@@ -8,18 +8,12 @@ import {
   updateInvoice as updateInvoiceRecord,
 } from "@/repositories/invoices.writer.server";
 import { campaignRepository } from "@/repositories/campaignRepository";
-import {
-  buildInvoiceNumber,
-  computeSubtotal,
-  findInvoiceByCampaignRef,
-  invoiceOwner,
-  paymentStatusForInvoice,
-} from "@/lib/invoice";
+import { buildInvoiceNumber, computeSubtotal, findInvoiceByCampaignRef, invoiceOwner } from "@/lib/invoice";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
 import { invoiceFields } from "@/lib/activityFields";
 import type { InvoiceData } from "@/repositories/invoice";
-import type { InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
+import type { InvoiceRecord, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
 import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { requireSession } from "@/lib/session.server";
@@ -31,43 +25,22 @@ function toActionError(err: unknown, fallback: string): { success: false; error:
 }
 
 /**
- * The mirror of syncLinkedInvoiceStatus in app/(dashboard)/actions.ts: moving
- * an invoice to "paid" in the editor marks the deal it bills for as received,
- * and moving it back off "paid" returns the deal to pending. Saving an
- * invoice is also where the deal's invoiceId foreign key gets written, since
- * it is the moment both records exist and are known to be the same billing.
+ * Writes the deal's invoiceId foreign key when an invoice is saved, since it
+ * is the moment both records exist and are known to be the same billing.
  *
- * Without this the two records drift in the opposite direction from the
- * dashboard bug: the invoice reads Paid while "Payments due" still lists the
- * deal and Earnings still counts it as outstanding, because every one of
- * those is computed from Campaign.paymentStatus alone (see selectDuePayments).
- *
- * What the deal moves to is paymentStatusForInvoice's call: a "Not tracked"
- * deal follows its invoice too, and a called-off one never does.
+ * Only the link: whether the invoice is paid is read from the deal's payments
+ * (see lib/payments.ts), so nothing here moves money or a payment status.
  */
-async function syncLinkedCampaignPayment(
+async function linkInvoiceToCampaign(
   invoiceId: string,
   invoiceNo: string,
-  status: InvoiceStatus,
   options: { campaignId?: string; previousInvoiceNo?: string } = {}
 ): Promise<void> {
   const { campaignId, previousInvoiceNo } = options;
   const campaigns = await campaignRepository.getAll();
-  // A renewal's invoice bills a licence extension, not the deal: its payment
-  // lives on the renewal, and follows the invoice the way the renewal's own
-  // "Mark received" moves the invoice (setUsageRenewalPaymentStatus). Paid is
-  // collected; back to sent or draft is owed again. Void says nothing either
-  // way, and a free renewal has nothing to collect.
-  const owner = invoiceOwner(invoiceId, campaigns);
-  if (owner?.renewalId) {
-    const renewal = owner.campaign.usage.renewals.find((entry) => entry.id === owner.renewalId);
-    if (!renewal || renewal.amount <= 0 || status === "void") return;
-    const target = status === "paid" ? "received" : "pending";
-    if (renewal.paymentStatus !== target) {
-      await campaignRepository.setRenewalPaymentStatus(owner.campaign.id, renewal.id, target);
-    }
-    return;
-  }
+  // A renewal's invoice bills a licence extension, not the deal, and is
+  // already linked from the renewal that raised it.
+  if (invoiceOwner(invoiceId, campaigns)?.renewalId) return;
   // The deal the invoice was raised from, when it was, since that is known
   // rather than inferred. Then by key, so a deal already reconciled keeps its
   // invoice even after that invoice is renumbered; by the typed reference
@@ -98,15 +71,6 @@ async function syncLinkedCampaignPayment(
     invoiceId,
     refFollows ? buildInvoiceNumber(invoiceNo) : undefined
   );
-
-  const target = paymentStatusForInvoice(campaign, status);
-  if (!target) return;
-
-  // Through the repository rather than the writer, so this collects a payment
-  // the same way the dashboard's "Mark received" does: stamping the day the
-  // money landed, and clearing it again when an invoice comes back off "paid".
-  if (target === "received") await campaignRepository.setPaymentReceived(campaign.id);
-  else await campaignRepository.setPaymentPending(campaign.id);
 }
 
 export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResult> {
@@ -136,10 +100,8 @@ export async function createInvoice(
 
   try {
     const record = await addInvoice(input);
-    // An invoice can be raised already marked paid against a deal that already
-    // references its number, so creation syncs the same way an edit does.
     try {
-      await syncLinkedCampaignPayment(record.id, record.invoiceNo, record.status, { campaignId });
+      await linkInvoiceToCampaign(record.id, record.invoiceNo, { campaignId });
     } catch {
       // The invoice is saved; the deal not following is not worth failing on.
     }
@@ -162,20 +124,20 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
 
   try {
     const change = await updateInvoiceRecord(input);
-    // Outside the write above for the same reason as the dashboard's mark
-    // received: the invoice edit stands even if the deal couldn't follow.
+    // Outside the write above: the invoice edit stands even if the link
+    // couldn't be written.
     try {
-      await syncLinkedCampaignPayment(input.id, input.invoiceNo, input.status, {
-        previousInvoiceNo: change?.before.invoiceNo,
-      });
+      await linkInvoiceToCampaign(input.id, input.invoiceNo, { previousInvoiceNo: change?.before.invoiceNo });
     } catch {
       // Reported through the pages below rather than failing a saved invoice.
     }
     revalidateStores("invoices", "campaigns");
     if (change) {
-      // Collecting on an invoice is the event worth finding later, so it is
-      // logged as its own action rather than as another edit: but only on the
-      // crossing into paid, or re-saving a paid invoice would log it again.
+      // Collecting on a standalone invoice is the event worth finding later,
+      // so it is logged as its own action rather than as another edit: but
+      // only on the crossing into paid, or re-saving a paid invoice would log
+      // it again. A linked invoice is never set paid here (see updateInvoice
+      // in the writer); its deal's payments say so.
       const collected = change.after.status === "paid" && change.before.status !== "paid";
       await recordActivity({
         action: collected ? "invoice.paid" : "invoice.updated",

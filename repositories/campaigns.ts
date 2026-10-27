@@ -436,7 +436,14 @@ export interface NewCampaignInput {
   status: CampaignStatus;
   amount: number;
   barterValue: number;
+  /**
+   * On a deal with cash, only "unknown" (not tracked) or "pending" (expected):
+   * the money itself is recorded as payments (see lib/payments.ts), and a
+   * stored "received" from before that is kept as it is.
+   */
   paymentStatus: CampaignPaymentStatus;
+  /** Whether a Barter+Paid deal's barter half was delivered. Absent keeps it. */
+  barterStatus?: CampaignPaymentStatus;
   uploadDate?: string;
   invoiceRef?: string;
   paymentDue?: string;

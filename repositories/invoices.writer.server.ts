@@ -12,11 +12,11 @@ import {
   validateInvoiceInput,
   withLinkedBrand,
 } from "@/lib/invoice";
-import { attachInvoiceSettlements } from "@/lib/payments";
+import { attachInvoiceSettlements, invoiceOwners } from "@/lib/payments";
 import { readCampaignLedger, type CampaignLedger } from "./campaigns.writer.server";
 import { INVOICES_KEY, readInvoiceRecords as readRecords } from "./invoiceRecords.server";
 import { toInvoice } from "./invoices";
-import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
+import type { Invoice, InvoiceRecord, InvoiceUpdate, NewInvoice } from "./invoices";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly. Reading/writing
@@ -182,7 +182,22 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
   if (invoiceNoKey(input.invoiceNo) !== invoiceNoKey(before.invoiceNo)) {
     assertInvoiceNoFree(input.invoiceNo, records, input.id);
   }
-  const after: InvoiceRecord = { ...before, ...normalize(input), updatedAt: new Date().toISOString() };
+  // An invoice that bills a deal or renewal is paid by that deal's payments
+  // (see lib/payments.ts): "Paid" is not the editor's to set, and the advance
+  // is not editable, so neither can disagree with the ledger.
+  const owned = invoiceOwners((await readCampaignLedger()).campaigns).has(input.id);
+  const normalized = normalize(input);
+  const after: InvoiceRecord = {
+    ...before,
+    ...normalized,
+    ...(owned
+      ? {
+          advance: before.advance,
+          status: normalized.status === "paid" && before.status !== "paid" ? "sent" : normalized.status,
+        }
+      : {}),
+    updatedAt: new Date().toISOString(),
+  };
   // Only when this save takes a job it did not already hold (a new link, or a
   // void invoice coming back): an invoice that shares a job from before the
   // rule should still take other edits, and is fixed by unlinking one side.
@@ -225,19 +240,31 @@ export async function restoreInvoicesForBrand(invoiceIds: string[], brandId: str
   );
 }
 
-// Writes just the status, leaving every other field untouched: mirrors
-// setCampaignPaymentStatus in campaigns.writer.server.ts, and backs the
-// dashboard's "Mark received" keeping a linked invoice in step.
-export async function setInvoiceStatus(id: string, status: InvoiceStatus): Promise<void> {
+/**
+ * Clears the payment an invoice recorded before the ledger, once that payment
+ * has been written into the ledger (see paymentLedger.server.ts): `advance`
+ * zeroes the advance, `paid` moves a stored "paid" back to "sent". The only
+ * write to these fields outside the editor, and only ever after the ledger
+ * holds the same money, so nothing is lost or counted twice.
+ */
+export async function clearInvoiceLegacyPayment(
+  id: string,
+  clear: { advance: boolean; paid: boolean }
+): Promise<void> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  if (!records.some((record) => record.id === id)) throw new Error(`Invoice "${id}" not found`);
+  const before = records.find((record) => record.id === id);
+  if (!before) return;
+  const after: InvoiceRecord = {
+    ...before,
+    advance: clear.advance ? 0 : before.advance,
+    status: clear.paid && before.status === "paid" ? "sent" : before.status,
+  };
+  if (after.advance === before.advance && after.status === before.status) return;
   await redis.set(
     INVOICES_KEY,
-    records.map((record): InvoiceRecord =>
-      record.id === id ? { ...record, status, updatedAt: new Date().toISOString() } : record
-    )
+    records.map((record) => (record.id === id ? { ...after, updatedAt: new Date().toISOString() } : record))
   );
 }
 

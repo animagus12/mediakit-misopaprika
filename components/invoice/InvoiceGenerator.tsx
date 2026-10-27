@@ -59,6 +59,8 @@ interface InvoiceGeneratorProps {
   campaignId?: string;
   /** The campaign (or renewal) this invoice bills, when it is linked to one. */
   linkedCampaign?: InvoiceLinkedCampaign | null;
+  /** The TDS rate the linked deal or renewal expects, for a payment recorded from here. */
+  ownerTdsRate?: number | null;
   takenInvoiceNumbers?: string[];
   brandOptions?: InvoiceBrandOption[];
   editorJobOptions?: InvoiceEditorJobOption[];
@@ -73,6 +75,7 @@ export function InvoiceGenerator({
   prefill,
   campaignId,
   linkedCampaign = null,
+  ownerTdsRate = null,
   takenInvoiceNumbers = [],
   brandOptions = [],
   editorJobOptions = [],
@@ -81,6 +84,8 @@ export function InvoiceGenerator({
   clientNamePlaceholder,
 }: InvoiceGeneratorProps) {
   const router = useRouter();
+  // A linked invoice is settled by its deal's or renewal's payments.
+  const ownerSettlement = invoice?.owner ? invoice.settlement : null;
   const [state, setState] = useState<InvoiceFormState>(() =>
     buildInitialState(data, invoice, prefill, brandOptions, initialBrandId, initialCampaignName)
   );
@@ -285,12 +290,14 @@ export function InvoiceGenerator({
         hasAttemptedSave={hasAttemptedSave}
         isExisting={invoice != null}
         linkedCampaign={linkedCampaign}
+        ownerSettlement={ownerSettlement}
+        ownerTdsRate={ownerTdsRate}
         onImageUploadError={showToast}
       />
 
       <main className={styles.stage}>
         <div className={styles.stageInner}>
-          <InvoicePreview state={state} />
+          <InvoicePreview state={state} amountReceived={ownerSettlement ? ownerSettlement.settled : null} />
         </div>
       </main>
 

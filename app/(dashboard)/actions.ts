@@ -8,7 +8,6 @@ import { campaignRepository } from "@/repositories/campaignRepository";
 import type {
   CampaignFormUpdate,
   CampaignFormValues,
-  CampaignPaymentStatus,
   CampaignRecord,
   CampaignStatus,
   UsageRenewalFormValues,
@@ -17,22 +16,18 @@ import type {
 } from "@/repositories/campaignRepository";
 import type { ActivityAction } from "@/repositories/activity";
 import { getBrands, addBrand } from "@/repositories/brands.writer.server";
-import { addInvoice, getInvoices, setInvoiceStatus } from "@/repositories/invoices.writer.server";
+import { markCampaignPaymentExpected, readCampaignLedger } from "@/repositories/campaigns.writer.server";
+import { addInvoice, clearInvoiceLegacyPayment, getInvoices } from "@/repositories/invoices.writer.server";
 import { getInvoiceData, saveInvoiceData } from "@/repositories/invoice.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
+import { newPaymentId, paymentActivity, recordTargetPayment } from "@/repositories/paymentLedger.server";
+import { samePaymentTarget, type PaymentInput, type PaymentTarget } from "@/repositories/payments";
+import { insertPayments, retargetPayments } from "@/repositories/payments.writer.server";
 import { primaryContactForBrand } from "@/lib/contacts";
 import { buildRenewalInvoice, nextInvoiceNo } from "@/lib/usageInvoice";
 import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
-import {
-  buildInvoiceNumber,
-  computeSubtotal,
-  paymentStatusForInvoice,
-  reservedInvoiceNumbers,
-  resolveCampaignInvoice,
-  todayISO,
-} from "@/lib/invoice";
-import type { InvoiceStatus } from "@/repositories/invoices";
-import { toCampaign } from "@/repositories/campaigns";
+import { buildInvoiceNumber, computeSubtotal, reservedInvoiceNumbers, todayISO } from "@/lib/invoice";
+import { campaignTypeHasCash, toCampaign } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { validateTdsValues } from "@/lib/tds";
@@ -100,13 +95,18 @@ async function resolveOrCreateBrandId(
  *
  * Unlinking also blanks the deal's reference (see setCampaignInvoice), or the
  * deal would go on resolving to that invoice by number and read as invoiced.
- * Linking sets the reference to the invoice's number. A "Not tracked" deal
- * picks up the invoice's payment state, since nobody had answered that yet; a
- * status the form did set is left as saved.
+ * Linking sets the reference to the invoice's number.
+ *
+ * Money follows the link, since a linked invoice is paid by its deal (see
+ * lib/payments.ts): payments recorded on the invoice while it stood alone move
+ * to the deal, unless the deal has its own, which would count the money twice
+ * and is refused. A "Not tracked" deal takes the invoice's answer: an invoice
+ * marked paid becomes a payment on the deal, a sent one makes the money
+ * expected. Unlinking leaves every payment with the deal.
  */
 async function applyInvoiceLink(campaignId: string, invoiceId: string | null): Promise<void> {
-  const [campaigns, invoices] = await Promise.all([campaignRepository.getAll(), getInvoices()]);
-  const deal = campaigns.find((entry) => entry.id === campaignId);
+  const [ledger, invoices] = await Promise.all([readCampaignLedger(), getInvoices()]);
+  const deal = ledger.campaigns.find((entry) => entry.id === campaignId);
   if (!deal || deal.invoiceId === invoiceId) return;
 
   if (!invoiceId) {
@@ -115,16 +115,49 @@ async function applyInvoiceLink(campaignId: string, invoiceId: string | null): P
   }
   const invoice = invoices.find((entry) => entry.id === invoiceId);
   if (!invoice) throw new Error("The picked invoice no longer exists");
-  if (campaigns.some((entry) => entry.id !== deal.id && entry.invoiceId === invoice.id)) {
+  if (ledger.campaigns.some((entry) => entry.id !== deal.id && entry.invoiceId === invoice.id)) {
     throw new Error(`${buildInvoiceNumber(invoice.invoiceNo)} is already linked to another campaign`);
+  }
+
+  const invoiceTarget: PaymentTarget = { kind: "invoice", invoiceId: invoice.id };
+  const dealTarget: PaymentTarget = { kind: "deal", campaignId: deal.id };
+  const invoicePayments = ledger.payments.filter((payment) => samePaymentTarget(payment.target, invoiceTarget));
+  const dealHasPayments =
+    deal.storedPaymentStatus === "received" ||
+    ledger.payments.some((payment) => samePaymentTarget(payment.target, dealTarget));
+  if (invoicePayments.length > 0 && dealHasPayments) {
+    throw new Error("Both this deal and the invoice have payments recorded. Delete one set first.");
   }
 
   await campaignRepository.linkInvoice(deal.id, invoice.id, buildInvoiceNumber(invoice.invoiceNo));
 
-  if (deal.paymentStatus !== "unknown") return;
-  const target = paymentStatusForInvoice(deal, invoice.status);
-  if (target === "received") await campaignRepository.setPaymentReceived(deal.id);
-  else if (target === "pending") await campaignRepository.setPaymentPending(deal.id);
+  if (invoicePayments.length > 0) {
+    await retargetPayments(invoiceTarget, dealTarget);
+    return;
+  }
+  if (deal.storedPaymentStatus !== "unknown" || !campaignTypeHasCash(deal.type) || deal.cash <= 0) return;
+  if (invoice.storedStatus === "paid") {
+    await insertPayments([
+      {
+        id: newPaymentId(),
+        target: dealTarget,
+        date: "",
+        gross: deal.cash,
+        tds: 0,
+        bankFee: 0,
+        receivedInto: null,
+        method: null,
+        reference: "",
+        note: `Marked paid on ${buildInvoiceNumber(invoice.invoiceNo)} before it was linked`,
+        origin: "legacy",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ]);
+    await clearInvoiceLegacyPayment(invoice.id, { paid: true, advance: true });
+  } else if (invoice.storedStatus === "sent") {
+    await markCampaignPaymentExpected(deal.id);
+  }
 }
 
 /**
@@ -164,9 +197,28 @@ function revalidateCampaignPaths(): void {
   revalidateStores("campaigns", "brands");
 }
 
+/**
+ * Records a payment made before its deal or renewal was entered (the forms'
+ * "Already received"), after that record is saved. Answers a sentence to warn
+ * with when it could not be recorded, so the record still stands.
+ */
+async function recordReceived(input: PaymentInput): Promise<string | null> {
+  try {
+    const { result, ctx, warning } = await recordTargetPayment(input);
+    revalidateStores("payments");
+    await recordActivity({ action: "payment.recorded", ...paymentActivity(result, ctx) });
+    return warning ?? null;
+  } catch (err) {
+    return `The payment wasn't recorded: ${err instanceof Error ? err.message : "try again from Payments"}`;
+  }
+}
+
 export async function createCampaign(
-  input: CampaignFormValues
-): Promise<{ success: true; createdBrand: CreatedBrand | null } | { success: false; error: string }> {
+  input: CampaignFormValues,
+  received?: Omit<PaymentInput, "target">
+): Promise<
+  { success: true; createdBrand: CreatedBrand | null; warning?: string } | { success: false; error: string }
+> {
   const denied = await requireSession();
   if (denied) return denied;
 
@@ -183,7 +235,11 @@ export async function createCampaign(
       detail: brand || undefined,
       amount: input.amount + (input.usageFee ?? 0) + input.barterValue,
     });
-    return { success: true, createdBrand };
+    const warning =
+      received && campaignTypeHasCash(record.type)
+        ? await recordReceived({ ...received, target: { kind: "deal", campaignId: record.id } })
+        : null;
+    return { success: true, createdBrand, ...(warning ? { warning } : {}) };
   } catch (err) {
     return {
       success: false,
@@ -285,129 +341,6 @@ export async function setCampaignWorkflowStatus(
   }
 }
 
-/**
- * Moves the invoice a campaign is billed by (its invoiceId foreign key, or
- * failing that the invoiceRef it quotes) to `status`, and reports the status it
- * held before, so an Undo can put back exactly what was there rather than
- * guessing at "sent".
- *
- * Returns null when the deal references no invoice, references one that was
- * never saved as a record, or when the invoice is void: a void invoice has
- * been written off, so money landing against the deal does not resurrect it.
- *
- * The campaign write is the action's contract and happens first; this runs
- * after and reports failure separately, because a payment that was collected
- * should still be recorded even if the invoice could not be re-stamped.
- */
-async function syncLinkedInvoiceStatus(
-  campaignId: string,
-  status: InvoiceStatus
-): Promise<InvoiceStatus | null> {
-  const campaigns = await campaignRepository.getAll();
-  const campaign = campaigns.find((entry) => entry.id === campaignId);
-  if (!campaign) return null;
-
-  const invoice = resolveCampaignInvoice(campaign, await getInvoices());
-  if (!invoice || invoice.status === "void" || invoice.status === status) return null;
-
-  await setInvoiceStatus(invoice.id, status);
-  return invoice.status;
-}
-
-function revalidatePaymentPaths(): void {
-  revalidateStores("campaigns", "brands", "invoices");
-}
-
-export interface MarkPaymentResult {
-  success: true;
-  /** The linked invoice's status before this call, for Undo. Null when none moved. */
-  previousInvoiceStatus: InvoiceStatus | null;
-  /** Set when the payment was recorded but the linked invoice could not be updated. */
-  warning?: string;
-}
-
-export async function markCampaignPaymentReceived(
-  campaignId: string
-): Promise<MarkPaymentResult | { success: false; error: string }> {
-  const denied = await requireSession();
-  if (denied) return denied;
-
-  if (!campaignId.trim()) {
-    return { success: false, error: "This deal has no campaign ID to update" };
-  }
-  let campaign: CampaignRecord;
-  try {
-    campaign = await campaignRepository.setPaymentReceived(campaignId);
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Couldn't update the payment status",
-    };
-  }
-
-  // Deliberately outside the write above: the payment is already recorded, so
-  // a failure here is reported as a warning rather than rolling the deal back.
-  let previousInvoiceStatus: InvoiceStatus | null = null;
-  let warning: string | undefined;
-  try {
-    previousInvoiceStatus = await syncLinkedInvoiceStatus(campaignId, "paid");
-  } catch (err) {
-    warning = err instanceof Error ? err.message : "The linked invoice wasn't updated";
-  }
-
-  revalidatePaymentPaths();
-  await recordActivity({
-    action: "campaign.payment_received",
-    entity: {
-      type: "campaign",
-      id: campaign.id,
-      label: campaignLabel(campaign.campaign, campaign.brand),
-    },
-    detail: campaign.brand.trim() || undefined,
-    amount: toCampaign(campaign).cash,
-  });
-  return { success: true, previousInvoiceStatus, ...(warning ? { warning } : {}) };
-}
-
-// Undo for markCampaignPaymentReceived: puts the payment status back to
-// pending, and the linked invoice back to whatever it held before that call.
-export async function unmarkCampaignPaymentReceived(
-  campaignId: string,
-  previousInvoiceStatus?: InvoiceStatus | null
-): Promise<{ success: true } | { success: false; error: string }> {
-  const denied = await requireSession();
-  if (denied) return denied;
-
-  if (!campaignId.trim()) {
-    return { success: false, error: "This deal has no campaign ID to update" };
-  }
-  try {
-    const campaign = await campaignRepository.setPaymentPending(campaignId);
-    if (previousInvoiceStatus) {
-      await syncLinkedInvoiceStatus(campaignId, previousInvoiceStatus);
-    }
-    revalidatePaymentPaths();
-    // The Undo is logged as its own event rather than by removing the one it
-    // reverses: an audit trail that rewrites itself isn't one.
-    await recordActivity({
-      action: "campaign.payment_reverted",
-      entity: {
-        type: "campaign",
-        id: campaign.id,
-        label: campaignLabel(campaign.campaign, campaign.brand),
-      },
-      detail: campaign.brand.trim() || undefined,
-      amount: toCampaign(campaign).cash,
-    });
-    return { success: true };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Couldn't update the payment status",
-    };
-  }
-}
-
 // --- Ad usage rights ------------------------------------------------------
 // The four answers to "this licence is about to run out", plus collecting the
 // money a renewal brings in. Each writes only the licence on the deal, so
@@ -491,7 +424,7 @@ export interface RenewResult {
  * Raises the invoice that bills for a renewal, and points the renewal at it.
  *
  * Run after the renewal is written, and reported separately, for the same
- * reason syncLinkedInvoiceStatus is: the renewal is what the creator asked
+ * reason a payment recorded with it is: the renewal is what the creator asked
  * for, and it should stand even when the second store cannot be reached. A
  * renewal missing its invoice is fixed by raising one by hand; a renewal
  * rolled back because an invoice failed is just lost work.
@@ -505,7 +438,6 @@ interface RenewalBilling {
   amount: number;
   startDate: string; // yyyy-mm-dd
   paymentDue: string; // yyyy-mm-dd, "" when none was agreed
-  paid: boolean;
 }
 
 async function raiseRenewalInvoice(
@@ -542,7 +474,6 @@ async function raiseRenewalInvoice(
       amount: billing.amount,
       startDate: billing.startDate,
       dueDate: billing.paymentDue,
-      paid: billing.paid,
       today: todayISO(),
     })
   );
@@ -583,17 +514,19 @@ async function raiseRenewalInvoice(
 }
 
 /**
- * Extends the licence by another term, records what the brand paid for it, and
- * raises the invoice that bills for it.
+ * Extends the licence by another term, raises the invoice that bills for it,
+ * and, when `received` is given, records the payment the brand already made
+ * for it.
  *
  * Deliberately not undoable from the toast: a renewal is a commercial record
- * with its own payment status and now its own invoice, and silently deleting
- * one to reverse a misclick would take both with it. It is edited on the deal
+ * with its own payments and now its own invoice, and silently deleting one to
+ * reverse a misclick would take both with it. It is edited on the deal
  * instead.
  */
 export async function renewCampaignUsage(
   campaignId: string,
-  input: UsageRenewalFormValues
+  input: UsageRenewalFormValues,
+  received?: Omit<PaymentInput, "target">
 ): Promise<RenewResult | { success: false; error: string }> {
   const denied = await requireSession();
   if (denied) return denied;
@@ -604,7 +537,7 @@ export async function renewCampaignUsage(
   if (input.days <= 0) {
     return { success: false, error: "A renewal needs a term of at least one day" };
   }
-  const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
+  const tdsProblem = validateTdsValues(input.tdsRate, null);
   if (tdsProblem) return { success: false, error: tdsProblem };
   try {
     const change = await campaignRepository.renewUsage(campaignId, input);
@@ -624,17 +557,26 @@ export async function renewCampaignUsage(
           amount: input.amount,
           startDate: input.startDate,
           paymentDue: input.paymentDue,
-          paid: input.paymentStatus === "received",
         });
       }
     } catch (err) {
       warning = err instanceof Error ? err.message : "The invoice wasn't raised";
     }
 
+    // After the renewal and its invoice, and reported the same way: the
+    // renewal stands even when its payment could not be recorded.
+    if (renewal && received) {
+      const problem = await recordReceived({
+        ...received,
+        target: { kind: "renewal", campaignId: change.after.id, renewalId: renewal.id },
+      });
+      if (problem) warning = warning ? `${warning}. ${problem}` : problem;
+    }
+
     // Revalidated once, after both writes, so the invoices list shows the new
     // document on the same navigation that shows the renewal.
     revalidateUsagePaths();
-    revalidateStores("invoices", "invoiceDefaults");
+    revalidateStores("invoices", "invoiceDefaults", "payments");
 
     await recordUsageEvent(
       "campaign.usage_renewed",
@@ -651,69 +593,13 @@ export async function renewCampaignUsage(
   }
 }
 
-/** Collects one renewal's money, or puts it back to pending (the toast's Undo). */
-export async function setUsageRenewalPaymentStatus(
-  campaignId: string,
-  renewalId: string,
-  status: CampaignPaymentStatus
-): Promise<UsageResult> {
-  const denied = await requireSession();
-  if (denied) return denied;
-
-  if (!campaignId.trim() || !renewalId.trim()) {
-    return { success: false, error: "This renewal has no ID to update" };
-  }
-  try {
-    const change = await campaignRepository.setRenewalPaymentStatus(campaignId, renewalId, status);
-    if (!change) return { success: false, error: "That renewal no longer exists" };
-
-    const renewal = (change.after.usage?.renewals ?? []).find((entry) => entry.id === renewalId);
-
-    // Keep the renewal's own invoice in step, the way collecting on a deal
-    // moves the invoice it references. Without this a renewal reads "received"
-    // while the document billing for it still says draft, which is exactly the
-    // drift invoicePaymentMismatch exists to complain about.
-    //
-    // Outside the write above and swallowed on failure, like
-    // syncLinkedInvoiceStatus: the money is already recorded, and an invoice
-    // that could not be re-stamped is not worth failing a collected payment
-    // over. Reverting puts the invoice back to a draft rather than to "sent",
-    // since an auto-raised one was never sent in the first place.
-    if (renewal?.invoiceId) {
-      try {
-        const invoice = (await getInvoices()).find((entry) => entry.id === renewal.invoiceId);
-        if (invoice && invoice.status !== "void") {
-          const target = status === "received" ? "paid" : "draft";
-          if (invoice.status !== target) await setInvoiceStatus(invoice.id, target);
-        }
-      } catch {
-        // the payment stands; the invoice catches up when it is next edited
-      }
-    }
-
-    revalidateUsagePaths();
-    revalidateStores("invoices");
-
-    await recordUsageEvent(
-      status === "received"
-        ? "campaign.usage_payment_received"
-        : "campaign.usage_payment_reverted",
-      change.after,
-      "usage renewal",
-      renewal?.amount
-    );
-    return { success: true };
-  } catch (err) {
-    return usageFailure(err, "Couldn't update the renewal payment");
-  }
-}
-
 /**
- * Records the TDS withheld from one renewal's fee, or clears it with nulls.
+ * Sets the TDS rate one renewal's brand is expected to withhold, or clears it
+ * with null. What was actually withheld is recorded on each payment.
  *
  * Its own action because the rest of a renewal is fixed once recorded (see
- * UsageRightsPanel), while the tax a brand held back is often only known
- * after the money lands.
+ * UsageRightsPanel), while the rate is often only known after the first
+ * payment lands.
  */
 export async function setUsageRenewalTds(
   campaignId: string,
@@ -726,13 +612,10 @@ export async function setUsageRenewalTds(
   if (!campaignId.trim() || !renewalId.trim()) {
     return { success: false, error: "This renewal has no ID to update" };
   }
-  const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
+  const tdsProblem = validateTdsValues(input.tdsRate, null);
   if (tdsProblem) return { success: false, error: tdsProblem };
   try {
-    const change = await campaignRepository.setRenewalTds(campaignId, renewalId, {
-      tdsRate: input.tdsRate,
-      tdsAmount: input.tdsAmount,
-    });
+    const change = await campaignRepository.setRenewalTds(campaignId, renewalId, { tdsRate: input.tdsRate });
     if (!change) return { success: false, error: "That renewal no longer exists" };
     revalidateUsagePaths();
     await recordUsageEvent("campaign.updated", change.after, "renewal TDS");
@@ -815,7 +698,6 @@ export async function raiseInvoiceForRenewal(
       // record keeps its dates in.
       startDate: toIsoDate(renewal.startDate),
       paymentDue: toIsoDate(renewal.paymentDue),
-      paid: renewal.paymentStatus === "received",
     });
 
     revalidateUsagePaths();

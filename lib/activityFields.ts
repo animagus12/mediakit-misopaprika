@@ -18,6 +18,7 @@ import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { Editor } from "@/repositories/editors";
 import type { EditorTransactionRecord } from "@/repositories/editorTransactions";
 import type { InvoiceRecord } from "@/repositories/invoices";
+import type { PaymentRecord } from "@/repositories/payments";
 
 // Which fields an update event reports on, per record type. Gathered here
 // rather than next to each action so that "what does the log actually watch"
@@ -194,4 +195,21 @@ export const affiliatePayoutFields: readonly DiffField<AffiliatePayout>[] = [
   { label: "period end", value: (payout) => payout.periodEnd },
   { label: "period start", value: (payout) => payout.periodStart },
   { label: "payment method", value: (payout) => payout.paymentMethod },
+];
+
+export const paymentFields: readonly DiffField<PaymentRecord>[] = [
+  { label: "amount", value: (payment) => payment.gross, format: money },
+  { label: "date", value: (payment) => payment.date },
+  { label: "TDS", value: (payment) => payment.tds, format: money },
+  { label: "charges", value: (payment) => payment.bankFee, format: money },
+  {
+    label: "received into",
+    value: (payment) => payment.receivedInto ?? "",
+    format: (value) => (value ? payerLabel(toPayer(value)) : ""),
+  },
+  { label: "method", value: (payment) => payment.method ?? "" },
+  // A bank reference is the payment's handle at the bank: recorded as
+  // changed, never quoted, like an invoice's UPI id.
+  { label: "reference", value: (payment) => payment.reference, redact: true },
+  { label: "note", value: (payment) => payment.note, redact: true },
 ];

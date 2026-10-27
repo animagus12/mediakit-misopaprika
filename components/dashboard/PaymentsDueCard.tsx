@@ -48,17 +48,20 @@ interface PaymentsDueCardProps {
 // shape and their own collect action, and they are chased in the ad-usage card
 // alongside the licence that produced them.
 export function PaymentsDueCard({ due, lag, className }: PaymentsDueCardProps) {
-  const { hiddenIds, isPending, markReceived } = useMarkReceived();
+  const { isHidden, isPending, markReceived } = useMarkReceived();
 
   const [expanded, setExpanded] = useState(false);
 
-  const visible = due.filter(({ record }) => !hiddenIds.includes(record.campaignId));
+  const visible = due.filter(({ record }) => !isHidden({ kind: "deal", campaignId: record.campaignId }));
   if (visible.length === 0) return null;
 
   // Most overdue first, so the rows folded away are the ones due furthest out.
   const shown = visible.slice(0, MAX_ROWS);
   const rest = visible.slice(MAX_ROWS);
-  const rowActions = { isPending, onMarkReceived: markReceived };
+  const rowActions = {
+    isPending,
+    onMarkReceived: (campaignId: string, brand: string) => markReceived({ kind: "deal", campaignId }, brand),
+  };
 
   // Summed over the visible rows, so marking one received optimistically
   // takes it out of the header as well as out of the list.

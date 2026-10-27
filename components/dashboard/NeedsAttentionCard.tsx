@@ -22,9 +22,10 @@ const MAX_ROWS = 6;
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
 // due date, so the two lists don't overlap. Renders nothing when clear.
 export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps) {
-  const { hiddenIds, isPending, markReceived } = useMarkReceived();
+  const { isHidden, isPending, markReceived: markTarget } = useMarkReceived();
+  const markReceived = (campaignId: string, brand: string) => markTarget({ kind: "deal", campaignId }, brand);
 
-  const visible = items.filter((item) => !hiddenIds.includes(item.campaignId));
+  const visible = items.filter((item) => !isHidden({ kind: "deal", campaignId: item.campaignId }));
   if (visible.length === 0) return null;
 
   const shown = visible.slice(0, MAX_ROWS);

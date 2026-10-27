@@ -108,16 +108,15 @@ function lineItems(campaign: Campaign): InvoiceLineItemInput[] {
  * deal it bills. Whether the deal counts as invoiced comes from the link that
  * saving it writes, not from the name.
  *
- * Marked paid when the deal's money is already in, and a draft otherwise: the
- * app cannot know an invoice was sent, and a "sent" invoice nobody sent would
- * have the dashboard chasing it.
+ * Always a draft: the app cannot know an invoice was sent, and a "sent"
+ * invoice nobody sent would have the dashboard chasing it. Whether it is paid
+ * is read from the deal's payments once it is linked (see lib/payments.ts).
  */
 export function buildCampaignInvoice(input: CampaignInvoiceInput): NewInvoice {
   const { campaign, defaults } = input;
-  const cashReceived = campaign.cash > 0 && campaign.paymentStatus === "received";
 
   return {
-    status: cashReceived ? "paid" : "draft",
+    status: "draft",
     invoiceNo: invoiceNoFor(input),
     brandId: campaign.brandId,
     editorTransactionId: campaign.editorTransactionId,
@@ -138,7 +137,7 @@ export function buildCampaignInvoice(input: CampaignInvoiceInput): NewInvoice {
     barter: {
       enabled: campaign.barterValue > 0,
       value: campaign.barterValue,
-      status: campaign.paymentStatus === "received" ? "Received" : "Pending",
+      status: campaign.barterState === "received" ? "Received" : "Pending",
     },
     payment: paymentSnapshot(defaults),
   };

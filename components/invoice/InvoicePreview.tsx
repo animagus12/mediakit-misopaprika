@@ -13,6 +13,12 @@ import styles from "./invoice.module.css";
 
 interface InvoicePreviewProps {
   state: InvoiceFormState;
+  /**
+   * What the payment ledger says has been received against this invoice, or
+   * null to use the advance typed into the form. A linked invoice passes its
+   * deal's payments, so the document shows what really arrived.
+   */
+  amountReceived?: number | null;
 }
 
 const FIRST_PAGE_ITEM_LIMIT = 2;
@@ -28,9 +34,10 @@ function paginateItems(items: InvoiceLineItem[]): InvoiceLineItem[][] {
   return pages;
 }
 
-export function InvoicePreview({ state }: InvoicePreviewProps) {
+export function InvoicePreview({ state, amountReceived = null }: InvoicePreviewProps) {
   const subtotal = computeSubtotal(state.items);
-  const balanceDue = computeBalanceDue(subtotal, state.advance);
+  const received = amountReceived ?? state.advance;
+  const balanceDue = computeBalanceDue(subtotal, received);
   const instagramHandle = state.instagramHandle.trim().replace(/^@+/, "");
   const youtubeHandle = state.youtubeHandle.trim().replace(/^@+/, "");
   const pages = paginateItems(state.items);
@@ -214,10 +221,10 @@ export function InvoicePreview({ state }: InvoicePreviewProps) {
               <tr
                 className={`${styles.totalsStrong} ${!state.barterOn ? styles.totalsLastline : ""}`}
               >
-                <td>ADVANCE RECEIVED</td>
+                <td>{amountReceived === null ? "ADVANCE RECEIVED" : "AMOUNT RECEIVED"}</td>
                 <td></td>
                 <td></td>
-                <td className={styles.c}>{formatMoney(state.advance)}</td>
+                <td className={styles.c}>{formatMoney(received)}</td>
               </tr>
               {state.barterOn && (
                 <tr className={`${styles.totalsStrong} ${styles.totalsLastline}`}>

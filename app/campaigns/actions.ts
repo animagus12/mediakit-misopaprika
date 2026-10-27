@@ -11,6 +11,9 @@ import {
   deleteCampaignContactsForCampaign,
   getCampaignContacts,
 } from "@/repositories/campaignContacts.writer.server";
+import { readPaymentRecords } from "@/repositories/paymentRecords.server";
+import type { PaymentRecord } from "@/repositories/payments";
+import { removePaymentsWhere } from "@/repositories/payments.writer.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import type { TrashPayload } from "@/repositories/trash";
 import { requireSession } from "@/lib/session.server";
@@ -28,7 +31,12 @@ export async function deleteCampaign(id: string): Promise<DeleteCampaignResult> 
     const record = await getCampaignRecord(id);
     if (!record) return { success: false, error: "That campaign no longer exists" };
     const contacts = (await getCampaignContacts()).filter((contact) => contact.campaignId === id);
-    const payload: TrashPayload = { type: "campaign", record, contacts };
+    // The deal's payments and its renewals' go to Trash with it, so restoring
+    // the deal brings its money back and nothing is left counting against a
+    // deal no page shows.
+    const ownsPayment = (payment: PaymentRecord) => payment.target.kind !== "invoice" && payment.target.campaignId === id;
+    const payments = (await readPaymentRecords()).filter(ownsPayment);
+    const payload: TrashPayload = { type: "campaign", record, contacts, payments };
     trashId = await addTrashEntry(payload, campaignLabel(record.campaign, record.brand));
 
     const deleted = await deleteCampaignRecord(id);
@@ -39,8 +47,9 @@ export async function deleteCampaign(id: string): Promise<DeleteCampaignResult> 
     removed = true;
 
     await deleteCampaignContactsForCampaign(id);
+    if (payments.length > 0) await removePaymentsWhere(ownsPayment);
     await activateTrashEntry(trashId);
-    revalidateStores("campaigns", "campaignContacts");
+    revalidateStores("campaigns", "campaignContacts", "payments");
     await recordActivity({
       action: "campaign.deleted",
       entity: {

@@ -10,10 +10,14 @@ interface TdsFieldsProps {
   idPrefix: string;
   /** The rate as typed, "" when not recorded. */
   rate: string;
-  /** The actual amount as typed, "" to use the estimate. */
-  amount: string;
+  /**
+   * The actual amount as typed, "" to use the estimate. Left out, the fields
+   * ask only for the rate the brand is expected to withhold: on a deal or
+   * renewal with cash, what was actually withheld is recorded on each payment.
+   */
+  amount?: string;
   onRateChange: (value: string) => void;
-  onAmountChange: (value: string) => void;
+  onAmountChange?: (value: string) => void;
   /** The cash the rate is applied to, for the estimate shown under the inputs. */
   gross: number;
   /** One line under the heading saying which payment this is for. */
@@ -38,16 +42,17 @@ export function TdsFields({
   description = "Track the tax deducted from this payment.",
 }: TdsFieldsProps) {
   const estimatedTds = estimateTdsFromRateInput(rate, gross);
+  const rateOnly = amount === undefined || onAmountChange === undefined;
 
   return (
     <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
       <div className="space-y-1">
-        <p className="text-sm font-semibold">TDS withheld</p>
+        <p className="text-sm font-semibold">{rateOnly ? "Expected TDS" : "TDS withheld"}</p>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-tdsRate`}>Deduction rate</Label>
+          <Label htmlFor={`${idPrefix}-tdsRate`}>{rateOnly ? "Expected TDS rate" : "Deduction rate"}</Label>
           <div className="relative">
             <Input
               id={`${idPrefix}-tdsRate`}
@@ -65,27 +70,29 @@ export function TdsFields({
             </span>
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-tdsAmount`}>Actual TDS deducted</Label>
-          <Input
-            id={`${idPrefix}-tdsAmount`}
-            type="number"
-            min={0}
-            step="1"
-            placeholder="Enter amount from the brand"
-            value={amount}
-            onChange={(event) => onAmountChange(event.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            Enter the amount shown by the brand. Leave blank to use the estimate.
-          </p>
-        </div>
+        {!rateOnly && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-tdsAmount`}>Actual TDS deducted</Label>
+            <Input
+              id={`${idPrefix}-tdsAmount`}
+              type="number"
+              min={0}
+              step="1"
+              placeholder="Enter amount from the brand"
+              value={amount}
+              onChange={(event) => onAmountChange(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter the amount shown by the brand. Leave blank to use the estimate.
+            </p>
+          </div>
+        )}
       </div>
       {estimatedTds !== null && (
         <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/60 px-3 py-2.5">
           <div className="min-w-0">
             <p className="text-xs font-medium">
-              {amount.trim() ? "Estimated from rate" : "Estimated TDS"}
+              {amount?.trim() ? "Estimated from rate" : "Estimated TDS"}
             </p>
             <p className="text-[11px] text-muted-foreground">
               {formatMoney(gross)} × {rate}%

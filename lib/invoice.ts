@@ -4,10 +4,10 @@ import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
 import type { Invoice, InvoiceDisplayStatus, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
-import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
+import type { Campaign } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
-import { isCampaignCalledOff, toSheetDate } from "./campaigns";
+import { toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
@@ -327,25 +327,6 @@ export function buildCampaignInvoiceOptions(
       };
     })
     .sort((a, b) => b.number.localeCompare(a.number, undefined, { numeric: true }));
-}
-
-/**
- * The payment status a deal moves to when the invoice billing it is marked
- * `invoiceStatus`, or null to leave the deal alone.
- *
- * Sent means the money is owed and paid means it arrived, whatever the deal
- * said before, "Not tracked" included: raising and sending the invoice is the
- * tracking. A called-off deal is owed nothing, so an invoice cannot put a
- * payment back on it; drafts and void invoices say nothing about money.
- */
-export function paymentStatusForInvoice(
-  campaign: { status: CampaignStatus; paymentStatus: CampaignPaymentStatus },
-  invoiceStatus: InvoiceStatus
-): CampaignPaymentStatus | null {
-  if (invoiceStatus !== "paid" && invoiceStatus !== "sent") return null;
-  if (isCampaignCalledOff(campaign.status)) return null;
-  const target = invoiceStatus === "paid" ? "received" : "pending";
-  return campaign.paymentStatus === target ? null : target;
 }
 
 export function lineItemTotal(item: InvoiceLineItemInput): number {

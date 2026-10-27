@@ -4,25 +4,21 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import {
-  Check,
+  ChevronDown,
   CircleSlash,
   FileText,
   PauseCircle,
   Percent,
   PlayCircle,
   RefreshCw,
-  Undo2,
   Unlink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  raiseInvoiceForRenewal,
-  setCampaignUsageState,
-  setUsageRenewalPaymentStatus,
-  unlinkRenewalInvoice,
-} from "@/app/(dashboard)/actions";
+import { raiseInvoiceForRenewal, setCampaignUsageState, unlinkRenewalInvoice } from "@/app/(dashboard)/actions";
+import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
 import { paymentStatusLabel } from "@/lib/campaigns";
 import { resolveTds } from "@/lib/tds";
@@ -81,11 +77,11 @@ function renewalTdsLabel(renewal: UsageRenewal): string {
  * panel is that record, and it is on the deal because that is what a renewal
  * belongs to.
  *
- * Read-only except for the two things that are genuinely one click: moving the
- * licence between its states, and collecting a fee. Changing a renewal's terms
+ * Read-only except for moving the licence between its states and recording
+ * what each renewal's brand paid (its Payments). Changing a renewal's terms
  * after the fact is deliberately absent: what was agreed was agreed, and a
- * mistake is corrected by recording a new renewal. The TDS withheld from a fee
- * is the exception (see RenewalTdsSheet): it is often only known later.
+ * mistake is corrected by recording a new renewal. The expected TDS rate is
+ * the exception (see RenewalTdsSheet): it is often only learned later.
  */
 export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
   const [isPending, startTransition] = useTransition();
@@ -131,21 +127,6 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
         return;
       }
       toast.success("Invoice unlinked from the renewal");
-    });
-  }
-
-  function setRenewalPaid(renewal: UsageRenewalRecord, received: boolean) {
-    startTransition(async () => {
-      const result = await setUsageRenewalPaymentStatus(
-        campaign.id,
-        renewal.id,
-        received ? "received" : "pending"
-      );
-      if (!result.success) {
-        toast.error("Couldn't update the renewal payment", { description: result.error });
-        return;
-      }
-      toast.success(received ? "Renewal marked received" : "Renewal put back to pending");
     });
   }
 
@@ -230,10 +211,8 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
         <div className="space-y-1">
           <p className="text-[11px] font-medium text-muted-foreground">Renewals</p>
           {renewals.map((renewal) => (
-            <div
-              key={renewal.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5"
-            >
+            <Collapsible key={renewal.id} className="rounded-md bg-muted/40 px-2 py-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0 text-xs">
                 <p className="font-medium tabular-nums">
                   {formatUsageDays(renewal.days)} ·{" "}
@@ -297,7 +276,7 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
                           disabled={isPending}
                         >
                           <Percent />
-                          {renewal.tdsRate === null && renewal.tdsAmount === null ? "Add TDS" : "Edit TDS"}
+                          {renewal.tdsRate === null ? "Set TDS rate" : "Edit TDS rate"}
                         </Button>
                       }
                     />
@@ -311,21 +290,26 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
                     : paymentStatusLabel(renewal.paymentStatus)}
                 </Badge>
                 {renewal.amount > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={isPending}
-                    onClick={() =>
-                      setRenewalPaid(renewal, renewal.paymentStatus !== "received")
-                    }
-                  >
-                    {renewal.paymentStatus === "received" ? <Undo2 /> : <Check />}
-                    {renewal.paymentStatus === "received" ? "Revert" : "Mark paid"}
-                  </Button>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" size="sm" variant="ghost" className="group/payments">
+                      Payments
+                      <ChevronDown className="transition group-data-[state=open]/payments:rotate-180" />
+                    </Button>
+                  </CollapsibleTrigger>
                 )}
               </div>
             </div>
+            {renewal.amount > 0 && (
+              <CollapsibleContent className="pt-2">
+                <PaymentHistory
+                  settlement={renewal.settlement}
+                  targetLabel={`${campaign.campaign.trim() || campaign.brand} · renewal ${renewal.id}`}
+                  expectedTdsRate={renewal.tdsRate ?? campaign.tdsRate}
+                  compact
+                />
+              </CollapsibleContent>
+            )}
+            </Collapsible>
           ))}
         </div>
       )}

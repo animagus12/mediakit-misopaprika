@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { isPaymentTargetLive } from "@/lib/payments";
+import { findOrphanPayments, isPaymentTargetLive } from "@/lib/payments";
 import { revalidateStores } from "@/lib/revalidation";
 import { restoreAffiliatePayout } from "@/repositories/affiliatePayouts.writer.server";
 import { restoreBrand } from "@/repositories/brands.writer.server";
@@ -19,8 +19,8 @@ import { restoreEditorTransaction } from "@/repositories/editorTransactions.writ
 import { restoreInvoice, restoreInvoicesForBrand } from "@/repositories/invoices.writer.server";
 import { restoreLinksDeletion } from "@/repositories/links.writer.server";
 import type { PaymentTarget } from "@/repositories/payments";
-import { restorePayments } from "@/repositories/payments.writer.server";
-import { clearTrash, getTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import { removePaymentsWhere, restorePayments } from "@/repositories/payments.writer.server";
+import { clearTrash, getTrashEntry, listTrash, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { requireSession } from "@/lib/session.server";
 
 type TrashActionResult = { success: true } | { success: false; error: string };
@@ -121,6 +121,36 @@ export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
   }
 }
 
+/**
+ * Removes stored payments whose deal, renewal or invoice is gone for good:
+ * neither live nor waiting in Trash. Run after anything is permanently
+ * deleted, so a payment can never go on counting as income against a record
+ * no page shows. Best-effort: a sweep that fails is retried by the next one.
+ */
+async function sweepOrphanPayments(): Promise<void> {
+  try {
+    const [{ campaigns, invoices, payments }, trash] = await Promise.all([readCampaignLedger(), listTrash()]);
+    const trashedCampaigns = new Set<string>();
+    const trashedInvoices = new Set<string>();
+    for (const entry of trash) {
+      if (entry.payload.type === "campaign") trashedCampaigns.add(entry.payload.record.id);
+      if (entry.payload.type === "invoice") trashedInvoices.add(entry.payload.record.id);
+    }
+    const orphanIds = new Set(
+      findOrphanPayments(payments, campaigns, invoices)
+        .filter(({ target }) =>
+          target.kind === "invoice" ? !trashedInvoices.has(target.invoiceId) : !trashedCampaigns.has(target.campaignId)
+        )
+        .map((payment) => payment.id)
+    );
+    if (orphanIds.size === 0) return;
+    await removePaymentsWhere((payment) => orphanIds.has(payment.id));
+    revalidateStores("payments");
+  } catch {
+    // the next permanent delete sweeps again
+  }
+}
+
 export async function deleteTrashItem(id: string): Promise<TrashActionResult> {
   const denied = await requireSession();
   if (denied) return denied;
@@ -129,6 +159,7 @@ export async function deleteTrashItem(id: string): Promise<TrashActionResult> {
     const entry = await getTrashEntry(id);
     if (!entry) return { success: false, error: "That Trash item no longer exists" };
     await removeTrashEntry(id);
+    await sweepOrphanPayments();
     revalidatePath("/trash");
     return { success: true };
   } catch (err) {
@@ -145,6 +176,7 @@ export async function emptyTrash(): Promise<TrashActionResult> {
 
   try {
     await clearTrash();
+    await sweepOrphanPayments();
     revalidatePath("/trash");
     return { success: true };
   } catch (err) {

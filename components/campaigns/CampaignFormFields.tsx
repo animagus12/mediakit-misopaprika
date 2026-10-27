@@ -63,7 +63,15 @@ export interface CampaignFormState {
   status: CampaignStatus;
   amount: string;
   barterValue: string;
+  /**
+   * On a deal with cash: "unknown" (not tracked) or "pending" (expected); the
+   * money itself is recorded as payments. A "received" here is one stored
+   * before payments were recorded, shown and kept as it is. On a barter-only
+   * deal: the barter's own status.
+   */
   paymentStatus: CampaignPaymentStatus;
+  /** Whether a Barter+Paid deal's barter half was delivered. */
+  barterStatus: CampaignPaymentStatus;
   date: string;
   uploadDate: string;
   paymentDue: string;
@@ -119,17 +127,22 @@ export function campaignAmounts(form: CampaignFormState): {
  * The payment status a deal's own dates imply, for the flows that don't ask.
  *
  * A deal just struck has nothing to say about payment: it is unknown until
- * money is promised or lands. Filling "Paid on" is what makes it received (on
- * a barter deal that field is "Delivered on", which is the same day and the
- * same field), and cash with a date it is owed by is pending. The edit sheet
- * keeps the select, since a deal already on the books sometimes needs one of
- * the three said outright.
+ * money is promised or lands. Cash with a date it is owed by is expected
+ * (pending); cash that already arrived is recorded as a payment ("Already
+ * received"), never as a status. A barter-only deal is received once
+ * "Delivered on" is filled. The edit sheet keeps the select, since a deal
+ * already on the books sometimes needs it said outright.
  */
 export function derivedPaymentStatus(form: CampaignFormState): CampaignPaymentStatus {
-  if (form.paidDate.trim()) return "received";
   const { amount, usageFee } = campaignAmounts(form);
+  if (!campaignTypeHasCash(form.type)) return form.paidDate.trim() ? "received" : "unknown";
   if (form.paymentDue.trim() && amount + usageFee > 0) return "pending";
   return "unknown";
+}
+
+/** Whether a deal with cash has a payment status left from before payments were recorded. */
+export function hasLegacyReceived(form: CampaignFormState): boolean {
+  return campaignTypeHasCash(form.type) && form.paymentStatus === "received";
 }
 
 /** "13/03/2026" for a yyyy-mm-dd day key, the app's written date format. */
@@ -151,6 +164,7 @@ export function campaignInitialForm(): CampaignFormState {
     amount: "",
     barterValue: "",
     paymentStatus: "unknown",
+    barterStatus: "pending",
     date: todayKey(),
     uploadDate: "",
     paymentDue: "",
@@ -196,6 +210,8 @@ interface CampaignFormFieldsProps {
   videoOptions?: EditorVideoOption[];
   /** The invoice setting this deal's payment due date (yyyy-mm-dd), which locks the field. */
   dueInvoice?: CampaignDueInvoice | null;
+  /** A new deal's "Already received" payment fields, shown with the cash payment details. */
+  paymentSlot?: React.ReactNode;
 }
 
 export interface CampaignDueInvoice {
@@ -223,6 +239,7 @@ export function CampaignFormFields({
   brandOptions = [],
   videoOptions = [],
   dueInvoice = null,
+  paymentSlot,
 }: CampaignFormFieldsProps) {
   const linkedBrand = form.brandId ? brandOptions.find((option) => option.id === form.brandId) : undefined;
   const linkedVideo = form.editorTransactionId
@@ -587,16 +604,16 @@ export function CampaignFormFields({
         <CollapsibleContent className="space-y-4 pt-4">
           {mode === "create" && (
             <p className="text-[11px] text-muted-foreground">
-              A deal being struck rarely knows these yet. Payment status follows what you fill in:
-              a date in {hasCash ? "Paid on" : "Delivered on"} marks it received.
+              A deal being struck rarely knows these yet.{" "}
+              {hasCash
+                ? "A payment due date marks the money as expected; tick Already received if it has landed."
+                : "A date in Delivered on marks the barter received."}
             </p>
           )}
 
-          {mode === "edit" && (
+          {mode === "edit" && !hasCash && (
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-paymentStatus`}>
-                {hasCash ? "Payment status" : "Barter status"}
-              </Label>
+              <Label htmlFor={`${idPrefix}-paymentStatus`}>Barter status</Label>
               <Select
                 value={form.paymentStatus}
                 onValueChange={(value) => setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))}
@@ -612,14 +629,41 @@ export function CampaignFormFields({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {/* On a deal with cash the money is recorded as payments (the sheet's
+              Payments section), so this only says whether it is tracked. A
+              "received" stored before payments were recorded is kept as it
+              is and shown, not offered as a choice. */}
+          {mode === "edit" && hasCash && (
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-paymentStatus`}>Payment tracking</Label>
+              {form.paymentStatus === "received" ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Marked received before payments were recorded. Edit it under Payments to add the date,
+                  TDS and account it landed in.
+                </p>
+              ) : (
+                <Select
+                  value={form.paymentStatus}
+                  onValueChange={(value) => setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))}
+                >
+                  <SelectTrigger id={`${idPrefix}-paymentStatus`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unknown">Not tracked</SelectItem>
+                    <SelectItem value="pending">Expected</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               {/* "Cancelled" is not one of the options because it is not one of
                   the stored values: it is read off the deal's own status (see
-                  paymentDisplayStatus). Said here so that leaving this on "Not
-                  tracked" does not look like something left unfinished. */}
+                  paymentDisplayStatus). */}
               {isCampaignCancelled(form.status) && form.paymentStatus !== "received" && (
                 <p className="text-[11px] text-muted-foreground">
-                  A cancelled deal reads as Cancelled here. Set this to Received only if the money
-                  actually landed.
+                  A cancelled deal reads as Cancelled here. Record a payment only if money actually landed.
                 </p>
               )}
             </div>
@@ -627,56 +671,50 @@ export function CampaignFormFields({
 
           {hasCash ? (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor={`${idPrefix}-paymentDue`}>Payment due</Label>
-                  <Input
-                    id={`${idPrefix}-paymentDue`}
-                    type="date"
-                    value={dueInvoice ? dueInvoice.dueDate : form.paymentDue}
-                    disabled={dueInvoice !== null}
-                    onChange={(event) => setForm((f) => ({ ...f, paymentDue: event.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
-                  <Input
-                    id={`${idPrefix}-paidDate`}
-                    type="date"
-                    value={form.paidDate}
-                    onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
-                  />
-                </div>
-              </div>
-              {/* The pair above is the whole of the payment-reliability record:
-                  when it was promised, and when it arrived. Said here rather than
-                  left to be inferred, because a blank "Paid on" is what makes a
-                  settled deal count for nothing either way. */}
-              <p className="text-[11px] text-muted-foreground">
-                {dueInvoice && `Payment due comes from ${dueInvoice.number}; change it on the invoice. `}
-                The gap between these two is what the brand&apos;s payment record is built from.
-              </p>
-
-              {/* No invoice number field: a deal shows an invoice number only
-                  once a real invoice is linked to it (the edit sheet's Invoice
-                  section), so a typed number can't claim one that doesn't exist. */}
               <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-paymentMethod`}>Payment method</Label>
+                <Label htmlFor={`${idPrefix}-paymentDue`}>Payment due</Label>
                 <Input
-                  id={`${idPrefix}-paymentMethod`}
-                  placeholder="UPI, bank transfer, ..."
-                  value={form.paymentMethod}
-                  onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
+                  id={`${idPrefix}-paymentDue`}
+                  type="date"
+                  value={dueInvoice ? dueInvoice.dueDate : form.paymentDue}
+                  disabled={dueInvoice !== null}
+                  onChange={(event) => setForm((f) => ({ ...f, paymentDue: event.target.value }))}
                 />
+                {dueInvoice && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Payment due comes from {dueInvoice.number}; change it on the invoice.
+                  </p>
+                )}
               </div>
+
+              {hasBarter && (
+                <div className="space-y-2">
+                  <Label htmlFor={`${idPrefix}-barterStatus`}>Barter delivered</Label>
+                  <Select
+                    value={form.barterStatus}
+                    onValueChange={(value) => setForm((f) => ({ ...f, barterStatus: value as CampaignPaymentStatus }))}
+                  >
+                    <SelectTrigger id={`${idPrefix}-barterStatus`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unknown">Not tracked</SelectItem>
+                      <SelectItem value="pending">Not yet</SelectItem>
+                      <SelectItem value="received">Delivered</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <TdsFields
                 idPrefix={idPrefix}
                 rate={form.tdsRate}
-                amount={form.tdsAmount}
                 onRateChange={(value) => setForm((f) => ({ ...f, tdsRate: value }))}
-                onAmountChange={(value) => setForm((f) => ({ ...f, tdsAmount: value }))}
                 gross={cashAmount + usageFee}
+                description="The rate the brand withholds. Each payment records what was actually withheld."
               />
+
+              {paymentSlot}
             </>
           ) : (
             <>

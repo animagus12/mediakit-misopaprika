@@ -40,7 +40,13 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
   ]);
 
   if (!invoice) notFound();
-  const linkedCampaign = toInvoiceLinkedCampaign(invoiceOwner(invoice.id, campaigns));
+  const owner = invoiceOwner(invoice.id, campaigns);
+  const linkedCampaign = toInvoiceLinkedCampaign(owner);
+  // The rate a payment recorded from this invoice's page starts its TDS at.
+  const ownerRenewal = owner?.renewalId
+    ? owner.campaign.usage.renewals.find((renewal) => renewal.id === owner.renewalId)
+    : undefined;
+  const ownerTdsRate = ownerRenewal?.tdsRate ?? owner?.campaign.tdsRate ?? null;
 
   const takenInvoiceNumbers = invoices
     .filter((other) => other.id !== id)
@@ -60,6 +66,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         data={{ ...data, brandHandle }}
         invoice={invoice}
         linkedCampaign={linkedCampaign}
+        ownerTdsRate={ownerTdsRate}
         takenInvoiceNumbers={takenInvoiceNumbers}
         brandOptions={buildInvoiceBrandOptions(brands, contacts)}
         editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions, { invoices, currentInvoiceId: id })}
