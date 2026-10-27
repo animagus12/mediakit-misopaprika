@@ -262,6 +262,7 @@ export interface BrandPipelineStats {
   pipeline: number;
   /** Active/Worked With: relationships that are live or have been. */
   working: number;
+  /** Cash received across every brand: money only, never barter value. */
   totalRevenue: number;
   pendingPayments: number;
 }
@@ -293,7 +294,9 @@ export function computePipelineStats(
     if (matchesBrandFilter(row, "pipeline")) result.pipeline += 1;
     if (matchesBrandFilter(row, "working")) result.working += 1;
     const stats = statsByBrand.get(row.name) ?? EMPTY_STATS;
-    result.totalRevenue += stats.totalReceived;
+    // Cash, not totalReceived: that one counts barter parcels at their
+    // value, which read as money landed on a tile shown in the cash colour.
+    result.totalRevenue += stats.cashReceived;
     result.pendingPayments += stats.pending;
   }
   return result;

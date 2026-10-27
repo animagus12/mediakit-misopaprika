@@ -5,6 +5,7 @@ import {
   getCampaigns,
   setCampaignInvoice,
   setCampaignPaymentStatus,
+  setCampaignStatus,
   setCampaignUploadDate,
   setUsageRenewalInvoice,
   setUsageRenewalPayment,
@@ -115,6 +116,10 @@ export interface ICampaignRepository {
   // Reverts that: puts payment status back to "pending". Backs the Undo on
   // the "Mark received" toast.
   setPaymentPending(campaignId: string): Promise<CampaignRecord>;
+  // Moves the deal's pipeline status and nothing else: the dashboard's quick
+  // status control. Answers the record either side (null when the id matched
+  // nothing).
+  setStatus(campaignId: string, status: CampaignStatus): Promise<RecordChange<CampaignRecord> | null>;
   // Sets the deal's posting day, or clears it back off with "": the content
   // calendar's inline scheduler, which moves that one field rather than
   // resaving a whole form. Answers the record either side of the write (null
@@ -234,6 +239,10 @@ class CampaignRepositoryImpl implements ICampaignRepository {
 
   async setPaymentPending(campaignId: string): Promise<CampaignRecord> {
     return setCampaignPaymentStatus(campaignId, "pending", "");
+  }
+
+  async setStatus(campaignId: string, status: CampaignStatus): Promise<RecordChange<CampaignRecord> | null> {
+    return setCampaignStatus(campaignId, status);
   }
 
   async schedulePost(

@@ -1,5 +1,7 @@
 import { computeBalanceDue, computeSubtotal } from "@/lib/invoice";
+import { invoiceOwnSettlement } from "@/lib/payments";
 import type { InvoiceBankDetails, InvoiceLineItemInput, InvoicePaymentMode } from "./invoice";
+import type { PaymentTarget, Settlement } from "./payments";
 
 // A saved invoice is a self-contained document. Unlike the invoice *defaults*
 // (repositories/invoice.ts), which seed the next new invoice, each record
@@ -64,7 +66,16 @@ export interface InvoiceRecord {
 export interface Invoice extends InvoiceRecord {
   subtotal: number; // derived from items, never stored, so it can't drift
   balanceDue: number; // subtotal - advance, floored at 0
+  /** The status as stored, before the ledger projects `status` from payments. */
+  storedStatus: InvoiceStatus;
+  /** The deal or renewal whose invoiceId points here; null for a standalone invoice. */
+  owner: PaymentTarget | null;
+  /** The owner's settlement when linked, the invoice's own when standalone. */
+  settlement: Settlement;
 }
+
+/** An invoice's status as a list shows it: "partial" once part of what it bills has arrived. */
+export type InvoiceDisplayStatus = InvoiceStatus | "partial";
 
 export interface NewInvoice {
   status: InvoiceStatus;
@@ -85,7 +96,17 @@ export interface InvoiceUpdate extends NewInvoice {
   id: string;
 }
 
+// Settled as standalone from its own fields: the owner and any stored
+// payments are joined later (attachInvoiceSettlements in lib/payments.ts),
+// which needs the deals and the ledger alongside.
 export function toInvoice(record: InvoiceRecord): Invoice {
   const subtotal = computeSubtotal(record.items);
-  return { ...record, subtotal, balanceDue: computeBalanceDue(subtotal, record.advance) };
+  return {
+    ...record,
+    subtotal,
+    balanceDue: computeBalanceDue(subtotal, record.advance),
+    storedStatus: record.status,
+    owner: null,
+    settlement: invoiceOwnSettlement(record, []),
+  };
 }

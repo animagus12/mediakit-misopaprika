@@ -46,7 +46,8 @@ export async function getEditorTransactionRecord(id: string): Promise<EditorTran
   return (await readRecords()).find((record) => record.id === id) ?? null;
 }
 
-export async function addEditorTransaction(input: NewEditorTransaction): Promise<void> {
+// Answers the record it wrote, so the caller can log the new id.
+export async function addEditorTransaction(input: NewEditorTransaction): Promise<EditorTransactionRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
@@ -62,6 +63,7 @@ export async function addEditorTransaction(input: NewEditorTransaction): Promise
     ...paymentFields(input),
   };
   await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
+  return record;
 }
 
 /**

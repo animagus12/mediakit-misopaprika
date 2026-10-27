@@ -8,9 +8,23 @@
 // unchanged: same choice already made for data/editor-transactions.json.
 
 import { addMonthsToDay, daysBetween } from "@/lib/day";
+import {
+  deriveBarterState,
+  firstDayKey,
+  legacyStatusEntry,
+  settle,
+  type PaymentTarget,
+  type Settlement,
+} from "./payments";
 import { toWorkflowStatus, type WorkflowStatus } from "./workflowStatus";
 
 export type CampaignPaymentStatus = "received" | "pending" | "unknown";
+
+const PAYMENT_STATUSES = new Set<string>(["received", "pending", "unknown"]);
+
+function toOptionalPaymentStatus(raw: unknown): CampaignPaymentStatus | undefined {
+  return typeof raw === "string" && PAYMENT_STATUSES.has(raw) ? (raw as CampaignPaymentStatus) : undefined;
+}
 
 // A deal uses the whole shared vocabulary (see ./workflowStatus), including
 // the pre-production and Redacted statuses an own post never has.
@@ -129,6 +143,19 @@ export interface UsageRenewalRecord {
   tdsAmount: number | null;
 }
 
+/**
+ * A renewal as every reader sees it: the stored record with its settlement
+ * joined on (see lib/payments.ts).
+ *
+ * `paymentStatus`, `paidDate`, `paymentMethod` and `tdsAmount` are projected
+ * from the ledger once the renewal has a recorded payment; until then they
+ * are exactly the stored values, which `storedPaymentStatus` always keeps.
+ */
+export interface UsageRenewal extends UsageRenewalRecord {
+  storedPaymentStatus: CampaignPaymentStatus;
+  settlement: Settlement;
+}
+
 export interface CampaignUsage {
   /**
    * The base term in days, counted from uploadDate. 0 = not tracked.
@@ -175,6 +202,9 @@ export interface CampaignUsage {
   endedOn: string;
   renewals: UsageRenewalRecord[];
 }
+
+/** The licence as a read carries it, every renewal settled. A subtype of CampaignUsage. */
+export type CampaignUsageView = Omit<CampaignUsage, "renewals"> & { renewals: UsageRenewal[] };
 
 export function emptyUsage(): CampaignUsage {
   return { days: 0, indefinite: false, fee: 0, status: "active", pausedOn: "", pausedDays: 0, endedOn: "", renewals: [] };
@@ -355,6 +385,13 @@ export interface CampaignRecord extends CampaignInvoiceLink {
   editorTransactionId?: string | null;
   /** The ad-usage licence on this deal. Absent on rows that predate it. */
   usage?: StoredUsage;
+  /**
+   * Whether a Barter+Paid deal's barter half has been delivered, apart from
+   * its cash. Absent on every record written before the payment ledger, which
+   * reads its one paymentStatus for both halves (see deriveBarterState in
+   * ./payments). Ignored on every other type.
+   */
+  barterStatus?: CampaignPaymentStatus;
 }
 
 export interface Campaign extends CampaignRecord {
@@ -372,9 +409,19 @@ export interface Campaign extends CampaignRecord {
   tdsRate: number | null;
   tdsAmount: number | null;
   editorTransactionId: string | null; // null rather than absent: see toCampaign
-  usage: CampaignUsage; // whole rather than absent: see toUsage
+  usage: CampaignUsageView; // whole rather than absent: see toUsage
   /** True when `paymentDue` is the linked invoice's due date: see withInvoiceDueDate in lib/invoice.ts. */
   paymentDueFromInvoice: boolean;
+  /**
+   * The payment status as stored. `paymentStatus` (with `paidDate`,
+   * `paymentMethod` and `tdsAmount`) is projected from the ledger once the
+   * deal has a recorded payment, and equals this until then.
+   */
+  storedPaymentStatus: CampaignPaymentStatus;
+  /** The deal's cash, settled against the ledger; null on a deal with no cash half. */
+  settlement: Settlement | null;
+  /** Whether the barter half was delivered; null on a deal with no barter half. */
+  barterState: CampaignPaymentStatus | null;
 }
 
 export interface NewCampaignInput {
@@ -417,10 +464,69 @@ export interface CampaignUpdate extends NewCampaignInput {
   id: string;
 }
 
+/**
+ * A renewal settled from its stored fields alone, as toCampaign reads it
+ * before any ledger join: "received" is one virtual entry for the whole
+ * amount, and nothing else is. The invoice advance and stored payments are
+ * joined later (attachSettlements in lib/payments.ts).
+ */
+export function toUsageRenewal(campaignId: string, renewal: UsageRenewalRecord): UsageRenewal {
+  const target: PaymentTarget = { kind: "renewal", campaignId, renewalId: renewal.id };
+  const entries =
+    renewal.paymentStatus === "received" && renewal.amount > 0
+      ? [
+          legacyStatusEntry(target, {
+            gross: renewal.amount,
+            paidDate: renewal.paidDate,
+            method: renewal.paymentMethod,
+            tdsRate: renewal.tdsRate,
+            tdsAmount: renewal.tdsAmount,
+            bucketFallback: firstDayKey(renewal.startDate),
+          }),
+        ]
+      : [];
+  return {
+    ...renewal,
+    storedPaymentStatus: renewal.paymentStatus,
+    settlement: settle(target, renewal.amount, entries, renewal.paymentStatus),
+  };
+}
+
 export function toCampaign(record: CampaignRecord): Campaign {
   const status = toCampaignStatus(record.status);
-  const usage = toUsage(record.usage, usageTermStart(record));
+  const storedUsage = toUsage(record.usage, usageTermStart(record));
+  const usage: CampaignUsageView = {
+    ...storedUsage,
+    renewals: storedUsage.renewals.map((renewal) => toUsageRenewal(record.id, renewal)),
+  };
   const cash = record.amount + usage.fee;
+  const tdsRate = normalizeOptionalMoney(record.tdsRate);
+  const tdsAmount = normalizeOptionalMoney(record.tdsAmount);
+  const paidDate = record.paidDate?.trim() ?? "";
+  const barterStatus = toOptionalPaymentStatus(record.barterStatus);
+  const hasCash = campaignTypeHasCash(record.type);
+  const target: PaymentTarget = { kind: "deal", campaignId: record.id };
+  // Status-shaped virtual entry only: the invoice advance and stored payments
+  // need the other stores, and are joined in by attachSettlements.
+  const settlement = hasCash
+    ? settle(
+        target,
+        cash,
+        record.paymentStatus === "received" && cash > 0
+          ? [
+              legacyStatusEntry(target, {
+                gross: cash,
+                paidDate,
+                method: record.paymentMethod,
+                tdsRate,
+                tdsAmount,
+                bucketFallback: firstDayKey(record.uploadDate, record.date),
+              }),
+            ]
+          : [],
+        record.paymentStatus
+      )
+    : null;
   return {
     ...record,
     ...toInvoiceLink(record),
@@ -431,9 +537,10 @@ export function toCampaign(record: CampaignRecord): Campaign {
     cash,
     total: cash + record.barterValue,
     stage: status === "On Hold" ? "on-hold" : PAST_STATUSES.has(status) ? "past" : "active",
-    paidDate: record.paidDate?.trim() ?? "",
-    tdsRate: normalizeOptionalMoney(record.tdsRate),
-    tdsAmount: normalizeOptionalMoney(record.tdsAmount),
+    paidDate,
+    tdsRate,
+    tdsAmount,
+    barterStatus,
     // An empty string is what a cleared <Select> leaves behind and a row
     // written before the field existed has nothing at all; both mean the same
     // thing, so both settle on null and no reader downstream has to test for
@@ -442,6 +549,15 @@ export function toCampaign(record: CampaignRecord): Campaign {
     usage,
     // Set by withInvoiceDueDate once the invoices are read alongside.
     paymentDueFromInvoice: false,
+    storedPaymentStatus: record.paymentStatus,
+    settlement,
+    barterState: deriveBarterState(
+      hasCash,
+      campaignTypeHasBarter(record.type),
+      record.paymentStatus,
+      barterStatus,
+      settlement
+    ),
   };
 }
 

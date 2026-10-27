@@ -249,6 +249,43 @@ export async function updateCampaign(
 }
 
 /**
+ * Moves a deal to another pipeline status, and only that: the dashboard's
+ * quick status control and its Undo. Everything else on the deal, its
+ * editing job and payment fields included, is left as stored.
+ */
+export async function setCampaignWorkflowStatus(
+  id: string,
+  status: CampaignStatus
+): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  if (!isCampaignStatus(status)) return { success: false, error: "Pick a status" };
+  try {
+    const change = await campaignRepository.setStatus(id, status);
+    if (!change) return { success: false, error: "This campaign no longer exists" };
+    if (change.before === change.after) return { success: true };
+    revalidateStores("campaigns");
+    await recordActivity({
+      action: "campaign.updated",
+      entity: {
+        type: "campaign",
+        id: change.after.id,
+        label: campaignLabel(change.after.campaign, change.after.brand),
+      },
+      detail: describeChanges(change, campaignFields) ?? (change.after.brand.trim() || undefined),
+      amount: toCampaign(change.after).total,
+    });
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Couldn't update the status",
+    };
+  }
+}
+
+/**
  * Moves the invoice a campaign is billed by (its invoiceId foreign key, or
  * failing that the invoiceRef it quotes) to `status`, and reports the status it
  * held before, so an Undo can put back exactly what was there rather than

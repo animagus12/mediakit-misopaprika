@@ -29,7 +29,7 @@ export interface BrandCampaignRecord {
   usage: CampaignUsage; // the ad-usage licence, for the brand's renewal history
 }
 
-function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
+export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
   return {
     campaignId: campaign.id,
     brand: campaign.brand,

@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isPaymentTargetLive } from "@/lib/payments";
 import { revalidateStores } from "@/lib/revalidation";
 import { restoreAffiliatePayout } from "@/repositories/affiliatePayouts.writer.server";
 import { restoreBrand } from "@/repositories/brands.writer.server";
 import { restoreBrandNotes } from "@/repositories/brandNotes.writer.server";
 import {
+  readCampaignLedger,
   restoreCampaign,
   restoreCampaignBrandLinks,
   restoreCampaignInvoiceLinks,
@@ -16,10 +18,25 @@ import { restoreContentItem } from "@/repositories/contentPlan.writer.server";
 import { restoreEditorTransaction } from "@/repositories/editorTransactions.writer.server";
 import { restoreInvoice, restoreInvoicesForBrand } from "@/repositories/invoices.writer.server";
 import { restoreLinksDeletion } from "@/repositories/links.writer.server";
+import type { PaymentTarget } from "@/repositories/payments";
+import { restorePayments } from "@/repositories/payments.writer.server";
 import { clearTrash, getTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { requireSession } from "@/lib/session.server";
 
 type TrashActionResult = { success: true } | { success: false; error: string };
+
+// A payment comes back only onto a deal, renewal or invoice that is live: one
+// restored onto nothing would count as income against a target no page shows.
+// A target sitting in Trash is not live, so it is restored first.
+async function paymentTargetProblem(target: PaymentTarget): Promise<string | null> {
+  const { campaigns, invoices } = await readCampaignLedger();
+  if (isPaymentTargetLive(target, campaigns, invoices)) return null;
+  if (target.kind === "invoice") return "Restore the invoice first";
+  if (target.kind === "renewal" && campaigns.some((campaign) => campaign.id === target.campaignId)) {
+    return "The renewal this payment was for no longer exists";
+  }
+  return "Restore the deal first";
+}
 
 export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
   const denied = await requireSession();
@@ -57,13 +74,22 @@ export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
       case "invoice":
         await restoreInvoice(entry.payload.record);
         await restoreCampaignInvoiceLinks(entry.payload.campaignLinks, entry.payload.record.id);
-        revalidateStores("invoices", "campaigns");
+        await restorePayments(entry.payload.payments ?? []);
+        revalidateStores("invoices", "campaigns", "payments");
         break;
       case "campaign":
         await restoreCampaign(entry.payload.record);
         await restoreCampaignContacts(entry.payload.contacts);
-        revalidateStores("campaigns", "campaignContacts");
+        await restorePayments(entry.payload.payments ?? []);
+        revalidateStores("campaigns", "campaignContacts", "payments");
         break;
+      case "payment": {
+        const problem = await paymentTargetProblem(entry.payload.record.target);
+        if (problem) return { success: false, error: problem };
+        await restorePayments([entry.payload.record]);
+        revalidateStores("payments");
+        break;
+      }
       case "editorTransaction":
         await restoreEditorTransaction(entry.payload.record);
         revalidateStores("editorTransactions");

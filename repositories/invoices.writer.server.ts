@@ -12,8 +12,8 @@ import {
   validateInvoiceInput,
   withLinkedBrand,
 } from "@/lib/invoice";
-import { getCampaigns } from "./campaigns.writer.server";
-import type { Campaign } from "./campaigns";
+import { attachInvoiceSettlements } from "@/lib/payments";
+import { readCampaignLedger, type CampaignLedger } from "./campaigns.writer.server";
 import { INVOICES_KEY, readInvoiceRecords as readRecords } from "./invoiceRecords.server";
 import { toInvoice } from "./invoices";
 import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
@@ -24,31 +24,35 @@ import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice }
 // so that logic lives here rather than in ./invoices.
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
+// Whether a read projects each invoice's status and balance from the payment
+// ledger. Off while the ledger is only read alongside (the lists show what was
+// stored); the next stage turns it on and then removes the flag.
+const PROJECT_INVOICE_SETTLEMENTS = false;
+
 // Every invoice read carries the brand of the deal it bills (withLinkedBrand),
 // so the brand page, the invoices list and the media kit agree on it without
-// each re-deriving it. Best-effort: campaigns that can't be read leave each
-// invoice's own brand. Writes go through readRecords and store what the
-// editor saved, which after this is the linked brand too.
-async function linkedCampaigns(): Promise<Campaign[]> {
-  try {
-    return await getCampaigns();
-  } catch {
-    return [];
-  }
+// each re-deriving it, and the settlement of whatever it bills (the deal's or
+// the renewal's when linked, its own when standalone). Read from the same
+// snapshot as the deals (readCampaignLedger), and strict for the same reason:
+// a settlement read half-way would misstate what is owed. Writes go through
+// readRecords and store what the editor saved.
+function joinInvoices(records: InvoiceRecord[], ledger: CampaignLedger): Invoice[] {
+  const invoices = records.map((record) => withLinkedBrand(toInvoice(record), ledger.campaigns));
+  return attachInvoiceSettlements(invoices, ledger.campaigns, ledger.payments, PROJECT_INVOICE_SETTLEMENTS);
 }
 
 // Falls back to the bundled data/invoices.json seed (empty) until the first
 // invoice is saved, or whenever Redis isn't configured (e.g. local dev
 // without KV env vars).
 export async function getInvoices(): Promise<Invoice[]> {
-  const [records, campaigns] = await Promise.all([readRecords(), linkedCampaigns()]);
-  return records.map((record) => withLinkedBrand(toInvoice(record), campaigns));
+  const ledger = await readCampaignLedger();
+  return joinInvoices(ledger.invoices, ledger);
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
-  const [records, campaigns] = await Promise.all([readRecords(), linkedCampaigns()]);
-  const record = records.find((r) => r.id === id);
-  return record ? withLinkedBrand(toInvoice(record), campaigns) : null;
+  const ledger = await readCampaignLedger();
+  const record = ledger.invoices.find((r) => r.id === id);
+  return record ? (joinInvoices([record], ledger)[0] ?? null) : null;
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of what

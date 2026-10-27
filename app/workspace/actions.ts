@@ -89,11 +89,11 @@ export async function createEditorTransaction(
   const invalid = validateEditorTransactionInput(input);
   if (invalid) return { success: false, error: invalid };
   try {
-    await addEditorTransaction(input);
+    const record = await addEditorTransaction(input);
     revalidateStores("editorTransactions");
     await recordActivity({
       action: "editorTransaction.created",
-      entity: { type: "editorTransaction", id: null, label: input.video.trim() },
+      entity: { type: "editorTransaction", id: record.id, label: record.video },
       detail: input.editor.trim() || undefined,
       amount: input.amount ?? undefined,
     });

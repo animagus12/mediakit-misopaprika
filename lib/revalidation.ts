@@ -15,7 +15,33 @@ import { revalidatePath } from "next/cache";
  * a new store, add the route here rather than to the action.
  */
 const ROUTES = {
-  campaigns: ["/", "/campaigns", "/calendar", "/brands", "/brands/[id]", "/taxes"],
+  // A linked invoice's settlement is its deal's, so a deal write reaches the
+  // invoice pages and the media kit's paid-brand list too.
+  campaigns: [
+    "/",
+    "/campaigns",
+    "/calendar",
+    "/brands",
+    "/brands/[id]",
+    "/taxes",
+    "/invoices",
+    "/invoices/[id]",
+    "/mediakit-generator",
+  ],
+  // The payment ledger feeds every money figure: deal and renewal status,
+  // invoice balances, earnings, TDS and the brand totals.
+  payments: [
+    "/",
+    "/campaigns",
+    "/calendar",
+    "/brands",
+    "/brands/[id]",
+    "/invoices",
+    "/invoices/[id]",
+    "/invoices/new",
+    "/taxes",
+    "/mediakit-generator",
+  ],
   contentPlan: ["/", "/calendar"],
   invoices: ["/", "/invoices", "/invoices/[id]", "/invoices/new", "/brands/[id]"],
   brands: ["/", "/campaigns", "/brands", "/brands/[id]", "/invoices/[id]", "/invoices/new"],

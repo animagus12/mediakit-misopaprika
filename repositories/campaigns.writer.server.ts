@@ -5,8 +5,12 @@ import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
 import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
+import { attachSettlements } from "@/lib/payments";
 import { getTrashedCampaignIds } from "./trash.writer.server";
 import { readInvoiceRecords } from "./invoiceRecords.server";
+import { readPaymentRecords } from "./paymentRecords.server";
+import type { InvoiceRecord } from "./invoices";
+import type { PaymentRecord } from "./payments";
 import {
   campaignTypeHasCash,
   emptyUsage,
@@ -23,6 +27,7 @@ import type {
   Campaign,
   CampaignPaymentStatus,
   CampaignRecord,
+  CampaignStatus,
   CampaignUpdate,
   CampaignUsage,
   NewCampaignInput,
@@ -55,22 +60,43 @@ async function readRecords(): Promise<CampaignRecord[]> {
   }));
 }
 
-// Best-effort, like the brand join on invoice reads: invoices that can't be
-// read leave every deal its own due date.
-async function linkedInvoiceDueDates(): Promise<Map<string, string>> {
-  try {
-    return invoiceDueDates(await readInvoiceRecords());
-  } catch {
-    return new Map();
-  }
+export interface CampaignLedger {
+  campaigns: Campaign[];
+  invoices: InvoiceRecord[];
+  payments: PaymentRecord[];
+}
+
+/**
+ * The deals with every settlement joined on, and the two stores read to do it.
+ *
+ * Strict: campaigns, invoices and payments are read together and any failure
+ * throws. A silent fallback would read every partly paid deal as pending and
+ * drop money figures without a word; all three live on the same Redis, so a
+ * failure in one is rarely alone anyway. Answers the invoice and payment
+ * records too, so the invoice read joins the same snapshot rather than
+ * reading them a second time.
+ *
+ * A deal linked to an invoice reads its payment due date from that invoice.
+ */
+export async function readCampaignLedger(): Promise<CampaignLedger> {
+  const [records, invoices, payments] = await Promise.all([
+    readRecords(),
+    readInvoiceRecords(),
+    readPaymentRecords(),
+  ]);
+  const dueDates = invoiceDueDates(invoices);
+  const campaigns = attachSettlements(
+    records.map((record) => withInvoiceDueDate(toCampaign(record), dueDates)),
+    invoices,
+    payments
+  );
+  return { campaigns, invoices, payments };
 }
 
 // Falls back to the bundled data/campaigns.json seed until the first write,
 // or whenever Redis isn't configured (e.g. local dev without KV env vars).
-// A deal linked to an invoice reads its payment due date from that invoice.
 export async function getCampaigns(): Promise<Campaign[]> {
-  const [records, dueDates] = await Promise.all([readRecords(), linkedInvoiceDueDates()]);
-  return records.map((record) => withInvoiceDueDate(toCampaign(record), dueDates));
+  return (await readCampaignLedger()).campaigns;
 }
 
 export async function getCampaignRecord(id: string): Promise<CampaignRecord | null> {
@@ -268,6 +294,31 @@ export async function setCampaignPaymentStatus(
     records.map((record): CampaignRecord => (record.id === id ? updated : record))
   );
   return updated;
+}
+
+/**
+ * Moves a deal to another pipeline status and writes nothing else.
+ *
+ * The dashboard's quick status control used to resave the whole deal through
+ * updateCampaign, re-sending every field it had on screen. It had no editing
+ * job on screen, so every quick move unlinked the deal's editing job, and it
+ * re-sent the payment fields, which a status move has no business writing.
+ * Answers the record either side of the write, or null when the id matched
+ * nothing.
+ */
+export async function setCampaignStatus(
+  id: string,
+  status: CampaignStatus
+): Promise<RecordChange<CampaignRecord> | null> {
+  const redis = getRedis();
+  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const records = await readRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before) return null;
+  if (before.status === status) return { before, after: before };
+  const after: CampaignRecord = { ...before, status };
+  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
+  return { before, after };
 }
 
 // Writes just the uploadDate, leaving every other field untouched: the

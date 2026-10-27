@@ -310,14 +310,19 @@ export function CampaignsTable({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            {CAMPAIGN_FILTER_TABS.map((entry) => (
-              <TabsTrigger key={entry.value} value={entry.value}>
-                {entry.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        {/* Six tabs are wider than a phone: they scroll sideways, edge to
+            edge, rather than pushing the whole page (and every sheet opened
+            from a row) wider than the screen. */}
+        <Tabs value={tab} onValueChange={setTab} className="w-full min-w-0 sm:w-auto">
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              {CAMPAIGN_FILTER_TABS.map((entry) => (
+                <TabsTrigger key={entry.value} value={entry.value}>
+                  {entry.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </Tabs>
 
         <div className="relative w-full max-w-xs">

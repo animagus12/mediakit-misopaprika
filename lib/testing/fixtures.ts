@@ -10,7 +10,8 @@
 // Test-only: nothing in the app imports this, and it must never import Redis
 // or a *.writer.server module.
 import type { DuePayment } from "@/lib/brandCampaignStats";
-import type { InvoiceEditorJobOption } from "@/lib/invoice";
+import { invoiceDueDates, withInvoiceDueDate, type InvoiceEditorJobOption } from "@/lib/invoice";
+import { attachSettlements } from "@/lib/payments";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import {
   emptyUsage,
@@ -27,9 +28,48 @@ import {
   type EditorTransactionRecord,
 } from "@/repositories/editorTransactions";
 import { toInvoice, type Invoice, type InvoiceRecord } from "@/repositories/invoices";
+import type { PaymentRecord } from "@/repositories/payments";
 
-export function makeCampaign(overrides: Partial<CampaignRecord> = {}): Campaign {
-  return toCampaign({
+/** A stored payment: ₹10,000 on a deal, into Business funds, by UPI. */
+export function makePaymentRecord(overrides: Partial<PaymentRecord> = {}): PaymentRecord {
+  return {
+    id: "5f0c6f1e-2b7a-4c1d-9a3e-000000000001",
+    target: { kind: "deal", campaignId: "MSP-MC0001" },
+    date: "2026-05-20",
+    gross: 10000,
+    tds: 0,
+    bankFee: 0,
+    receivedInto: "business",
+    method: "UPI",
+    reference: "",
+    note: "",
+    origin: "recorded",
+    createdAt: "2026-05-20T10:00:00.000Z",
+    updatedAt: "2026-05-20T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/**
+ * Deals as the repository reads them (readCampaignLedger): each record mapped,
+ * its due dates taken from the invoices, and the ledger joined on.
+ */
+export function ledgerCampaigns(
+  records: CampaignRecord[],
+  invoices: InvoiceRecord[] = [],
+  payments: PaymentRecord[] = []
+): Campaign[] {
+  const dueDates = invoiceDueDates(invoices);
+  return attachSettlements(
+    records.map((record) => withInvoiceDueDate(toCampaign(record), dueDates)),
+    invoices,
+    payments
+  );
+}
+
+/** A deal as stored, before toCampaign derives anything from it. */
+export function makeCampaignRecord(overrides: Partial<CampaignRecord> = {}): CampaignRecord {
+  return {
     id: "MSP-MC0001",
     date: "01/05/2026",
     uploadDate: "",
@@ -49,7 +89,11 @@ export function makeCampaign(overrides: Partial<CampaignRecord> = {}): Campaign 
     invoiceRef: "",
     invoiceId: null,
     ...overrides,
-  });
+  };
+}
+
+export function makeCampaign(overrides: Partial<CampaignRecord> = {}): Campaign {
+  return toCampaign(makeCampaignRecord(overrides));
 }
 
 export function makeRenewal(overrides: Partial<UsageRenewalRecord> = {}): UsageRenewalRecord {
@@ -102,8 +146,9 @@ export function makeMonthlyEarnings(
   };
 }
 
-export function makeInvoice(overrides: Partial<InvoiceRecord> = {}): Invoice {
-  return toInvoice({
+/** An invoice as stored, before toInvoice derives anything from it. */
+export function makeInvoiceRecord(overrides: Partial<InvoiceRecord> = {}): InvoiceRecord {
+  return {
     id: "inv-1",
     status: "sent",
     invoiceNo: "0001",
@@ -130,7 +175,11 @@ export function makeInvoice(overrides: Partial<InvoiceRecord> = {}): Invoice {
     createdAt: "2026-05-01T00:00:00.000Z",
     updatedAt: "2026-05-01T00:00:00.000Z",
     ...overrides,
-  });
+  };
+}
+
+export function makeInvoice(overrides: Partial<InvoiceRecord> = {}): Invoice {
+  return toInvoice(makeInvoiceRecord(overrides));
 }
 
 export function makeEditorTransaction(
