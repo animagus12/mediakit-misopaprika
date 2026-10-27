@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeEditorJob, makeEditorTransaction, makeInvoice } from "@/lib/testing/fixtures";
+import { makeCampaign, makeEditorJob, makeEditorTransaction, makeInvoice } from "@/lib/testing/fixtures";
 import {
+  buildInvoiceDealOptions,
   buildInvoiceEditorJobOptions,
   computeBalanceDue,
   computeInvoiceMargin,
@@ -335,5 +336,22 @@ describe("buildInvoiceEditorJobOptions", () => {
     expect(
       buildInvoiceEditorJobOptions(transactions, { invoices, currentInvoiceId: "2" }).map((job) => job.id)
     ).toEqual(["ET0002", "ET0001"]);
+  });
+});
+
+describe("buildInvoiceDealOptions", () => {
+  it("offers cash deals with no invoice that aren't called off, the invoice's own brand first", () => {
+    const campaigns = [
+      makeCampaign({ id: "other", brand: "Zed", campaign: "Teaser", brandId: "b-zed" }),
+      makeCampaign({ id: "own", brand: "Acme", campaign: "Launch", brandId: "b-acme" }),
+      makeCampaign({ id: "linked", campaign: "Linked", invoiceId: "inv-9" }),
+      makeCampaign({ id: "barter", campaign: "Hamper", type: "Barter", amount: 0, barterValue: 5000 }),
+      makeCampaign({ id: "off", campaign: "Dropped", status: "Cancelled" }),
+    ];
+
+    expect(buildInvoiceDealOptions({ brandId: "b-acme" }, campaigns)).toEqual([
+      { id: "own", label: "Launch" },
+      { id: "other", label: "Teaser" },
+    ]);
   });
 });

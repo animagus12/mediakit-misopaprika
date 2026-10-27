@@ -333,6 +333,8 @@ export interface BrandPaymentRow {
   outstanding: number;
   /** The cash half settled against the payment ledger; null on a deal with no cash half. */
   settlement: Settlement | null;
+  /** The TDS rate a payment recorded from this row starts from. */
+  expectedTdsRate: number | null;
   paymentStatus: BrandCampaignRecord["paymentStatus"];
   paymentDue: string;
   paidDate: string;
@@ -367,6 +369,7 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
       amount: record.amount,
       outstanding: record.settlement?.remaining ?? 0,
       settlement: record.settlement,
+      expectedTdsRate: record.tdsRate,
       paymentStatus: record.paymentStatus,
       paymentDue: record.paymentDue,
       paidDate: record.paidDate,
@@ -389,6 +392,7 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
         amount: renewal.amount,
         outstanding: renewal.settlement.remaining,
         settlement: renewal.settlement,
+        expectedTdsRate: renewal.tdsRate ?? record.tdsRate,
         paymentStatus: renewal.paymentStatus,
         paymentDue: renewal.paymentDue,
         paidDate: renewal.paidDate,

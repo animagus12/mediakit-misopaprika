@@ -1,7 +1,8 @@
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { Invoice } from "@/repositories/invoices";
-import { isInvoiceOverdue } from "@/lib/invoice";
-import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
+import type { PaymentRecord } from "@/repositories/payments";
+import { buildInvoiceNumber, isInvoiceOverdue } from "@/lib/invoice";
+import { campaignLabel, isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { todayKey } from "@/lib/day";
 
 // Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
@@ -10,7 +11,12 @@ import { todayKey } from "@/lib/day";
 // out of the "server-only" repository so the dashboard card can import the
 // type freely.
 
-export type AttentionKind = "uninvoiced" | "untracked-payment" | "overdue-invoice";
+export type AttentionKind =
+  | "uninvoiced"
+  | "untracked-payment"
+  | "overdue-invoice"
+  | "overpaid"
+  | "orphan-payment";
 
 export interface AttentionItem {
   kind: AttentionKind;
@@ -19,6 +25,59 @@ export interface AttentionItem {
   campaign: string;
   amount: number; // the deal's Total, for ranking + display
   label: string; // what's unresolved, in a few words
+  /** Where the fix is, for the kinds whose link isn't derived from the kind alone. */
+  href?: string;
+}
+
+/** Where a deal is opened by name: the campaigns table, searched for it. */
+function dealHref(record: Pick<BrandCampaignRecord, "campaign" | "brand">): string {
+  return `/campaigns?q=${encodeURIComponent(campaignLabel(record.campaign, record.brand))}`;
+}
+
+// Money recorded beyond what a deal, renewal or invoice is worth. The
+// recording form refuses it, so it only appears when the amount owed was
+// lowered afterwards: either the amount or a payment is now wrong.
+function overpaidItems(records: BrandCampaignRecord[], invoices: Invoice[]): AttentionItem[] {
+  const items: AttentionItem[] = [];
+  const label = "Received more than it's worth";
+  for (const record of records) {
+    if (record.settlement && record.settlement.overpaid > 0) {
+      items.push({
+        kind: "overpaid",
+        campaignId: record.campaignId,
+        brand: record.brand,
+        campaign: record.campaign,
+        amount: record.settlement.overpaid,
+        label,
+        href: dealHref(record),
+      });
+    }
+    for (const renewal of record.usage.renewals) {
+      if (renewal.settlement.overpaid <= 0) continue;
+      items.push({
+        kind: "overpaid",
+        campaignId: `${record.campaignId}:${renewal.id}`,
+        brand: record.brand,
+        campaign: `${campaignLabel(record.campaign, record.brand)} · usage renewal`,
+        amount: renewal.settlement.overpaid,
+        label,
+        href: dealHref(record),
+      });
+    }
+  }
+  for (const invoice of invoices) {
+    if (invoice.owner || invoice.settlement.overpaid <= 0) continue;
+    items.push({
+      kind: "overpaid",
+      campaignId: invoice.id,
+      brand: invoice.client.name,
+      campaign: `Invoice ${buildInvoiceNumber(invoice.invoiceNo)}`,
+      amount: invoice.settlement.overpaid,
+      label,
+      href: `/invoices/${invoice.id}`,
+    });
+  }
+  return items;
 }
 
 // Whether the creator's side of the deal is actually done.
@@ -53,13 +112,31 @@ function isInvoiced(record: BrandCampaignRecord, invoices: Invoice[]): boolean {
   return invoice ? invoice.status !== "void" : invoices.length === 0;
 }
 
+/**
+ * `orphanPayments` are stored payments whose deal, renewal or invoice is gone
+ * (see findOrphanPayments): money still on the books against nothing a page
+ * shows, listed on the Payments page to delete.
+ */
 export function selectAttentionItems(
   records: BrandCampaignRecord[],
   invoices: Invoice[] = [],
-  now: Date = new Date()
+  now: Date = new Date(),
+  orphanPayments: PaymentRecord[] = []
 ): AttentionItem[] {
-  const items: AttentionItem[] = [];
+  const items: AttentionItem[] = overpaidItems(records, invoices);
   const today = todayKey(now);
+
+  for (const payment of orphanPayments) {
+    items.push({
+      kind: "orphan-payment",
+      campaignId: payment.id,
+      brand: "Payment for a deleted record",
+      campaign: payment.date ? `Received ${toSheetDate(payment.date)}` : "Date not recorded",
+      amount: payment.gross,
+      label: "Not linked to a deal",
+      href: "/payments#unlinked",
+    });
+  }
 
   for (const record of records) {
     if (isCampaignCalledOff(record.status)) continue;
@@ -113,5 +190,11 @@ export function selectAttentionItems(
     });
   }
 
-  return items.sort((a, b) => b.amount - a.amount);
+  // Money that doesn't add up comes first, however small: until it is fixed,
+  // every figure built on it is wrong. The rest are follow-ups, biggest first.
+  return items.sort((a, b) => Number(isBookError(b)) - Number(isBookError(a)) || b.amount - a.amount);
+}
+
+function isBookError(item: AttentionItem): boolean {
+  return item.kind === "overpaid" || item.kind === "orphan-payment";
 }

@@ -37,6 +37,14 @@ interface PaymentHistoryProps {
   compact?: boolean;
   /** Read only: shows the payments without record, edit or delete (a linked invoice's view of its deal). */
   readOnly?: boolean;
+  /** The invoice these payments settle, so its own warnings (void, a second deal) show too. */
+  warningContext?: Omit<Parameters<typeof ledgerWarnings>[0], "settlement">;
+  /**
+   * Runs before a new payment's sheet opens and calls `proceed` to open it,
+   * or doesn't, to ask something first (a standalone invoice asks whether it
+   * bills a deal).
+   */
+  beforeRecord?: (proceed: () => void) => void;
 }
 
 // Whose account a new payment starts on: where this target's last payment
@@ -71,10 +79,27 @@ function entrySource(entry: LedgerEntry): string {
  * fields and are marked "From earlier record": editing or deleting one turns
  * it into a recorded payment first (see paymentLedger.server.ts).
  */
-export function PaymentHistory({ settlement, targetLabel, expectedTdsRate, compact = false, readOnly = false }: PaymentHistoryProps) {
+export function PaymentHistory({
+  settlement,
+  targetLabel,
+  expectedTdsRate,
+  compact = false,
+  readOnly = false,
+  warningContext,
+  beforeRecord,
+}: PaymentHistoryProps) {
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState<LedgerEntry | null>(null);
-  const warnings = ledgerWarnings({ settlement });
+  // A fresh key per opening, so each new payment's sheet starts from what is
+  // owed now and with a new id.
+  const [recordingKey, setRecordingKey] = useState<number | null>(null);
+  const warnings = ledgerWarnings({ settlement, ...warningContext });
+
+  function startRecording() {
+    const proceed = () => setRecordingKey(Date.now());
+    if (beforeRecord) beforeRecord(proceed);
+    else proceed();
+  }
   const receivedInto = defaultReceivedInto(settlement);
 
   function remove(entry: LedgerEntry) {
@@ -194,17 +219,22 @@ export function PaymentHistory({ settlement, targetLabel, expectedTdsRate, compa
       )}
 
       {!readOnly && settlement.remaining > 0 && (
+        <Button type="button" size="sm" variant="outline" onClick={startRecording}>
+          <Plus />
+          Record payment
+        </Button>
+      )}
+      {recordingKey !== null && (
         <RecordPaymentSheet
+          key={recordingKey}
           settlement={settlement}
           targetLabel={targetLabel}
           expectedTdsRate={expectedTdsRate}
           defaultReceivedInto={receivedInto}
-          trigger={
-            <Button type="button" size="sm" variant="outline">
-              <Plus />
-              Record payment
-            </Button>
-          }
+          open
+          onOpenChange={(open) => {
+            if (!open) setRecordingKey(null);
+          }}
         />
       )}
     </div>

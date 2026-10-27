@@ -150,9 +150,9 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   editorTransaction: { detail: null, list: "/workspace" },
   affiliatePartner: { detail: null, list: "/affiliates" },
   affiliatePayout: { detail: null, list: "/affiliates" },
-  // A payment has no page; it is listed on its deal (see activityHref for
-  // one that belongs to an invoice).
-  payment: { detail: null, list: "/campaigns" },
+  // A payment has no page of its own; every one is listed on Payments (see
+  // activityHref for one that belongs to an invoice).
+  payment: { detail: null, list: "/payments" },
   links: { detail: null, list: "/links-editor" },
   mediakit: { detail: null, list: "/mediakit-generator" },
 };

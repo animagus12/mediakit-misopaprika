@@ -8,6 +8,7 @@ import {
   updateInvoice as updateInvoiceAction,
 } from "@/app/invoices/actions";
 import {
+  buildInvoiceNumber,
   formStateToInvoiceInput,
   invoiceDefaultsToFormState,
   invoiceRecordToFormState,
@@ -16,6 +17,7 @@ import {
   toInvoiceDefaults,
   validateInvoiceInput,
   type InvoiceBrandOption,
+  type InvoiceDealOption,
   type InvoiceEditorJobOption,
   type InvoiceLineItem,
   type InvoiceLinkedCampaign,
@@ -61,6 +63,8 @@ interface InvoiceGeneratorProps {
   linkedCampaign?: InvoiceLinkedCampaign | null;
   /** The TDS rate the linked deal or renewal expects, for a payment recorded from here. */
   ownerTdsRate?: number | null;
+  /** Deals a standalone invoice could bill, asked about before its first payment. */
+  dealOptions?: InvoiceDealOption[];
   takenInvoiceNumbers?: string[];
   brandOptions?: InvoiceBrandOption[];
   editorJobOptions?: InvoiceEditorJobOption[];
@@ -76,6 +80,7 @@ export function InvoiceGenerator({
   campaignId,
   linkedCampaign = null,
   ownerTdsRate = null,
+  dealOptions = [],
   takenInvoiceNumbers = [],
   brandOptions = [],
   editorJobOptions = [],
@@ -84,8 +89,19 @@ export function InvoiceGenerator({
   clientNamePlaceholder,
 }: InvoiceGeneratorProps) {
   const router = useRouter();
-  // A linked invoice is settled by its deal's or renewal's payments.
+  // A linked invoice is settled by its deal's or renewal's payments, a
+  // standalone one by its own.
   const ownerSettlement = invoice?.owner ? invoice.settlement : null;
+  const standalone =
+    invoice && !invoice.owner
+      ? {
+          invoiceId: invoice.id,
+          settlement: invoice.settlement,
+          invoice,
+          label: `Invoice ${buildInvoiceNumber(invoice.invoiceNo)}`,
+          dealOptions,
+        }
+      : null;
   const [state, setState] = useState<InvoiceFormState>(() =>
     buildInitialState(data, invoice, prefill, brandOptions, initialBrandId, initialCampaignName)
   );
@@ -186,7 +202,6 @@ export function InvoiceGenerator({
       clientAddress: "",
       clientPanNumber: "",
       clientGstNumber: "",
-      advance: 0,
       date: todayISO(),
       due: todayISO(data.dueInDays),
     }));
@@ -292,12 +307,13 @@ export function InvoiceGenerator({
         linkedCampaign={linkedCampaign}
         ownerSettlement={ownerSettlement}
         ownerTdsRate={ownerTdsRate}
+        standalone={standalone}
         onImageUploadError={showToast}
       />
 
       <main className={styles.stage}>
         <div className={styles.stageInner}>
-          <InvoicePreview state={state} amountReceived={ownerSettlement ? ownerSettlement.settled : null} />
+          <InvoicePreview state={state} amountReceived={invoice ? invoice.settlement.settled : 0} />
         </div>
       </main>
 

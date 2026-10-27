@@ -27,6 +27,8 @@ export interface BrandCampaignRecord {
   paymentDue: string; // DD/MM/YYYY the payment is expected by, or "" when unset
   paidDate: string; // DD/MM/YYYY the money landed; the other half of the reliability read
   paymentMethod: string;
+  /** The TDS rate the brand is expected to withhold, which a payment recorded here starts from. */
+  tdsRate: number | null;
   /** The cash half settled against the payment ledger; null on a deal with no cash half. */
   settlement: Settlement | null;
   /** Whether the barter half was delivered; null on a deal with no barter half. */
@@ -53,6 +55,7 @@ export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     paymentDue: campaign.paymentDue,
     paidDate: campaign.paidDate,
     paymentMethod: campaign.paymentMethod,
+    tdsRate: campaign.tdsRate,
     settlement: campaign.settlement,
     barterState: campaign.barterState,
     usage: campaign.usage,

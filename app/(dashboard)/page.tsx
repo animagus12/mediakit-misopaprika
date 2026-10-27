@@ -22,6 +22,7 @@ import { getEditors } from "@/repositories/editors.writer.server";
 import { getBrands } from "@/repositories/brands.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
+import { getPaymentBook } from "@/repositories/paymentBook.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
 import { getLinksAnalytics } from "@/repositories/linkStats.server";
 import { getLinksData } from "@/repositories/links.writer.server";
@@ -155,11 +156,14 @@ async function PaymentsDueSection() {
 // Its own boundary now that the payments card shares a row with the week
 // ahead: a third card in that grid would wrap onto a half-width row of its own.
 async function NeedsAttentionSection() {
-  const [records, invoices] = await Promise.all([
+  const [records, invoices, orphans] = await Promise.all([
     fetchBrandCampaignRecords().catch(() => []),
     getInvoices().catch(() => []),
+    getPaymentBook()
+      .then((book) => book.orphans)
+      .catch(() => []),
   ]);
-  return <NeedsAttentionCard items={selectAttentionItems(records, invoices)} className="mb-6" />;
+  return <NeedsAttentionCard items={selectAttentionItems(records, invoices, new Date(), orphans)} className="mb-6" />;
 }
 
 // Licences about to run out, and the renewal money they brought in that is

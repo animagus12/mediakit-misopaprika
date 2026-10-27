@@ -192,6 +192,40 @@ export async function unlinkCampaignInvoice(
   }
 }
 
+/**
+ * Links a standalone invoice to the deal it bills, from the invoice's page:
+ * asked before its first payment, so money for a deal is recorded on that
+ * deal (see applyInvoiceLink for what moves with the link).
+ */
+export async function linkInvoiceToCampaign(
+  invoiceId: string,
+  campaignId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  try {
+    const [campaigns, invoices] = await Promise.all([campaignRepository.getAll(), getInvoices()]);
+    const deal = campaigns.find((entry) => entry.id === campaignId);
+    if (!deal) return { success: false, error: "That campaign no longer exists" };
+    if (deal.invoiceId) return { success: false, error: "That campaign already has an invoice" };
+    const invoice = invoices.find((entry) => entry.id === invoiceId);
+    if (!invoice) return { success: false, error: "That invoice no longer exists" };
+
+    await applyInvoiceLink(campaignId, invoiceId);
+    revalidateCampaignPaths();
+    revalidateStores("invoices", "payments");
+    await recordActivity({
+      action: "campaign.updated",
+      entity: { type: "campaign", id: deal.id, label: campaignLabel(deal.campaign, deal.brand) },
+      detail: `linked invoice ${buildInvoiceNumber(invoice.invoiceNo)}`,
+    });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Couldn't link the invoice" };
+  }
+}
+
 function revalidateCampaignPaths(): void {
   // A campaign write can also create a brand (see resolveOrCreateBrandId).
   revalidateStores("campaigns", "brands");

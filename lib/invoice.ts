@@ -7,7 +7,7 @@ import type { Brand } from "@/repositories/brands";
 import type { Campaign } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
-import { toSheetDate } from "./campaigns";
+import { campaignLabel, isCampaignCalledOff, toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
@@ -69,9 +69,6 @@ export function validateInvoiceInput(input: NewInvoice): string | null {
     }
   }
 
-  if (!Number.isFinite(input.advance) || input.advance < 0) {
-    return "Advance received must be a non-negative amount";
-  }
   if (input.barter.enabled && (!Number.isFinite(input.barter.value) || input.barter.value < 0)) {
     return "Barter value must be a non-negative amount";
   }
@@ -327,6 +324,33 @@ export function buildCampaignInvoiceOptions(
       };
     })
     .sort((a, b) => b.number.localeCompare(a.number, undefined, { numeric: true }));
+}
+
+/** One deal a standalone invoice could be linked to before its first payment. */
+export interface InvoiceDealOption {
+  id: string;
+  /** "Brand · Campaign" */
+  label: string;
+}
+
+/**
+ * The deals a standalone invoice could bill: cash deals no invoice bills yet
+ * and not called off, the invoice's own brand first. Asked before its first
+ * payment, so money for a deal is recorded on that deal and not twice.
+ */
+export function buildInvoiceDealOptions(
+  invoice: Pick<Invoice, "brandId">,
+  campaigns: Pick<Campaign, "id" | "brand" | "brandId" | "campaign" | "invoiceId" | "cash" | "status">[]
+): InvoiceDealOption[] {
+  return campaigns
+    .filter((campaign) => !campaign.invoiceId && campaign.cash > 0 && !isCampaignCalledOff(campaign.status))
+    .map((campaign) => ({
+      id: campaign.id,
+      label: campaignLabel(campaign.campaign, campaign.brand),
+      ownBrand: invoice.brandId !== null && campaign.brandId === invoice.brandId,
+    }))
+    .sort((a, b) => Number(b.ownBrand) - Number(a.ownBrand) || a.label.localeCompare(b.label))
+    .map(({ id, label }) => ({ id, label }));
 }
 
 export function lineItemTotal(item: InvoiceLineItemInput): number {
@@ -641,7 +665,6 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
     clientPanNumber: "",
     clientGstNumber: "",
     items: itemsWithStableIds(data.defaultItems),
-    advance: 0,
     barterOn: data.barter.defaultEnabled,
     barterVal: data.barter.defaultValue,
     barterStatus: data.barter.defaultStatus,
@@ -685,7 +708,6 @@ export function invoiceRecordToFormState(record: NewInvoice): InvoiceFormState {
     clientPanNumber: record.client.panNumber || "",
     clientGstNumber: record.client.gstNumber || "",
     items: itemsWithStableIds(record.items),
-    advance: record.advance,
     barterOn: record.barter.enabled,
     barterVal: record.barter.value,
     barterStatus: record.barter.status,
@@ -736,7 +758,9 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
       qty: item.qty,
       price: item.price,
     })),
-    advance: state.advance,
+    // Money received is recorded as payments, never typed on the invoice: the
+    // writer keeps whatever advance an invoice already stores.
+    advance: 0,
     barter: {
       enabled: state.barterOn,
       value: state.barterVal,
@@ -955,20 +979,4 @@ export function invoicesForBrand(
       invoice.brandId === brand.id ||
       (!invoice.brandId && key.length > 0 && normalizeBrandName(invoice.client.name) === key)
   );
-}
-
-// A one-line note when the campaign record's payment status and the saved
-// invoice's status disagree, so the mismatch is visible without opening
-// both. null when they're consistent (or too loosely related to compare).
-export function invoicePaymentMismatch(
-  campaignPaymentStatus: "received" | "pending" | "unknown",
-  invoiceStatus: InvoiceStatus
-): string | null {
-  if (campaignPaymentStatus === "received" && invoiceStatus !== "paid" && invoiceStatus !== "void") {
-    return "Campaign says received: invoice isn't marked paid";
-  }
-  if (campaignPaymentStatus === "pending" && invoiceStatus === "paid") {
-    return "Invoice marked paid: campaign still says pending";
-  }
-  return null;
 }

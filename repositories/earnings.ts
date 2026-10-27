@@ -1,10 +1,12 @@
 import "server-only";
 import { campaignDeliverables, isCampaignCalledOff } from "@/lib/campaigns";
+import { buildInvoiceNumber } from "@/lib/invoice";
 import { roundMoney } from "@/lib/money";
-import { getCampaigns } from "./campaigns.writer.server";
 import { getAffiliatePartners } from "./affiliatePartners.writer.server";
 import { getAffiliatePayouts } from "./affiliatePayouts.writer.server";
+import { readSettledLedger } from "./invoices.writer.server";
 import type { Campaign } from "./campaigns";
+import type { Invoice } from "./invoices";
 import type { Settlement } from "./payments";
 import type { AffiliatePayout } from "./affiliatePayouts";
 
@@ -114,10 +116,16 @@ function entryMonth(bucketDate: string): string | null {
  * as one virtual entry, which keeps a book written before the ledger reading
  * as it did. Barter is never cash: it is filed in the posting month once
  * delivered, and is pending until then.
+ *
+ * `invoices` adds the payments recorded on invoices that bill no deal. Only
+ * recorded ones: an old standalone invoice marked paid by hand never counted,
+ * since nothing said whether a deal already counted the same money, and it
+ * still doesn't. A linked invoice's money is its deal's, counted above.
  */
 export function summarizeEarnings(
   campaigns: Campaign[],
-  payouts: EarningsPayout[] = []
+  payouts: EarningsPayout[] = [],
+  invoices: Invoice[] = []
 ): EarningsSummary {
   const monthlyMap = new Map<string, MonthlyEarnings>();
   // One MonthlyDeal per deal (or renewal) per month, so instalments add up
@@ -162,13 +170,13 @@ export function summarizeEarnings(
   // their legacy fields, like everything else on a called-off deal, stay out.
   const countEntries = (
     settlement: Settlement,
-    calledOff: boolean,
+    storedOnly: boolean,
     rowId: string,
     brand: string,
     deliverables: string
   ) => {
     for (const entry of settlement.entries) {
-      if (calledOff && entry.source !== "stored") continue;
+      if (storedOnly && entry.source !== "stored") continue;
       totals.total += entry.gross;
       totals.paid += entry.gross;
       totals.tds += entry.tds;
@@ -242,6 +250,12 @@ export function summarizeEarnings(
     } else if (campaign.barterState === "pending") {
       countPending(campaign.barterValue, key, rowId, campaign.brand, deliverables);
     }
+  }
+
+  for (const invoice of invoices) {
+    if (invoice.owner) continue;
+    const label = `Invoice ${buildInvoiceNumber(invoice.invoiceNo)}`;
+    countEntries(invoice.settlement, true, `invoice:${invoice.id}`, invoice.client.name.trim() || label, label);
   }
 
   // Affiliate commission, the third income source, counted by the same rules
@@ -321,8 +335,8 @@ class CampaignsEarningsRepository implements IEarningsRepository {
     // Affiliate income is additive to the deal book, so a failure to read
     // either affiliate store costs the commission line and not the whole
     // earnings summary, which every page above depends on.
-    const [campaigns, partners, payouts] = await Promise.all([
-      getCampaigns(),
+    const [{ campaigns, settledInvoices }, partners, payouts] = await Promise.all([
+      readSettledLedger(),
       getAffiliatePartners().catch(() => []),
       getAffiliatePayouts().catch(() => []),
     ]);
@@ -338,7 +352,7 @@ class CampaignsEarningsRepository implements IEarningsRepository {
       partner: partnerName.get(payout.partnerId) ?? "Affiliate",
     }));
 
-    return summarizeEarnings(campaigns, income);
+    return summarizeEarnings(campaigns, income, settledInvoices);
   }
 }
 

@@ -17,7 +17,6 @@ export interface InvoiceFormState {
   clientPanNumber: string;
   clientGstNumber: string;
   items: InvoiceLineItem[];
-  advance: number;
   barterOn: boolean;
   barterVal: number;
   barterStatus: string;

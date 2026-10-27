@@ -15,6 +15,9 @@ import { invoiceFields } from "@/lib/activityFields";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { InvoiceRecord, InvoiceUpdate, NewInvoice } from "@/repositories/invoices";
 import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
+import { readPaymentRecords } from "@/repositories/paymentRecords.server";
+import type { PaymentRecord } from "@/repositories/payments";
+import { removePaymentsWhere } from "@/repositories/payments.writer.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { requireSession } from "@/lib/session.server";
 
@@ -133,24 +136,16 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<ActionResult>
     }
     revalidateStores("invoices", "campaigns");
     if (change) {
-      // Collecting on a standalone invoice is the event worth finding later,
-      // so it is logged as its own action rather than as another edit: but
-      // only on the crossing into paid, or re-saving a paid invoice would log
-      // it again. A linked invoice is never set paid here (see updateInvoice
-      // in the writer); its deal's payments say so.
-      const collected = change.after.status === "paid" && change.before.status !== "paid";
+      // Always an edit: an invoice is never set paid here (see updateInvoice
+      // in the writer). Money collected is logged as payment.recorded.
       await recordActivity({
-        action: collected ? "invoice.paid" : "invoice.updated",
+        action: "invoice.updated",
         entity: {
           type: "invoice",
           id: change.after.id,
           label: buildInvoiceNumber(change.after.invoiceNo),
         },
-        // On the crossing into paid the client is the useful context; on an
-        // ordinary edit, what moved is.
-        detail: collected
-          ? change.after.client.name || undefined
-          : describeChanges(change, invoiceFields) ?? (change.after.client.name || undefined),
+        detail: describeChanges(change, invoiceFields) ?? (change.after.client.name || undefined),
         amount: computeSubtotal(change.after.items),
       });
     }
@@ -183,8 +178,14 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
         renewalLinks: linkedRenewals,
       }];
     });
+    // A standalone invoice's payments go to Trash with it, as a deal's do, so
+    // restoring it brings its money back and nothing is left counting against
+    // an invoice no page shows. A linked invoice holds none: its deal does.
+    const ownsPayment = (payment: PaymentRecord) =>
+      payment.target.kind === "invoice" && payment.target.invoiceId === id;
+    const payments = (await readPaymentRecords()).filter(ownsPayment);
     trashId = await addTrashEntry(
-      { type: "invoice", record, campaignLinks },
+      { type: "invoice", record, campaignLinks, payments },
       buildInvoiceNumber(record.invoiceNo)
     );
     removed = await deleteInvoice(id);
@@ -192,6 +193,7 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
       await removeTrashEntry(trashId);
       return { success: true };
     }
+    if (payments.length > 0) await removePaymentsWhere(ownsPayment);
     // A deal pointing at an invoice that no longer exists would resolve to
     // nothing on every read; clearing the key returns it to its typed
     // reference, which is where it was before the invoice was raised.
@@ -211,7 +213,7 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
       }
     }
     await activateTrashEntry(trashId);
-    revalidateStores("invoices", "campaigns");
+    revalidateStores("invoices", "campaigns", "payments");
     if (removed) {
       await recordActivity({
         action: "invoice.deleted",

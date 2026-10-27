@@ -73,13 +73,13 @@ describe("isActivity", () => {
 });
 
 describe("describeActivity for payments", () => {
-  it("names the amount and routes to the deal list, or the invoice it belongs to", () => {
+  it("names the amount and routes to the Payments page, or the invoice it belongs to", () => {
     const recorded = describeActivity(
       event({ action: "payment.recorded", amount: 20000, entity: { type: "payment", id: "p1", label: "Acme · Launch" } })
     );
     expect(recorded).toMatchObject({
       title: "Payment of ₹ 20,000 recorded for Acme · Launch",
-      href: "/campaigns",
+      href: "/payments",
       tone: "positive",
     });
     const onInvoice = describeActivity(

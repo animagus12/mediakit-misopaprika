@@ -17,10 +17,11 @@
 //     entry. Until then they are the stored values exactly, so the forty-odd
 //     readers of those fields need no change.
 
-import { toSheetDate } from "@/lib/campaigns";
+import { campaignLabel, isCampaignCalledOff, toSheetDate } from "@/lib/campaigns";
 import { isDayKey } from "@/lib/day";
-import { computeSubtotal, formatMoney } from "@/lib/invoice";
-import { roundMoney } from "@/lib/money";
+import { financialYearStart } from "@/lib/financialYear";
+import { buildInvoiceNumber, computeSubtotal, formatMoney } from "@/lib/invoice";
+import { roundMoney, sumMoney } from "@/lib/money";
 import { isPayer, isPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
 import {
   campaignTypeHasBarter,
@@ -391,6 +392,111 @@ export function findOrphanPayments(
   invoices: InvoiceRecord[]
 ): PaymentRecord[] {
   return payments.filter((payment) => !isPaymentTargetLive(payment.target, campaigns, invoices));
+}
+
+// --- The book as rows -----------------------------------------------------------
+
+/** One payment as the Payments page and the year's export list it. */
+export interface LedgerRow {
+  paymentId: string;
+  target: PaymentTarget;
+  /** Start year of the financial year it is filed in; null when it has no date to file by. */
+  fy: number | null;
+  /** The day the money arrived, or "" for an undated payment from an earlier record. */
+  date: string;
+  /** `date`, else the day its deal, renewal or invoice is filed under. */
+  bucketDate: string;
+  brand: string;
+  /** "IG Page", "IG Page · usage renewal", "Invoice MSP-INV-0009". */
+  targetLabel: string;
+  /** The deal a deal or renewal row belongs to, by the name the campaigns table finds it under; null for an invoice. */
+  deal: string | null;
+  gross: number;
+  tds: number;
+  fee: number;
+  net: number;
+  receivedInto: Payer | null;
+  method: PaymentMethod | null;
+  reference: string;
+  /** "legacy" for a payment from an earlier record, stored or not. */
+  origin: PaymentRecord["origin"];
+  source: LedgerEntry["source"];
+}
+
+function toLedgerRow(entry: LedgerEntry, brand: string, targetLabel: string, deal: string | null): LedgerRow {
+  return {
+    paymentId: entry.id,
+    target: entry.target,
+    fy: entry.bucketDate ? financialYearStart(entry.bucketDate) : null,
+    date: entry.date,
+    bucketDate: entry.bucketDate,
+    brand,
+    targetLabel,
+    deal,
+    gross: entry.gross,
+    tds: entry.tds,
+    fee: entry.bankFee,
+    net: entry.net,
+    receivedInto: entry.receivedInto,
+    method: entry.method,
+    reference: entry.reference,
+    origin: entry.origin,
+    source: entry.source,
+  };
+}
+
+/**
+ * Every payment the book counts as income, newest first: the same entries,
+ * under the same rules, as summarizeEarnings counts in `paid`, so a year's
+ * rows always add up to that year's earnings.
+ *
+ * So a called-off deal lists only payments recorded against it, and a
+ * standalone invoice only its recorded ones, never an old "Paid" set by hand.
+ * A linked invoice has no rows of its own: its money is its deal's.
+ */
+export function ledgerRows(campaigns: Campaign[], invoices: Invoice[]): LedgerRow[] {
+  const rows: LedgerRow[] = [];
+  const add = (
+    settlement: Settlement | null,
+    storedOnly: boolean,
+    brand: string,
+    targetLabel: string,
+    deal: string | null
+  ) => {
+    for (const entry of settlement?.entries ?? []) {
+      if (storedOnly && entry.source !== "stored") continue;
+      rows.push(toLedgerRow(entry, brand, targetLabel, deal));
+    }
+  };
+
+  for (const campaign of campaigns) {
+    const calledOff = isCampaignCalledOff(campaign.status);
+    const name = campaignLabel(campaign.campaign, campaign.brand);
+    add(campaign.settlement, calledOff, campaign.brand, name, name);
+    for (const renewal of campaign.usage.renewals) {
+      if (renewal.amount <= 0) continue;
+      add(renewal.settlement, calledOff, campaign.brand, `${name} · usage renewal`, name);
+    }
+  }
+  for (const invoice of invoices) {
+    if (invoice.owner) continue;
+    const label = `Invoice ${buildInvoiceNumber(invoice.invoiceNo)}`;
+    add(invoice.settlement, true, invoice.client.name.trim() || label, label, null);
+  }
+
+  return rows.sort(
+    (a, b) => b.bucketDate.localeCompare(a.bucketDate) || a.targetLabel.localeCompare(b.targetLabel)
+  );
+}
+
+/** What a set of rows adds up to: the totals line of the Payments page and the export. */
+export function sumLedgerRows(rows: LedgerRow[]): { gross: number; tds: number; fee: number; net: number } {
+  return {
+    gross: sumMoney(rows.map((row) => row.gross)),
+    tds: sumMoney(rows.map((row) => row.tds)),
+    fee: sumMoney(rows.map((row) => row.fee)),
+    net: sumMoney(rows.map((row) => row.net)),
+  };
 }
 
 // --- Barter and display ------------------------------------------------------

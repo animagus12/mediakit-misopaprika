@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CircleAlert, FileText } from "lucide-react";
+import { Check, CircleAlert, FileText, IndianRupee, type LucideIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,7 +18,8 @@ interface NeedsAttentionCardProps {
 const MAX_ROWS = 6;
 
 // Operational open loops: delivered work with no invoice, posted deals
-// with untracked payment: each with the one action that closes it. Sits
+// with untracked payment, money recorded beyond what a deal is worth or
+// against a deal that is gone: each with the one action that closes it. Sits
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
 // due date, so the two lists don't overlap. Renders nothing when clear.
 export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps) {
@@ -85,13 +86,23 @@ interface AttentionActionProps {
 // The one action that closes the loop, as an icon button with its name on
 // hover. Styled with buttonVariants on the trigger rather than wrapping
 // <Button>, which fails to server render (see PaymentsDueCard).
+function attentionLink(item: AttentionItem): { href: string; label: string; Icon: LucideIcon } | null {
+  switch (item.kind) {
+    case "uninvoiced":
+      return { href: newInvoiceHref(item.brand, item.campaign, item.campaignId), label: "Create invoice", Icon: FileText };
+    case "overdue-invoice":
+      return { href: `/invoices/${item.campaignId}`, label: "View invoice", Icon: FileText };
+    case "overpaid":
+      return item.href ? { href: item.href, label: "Check the payments", Icon: IndianRupee } : null;
+    case "orphan-payment":
+      return item.href ? { href: item.href, label: "Review on Payments", Icon: IndianRupee } : null;
+    case "untracked-payment":
+      return null;
+  }
+}
+
 function AttentionAction({ item, isPending, onMarkReceived }: AttentionActionProps) {
-  const link =
-    item.kind === "uninvoiced"
-      ? { href: newInvoiceHref(item.brand, item.campaign, item.campaignId), label: "Create invoice" }
-      : item.kind === "overdue-invoice"
-        ? { href: `/invoices/${item.campaignId}`, label: "View invoice" }
-        : null;
+  const link = attentionLink(item);
 
   if (link) {
     return (
@@ -102,7 +113,7 @@ function AttentionAction({ item, isPending, onMarkReceived }: AttentionActionPro
             aria-label={link.label}
             className={buttonVariants({ variant: "outline", size: "icon-sm" })}
           >
-            <FileText />
+            <link.Icon />
           </Link>
         </TooltipTrigger>
         <TooltipContent side="left">{link.label}</TooltipContent>

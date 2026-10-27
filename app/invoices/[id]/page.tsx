@@ -4,6 +4,7 @@ import AppShell from "@/components/common/AppShell";
 import { InvoiceGenerator } from "@/components/invoice/InvoiceGenerator";
 import {
   buildInvoiceBrandOptions,
+  buildInvoiceDealOptions,
   buildInvoiceEditorJobOptions,
   invoiceOwner,
   toInvoiceLinkedCampaign,
@@ -47,6 +48,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
     ? owner.campaign.usage.renewals.find((renewal) => renewal.id === owner.renewalId)
     : undefined;
   const ownerTdsRate = ownerRenewal?.tdsRate ?? owner?.campaign.tdsRate ?? null;
+  const dealOptions = owner ? [] : buildInvoiceDealOptions(invoice, campaigns);
 
   const takenInvoiceNumbers = invoices
     .filter((other) => other.id !== id)
@@ -67,6 +69,7 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         invoice={invoice}
         linkedCampaign={linkedCampaign}
         ownerTdsRate={ownerTdsRate}
+        dealOptions={dealOptions}
         takenInvoiceNumbers={takenInvoiceNumbers}
         brandOptions={buildInvoiceBrandOptions(brands, contacts)}
         editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions, { invoices, currentInvoiceId: id })}

@@ -58,6 +58,7 @@ export const config = {
     "/workspace/:path*",
     "/affiliates/:path*",
     "/taxes/:path*",
+    "/payments/:path*",
     "/brands/:path*",
     "/activity",
     "/trash",

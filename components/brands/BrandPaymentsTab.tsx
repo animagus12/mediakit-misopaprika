@@ -10,12 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
-import {
-  buildInvoiceNumber,
-  formatMoney,
-  invoicePaymentMismatch,
-  resolveCampaignInvoice,
-} from "@/lib/invoice";
+import { buildInvoiceNumber, formatMoney, resolveCampaignInvoice } from "@/lib/invoice";
 import {
   computePaymentReliability,
   paymentTiming,
@@ -25,12 +20,20 @@ import {
   type PaymentReliability,
 } from "@/lib/paymentReliability";
 import { paymentDisplayLabel, paymentDisplayStatus, type PaymentDisplayStatus } from "@/lib/campaigns";
-import { settlementSummary } from "@/lib/payments";
+import { ledgerWarnings, settlementSummary, type LedgerWarningCode } from "@/lib/payments";
 import { cn } from "@/lib/utils";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { selectBrandPaymentRows, type BrandStats } from "@/lib/brandCampaignStats";
 import type { Invoice } from "@/repositories/invoices";
 import { BrandAffiliateCommission, type BrandAffiliateProgram } from "./BrandAffiliateCommission";
+import { ExpandablePaymentRow } from "./ExpandablePaymentRow";
+
+// The warnings about the deal and its invoice disagreeing, shown under the
+// invoice number. The rest (a payment with no account) are about single
+// payments, and show beside them once the row is opened.
+const INVOICE_WARNINGS = new Set<LedgerWarningCode>(["invoice-total-differs", "double-owner", "void-invoice-has-payments"]);
+
+const COLUMN_COUNT = 7;
 
 const STAT_TONES = {
   neutral: { card: "", value: "" },
@@ -209,6 +212,9 @@ export function BrandPaymentsTab({
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableHead className="w-8 pr-0">
+                  <span className="sr-only">Payments</span>
+                </TableHead>
                 <TableHead>Campaign</TableHead>
                 <TableHead>Invoice</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
@@ -230,16 +236,26 @@ export function BrandPaymentsTab({
                 // the typed reference otherwise. A renewal only ever has the
                 // former, a deal that predates reconciliation only the latter.
                 const matchedInvoice = resolveCampaignInvoice(row, invoices);
-                // Checked on renewals as well as deals: a renewal's invoice is
-                // kept in step by the action that collects it, so a
-                // disagreement here means someone moved one side by hand,
-                // which is precisely what this warning is for.
-                const mismatch = matchedInvoice
-                  ? invoicePaymentMismatch(row.paymentStatus, matchedInvoice.status)
-                  : null;
+                // Checked on renewals as well as deals: an invoice that bills
+                // either reads its payments from them, so what is left to
+                // disagree is its total, or a second deal pointing at it.
+                const invoiceWarnings =
+                  row.settlement && matchedInvoice?.owner
+                    ? ledgerWarnings({
+                        settlement: row.settlement,
+                        invoice: matchedInvoice,
+                        invoiceDealCount: records.filter((record) => record.invoiceId === matchedInvoice.id).length,
+                      }).filter((warning) => INVOICE_WARNINGS.has(warning.code))
+                    : [];
                 const timing = paymentTiming(row);
                 return (
-                  <TableRow key={row.key}>
+                  <ExpandablePaymentRow
+                    key={row.key}
+                    label={row.label}
+                    settlement={row.settlement}
+                    expectedTdsRate={row.expectedTdsRate}
+                    colSpan={COLUMN_COUNT}
+                  >
                     <TableCell
                       className={cn(
                         "max-w-40 truncate",
@@ -263,9 +279,11 @@ export function BrandPaymentsTab({
                       ) : (
                         row.invoiceRef || "-"
                       )}
-                      {mismatch && (
-                        <span className="block text-[11px] text-amber-600 dark:text-amber-400">{mismatch}</span>
-                      )}
+                      {invoiceWarnings.map((warning) => (
+                        <span key={warning.code} className="block text-[11px] text-amber-600 dark:text-amber-400">
+                          {warning.message}
+                        </span>
+                      ))}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatMoney(row.total)}</TableCell>
                     <TableCell>
@@ -275,6 +293,11 @@ export function BrandPaymentsTab({
                       {paymentState === "partial" && row.settlement && (
                         <span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">
                           {settlementSummary(row.settlement)}
+                        </span>
+                      )}
+                      {row.settlement && row.settlement.overpaid > 0 && (
+                        <span className="mt-1 block whitespace-nowrap text-[11px] text-amber-600 dark:text-amber-400">
+                          {formatMoney(row.settlement.overpaid)} over
                         </span>
                       )}
                     </TableCell>
@@ -287,7 +310,7 @@ export function BrandPaymentsTab({
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{row.paymentMethod || "-"}</TableCell>
-                  </TableRow>
+                  </ExpandablePaymentRow>
                 );
               })}
             </TableBody>

@@ -106,15 +106,42 @@ describe("cashReceived", () => {
 describe("sumMonthlyEarnings", () => {
   it("adds each figure across the months on its own", () => {
     const totals = sumMonthlyEarnings([
-      makeMonthlyEarnings("2026-05", { paid: 4000, barter: 1000, commission: 500, pending: 2000, total: 5500 }),
-      makeMonthlyEarnings("2026-04", { paid: 0.1, commission: 0.2, total: 0.3 }),
+      makeMonthlyEarnings("2026-05", {
+        paid: 4000,
+        tds: 400,
+        fees: 18,
+        net: 3582,
+        barter: 1000,
+        commission: 500,
+        pending: 2000,
+        total: 5500,
+      }),
+      makeMonthlyEarnings("2026-04", { paid: 0.1, net: 0.1, commission: 0.2, total: 0.3 }),
     ]);
 
-    expect(totals).toEqual({ total: 5500.3, paid: 4000.1, barter: 1000, commission: 500.2, pending: 2000 });
+    expect(totals).toEqual({
+      total: 5500.3,
+      paid: 4000.1,
+      tds: 400,
+      fees: 18,
+      net: 3582.1,
+      barter: 1000,
+      commission: 500.2,
+      pending: 2000,
+    });
     expect(cashReceived(totals)).toBe(4500.3);
   });
 
   it("is all zeroes for no months", () => {
-    expect(sumMonthlyEarnings([])).toEqual({ total: 0, paid: 0, barter: 0, commission: 0, pending: 0 });
+    expect(sumMonthlyEarnings([])).toEqual({
+      total: 0,
+      paid: 0,
+      tds: 0,
+      fees: 0,
+      net: 0,
+      barter: 0,
+      commission: 0,
+      pending: 0,
+    });
   });
 });

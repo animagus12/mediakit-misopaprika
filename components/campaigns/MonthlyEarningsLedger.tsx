@@ -21,25 +21,51 @@ import type { MonthlyEarnings } from "@/repositories/earnings";
 
 const RECENT_MONTHS = 6;
 
+interface LedgerColumns {
+  commission: boolean;
+  /** TDS, Charges and Net: from `sm` up only, since a phone already scrolls this table sideways. */
+  deductions: boolean;
+}
+
 // The commission column is dropped entirely when the book has none, rather
 // than standing empty: this table already scrolls sideways on a phone, and a
-// column of zeroes would cost that scroll another 4.5rem to say nothing.
-function monthGrid(showCommission: boolean): string {
-  return showCommission
-    ? "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[34.5rem]"
-    : "grid grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] items-center gap-2 sm:gap-4 min-w-[30rem]";
+// column of zeroes would cost that scroll another 4.5rem to say nothing. The
+// same goes for TDS, Charges and Net while no payment has had anything taken
+// from it, when Net would only repeat Cash. Written out whole so Tailwind
+// finds every class.
+function monthGrid({ commission, deductions }: LedgerColumns): string {
+  const base = "grid items-center gap-2 sm:gap-4";
+  if (deductions) {
+    return commission
+      ? `${base} grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem] min-w-[34.5rem] sm:grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem] sm:min-w-[51rem]`
+      : `${base} grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] min-w-[30rem] sm:grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem] sm:min-w-[46.5rem]`;
+  }
+  return commission
+    ? `${base} grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem] min-w-[34.5rem]`
+    : `${base} grid-cols-[auto_1fr_4.5rem_4.5rem_4.5rem_4.5rem] min-w-[30rem]`;
+}
+
+// The three deduction cells, which a phone never shows (see LedgerColumns).
+function DeductionCells({ figures }: { figures: Pick<MonthlyEarnings, "tds" | "fees" | "net"> }) {
+  return (
+    <>
+      <span className="hidden text-right tabular-nums text-muted-foreground sm:block">{formatMoney(figures.tds)}</span>
+      <span className="hidden text-right tabular-nums text-muted-foreground sm:block">{formatMoney(figures.fees)}</span>
+      <span className="hidden text-right tabular-nums sm:block">{formatMoney(figures.net)}</span>
+    </>
+  );
 }
 
 function MonthRow({
   month,
   highlight,
-  showCommission,
+  columns,
 }: {
   month: MonthlyEarnings;
   highlight?: boolean;
-  showCommission: boolean;
+  columns: LedgerColumns;
 }) {
-  const MONTH_GRID = monthGrid(showCommission);
+  const MONTH_GRID = monthGrid(columns);
   const summaryRow = (
     <div
       className={
@@ -65,8 +91,9 @@ function MonthRow({
         )}
       </span>
       <span className="text-right tabular-nums">{formatMoney(month.paid)}</span>
+      {columns.deductions && <DeductionCells figures={month} />}
       <span className="text-right tabular-nums">{formatMoney(month.barter)}</span>
-      {showCommission && (
+      {columns.commission && (
         <span className="text-right tabular-nums text-violet-600 dark:text-violet-400">
           {formatMoney(month.commission)}
         </span>
@@ -120,23 +147,24 @@ function MonthRow({
 function TotalsRow({
   months,
   label,
-  showCommission,
+  columns,
 }: {
   months: MonthlyEarnings[];
   label: string;
-  showCommission: boolean;
+  columns: LedgerColumns;
 }) {
   const totals = sumMonthlyEarnings(months);
   return (
     <div
-      className={`${monthGrid(showCommission)} mt-1 border-t border-foreground/10 px-3 pt-2 pb-1 font-medium`}
+      className={`${monthGrid(columns)} mt-1 border-t border-foreground/10 px-3 pt-2 pb-1 font-medium`}
     >
       {/* Holds the chevron's width so the label lines up with the months. */}
       <span className="size-3" />
       <span className="min-w-0 truncate">{label} total</span>
       <span className="text-right tabular-nums">{formatMoney(totals.paid)}</span>
+      {columns.deductions && <DeductionCells figures={totals} />}
       <span className="text-right tabular-nums">{formatMoney(totals.barter)}</span>
-      {showCommission && (
+      {columns.commission && (
         <span className="text-right tabular-nums text-violet-600 dark:text-violet-400">
           {formatMoney(totals.commission)}
         </span>
@@ -175,8 +203,11 @@ export function MonthlyEarningsLedger({
   const thisMonth = currentMonthKey();
   // Decided on every month, not just the year's, so the columns stay put
   // when switching between years.
-  const showCommission = monthly.some((m) => m.commission > 0);
-  const MONTH_GRID = monthGrid(showCommission);
+  const columns: LedgerColumns = {
+    commission: monthly.some((m) => m.commission > 0),
+    deductions: monthly.some((m) => m.tds > 0 || m.fees > 0),
+  };
+  const MONTH_GRID = monthGrid(columns);
 
   return (
     <Card>
@@ -204,8 +235,15 @@ export function MonthlyEarningsLedger({
               <span />
               <span>Month</span>
               <span className="text-right">Cash</span>
+              {columns.deductions && (
+                <>
+                  <span className="hidden text-right sm:block">TDS</span>
+                  <span className="hidden text-right sm:block">Charges</span>
+                  <span className="hidden text-right sm:block">Net</span>
+                </>
+              )}
               <span className="text-right">Barter</span>
-              {showCommission && <span className="text-right">Commission</span>}
+              {columns.commission && <span className="text-right">Commission</span>}
               <span className="text-right">Pending</span>
               <span className="text-right">Received</span>
             </div>
@@ -215,7 +253,7 @@ export function MonthlyEarningsLedger({
                   key={m.month}
                   month={m}
                   highlight={m.month === thisMonth}
-                  showCommission={showCommission}
+                  columns={columns}
                 />
               ))}
             </div>
@@ -223,7 +261,7 @@ export function MonthlyEarningsLedger({
               <TotalsRow
                 months={months}
                 label={financialYearLabel(financialYear)}
-                showCommission={showCommission}
+                columns={columns}
               />
             )}
           </div>
@@ -240,7 +278,7 @@ export function MonthlyEarningsLedger({
             <CollapsibleContent className="-mx-4 mt-2 overflow-x-auto px-4 text-xs sm:mx-0 sm:px-0">
               <div className="space-y-0.5">
                 {older.map((m) => (
-                  <MonthRow key={m.month} month={m} showCommission={showCommission} />
+                  <MonthRow key={m.month} month={m} columns={columns} />
                 ))}
               </div>
             </CollapsibleContent>

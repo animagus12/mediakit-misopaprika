@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentProps } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import type { InvoiceStatus } from "@/repositories/invoices";
 import type { Settlement } from "@/repositories/payments";
 import { InvoiceImageUploadField } from "./InvoiceImageUploadField";
 import { InvoiceLineItemEditor } from "./InvoiceLineItemEditor";
+import { StandaloneInvoicePayments } from "./StandaloneInvoicePayments";
 import type { InvoiceFormActions, InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
 
@@ -60,6 +62,8 @@ interface InvoiceControlsProps {
   ownerSettlement: Settlement | null;
   /** The owner's expected TDS rate, for recording a payment from here. */
   ownerTdsRate: number | null;
+  /** A saved invoice that bills no deal: its own payments. Null for a linked or unsaved one. */
+  standalone: ComponentProps<typeof StandaloneInvoicePayments> | null;
   onImageUploadError: (message: string) => void;
 }
 
@@ -79,13 +83,12 @@ export function InvoiceControls({
   linkedCampaign,
   ownerSettlement,
   ownerTdsRate,
+  standalone,
   onImageUploadError,
 }: InvoiceControlsProps) {
-  // A linked invoice is paid by its deal's payments, never by hand. A stored
-  // "Paid" from before stays selectable so the select can show it.
-  const statusOptions = ownerSettlement
-    ? INVOICE_STATUS_OPTIONS.filter((option) => option !== "paid" || state.status === "paid")
-    : INVOICE_STATUS_OPTIONS;
+  // An invoice is paid by its payments, never by hand. A "Paid" it already
+  // reads stays selectable so the select can show it.
+  const statusOptions = INVOICE_STATUS_OPTIONS.filter((option) => option !== "paid" || state.status === "paid");
   const numberClash = isInvoiceNoTaken(state.invoiceNo, takenInvoiceNumbers);
   const clientPanInvalid = !isValidPanNumber(state.clientPanNumber);
   const payeePanInvalid = !isValidPanNumber(state.panNumber);
@@ -175,6 +178,8 @@ export function InvoiceControls({
             />
           </div>
         )}
+
+        {standalone && <StandaloneInvoicePayments {...standalone} />}
 
         <Label className={styles.fieldLabel} htmlFor="campaignName">
           Campaign
@@ -350,25 +355,8 @@ export function InvoiceControls({
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Money</legend>
-        {/* A linked invoice's money is its deal's payments (above); an advance
-            typed here would be a second record of the same rupees. */}
-        {!ownerSettlement && (
-          <>
-            <Label className={styles.fieldLabel} htmlFor="advance">
-              Advance received (₹)
-            </Label>
-            <Input
-              id="advance"
-              type="number"
-              min={0}
-              step={1}
-              aria-invalid={hasAttemptedSave && (!Number.isFinite(state.advance) || state.advance < 0)}
-              value={state.advance}
-              onChange={(e) => actions.setField("advance", Number(e.target.value))}
-            />
-          </>
-        )}
-
+        {/* Money received is recorded under Payments (above), never typed
+            here: an advance field would be a second record of the same rupees. */}
         <div className={styles.toggle}>
           <Checkbox
             id="barterOn"

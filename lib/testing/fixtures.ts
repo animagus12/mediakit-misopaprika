@@ -256,6 +256,7 @@ export function makeBrandCampaignRecord(overrides: BrandCampaignRecordOverrides 
     paymentDue: campaign.paymentDue,
     paidDate: campaign.paidDate,
     paymentMethod: campaign.paymentMethod,
+    tdsRate: null,
     ...overrides,
     settlement: campaign.settlement,
     barterState: campaign.barterState,

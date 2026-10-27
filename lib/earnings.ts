@@ -36,7 +36,10 @@ export function cashReceived(month: Pick<MonthlyEarnings, "paid" | "commission">
   return sumMoney([month.paid, month.commission]);
 }
 
-export type EarningsTotals = Pick<MonthlyEarnings, "total" | "paid" | "barter" | "commission" | "pending">;
+export type EarningsTotals = Pick<
+  MonthlyEarnings,
+  "total" | "paid" | "tds" | "fees" | "net" | "barter" | "commission" | "pending"
+>;
 
 /**
  * The figures of several months added together, such as the months of one
@@ -47,6 +50,9 @@ export function sumMonthlyEarnings(months: readonly MonthlyEarnings[]): Earnings
   return {
     total: sumMoney(months.map((month) => month.total)),
     paid: sumMoney(months.map((month) => month.paid)),
+    tds: sumMoney(months.map((month) => month.tds)),
+    fees: sumMoney(months.map((month) => month.fees)),
+    net: sumMoney(months.map((month) => month.net)),
     barter: sumMoney(months.map((month) => month.barter)),
     commission: sumMoney(months.map((month) => month.commission)),
     pending: sumMoney(months.map((month) => month.pending)),

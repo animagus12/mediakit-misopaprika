@@ -12,7 +12,7 @@ import {
   validateInvoiceInput,
   withLinkedBrand,
 } from "@/lib/invoice";
-import { attachInvoiceSettlements, invoiceOwners } from "@/lib/payments";
+import { attachInvoiceSettlements } from "@/lib/payments";
 import { readCampaignLedger, type CampaignLedger } from "./campaigns.writer.server";
 import { INVOICES_KEY, readInvoiceRecords as readRecords } from "./invoiceRecords.server";
 import { toInvoice } from "./invoices";
@@ -42,6 +42,16 @@ function joinInvoices(records: InvoiceRecord[], ledger: CampaignLedger): Invoice
 export async function getInvoices(): Promise<Invoice[]> {
   const ledger = await readCampaignLedger();
   return joinInvoices(ledger.invoices, ledger);
+}
+
+/**
+ * The deals and the invoices settled from one read, for the readers that need
+ * every payment in the book (earnings, the Payments page): reading them
+ * separately could pair a payment with a deal from a different moment.
+ */
+export async function readSettledLedger(): Promise<CampaignLedger & { settledInvoices: Invoice[] }> {
+  const ledger = await readCampaignLedger();
+  return { ...ledger, settledInvoices: joinInvoices(ledger.invoices, ledger) };
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
@@ -150,9 +160,14 @@ export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
   const records = await readRecords();
   assertInvoiceNoFree(input.invoiceNo, records);
   const now = new Date().toISOString();
+  const normalized = normalize(input);
   const record: InvoiceRecord = {
     id: crypto.randomUUID(),
-    ...normalize(input),
+    ...normalized,
+    // A new invoice has had nothing paid against it: money arrives as
+    // payments (see lib/payments.ts), never as a status or an advance.
+    status: normalized.status === "paid" ? "sent" : normalized.status,
+    advance: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -182,20 +197,17 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
   if (invoiceNoKey(input.invoiceNo) !== invoiceNoKey(before.invoiceNo)) {
     assertInvoiceNoFree(input.invoiceNo, records, input.id);
   }
-  // An invoice that bills a deal or renewal is paid by that deal's payments
-  // (see lib/payments.ts): "Paid" is not the editor's to set, and the advance
-  // is not editable, so neither can disagree with the ledger.
-  const owned = invoiceOwners((await readCampaignLedger()).campaigns).has(input.id);
+  // An invoice is paid by its payments (see lib/payments.ts): its own when it
+  // stands alone, its deal's when it bills one. "Paid" is not the editor's to
+  // set and the advance is not editable, so neither can disagree with the
+  // ledger. A "Paid" or an advance stored before the ledger is kept: it reads
+  // as a payment from an earlier record until one is recorded.
   const normalized = normalize(input);
   const after: InvoiceRecord = {
     ...before,
     ...normalized,
-    ...(owned
-      ? {
-          advance: before.advance,
-          status: normalized.status === "paid" && before.status !== "paid" ? "sent" : normalized.status,
-        }
-      : {}),
+    advance: before.advance,
+    status: normalized.status === "paid" && before.status !== "paid" ? "sent" : normalized.status,
     updatedAt: new Date().toISOString(),
   };
   // Only when this save takes a job it did not already hold (a new link, or a
