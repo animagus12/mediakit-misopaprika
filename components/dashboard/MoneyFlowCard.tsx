@@ -66,7 +66,7 @@ export function MoneyFlowCard({ invoices, payouts, expensesPaid, margins, classN
       label: "Spent to date",
       value: formatMoney(spent),
       hint: spent > 0 ? `${formatMoney(payouts.paid)} editing · ${formatMoney(expensesPaid)} expenses` : null,
-      href: "/payments?view=out",
+      href: "/payments?flow=out",
       tone: "neutral",
     },
   ];

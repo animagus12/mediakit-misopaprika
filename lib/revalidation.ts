@@ -67,8 +67,8 @@ const ROUTES = {
   expenses: ["/", "/payments", "/campaigns", "/calendar"],
   // Commission is income, so every page that reads the earnings summary is
   // invalidated by an affiliate write, not just /affiliates itself.
-  affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
-  affiliatePayouts: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
+  affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]", "/payments"],
+  affiliatePayouts: ["/", "/affiliates", "/campaigns", "/brands/[id]", "/payments"],
   brandNotes: ["/brands/[id]"],
   campaignContacts: ["/brands/[id]"],
   invoiceDefaults: ["/invoices/new", "/invoices/[id]"],

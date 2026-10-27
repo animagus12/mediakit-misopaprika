@@ -1,19 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Download } from "lucide-react";
 import AppShell from "@/components/common/AppShell";
 import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
-import { MoneyOutView } from "@/components/payments/MoneyOutView";
+import { AddExpenseButton } from "@/components/expenses/ExpenseActions";
+import { CashFlowOverview } from "@/components/payments/CashFlowOverview";
+import { MoneyList } from "@/components/payments/MoneyList";
 import { UnlinkedPayments } from "@/components/payments/UnlinkedPayments";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { toSheetDate } from "@/lib/campaigns";
-import { financialYearLabel, financialYearsPresent, resolveFinancialYearParam } from "@/lib/financialYear";
-import { formatMoney } from "@/lib/invoice";
-import { payerLabel } from "@/lib/payers";
-import { sumLedgerRows, type LedgerRow } from "@/lib/payments";
-import { getPaymentBook, type PaymentBook } from "@/repositories/paymentBook.server";
+import { lastExpenseDefaults, summarizeOutflows } from "@/lib/expenses";
+import { financialYearLabel, financialYearOfMonth, resolveFinancialYearParam } from "@/lib/financialYear";
+import { sumMoney } from "@/lib/money";
+import {
+  entryFy,
+  filterEntries,
+  flowsByAccount,
+  flowsByMonth,
+  flowsByYear,
+  moneyYears,
+  parseMoneyFlow,
+  sumFlows,
+  type MoneyFlow,
+} from "@/lib/moneyBook";
+import { getMoneyBook, type MoneyBook } from "@/repositories/paymentBook.server";
 
 export const metadata: Metadata = {
   title: "Payments - @misopaprika",
@@ -22,136 +32,85 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+type SearchParams = Record<string, string | string[] | undefined>;
+
 interface PaymentsPageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: Promise<SearchParams>;
 }
 
-// Where a payment is edited: on its deal (found by name in the campaigns
-// table) or on its invoice.
-function rowHref(row: LedgerRow): string {
-  if (row.target.kind === "invoice") return `/invoices/${row.target.invoiceId}`;
-  return `/campaigns?q=${encodeURIComponent(row.deal ?? "")}`;
-}
-
-function rowDate(row: LedgerRow): string {
-  return row.date ? toSheetDate(row.date) : "Date not recorded";
-}
-
-function rowAccount(row: LedgerRow): string {
-  return [row.receivedInto ? payerLabel(row.receivedInto) : "Account not recorded", row.method]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function EarlierRecordBadge() {
-  return (
-    <Badge variant="outline" className="text-[10px]">
-      From earlier record
-    </Badge>
-  );
-}
-
-/** One payment as a card, below `md`, where the table would scroll sideways. */
-function PaymentCard({ row }: { row: LedgerRow }) {
-  const deductions = [`TDS ${formatMoney(row.tds)}`, `Charges ${formatMoney(row.fee)}`, `Net ${formatMoney(row.net)}`];
-  return (
-    <li className="min-w-0 space-y-0.5 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
-      <div className="flex min-w-0 items-baseline justify-between gap-2">
-        <span className="truncate font-medium">{row.brand}</span>
-        <span className="shrink-0 font-medium tabular-nums">{formatMoney(row.gross)}</span>
-      </div>
-      <Link href={rowHref(row)} className="block truncate text-foreground/80 hover:underline">
-        {row.targetLabel}
-      </Link>
-      <p className={row.date ? "text-muted-foreground" : "text-muted-foreground/70"}>{rowDate(row)}</p>
-      {/* Wraps between figures, never inside one. */}
-      <p className="text-muted-foreground tabular-nums">
-        {deductions.map((part, index) => (
-          <span key={part}>
-            {index > 0 && " · "}
-            <span className="whitespace-nowrap">{part}</span>
-          </span>
-        ))}
-      </p>
-      <p className="truncate text-muted-foreground" title={row.reference || undefined}>
-        {rowAccount(row)}
-        {row.reference ? ` · ${row.reference}` : ""}
-      </p>
-      {row.origin === "legacy" && <EarlierRecordBadge />}
-    </li>
-  );
-}
-
-function PaymentsTable({ rows }: { rows: LedgerRow[] }) {
-  return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Received</TableHead>
-            <TableHead>Brand / for</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-            <TableHead className="text-right">TDS</TableHead>
-            <TableHead className="text-right">Charges</TableHead>
-            <TableHead className="text-right">Net</TableHead>
-            <TableHead>Account</TableHead>
-            <TableHead>Reference</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row) => (
-            <TableRow key={row.paymentId}>
-              <TableCell className="text-muted-foreground">{rowDate(row)}</TableCell>
-              <TableCell className="max-w-64">
-                <span className="block truncate font-medium">{row.brand}</span>
-                <Link href={rowHref(row)} className="block truncate text-xs text-muted-foreground hover:underline">
-                  {row.targetLabel}
-                </Link>
-                {row.origin === "legacy" && (
-                  <span className="mt-1 block">
-                    <EarlierRecordBadge />
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{formatMoney(row.gross)}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">{formatMoney(row.tds)}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">{formatMoney(row.fee)}</TableCell>
-              <TableCell className="text-right tabular-nums">{formatMoney(row.net)}</TableCell>
-              <TableCell className="text-muted-foreground">{rowAccount(row)}</TableCell>
-              <TableCell className="max-w-40 truncate text-muted-foreground" title={row.reference || undefined}>
-                {row.reference || "-"}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-type View = "in" | "out";
-
-const VIEWS: { view: View; label: string }[] = [
-  { view: "in", label: "Money in" },
-  { view: "out", label: "Money out" },
+const FLOWS: { flow: MoneyFlow | null; label: string }[] = [
+  { flow: null, label: "All" },
+  { flow: "in", label: "Money in" },
+  { flow: "out", label: "Money out" },
 ];
 
-// Links rather than client tabs, like the year filter: the view lives in
-// ?view=, so it survives a reload and a shared address. The year is kept.
-function viewHref(params: Record<string, string | string[] | undefined>, view: View): string {
+const EMPTY_BOOK: MoneyBook = {
+  entries: [],
+  barterByMonth: new Map(),
+  orphans: [],
+  expenses: [],
+  dealOptions: [],
+  owedToYou: 0,
+  owedToEditors: 0,
+};
+
+// Links rather than client state, like the year filter beside it: the filter
+// lives in ?flow=, so it survives a reload and a shared address. Every other
+// param (the year) is kept.
+function flowHref(params: SearchParams, flow: MoneyFlow | null): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (key === "view" || value === undefined) continue;
+    if (key === "flow" || value === undefined) continue;
     for (const entry of Array.isArray(value) ? value : [value]) query.append(key, entry);
   }
-  if (view === "out") query.set("view", "out");
+  if (flow) query.set("flow", flow);
   const search = query.toString();
   return search ? `/payments?${search}` : "/payments";
 }
 
+function exportHref(fy: number | null, flow: MoneyFlow | null): string {
+  const query = new URLSearchParams();
+  if (fy !== null) query.set("fy", String(fy));
+  if (flow) query.set("flow", flow);
+  const search = query.toString();
+  return search ? `/api/payments/export?${search}` : "/api/payments/export";
+}
+
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
   const params = await searchParams;
-  const view: View = params.view === "out" ? "out" : "in";
+  const flow = parseMoneyFlow(params.flow);
+  let book = EMPTY_BOOK;
+  let error: string | null = null;
+  try {
+    book = await getMoneyBook();
+  } catch (err) {
+    error = err instanceof Error ? err.message : "Something went wrong";
+  }
+
+  // No ?fy= is every year, as on the campaigns ledger. The overview always
+  // covers both directions for the year on show; the direction filter narrows
+  // only the list (and the export).
+  const years = moneyYears(book.entries);
+  const fy = resolveFinancialYearParam(params.fy, years);
+  const period = fy === null ? "All years" : financialYearLabel(fy);
+  const inSpan = filterEntries(book.entries, { flow: null, fy });
+  const shown = filterEntries(inSpan, { flow, fy: null });
+  const barterByMonth =
+    fy === null
+      ? book.barterByMonth
+      : new Map([...book.barterByMonth].filter(([month]) => financialYearOfMonth(month) === fy));
+  const totals = sumFlows(inSpan, sumMoney([...barterByMonth.values()]));
+  const outflows = inSpan.flatMap((entry) => (entry.kind === "outflow" ? [entry.row] : []));
+  const shownExpenseIds = new Set(
+    shown.flatMap((entry) => (entry.kind === "outflow" && entry.row.source === "expense" ? [entry.row.id] : []))
+  );
+  // An old payment with no date at all belongs to no year: it is listed, and
+  // counted, under All only.
+  const undated = book.entries.filter((entry) => entryFy(entry) === null).length;
+  const defaults = lastExpenseDefaults(book.expenses);
+  const plural = shown.length === 1 ? "" : "s";
+  const listTitle =
+    flow === null ? `${shown.length} transaction${plural}` : `${shown.length} payment${plural} ${flow === "in" ? "in" : "out"}`;
 
   return (
     <AppShell>
@@ -159,119 +118,100 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
           <p className="text-sm text-muted-foreground">
-            Money in from brands, and money out on editing and expenses, filed by the day it moved. Financial years
-            run from April through March.
+            Every rupee in and out, filed by the day it moved. Financial years run from April through March.
           </p>
         </div>
 
-        <nav aria-label="Money in or out" className="flex gap-2">
-          {VIEWS.map((option) => (
-            <Button key={option.view} asChild size="sm" variant={option.view === view ? "default" : "outline"}>
-              <Link href={viewHref(params, option.view)} aria-current={option.view === view ? "page" : undefined}>
-                {option.label}
-              </Link>
-            </Button>
-          ))}
-        </nav>
-
-        {view === "out" ? <MoneyOutView searchParams={params} /> : <MoneyIn params={params} />}
-      </div>
-    </AppShell>
-  );
-}
-
-async function MoneyIn({ params }: { params: Record<string, string | string[] | undefined> }) {
-  let book: PaymentBook = { rows: [], orphans: [] };
-  let error: string | null = null;
-  try {
-    book = await getPaymentBook();
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Something went wrong";
-  }
-
-  // No ?fy= is the "All" view, as on the campaigns ledger.
-  const years = financialYearsPresent(book.rows.map((row) => row.bucketDate).filter(Boolean));
-  const selectedYear = resolveFinancialYearParam(params.fy, years);
-  const rows = selectedYear === null ? book.rows : book.rows.filter((row) => row.fy === selectedYear);
-  const undatedElsewhere = selectedYear === null ? 0 : book.rows.filter((row) => row.fy === null).length;
-  const totals = sumLedgerRows(rows);
-  const period = selectedYear === null ? "All years" : financialYearLabel(selectedYear);
-
-  const stats = [
-    { label: "Received", value: totals.gross, hint: "Before TDS and charges" },
-    { label: "TDS withheld", value: totals.tds },
-    { label: "Charges", value: totals.fee },
-    { label: "Landed in accounts", value: totals.net, hint: "What actually arrived" },
-  ];
-
-  return (
-    <>
-      {error && (
-        <Card>
-          <CardContent className="py-4 text-sm text-destructive">Payments couldn&apos;t be loaded: {error}</CardContent>
-        </Card>
-      )}
-
-      <FinancialYearFilter pathname="/payments" searchParams={params} years={years} selected={selectedYear} includeAll />
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader>
-              <CardDescription>{stat.label}</CardDescription>
-              <CardTitle className="tabular-nums">{formatMoney(stat.value)}</CardTitle>
-              {stat.hint && <p className="text-xs text-muted-foreground">{stat.hint}</p>}
-            </CardHeader>
+        {error && (
+          <Card>
+            <CardContent className="py-4 text-sm text-destructive">Payments couldn&apos;t be loaded: {error}</CardContent>
           </Card>
-        ))}
-      </div>
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {rows.length} payment{rows.length === 1 ? "" : "s"} · {period}
-          </CardTitle>
-          <CardDescription>
-            Record, edit or delete a payment on its deal, renewal or invoice. Invoices marked Paid by hand before
-            payments were recorded show here once a payment is recorded on them.
-            {undatedElsewhere > 0 &&
-              ` ${undatedElsewhere} payment${undatedElsewhere === 1 ? "" : "s"} from earlier records with no date ${undatedElsewhere === 1 ? "shows" : "show"} under All only.`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {selectedYear === null ? "No payments recorded yet." : `Nothing received in ${period} yet.`}
-            </p>
-          ) : (
-            <>
-              <ul className="space-y-2 md:hidden">
-                {rows.map((row) => (
-                  <PaymentCard key={row.paymentId} row={row} />
-                ))}
-              </ul>
-              <div className="hidden md:block">
-                <PaymentsTable rows={rows} />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <nav aria-label="Money in or out" className="flex flex-wrap gap-2">
+            {FLOWS.map((option) => {
+              const active = option.flow === flow;
+              return (
+                <Button key={option.label} asChild size="sm" variant={active ? "default" : "outline"}>
+                  <Link href={flowHref(params, option.flow)} aria-current={active ? "page" : undefined}>
+                    {option.label}
+                  </Link>
+                </Button>
+              );
+            })}
+          </nav>
+          <FinancialYearFilter pathname="/payments" searchParams={params} years={years} selected={fy} includeAll />
+        </div>
+
+        <CashFlowOverview
+          totals={totals}
+          period={period}
+          periods={fy === null ? flowsByYear(inSpan, barterByMonth) : flowsByMonth(inSpan, barterByMonth)}
+          periodKind={fy === null ? "year" : "month"}
+          accounts={flowsByAccount(inSpan)}
+          categories={summarizeOutflows(outflows).byCategory}
+          owedToYou={book.owedToYou}
+          owedToEditors={book.owedToEditors}
+        />
+
+        <Card>
+          <CardHeader className="gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1.5">
+                <CardTitle className="text-base">
+                  {listTitle} · {period}
+                </CardTitle>
+                <CardDescription>
+                  Expenses are added and edited here. Brand payments are recorded on their deal or invoice, commission
+                  on Affiliates and editor payments in the Editor workspace; each row links there.
+                  {fy !== null &&
+                    undated > 0 &&
+                    ` ${undated} payment${undated === 1 ? "" : "s"} from earlier records with no date ${undated === 1 ? "shows" : "show"} under All only.`}
+                </CardDescription>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {book.orphans.length > 0 && (
-        <Card id="unlinked" className="scroll-mt-20">
-          <CardHeader>
-            <CardTitle className="text-base">Payments with no deal</CardTitle>
-            <CardDescription>
-              What they were for no longer exists, so they count nowhere. Restore it from Trash if it is there, or
-              delete them.
-            </CardDescription>
+              <div className="flex flex-wrap gap-2">
+                <AddExpenseButton dealOptions={book.dealOptions} defaults={defaults} />
+                <Button asChild size="sm" variant="outline">
+                  <a href={exportHref(fy, flow)} download>
+                    <Download />
+                    Export CSV
+                  </a>
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <UnlinkedPayments payments={book.orphans} />
+            {shown.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {fy === null ? "Nothing recorded yet." : `Nothing recorded in ${period} yet.`}
+              </p>
+            ) : (
+              <MoneyList
+                entries={shown}
+                expenses={book.expenses.filter((expense) => shownExpenseIds.has(expense.id))}
+                dealOptions={book.dealOptions}
+                defaults={defaults}
+              />
+            )}
           </CardContent>
         </Card>
-      )}
-    </>
+
+        {book.orphans.length > 0 && (
+          <Card id="unlinked" className="scroll-mt-20">
+            <CardHeader>
+              <CardTitle className="text-base">Payments with no deal</CardTitle>
+              <CardDescription>
+                What they were for no longer exists, so they count nowhere. Restore it from Trash if it is there, or
+                delete them.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UnlinkedPayments payments={book.orphans} />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </AppShell>
   );
 }

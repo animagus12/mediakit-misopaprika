@@ -161,8 +161,8 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   // A payment has no page of its own; every one is listed on Payments (see
   // activityHref for one that belongs to an invoice).
   payment: { detail: null, list: "/payments" },
-  // Every expense is listed under Money out on Payments.
-  expense: { detail: null, list: "/payments?view=out" },
+  // Every expense is listed on Payments, filtered here to money out.
+  expense: { detail: null, list: "/payments?flow=out" },
   links: { detail: null, list: "/links-editor" },
   mediakit: { detail: null, list: "/mediakit-generator" },
 };

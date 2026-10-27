@@ -8,6 +8,7 @@ import { readSettledLedger } from "./invoices.writer.server";
 import type { Campaign } from "./campaigns";
 import type { Invoice } from "./invoices";
 import type { Settlement } from "./payments";
+import type { AffiliatePartner } from "./affiliatePartners";
 import type { AffiliatePayout } from "./affiliatePayouts";
 
 /**
@@ -341,19 +342,27 @@ class CampaignsEarningsRepository implements IEarningsRepository {
       getAffiliatePayouts().catch(() => []),
     ]);
 
-    const partnerName = new Map(partners.map((partner) => [partner.id, partner.name]));
-    const income: EarningsPayout[] = payouts.map((payout) => ({
-      commissionAmount: payout.commissionAmount,
-      paidDate: payout.paidDate,
-      periodEnd: payout.periodEnd,
-      paymentStatus: payout.paymentStatus,
-      // A payout whose partner was somehow lost still counts as income; it
-      // just has nothing better than a generic label to show for itself.
-      partner: partnerName.get(payout.partnerId) ?? "Affiliate",
-    }));
-
-    return summarizeEarnings(campaigns, income, settledInvoices);
+    return summarizeEarnings(campaigns, toEarningsPayouts(payouts, partners), settledInvoices);
   }
 }
+
+/** The payouts as summarizeEarnings reads them, each named by its program. */
+export function toEarningsPayouts(
+  payouts: AffiliatePayout[],
+  partners: Pick<AffiliatePartner, "id" | "name">[]
+): EarningsPayout[] {
+  const partnerName = new Map(partners.map((partner) => [partner.id, partner.name]));
+  return payouts.map((payout) => ({
+    commissionAmount: payout.commissionAmount,
+    paidDate: payout.paidDate,
+    periodEnd: payout.periodEnd,
+    paymentStatus: payout.paymentStatus,
+    // A payout whose partner was somehow lost still counts as income; it
+    // just has nothing better than a generic label to show for itself.
+    partner: partnerName.get(payout.partnerId) ?? AFFILIATE_FALLBACK_NAME,
+  }));
+}
+
+export const AFFILIATE_FALLBACK_NAME = "Affiliate";
 
 export const earningsRepository: IEarningsRepository = new CampaignsEarningsRepository();
