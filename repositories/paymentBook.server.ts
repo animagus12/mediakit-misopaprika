@@ -9,6 +9,8 @@ import { AFFILIATE_FALLBACK_NAME, summarizeEarnings, toEarningsPayouts } from ".
 import { getEditorTransactions } from "./editorTransactions.writer.server";
 import { readExpenseRecords } from "./expenseRecords.server";
 import type { ExpenseRecord } from "./expenses";
+import { readPartnerTransfers } from "./partnerTransferRecords.server";
+import type { PartnerTransferRecord } from "./partnerTransfers";
 import { readSettledLedger } from "./invoices.writer.server";
 import type { PaymentRecord } from "./payments";
 
@@ -47,6 +49,8 @@ export interface MoneyBook {
   owedToYou: number;
   /** Editor work done and not paid yet. */
   owedToEditors: number;
+  /** Money moved between the partners and the business to settle up (see lib/partners.ts). */
+  settleUps: PartnerTransferRecord[];
 }
 
 /**
@@ -58,12 +62,13 @@ export interface MoneyBook {
  * page with no money on it at all.
  */
 export async function getMoneyBook(): Promise<MoneyBook> {
-  const [ledger, expenses, editorTransactions, partners, payouts] = await Promise.all([
+  const [ledger, expenses, editorTransactions, partners, payouts, settleUps] = await Promise.all([
     readSettledLedger(),
     readExpenseRecords(),
     getEditorTransactions(),
     getAffiliatePartners().catch(() => []),
     getAffiliatePayouts().catch(() => []),
+    readPartnerTransfers(),
   ]);
   const earnings = summarizeEarnings(ledger.campaigns, toEarningsPayouts(payouts, partners), ledger.settledInvoices);
   return {
@@ -78,5 +83,6 @@ export async function getMoneyBook(): Promise<MoneyBook> {
     dealOptions: buildExpenseDealOptions(ledger.campaigns),
     owedToYou: cashOwedToYou(ledger.campaigns, ledger.settledInvoices, payouts),
     owedToEditors: computeEditorPayouts(editorTransactions).pending,
+    settleUps,
   };
 }

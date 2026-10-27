@@ -498,22 +498,20 @@ describe("money and records", () => {
 });
 
 describe("suggestPayment", () => {
-  it("suggests the remaining amount today with TDS at the expected rate, rounded to paise", () => {
-    expect(
-      suggestPayment({ remaining: 12345.67 }, 10, { receivedInto: "ritika", method: "Bank transfer" }, "2026-10-27")
-    ).toEqual({
+  it("suggests the remaining amount today, TDS at the expected rate rounded to paise, into the business account", () => {
+    expect(suggestPayment({ remaining: 12345.67 }, 10, { method: "Bank transfer" }, "2026-10-27")).toEqual({
       date: "2026-10-27",
       gross: 12345.67,
       tds: roundMoney(1234.567),
       bankFee: 0,
-      receivedInto: "ritika",
+      receivedInto: "business",
       method: "Bank transfer",
       reference: "",
       note: "",
     });
   });
 
-  it("falls back to Business funds and no TDS", () => {
+  it("falls back to no TDS and no method", () => {
     expect(suggestPayment({ remaining: 5000 }, null, null, "2026-10-27")).toMatchObject({
       tds: 0,
       receivedInto: "business",

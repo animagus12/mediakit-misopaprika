@@ -1,10 +1,10 @@
 // Who money moved through, and how.
 //
-// Shared by every record that says where a payment came from or went to:
-// editor transactions now, and the payment ledger and expenses later. The
-// same three values answer both directions: "paid by" for money going out
-// and "received into" for money coming in, since the question in both cases
-// is whose account it touched.
+// Shared by every record that says who paid for something: expenses and
+// editor transactions. Money in always lands in the business account, so it
+// is never asked (a payment's stored receivedInto is always "business" for
+// anything recorded now). What matters is who paid each cost: the business
+// account, or one of the two partners out of their own pocket.
 //
 // Pure and client-safe: forms render these as <Select> options, and the
 // to*() mappers use the parsers to coerce whatever storage hands back.
@@ -42,6 +42,41 @@ export function toPayer(value: unknown): Payer | undefined {
 /** "Business funds" for "business"; "" when there is no payer to name. */
 export function payerLabel(payer: Payer | undefined): string {
   return PAYER_OPTIONS.find((option) => option.value === payer)?.label ?? "";
+}
+
+/** The two partners, who share the business 50/50. */
+export const PARTNERS = ["subhrajit", "ritika"] as const satisfies readonly Payer[];
+
+export type Partner = (typeof PARTNERS)[number];
+
+export function isPartner(value: unknown): value is Partner {
+  return typeof value === "string" && (PARTNERS as readonly string[]).includes(value);
+}
+
+export function otherPartner(partner: Partner): Partner {
+  return partner === "subhrajit" ? "ritika" : "subhrajit";
+}
+
+/**
+ * How a cost a partner paid out of their own pocket is settled: the business
+ * account repays it in full, or the two partners share it equally, so the
+ * other owes half. Null is "not decided yet".
+ */
+export type PartnerSettlement = "business" | "split";
+
+export function isPartnerSettlement(value: unknown): value is PartnerSettlement {
+  return value === "business" || value === "split";
+}
+
+export function toPartnerSettlement(value: unknown): PartnerSettlement | null {
+  return isPartnerSettlement(value) ? value : null;
+}
+
+/** "Repaid from business funds", "Split 50/50", or "To settle" while undecided. */
+export function partnerSettlementLabel(settlement: PartnerSettlement | null): string {
+  if (settlement === "business") return "Repaid from business funds";
+  if (settlement === "split") return "Split 50/50";
+  return "To settle";
 }
 
 export function isPaymentMethod(value: unknown): value is PaymentMethod {

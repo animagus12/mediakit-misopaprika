@@ -17,6 +17,7 @@ import { restoreContacts } from "@/repositories/contacts.writer.server";
 import { restoreContentItem } from "@/repositories/contentPlan.writer.server";
 import { restoreEditorTransaction } from "@/repositories/editorTransactions.writer.server";
 import { restoreExpense } from "@/repositories/expenses.writer.server";
+import { restorePartnerTransfer } from "@/repositories/partnerTransfers.writer.server";
 import { restoreInvoice, restoreInvoicesForBrand } from "@/repositories/invoices.writer.server";
 import { restoreLinksDeletion } from "@/repositories/links.writer.server";
 import type { PaymentTarget } from "@/repositories/payments";
@@ -94,6 +95,10 @@ export async function restoreTrashItem(id: string): Promise<TrashActionResult> {
       case "expense":
         await restoreExpense(entry.payload.record);
         revalidateStores("expenses");
+        break;
+      case "partnerTransfer":
+        await restorePartnerTransfer(entry.payload.record);
+        revalidateStores("partnerTransfers");
         break;
       case "editorTransaction":
         await restoreEditorTransaction(entry.payload.record);

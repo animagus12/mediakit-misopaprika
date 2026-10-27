@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ExpenseRowMenu } from "@/components/expenses/ExpenseActions";
+import { CostSettlementMenu } from "@/components/partners/CostSettlementMenu";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toSheetDate } from "@/lib/campaigns";
@@ -9,7 +10,6 @@ import type { ExpenseFormDefaults } from "@/lib/expenseForm";
 import type { ExpenseDealOption } from "@/lib/expenses";
 import { formatMoney } from "@/lib/invoice";
 import {
-  entryAccount,
   entryAmount,
   entryCategory,
   entryDate,
@@ -18,10 +18,11 @@ import {
   entryHref,
   entryKey,
   entryMethod,
+  entryPaidBy,
   entryTitle,
   type MoneyEntry,
 } from "@/lib/moneyBook";
-import { payerLabel } from "@/lib/payers";
+import { isPartner, partnerSettlementLabel, payerLabel } from "@/lib/payers";
 import { cn } from "@/lib/utils";
 import type { ExpenseRecord } from "@/repositories/expenses";
 
@@ -39,9 +40,12 @@ function dateText(entry: MoneyEntry): string {
   return date ? toSheetDate(date) : "Date not recorded";
 }
 
+// Money in always lands in the business account, so it says only how it
+// came; a cost says who paid it.
 function accountText(entry: MoneyEntry): string {
-  const account = entryAccount(entry);
-  return [account ? payerLabel(account) : "Account not recorded", entryMethod(entry)].filter(Boolean).join(" · ");
+  if (entry.flow === "in") return entryMethod(entry) ?? "Method not recorded";
+  const paidBy = entryPaidBy(entry);
+  return [paidBy ? `Paid by ${payerLabel(paidBy)}` : "Payer not recorded", entryMethod(entry)].filter(Boolean).join(" · ");
 }
 
 /** TDS, charges and what landed, for a payment that had anything taken from it. */
@@ -63,9 +67,23 @@ function Deductions({ entry }: { entry: MoneyEntry }) {
 function Badges({ entry }: { entry: MoneyEntry }) {
   const flags = entryFlags(entry);
   const receipt = entry.kind === "outflow" ? entry.row.receiptUrl : null;
-  if (flags.length === 0 && !receipt) return null;
+  // A cost a partner paid says how it is being settled; undecided reads amber.
+  const settlement = entry.kind === "outflow" && isPartner(entry.row.paidBy) ? entry.row.settlement : undefined;
+  if (flags.length === 0 && !receipt && settlement === undefined) return null;
   return (
     <span className="mt-1 flex flex-wrap gap-1">
+      {settlement !== undefined && (
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px]",
+            settlement === null &&
+              "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
+          )}
+        >
+          {partnerSettlementLabel(settlement)}
+        </Badge>
+      )}
       {flags.map((flag) => (
         <Badge key={flag} variant="outline" className="text-[10px]">
           {flag}
@@ -112,8 +130,20 @@ export function MoneyList({ entries, expenses, dealOptions, defaults }: MoneyLis
   const expenseById = new Map(expenses.map((expense) => [expense.id, expense]));
 
   function menu(entry: MoneyEntry) {
-    const expense = entry.kind === "outflow" && entry.row.source === "expense" ? expenseById.get(entry.row.id) : undefined;
-    return expense ? <ExpenseRowMenu expense={expense} dealOptions={dealOptions} defaults={defaults} /> : null;
+    if (entry.kind !== "outflow") return null;
+    const expense = entry.row.source === "expense" ? expenseById.get(entry.row.id) : undefined;
+    if (expense) return <ExpenseRowMenu expense={expense} dealOptions={dealOptions} defaults={defaults} />;
+    // An editor payment is edited in the workspace; only how a partner's
+    // payment is settled is decided here.
+    if (entry.row.source === "editing" && isPartner(entry.row.paidBy)) {
+      return (
+        <CostSettlementMenu
+          cost={{ source: "editing", id: entry.row.id, label: entry.row.description || "Editing", settlement: entry.row.settlement }}
+          paidBy={entry.row.paidBy}
+        />
+      );
+    }
+    return null;
   }
 
   return (

@@ -12,7 +12,6 @@ import {
   entryKey,
   entryTitle,
   filterEntries,
-  flowsByAccount,
   flowsByMonth,
   flowsByYear,
   moneyEntries,
@@ -60,6 +59,7 @@ function outflow(overrides: Partial<OutflowRow> = {}): OutflowRow {
     campaignId: "D1",
     dealLabel: "Blinkit · Rakhi",
     paidBy: "ritika",
+    settlement: null,
     method: "UPI",
     receiptUrl: null,
     note: "",
@@ -196,14 +196,6 @@ describe("cash flow and profit", () => {
       ["2025", 5000, 5000],
     ]);
     for (const row of years) expect(row.profit).toBe(row.netCash + row.tds + row.barter);
-  });
-
-  it("says what went through each account, and what nobody recorded", () => {
-    expect(flowsByAccount(entries)).toEqual([
-      { payer: "ritika", cashIn: 0, cashOut: 1200, net: -1200 },
-      { payer: "business", cashIn: 13982, cashOut: 400, net: 13582 },
-      { payer: null, cashIn: 600, cashOut: 0, net: 600 },
-    ]);
   });
 });
 

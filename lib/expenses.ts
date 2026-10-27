@@ -18,10 +18,14 @@ import { roundMoney, sumMoney } from "@/lib/money";
 import { EARLIEST_PAYMENT_DAY, MAX_PAYMENT_GROSS } from "@/lib/payments";
 import {
   PAYERS,
+  isPartner,
+  isPartnerSettlement,
   isPayer,
   isPaymentMethod,
+  toPartnerSettlement,
   toPayer,
   toPaymentMethod,
+  type PartnerSettlement,
   type Payer,
   type PaymentMethod,
 } from "@/lib/payers";
@@ -72,6 +76,7 @@ export function validateExpense(input: ExpenseInput, today: string): string | nu
   }
   if (!isExpenseCategory(input.category)) return "Pick a category";
   if (!isPayer(input.paidBy)) return "Choose whose account it came out of";
+  if (input.settlement !== null && !isPartnerSettlement(input.settlement)) return "Choose how it is settled";
   if (input.method !== null && !isPaymentMethod(input.method)) return "Choose a payment method from the list";
   if (input.campaignId !== null && (typeof input.campaignId !== "string" || !input.campaignId.trim())) {
     return "Pick the deal it was for, or no deal";
@@ -246,6 +251,8 @@ export interface OutflowRow {
   /** The deal's name now; DELETED_DEAL_LABEL when its id no longer resolves; null for no deal. */
   dealLabel: string | null;
   paidBy: Payer | null;
+  /** How a cost a partner paid is settled (see lib/partners.ts); null when undecided or the business paid. */
+  settlement: PartnerSettlement | null;
   method: PaymentMethod | null;
   receiptUrl: string | null;
   note: string;
@@ -284,6 +291,7 @@ export function outflowRows(
     campaignId: expense.campaignId,
     dealLabel: dealLabelFor(expense.campaignId, deals),
     paidBy: expense.paidBy,
+    settlement: expense.settlement,
     method: expense.method,
     receiptUrl: expense.receiptUrl,
     note: expense.note,
@@ -297,6 +305,7 @@ export function outflowRows(
     const date = paidOn || toIsoDate(transaction.deliveryDate) || toIsoDate(transaction.videoDate);
     if (!date) continue;
     const deal = jobOwners.get(transaction.id) ?? null;
+    const paidBy = toPayer(transaction.paidBy) ?? null;
     rows.push({
       id: transaction.id,
       source: "editing",
@@ -309,7 +318,8 @@ export function outflowRows(
       editor: transaction.editor.trim() || null,
       campaignId: deal?.id ?? null,
       dealLabel: deal ? dealName(deal) : null,
-      paidBy: toPayer(transaction.paidBy) ?? null,
+      paidBy,
+      settlement: isPartner(paidBy) ? toPartnerSettlement(transaction.settlement) : null,
       method: toPaymentMethod(transaction.paymentMethod) ?? null,
       receiptUrl: null,
       note: "",

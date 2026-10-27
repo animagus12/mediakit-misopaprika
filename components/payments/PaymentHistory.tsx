@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toSheetDate } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
-import { payerLabel, type Payer } from "@/lib/payers";
 import { ledgerWarnings, settlementLabel, settlementSummary } from "@/lib/payments";
 import { cn } from "@/lib/utils";
 import type { LedgerEntry, Settlement } from "@/repositories/payments";
@@ -47,16 +46,6 @@ interface PaymentHistoryProps {
   beforeRecord?: (proceed: () => void) => void;
 }
 
-// Whose account a new payment starts on: where this target's last payment
-// landed, else Business funds.
-function defaultReceivedInto(settlement: Settlement): Payer {
-  for (let index = settlement.entries.length - 1; index >= 0; index -= 1) {
-    const into = settlement.entries[index].receivedInto;
-    if (into) return into;
-  }
-  return "business";
-}
-
 function entryDetail(entry: LedgerEntry): string[] {
   const parts = [`TDS ${formatMoney(entry.tds)}`];
   if (entry.bankFee > 0) parts.push(`Charges ${formatMoney(entry.bankFee)}`);
@@ -64,11 +53,9 @@ function entryDetail(entry: LedgerEntry): string[] {
   return parts;
 }
 
+// How it arrived. No account: money in always lands in the business account.
 function entrySource(entry: LedgerEntry): string {
-  const parts = [entry.receivedInto ? payerLabel(entry.receivedInto) : "Account not recorded"];
-  if (entry.method) parts.push(entry.method);
-  if (entry.reference) parts.push(entry.reference);
-  return parts.join(" · ");
+  return [entry.method ?? "Method not recorded", entry.reference].filter(Boolean).join(" · ");
 }
 
 /**
@@ -100,7 +87,6 @@ export function PaymentHistory({
     if (beforeRecord) beforeRecord(proceed);
     else proceed();
   }
-  const receivedInto = defaultReceivedInto(settlement);
 
   function remove(entry: LedgerEntry) {
     startTransition(async () => {
@@ -210,7 +196,6 @@ export function PaymentHistory({
           targetLabel={targetLabel}
           expectedTdsRate={expectedTdsRate}
           entry={editing}
-          defaultReceivedInto={receivedInto}
           open
           onOpenChange={(open) => {
             if (!open) setEditing(null);
@@ -230,7 +215,6 @@ export function PaymentHistory({
           settlement={settlement}
           targetLabel={targetLabel}
           expectedTdsRate={expectedTdsRate}
-          defaultReceivedInto={receivedInto}
           open
           onOpenChange={(open) => {
             if (!open) setRecordingKey(null);

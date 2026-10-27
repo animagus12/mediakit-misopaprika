@@ -7,6 +7,7 @@ import {
   IndianRupee,
   Link2,
   ReceiptText,
+  Scale,
   Sparkles,
   UserRound,
   Video,
@@ -98,6 +99,9 @@ const TITLES: Record<ActivityAction, (label: string, activity: Activity) => stri
   "expense.updated": (label) => `Expense ${label} edited`,
   "expense.deleted": (label) => `Expense ${label} deleted`,
   "expense.restored": (label) => `Expense ${label} restored`,
+  "partnerTransfer.recorded": (label, activity) =>
+    activity.amount !== undefined ? `${label} ${formatMoney(activity.amount)} to settle up` : `${label} to settle up`,
+  "partnerTransfer.deleted": (label) => `Settle-up deleted: ${label}`,
   "links.published": () => "Links page published",
   "mediakit.published": () => "Media kit published",
 };
@@ -122,6 +126,7 @@ const TONES: Partial<Record<ActivityAction, ActivityTone>> = {
   "content.deleted": "destructive",
   "payment.deleted": "destructive",
   "expense.deleted": "destructive",
+  "partnerTransfer.deleted": "destructive",
 };
 
 // Icons follow the entity, not the action, so the same kind of record always
@@ -140,6 +145,7 @@ const ICONS: Record<ActivityEntityType, LucideIcon> = {
   affiliatePayout: BadgePercent,
   payment: IndianRupee,
   expense: ReceiptText,
+  partnerTransfer: Scale,
   links: Link2,
   mediakit: Sparkles,
 };
@@ -163,6 +169,8 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   payment: { detail: null, list: "/payments" },
   // Every expense is listed on Payments, filtered here to money out.
   expense: { detail: null, list: "/payments?flow=out" },
+  // Settle-ups are listed under Partners on Payments.
+  partnerTransfer: { detail: null, list: "/payments#partners" },
   links: { detail: null, list: "/links-editor" },
   mediakit: { detail: null, list: "/mediakit-generator" },
 };
@@ -195,7 +203,7 @@ export const activityFilters: readonly ActivityFilter[] = [
   { id: "content", label: "Content", types: ["content"] },
   { id: "invoices", label: "Invoices", types: ["invoice"] },
   { id: "payments", label: "Payments", types: ["payment"] },
-  { id: "expenses", label: "Expenses", types: ["expense"] },
+  { id: "expenses", label: "Expenses", types: ["expense", "partnerTransfer"] },
   { id: "workspace", label: "Workspace", types: ["editor", "editorTransaction"] },
   { id: "affiliates", label: "Affiliates", types: ["affiliatePartner", "affiliatePayout"] },
   { id: "publishing", label: "Publishing", types: ["links", "mediakit"] },

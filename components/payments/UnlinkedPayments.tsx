@@ -7,7 +7,6 @@ import { deletePayment } from "@/app/payments/actions";
 import { Button } from "@/components/ui/button";
 import { toSheetDate } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
-import { payerLabel } from "@/lib/payers";
 import type { PaymentRecord, PaymentTarget } from "@/repositories/payments";
 
 function targetName(target: PaymentTarget): string {
@@ -53,8 +52,7 @@ export function UnlinkedPayments({ payments }: { payments: PaymentRecord[] }) {
             </div>
             <p className="truncate text-muted-foreground">{targetName(payment.target)}, now deleted</p>
             <p className="truncate text-muted-foreground">
-              {payment.receivedInto ? payerLabel(payment.receivedInto) : "Account not recorded"}
-              {payment.reference ? ` · ${payment.reference}` : ""}
+              {[payment.method ?? "Method not recorded", payment.reference].filter(Boolean).join(" · ")}
             </p>
           </div>
           <Button

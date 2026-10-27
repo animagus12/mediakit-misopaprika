@@ -16,7 +16,7 @@ import {
   toSheetDate,
 } from "@/lib/editorTransactions";
 import { todayKey } from "@/lib/day";
-import { toPayer, toPaymentMethod } from "@/lib/payers";
+import { isPartner, toPayer, toPaymentMethod, type PartnerSettlement } from "@/lib/payers";
 import type { RecordChange } from "@/lib/activityDiff";
 
 // server-only, and never imported from a client component: the server
@@ -144,17 +144,31 @@ async function replaceRecord(
 export async function updateEditorTransaction(
   input: EditorTransactionUpdate
 ): Promise<RecordChange<EditorTransactionRecord> | null> {
-  return replaceRecord(input.id, (before) => ({
-    id: before.id,
-    video: input.video.trim(),
-    videoDate: toSheetDate(input.videoDate),
-    deliveryDate: toSheetDate(input.deliveryDate),
-    amount: input.amount,
-    editor: input.editor.trim(),
-    status: input.status,
-    ...revisionFields(input),
-    ...paymentFields(input),
-  }));
+  return replaceRecord(input.id, (before) => {
+    const payment = paymentFields(input);
+    return {
+      id: before.id,
+      video: input.video.trim(),
+      videoDate: toSheetDate(input.videoDate),
+      deliveryDate: toSheetDate(input.deliveryDate),
+      amount: input.amount,
+      editor: input.editor.trim(),
+      status: input.status,
+      ...revisionFields(input),
+      ...payment,
+      // Settled on the Payments page, so the workspace form never sends it:
+      // kept while a partner still paid, dropped once the business did.
+      settlement: isPartner(payment.paidBy) ? (before.settlement ?? null) : null,
+    };
+  });
+}
+
+/** How a job a partner paid for is settled; null puts it back to undecided. */
+export async function setEditorTransactionSettlement(
+  id: string,
+  settlement: PartnerSettlement | null
+): Promise<RecordChange<EditorTransactionRecord> | null> {
+  return replaceRecord(id, (before) => ({ ...before, settlement }));
 }
 
 // Status only, for the table's inline select: nothing else on the record is

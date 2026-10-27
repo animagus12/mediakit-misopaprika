@@ -536,12 +536,7 @@ export function settlementSummary(settlement: Pick<Settlement, "settled" | "owed
   return `${formatMoney(settlement.settled)} of ${formatMoney(settlement.owed)} received`;
 }
 
-export type LedgerWarningCode =
-  | "overpaid"
-  | "invoice-total-differs"
-  | "void-invoice-has-payments"
-  | "double-owner"
-  | "no-payer";
+export type LedgerWarningCode = "overpaid" | "invoice-total-differs" | "void-invoice-has-payments" | "double-owner";
 
 export interface LedgerWarning {
   code: LedgerWarningCode;
@@ -578,9 +573,6 @@ export function ledgerWarnings(args: {
       warnings.push({ code: "double-owner", message: "More than one deal is linked to this invoice." });
     }
   }
-  if (settlement.entries.some((entry) => entry.source === "stored" && entry.receivedInto === null)) {
-    warnings.push({ code: "no-payer", message: "A payment doesn't say whose account it landed in." });
-  }
   return warnings;
 }
 
@@ -588,13 +580,13 @@ export function ledgerWarnings(args: {
 
 /**
  * What a one-click "received" or a fresh payment form starts from: today, the
- * whole remaining amount, TDS at the expected rate, and the account and
- * method last used (Business funds when there is none).
+ * whole remaining amount, TDS at the expected rate, and the method last used.
+ * Money in always lands in the business account.
  */
 export function suggestPayment(
   settlement: Pick<Settlement, "remaining">,
   expectedTdsRate: number | null,
-  last: { receivedInto: Payer | null; method: PaymentMethod | null } | null,
+  last: { method: PaymentMethod | null } | null,
   today: string
 ): Omit<PaymentInput, "id" | "target"> {
   const gross = roundMoney(settlement.remaining);
@@ -604,7 +596,7 @@ export function suggestPayment(
     gross,
     tds: roundMoney((gross * rate) / 100),
     bankFee: 0,
-    receivedInto: last?.receivedInto ?? "business",
+    receivedInto: "business",
     method: last?.method ?? null,
     reference: "",
     note: "",

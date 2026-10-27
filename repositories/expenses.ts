@@ -13,7 +13,15 @@
 
 import { roundMoney } from "@/lib/money";
 import { toFinancialDayKey } from "@/lib/financialYear";
-import { toPayer, toPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
+import {
+  isPartner,
+  toPartnerSettlement,
+  toPayer,
+  toPaymentMethod,
+  type PartnerSettlement,
+  type Payer,
+  type PaymentMethod,
+} from "@/lib/payers";
 
 export const EXPENSE_CATEGORY_OPTIONS = [
   { value: "props", label: "Props" },
@@ -42,6 +50,12 @@ export interface ExpenseRecord {
   description: string;
   /** Whose account it came out of; null only on a row written without one. */
   paidBy: Payer | null;
+  /**
+   * When a partner paid out of their own pocket: repaid from business funds,
+   * or split 50/50 between the partners. Null while undecided, and always
+   * null when the business account paid.
+   */
+  settlement: PartnerSettlement | null;
   method: PaymentMethod | null;
   /**
    * The deal it was spent for, by id. Its name is looked up on every read, so
@@ -64,6 +78,7 @@ export interface ExpenseInput {
   category: ExpenseCategory;
   description: string;
   paidBy: Payer;
+  settlement: PartnerSettlement | null;
   method: PaymentMethod | null;
   campaignId: string | null;
   receiptUrl: string | null;
@@ -104,13 +119,15 @@ export function toExpenseRecord(raw: unknown): ExpenseRecord | null {
   const amount = roundMoney(Math.max(0, Number(candidate.amount) || 0));
   if (!id || !date || amount <= 0) return null;
   const campaignId = typeof candidate.campaignId === "string" ? candidate.campaignId.trim() : "";
+  const paidBy = toPayer(candidate.paidBy) ?? null;
   return {
     id,
     date,
     amount,
     category: isExpenseCategory(candidate.category) ? candidate.category : "other",
     description: text(candidate.description, EXPENSE_DESCRIPTION_MAX),
-    paidBy: toPayer(candidate.paidBy) ?? null,
+    paidBy,
+    settlement: isPartner(paidBy) ? toPartnerSettlement(candidate.settlement) : null,
     method: toPaymentMethod(candidate.method) ?? null,
     campaignId: campaignId || null,
     receiptUrl: toReceiptUrl(candidate.receiptUrl),

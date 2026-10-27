@@ -6,7 +6,7 @@ import { campaignLabel } from "@/lib/campaigns";
 import { todayKey } from "@/lib/day";
 import { validateExpense, validateNewExpenseId } from "@/lib/expenses";
 import { formatMoney } from "@/lib/invoice";
-import { payerLabel } from "@/lib/payers";
+import { isPartner, payerLabel } from "@/lib/payers";
 import { revalidateStores } from "@/lib/revalidation";
 import { requireSession } from "@/lib/session.server";
 import type { ActivityEntity } from "@/repositories/activity";
@@ -56,6 +56,8 @@ function checked(input: ExpenseInput): ExpenseInput {
     description: typeof input.description === "string" ? input.description.trim() : "",
     note: typeof input.note === "string" ? input.note.trim() : "",
     campaignId: typeof input.campaignId === "string" && input.campaignId.trim() ? input.campaignId.trim() : null,
+    // Only a cost a partner paid is settled between them and the business.
+    settlement: isPartner(input.paidBy) ? (input.settlement ?? null) : null,
   };
   const problem = validateExpense(normalized, todayKey());
   if (problem) throw new Error(problem);

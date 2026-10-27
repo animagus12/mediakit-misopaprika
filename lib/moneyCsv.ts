@@ -5,7 +5,6 @@
 import { toSheetDate } from "@/lib/campaigns";
 import { financialYearLabel } from "@/lib/financialYear";
 import {
-  entryAccount,
   entryAmount,
   entryCash,
   entryCategory,
@@ -14,11 +13,12 @@ import {
   entryFlags,
   entryFy,
   entryMethod,
+  entryPaidBy,
   entryTitle,
   type MoneyEntry,
   type MoneyFlow,
 } from "@/lib/moneyBook";
-import { payerLabel } from "@/lib/payers";
+import { isPartner, partnerSettlementLabel, payerLabel } from "@/lib/payers";
 
 const HEADER = [
   "Date",
@@ -31,7 +31,8 @@ const HEADER = [
   "TDS",
   "Charges",
   "Cash in or out",
-  "Account",
+  "Paid by",
+  "Settlement",
   "Method",
   "Reference",
   "Note",
@@ -54,7 +55,7 @@ function money(value: number): string {
 
 function row(entry: MoneyEntry): string[] {
   const fy = entryFy(entry);
-  const account = entryAccount(entry);
+  const paidBy = entryPaidBy(entry);
   const date = entryDate(entry);
   return [
     text(date ? toSheetDate(date) : ""),
@@ -67,7 +68,8 @@ function row(entry: MoneyEntry): string[] {
     money(entry.kind === "payment" ? entry.row.tds : 0),
     money(entry.kind === "payment" ? entry.row.fee : 0),
     money(entryCash(entry)),
-    text(account ? payerLabel(account) : "Not recorded"),
+    text(paidBy ? payerLabel(paidBy) : ""),
+    text(entry.kind === "outflow" && isPartner(paidBy) ? partnerSettlementLabel(entry.row.settlement) : ""),
     text(entryMethod(entry) ?? ""),
     text(entry.kind === "payment" ? entry.row.reference : ""),
     text(entry.kind === "outflow" ? entry.row.note : ""),

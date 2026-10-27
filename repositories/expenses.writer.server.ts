@@ -2,6 +2,7 @@ import "server-only";
 import type { RecordChange } from "@/lib/activityDiff";
 import { getRedis } from "@/lib/cache";
 import { EXPENSES_KEY, readExpenseRecords } from "./expenseRecords.server";
+import type { PartnerSettlement } from "@/lib/payers";
 import type { ExpenseInput, ExpenseRecord } from "./expenses";
 
 // server-only, and never imported from a client component: the server actions
@@ -24,6 +25,7 @@ function fromInput(input: ExpenseInput): Omit<ExpenseRecord, "createdAt" | "upda
     category: input.category,
     description: input.description.trim(),
     paidBy: input.paidBy,
+    settlement: input.settlement,
     method: input.method,
     campaignId: input.campaignId,
     receiptUrl: input.receiptUrl,
@@ -55,6 +57,23 @@ export async function updateExpense(input: ExpenseInput): Promise<RecordChange<E
   if (!before) return null;
   const after: ExpenseRecord = { ...fromInput(input), createdAt: before.createdAt, updatedAt: new Date().toISOString() };
   await redis.set(EXPENSES_KEY, records.map((record) => (record.id === input.id ? after : record)));
+  return { before, after };
+}
+
+/**
+ * How an expense a partner paid is settled, and nothing else: the quick
+ * decision on the Payments page, which shouldn't resend the whole expense.
+ */
+export async function setExpenseSettlement(
+  id: string,
+  settlement: PartnerSettlement | null
+): Promise<RecordChange<ExpenseRecord> | null> {
+  const redis = requireRedis();
+  const records = await readExpenseRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before) return null;
+  const after: ExpenseRecord = { ...before, settlement, updatedAt: new Date().toISOString() };
+  await redis.set(EXPENSES_KEY, records.map((record) => (record.id === id ? after : record)));
   return { before, after };
 }
 

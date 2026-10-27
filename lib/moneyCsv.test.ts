@@ -37,6 +37,7 @@ const expense: OutflowRow = {
   campaignId: null,
   dealLabel: null,
   paidBy: null,
+  settlement: null,
   method: null,
   receiptUrl: "https://blob.example/r.pdf",
   note: "line one\nline two",
@@ -49,21 +50,28 @@ describe("moneyCsv", () => {
   it("starts with a byte-order mark and a header, one row per entry, CRLF line endings", () => {
     expect(csv.startsWith("﻿")).toBe(true);
     expect(lines[0]).toBe(
-      "Date,Financial year,Direction,Category,Description,Details,Amount,TDS,Charges,Cash in or out,Account,Method,Reference,Note,Receipt,Flags"
+      "Date,Financial year,Direction,Category,Description,Details,Amount,TDS,Charges,Cash in or out,Paid by,Settlement,Method,Reference,Note,Receipt,Flags"
     );
     expect(lines.at(-1)).toBe("");
   });
 
-  it("writes money in with its deductions and what landed, signed", () => {
+  it("writes money in with its deductions and what landed, signed, with no payer", () => {
     expect(lines.find((line) => line.startsWith("10/10/2026"))).toBe(
-      '10/10/2026,FY 2026-27,In,Usage renewal,"Blinkit, ""Quick""",Rakhi · usage renewal,10000.00,1000.00,18.50,8981.50,Business funds,UPI,UTR-1,,,From earlier record'
+      '10/10/2026,FY 2026-27,In,Usage renewal,"Blinkit, ""Quick""",Rakhi · usage renewal,10000.00,1000.00,18.50,8981.50,,,UPI,UTR-1,,,From earlier record'
     );
   });
 
   it("writes money out negative, keeps a formula as text, and quotes a note across lines", () => {
     expect(csv).toContain(
-      `12/10/2026,FY 2026-27,Out,Props,"'=HYPERLINK(""x"")",,1200.00,0.00,0.00,-1200.00,Not recorded,,,"line one\nline two",https://blob.example/r.pdf,`
+      `12/10/2026,FY 2026-27,Out,Props,"'=HYPERLINK(""x"")",,1200.00,0.00,0.00,-1200.00,,,,,"line one\nline two",https://blob.example/r.pdf,`
     );
+  });
+
+  it("says who paid a cost and how a partner's cost is settled", () => {
+    const partnerCsv = moneyCsv(
+      moneyEntries([], [], [{ ...expense, id: "e2", description: "Props", note: "", receiptUrl: null, paidBy: "ritika", settlement: "split" }])
+    );
+    expect(partnerCsv).toContain("12/10/2026,FY 2026-27,Out,Props,Props,,1200.00,0.00,0.00,-1200.00,Ritika,Split 50/50,,,,,");
   });
 });
 

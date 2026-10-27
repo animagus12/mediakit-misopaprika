@@ -1,5 +1,13 @@
 import { computeEtaDays, toNonNegativeInt } from "@/lib/editorTransactions";
-import { toPayer, toPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
+import {
+  isPartner,
+  toPartnerSettlement,
+  toPayer,
+  toPaymentMethod,
+  type PartnerSettlement,
+  type Payer,
+  type PaymentMethod,
+} from "@/lib/payers";
 
 // Shape as persisted (JSON seed / Redis): DD/MM/YYYY dates, no derived fields.
 export interface EditorTransactionRecord {
@@ -17,6 +25,11 @@ export interface EditorTransactionRecord {
   paidDate?: string; // DD/MM/YYYY like deliveryDate; "" unless status is Paid
   paidBy?: Payer;
   paymentMethod?: string;
+  /**
+   * Paid by a partner out of their own pocket: repaid from business funds or
+   * split 50/50. Decided on the Payments page, not in the workspace form.
+   */
+  settlement?: PartnerSettlement | null;
 }
 
 export interface EditorTransaction extends EditorTransactionRecord {
@@ -25,6 +38,7 @@ export interface EditorTransaction extends EditorTransactionRecord {
   etaDays: number | null; // derived from videoDate/deliveryDate, see computeEtaDays
   paidDate: string;
   paymentMethod?: PaymentMethod;
+  settlement: PartnerSettlement | null;
 }
 
 export interface NewEditorTransaction {
@@ -47,13 +61,15 @@ export interface EditorTransactionUpdate extends NewEditorTransaction {
 
 export function toEditorTransaction(record: EditorTransactionRecord): EditorTransaction {
   const revisions = toNonNegativeInt(record.revisions);
+  const paidBy = toPayer(record.paidBy);
   return {
     ...record,
     revisions,
     revisionRate: revisions > 0 ? (record.revisionRate ?? null) : null,
     etaDays: computeEtaDays(record.videoDate, record.deliveryDate),
     paidDate: typeof record.paidDate === "string" ? record.paidDate.trim() : "",
-    paidBy: toPayer(record.paidBy),
+    paidBy,
     paymentMethod: toPaymentMethod(record.paymentMethod),
+    settlement: isPartner(paidBy) ? toPartnerSettlement(record.settlement) : null,
   };
 }

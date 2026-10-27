@@ -3,7 +3,7 @@
 // until it is typed over, and how net and charges recompute each other.
 // Client-safe and pure.
 import { roundMoney } from "@/lib/money";
-import { isPayer, isPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
+import { isPaymentMethod, type PaymentMethod } from "@/lib/payers";
 import type { PaymentInput, PaymentTarget } from "@/repositories/payments";
 
 export interface PaymentFormState {
@@ -12,7 +12,6 @@ export interface PaymentFormState {
   tds: string;
   bankFee: string;
   net: string;
-  receivedInto: Payer | "";
   method: PaymentMethod | "";
   reference: string;
   note: string;
@@ -25,7 +24,6 @@ export interface PaymentFormValues {
   gross: number;
   tds: number;
   bankFee: number;
-  receivedInto: Payer | null;
   method: PaymentMethod | null;
   reference: string;
   note: string;
@@ -60,7 +58,6 @@ export function paymentFormFrom(values: PaymentFormValues, tdsTouched: boolean):
     gross: amountText(values.gross),
     tds: amountText(values.tds),
     bankFee: amountText(values.bankFee),
-    receivedInto: values.receivedInto ?? "",
     method: values.method ?? "",
     reference: values.reference,
     note: values.note,
@@ -109,8 +106,8 @@ export function paymentValuesFrom(state: PaymentFormState, id: string): Omit<Pay
     gross: parseFormAmount(state.gross),
     tds: parseFormAmount(state.tds),
     bankFee: parseFormAmount(state.bankFee),
-    // An empty choice is refused by validatePayment with its own message.
-    receivedInto: (isPayer(state.receivedInto) ? state.receivedInto : "") as Payer,
+    // Money in always lands in the business account.
+    receivedInto: "business",
     method: isPaymentMethod(state.method) ? state.method : null,
     reference: state.reference.trim(),
     note: state.note.trim(),

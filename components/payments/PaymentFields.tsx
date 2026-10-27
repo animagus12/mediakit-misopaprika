@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { todayKey } from "@/lib/day";
 import { formatMoney } from "@/lib/invoice";
-import { PAYER_OPTIONS, PAYMENT_METHOD_OPTIONS, type Payer, type PaymentMethod } from "@/lib/payers";
+import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/lib/payers";
 import {
   hasNegativeCharges,
   parseFormAmount,
@@ -34,7 +34,7 @@ interface PaymentFieldsProps {
 
 /**
  * One payment's fields: when it arrived, how much it settled, what the brand
- * withheld and the bank took, what landed, and whose account it landed in.
+ * withheld and the bank took, and what landed in the business account.
  *
  * Controlled, with the arithmetic in lib/paymentForm.ts: TDS follows the
  * expected rate until it is typed over, and net and charges recompute each
@@ -112,41 +112,25 @@ export function PaymentFields({ idPrefix, form, onChange, expectedTdsRate, gross
           : `${formatMoney(parseFormAmount(form.net) || 0)} landed in the account.`}
       </p>
 
-      <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
-        <div className="min-w-0 space-y-2">
-          <Label htmlFor={id("into")}>Received into</Label>
-          <Select value={form.receivedInto} onValueChange={(value) => onChange({ ...form, receivedInto: value as Payer })}>
-            <SelectTrigger id={id("into")} className="w-full">
-              <SelectValue placeholder="Whose account" />
-            </SelectTrigger>
-            <SelectContent>
-              {PAYER_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-0 space-y-2">
-          <Label htmlFor={id("method")}>Method</Label>
-          <Select
-            value={form.method || NO_METHOD}
-            onValueChange={(value) => onChange({ ...form, method: value === NO_METHOD ? "" : (value as PaymentMethod) })}
-          >
-            <SelectTrigger id={id("method")} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_METHOD}>Not recorded</SelectItem>
-              {PAYMENT_METHOD_OPTIONS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* No "received into": money in always lands in the business account. */}
+      <div className="space-y-2">
+        <Label htmlFor={id("method")}>Method</Label>
+        <Select
+          value={form.method || NO_METHOD}
+          onValueChange={(value) => onChange({ ...form, method: value === NO_METHOD ? "" : (value as PaymentMethod) })}
+        >
+          <SelectTrigger id={id("method")} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_METHOD}>Not recorded</SelectItem>
+            {PAYMENT_METHOD_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">

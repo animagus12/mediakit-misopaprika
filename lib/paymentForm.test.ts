@@ -15,7 +15,6 @@ const start = paymentFormFrom(
     gross: 20000,
     tds: 2000,
     bankFee: 0,
-    receivedInto: "ritika",
     method: "UPI",
     reference: "",
     note: "",
@@ -52,12 +51,12 @@ describe("payment form", () => {
     expect(form.net).toBe("0.1");
   });
 
-  it("builds the input the actions take, trimming text and dropping an unknown method", () => {
+  it("builds the input the actions take, trimming text, dropping an unknown method, into the business account", () => {
     const input = paymentInputFrom(
       { ...start, reference: "  UTR 123 ", method: "" },
       "5f0c6f1e-2b7a-4c1d-9a3e-0000000000a1",
       { kind: "deal", campaignId: "D1" }
     );
-    expect(input).toMatchObject({ gross: 20000, tds: 2000, bankFee: 0, reference: "UTR 123", method: null, receivedInto: "ritika" });
+    expect(input).toMatchObject({ gross: 20000, tds: 2000, bankFee: 0, reference: "UTR 123", method: null, receivedInto: "business" });
   });
 });

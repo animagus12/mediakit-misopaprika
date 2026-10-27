@@ -24,6 +24,7 @@ function expense(overrides: Partial<ExpenseRecord> = {}): ExpenseRecord {
     category: "props",
     description: "Spider-Man figure",
     paidBy: "ritika",
+    settlement: null,
     method: "UPI",
     campaignId: null,
     receiptUrl: null,
@@ -43,6 +44,7 @@ function input(overrides: Partial<ExpenseInput> = {}): ExpenseInput {
     category: record.category,
     description: record.description,
     paidBy: "ritika",
+    settlement: record.settlement,
     method: record.method,
     campaignId: record.campaignId,
     receiptUrl: record.receiptUrl,
@@ -75,6 +77,31 @@ describe("validateExpense", () => {
   it("only takes a UUID for a new expense's id", () => {
     expect(validateNewExpenseId(expense().id)).toBeNull();
     expect(validateNewExpenseId("abc")).not.toBeNull();
+  });
+});
+
+describe("partner settlement", () => {
+  it("is kept only on a cost a partner paid, and only as one of the two ways", () => {
+    expect(toExpenseRecord({ ...expense(), paidBy: "ritika", settlement: "split" })?.settlement).toBe("split");
+    expect(toExpenseRecord({ ...expense(), paidBy: "business", settlement: "split" })?.settlement).toBeNull();
+    expect(toExpenseRecord({ ...expense(), paidBy: "ritika", settlement: "later" })?.settlement).toBeNull();
+    expect(validateExpense(input({ settlement: "later" as never }), TODAY)).toBe("Choose how it is settled");
+  });
+
+  it("reaches money out from the editor workspace too", () => {
+    const rows = outflowRows(
+      [],
+      [
+        makeEditorTransaction({ id: "by-ritika", paidBy: "ritika", settlement: "business", paidDate: "01/10/2026" }),
+        makeEditorTransaction({ id: "by-business", paidBy: "business", settlement: "split", paidDate: "01/10/2026" }),
+      ],
+      [],
+      []
+    );
+    expect(rows.map((row) => [row.id, row.settlement])).toEqual([
+      ["by-ritika", "business"],
+      ["by-business", null],
+    ]);
   });
 });
 

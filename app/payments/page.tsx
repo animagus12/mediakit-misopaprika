@@ -4,7 +4,8 @@ import { Download } from "lucide-react";
 import AppShell from "@/components/common/AppShell";
 import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
 import { AddExpenseButton } from "@/components/expenses/ExpenseActions";
-import { CashFlowOverview } from "@/components/payments/CashFlowOverview";
+import { PartnersCard } from "@/components/partners/PartnersCard";
+import { CashFlowDetails, CashFlowStats } from "@/components/payments/CashFlowOverview";
 import { MoneyList } from "@/components/payments/MoneyList";
 import { UnlinkedPayments } from "@/components/payments/UnlinkedPayments";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,6 @@ import { sumMoney } from "@/lib/money";
 import {
   entryFy,
   filterEntries,
-  flowsByAccount,
   flowsByMonth,
   flowsByYear,
   moneyYears,
@@ -23,6 +23,7 @@ import {
   sumFlows,
   type MoneyFlow,
 } from "@/lib/moneyBook";
+import { partnerCosts, summarizePartners } from "@/lib/partners";
 import { getMoneyBook, type MoneyBook } from "@/repositories/paymentBook.server";
 
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ const EMPTY_BOOK: MoneyBook = {
   dealOptions: [],
   owedToYou: 0,
   owedToEditors: 0,
+  settleUps: [],
 };
 
 // Links rather than client state, like the year filter beside it: the filter
@@ -101,6 +103,12 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       : new Map([...book.barterByMonth].filter(([month]) => financialYearOfMonth(month) === fy));
   const totals = sumFlows(inSpan, sumMoney([...barterByMonth.values()]));
   const outflows = inSpan.flatMap((entry) => (entry.kind === "outflow" ? [entry.row] : []));
+  const spending = summarizeOutflows(outflows);
+  // Balances between the partners run across every year: they don't reset in April.
+  const partners = summarizePartners(
+    partnerCosts(book.entries.flatMap((entry) => (entry.kind === "outflow" ? [entry.row] : []))),
+    book.settleUps
+  );
   const shownExpenseIds = new Set(
     shown.flatMap((entry) => (entry.kind === "outflow" && entry.row.source === "expense" ? [entry.row.id] : []))
   );
@@ -144,16 +152,9 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           <FinancialYearFilter pathname="/payments" searchParams={params} years={years} selected={fy} includeAll />
         </div>
 
-        <CashFlowOverview
-          totals={totals}
-          period={period}
-          periods={fy === null ? flowsByYear(inSpan, barterByMonth) : flowsByMonth(inSpan, barterByMonth)}
-          periodKind={fy === null ? "year" : "month"}
-          accounts={flowsByAccount(inSpan)}
-          categories={summarizeOutflows(outflows).byCategory}
-          owedToYou={book.owedToYou}
-          owedToEditors={book.owedToEditors}
-        />
+        <CashFlowStats totals={totals} />
+
+        <PartnersCard summary={partners} settleUps={book.settleUps} />
 
         <Card>
           <CardHeader className="gap-3">
@@ -196,6 +197,17 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
             )}
           </CardContent>
         </Card>
+
+        <CashFlowDetails
+          totals={totals}
+          period={period}
+          periods={fy === null ? flowsByYear(inSpan, barterByMonth) : flowsByMonth(inSpan, barterByMonth)}
+          periodKind={fy === null ? "year" : "month"}
+          payers={spending.byPayer}
+          categories={spending.byCategory}
+          owedToYou={book.owedToYou}
+          owedToEditors={book.owedToEditors}
+        />
 
         {book.orphans.length > 0 && (
           <Card id="unlinked" className="scroll-mt-20">

@@ -22,7 +22,7 @@ import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
 import { outflowCategoryLabel, type OutflowRow } from "@/lib/expenses";
 import { financialYearOfMonth, financialYearStart, financialYearsPresent } from "@/lib/financialYear";
 import { roundMoney, sumMoney } from "@/lib/money";
-import { PAYERS, toPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
+import { toPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
 import type { LedgerRow } from "@/lib/payments";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
@@ -201,16 +201,13 @@ export function entryDetail(entry: MoneyEntry): string {
   }
 }
 
-/** Whose account the money landed in or came out of; null where it wasn't recorded. */
-export function entryAccount(entry: MoneyEntry): Payer | null {
-  switch (entry.kind) {
-    case "payment":
-      return entry.row.receivedInto;
-    case "commission":
-      return null;
-    case "outflow":
-      return entry.row.paidBy;
-  }
+/**
+ * Who paid a cost: the business account or a partner out of their own pocket.
+ * Null for money in, which always lands in the business account, and for a
+ * cost recorded without a payer.
+ */
+export function entryPaidBy(entry: MoneyEntry): Payer | null {
+  return entry.kind === "outflow" ? entry.row.paidBy : null;
 }
 
 export function entryMethod(entry: MoneyEntry): PaymentMethod | null {
@@ -341,33 +338,6 @@ export function flowsByYear(entries: MoneyEntry[], barterByMonth: ReadonlyMap<st
     const year = financialYearOfMonth(month);
     return year === null ? null : String(year);
   });
-}
-
-export interface AccountFlow {
-  /** null for money whose account wasn't recorded. */
-  payer: Payer | null;
-  /** Landed in this account. */
-  cashIn: number;
-  /** Paid out of it. */
-  cashOut: number;
-  net: number;
-}
-
-/**
- * Whose accounts the money went through: what landed in each and what each
- * paid out. A person's own account paying more out than came in is money they
- * put into the business.
- */
-export function flowsByAccount(entries: MoneyEntry[]): AccountFlow[] {
-  const payers: (Payer | null)[] = [...PAYERS, null];
-  return payers
-    .map((payer) => {
-      const mine = entries.filter((entry) => entryAccount(entry) === payer);
-      const cashIn = sumMoney(mine.filter((entry) => entry.flow === "in").map(entryCash));
-      const cashOut = sumMoney(mine.filter((entry) => entry.flow === "out").map(entryAmount));
-      return { payer, cashIn, cashOut, net: roundMoney(cashIn - cashOut) };
-    })
-    .filter((account) => account.cashIn > 0 || account.cashOut > 0);
 }
 
 /**

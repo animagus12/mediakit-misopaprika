@@ -34,7 +34,7 @@ import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
 function blankPayment(): PaymentFormState {
   return paymentFormFrom(
-    { date: todayKey(), gross: 0, tds: 0, bankFee: 0, receivedInto: "business", method: null, reference: "", note: "" },
+    { date: todayKey(), gross: 0, tds: 0, bankFee: 0, method: null, reference: "", note: "" },
     false
   );
 }

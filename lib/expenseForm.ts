@@ -4,7 +4,7 @@
 
 import { todayKey } from "@/lib/day";
 import { parseFormAmount } from "@/lib/paymentForm";
-import type { Payer, PaymentMethod } from "@/lib/payers";
+import { isPartner, type PartnerSettlement, type Payer, type PaymentMethod } from "@/lib/payers";
 import type { ExpenseCategory, ExpenseInput, ExpenseRecord } from "@/repositories/expenses";
 
 export interface ExpenseFormState {
@@ -15,6 +15,8 @@ export interface ExpenseFormState {
   category: ExpenseCategory;
   description: string;
   paidBy: Payer;
+  /** Only read when a partner paid; null is "decide later". */
+  settlement: PartnerSettlement | null;
   method: PaymentMethod | null;
   campaignId: string | null;
   receiptUrl: string | null;
@@ -38,6 +40,7 @@ export function expenseFormFrom(expense: ExpenseRecord | null, defaults: Expense
       description: expense.description,
       // A row saved without a payer starts on the default, and saving asks for one anyway.
       paidBy: expense.paidBy ?? defaults.paidBy,
+      settlement: expense.settlement,
       method: expense.method,
       campaignId: expense.campaignId,
       receiptUrl: expense.receiptUrl,
@@ -50,6 +53,8 @@ export function expenseFormFrom(expense: ExpenseRecord | null, defaults: Expense
     category: "props",
     description: "",
     paidBy: defaults.paidBy,
+    // Repaid from business funds unless chosen otherwise, the usual way.
+    settlement: "business",
     method: defaults.method,
     campaignId: defaults.campaignId ?? null,
     receiptUrl: null,
@@ -65,6 +70,7 @@ export function expenseInputFrom(form: ExpenseFormState, id: string): ExpenseInp
     category: form.category,
     description: form.description.trim(),
     paidBy: form.paidBy,
+    settlement: isPartner(form.paidBy) ? form.settlement : null,
     method: form.method,
     campaignId: form.campaignId,
     receiptUrl: form.receiptUrl,

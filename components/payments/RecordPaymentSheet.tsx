@@ -18,7 +18,6 @@ import {
 import { todayKey } from "@/lib/day";
 import { formatMoney } from "@/lib/invoice";
 import { roundMoney } from "@/lib/money";
-import type { Payer } from "@/lib/payers";
 import { hasNegativeCharges, paymentFormFrom, paymentInputFrom, type PaymentFormState } from "@/lib/paymentForm";
 import { suggestPayment, validatePayment } from "@/lib/payments";
 import type { LedgerEntry, Settlement } from "@/repositories/payments";
@@ -31,8 +30,6 @@ interface RecordPaymentSheetProps {
   expectedTdsRate: number | null;
   /** The payment being edited; absent records a new one. */
   entry?: LedgerEntry;
-  /** Whose account a new payment starts on: the one this target's last payment used. */
-  defaultReceivedInto: Payer;
   /** Opens the sheet; leave out and pass `open` to control it from outside (a menu item). */
   trigger?: ReactNode;
   open?: boolean;
@@ -40,7 +37,7 @@ interface RecordPaymentSheetProps {
 }
 
 function initialForm(props: RecordPaymentSheetProps): PaymentFormState {
-  const { entry, settlement, expectedTdsRate, defaultReceivedInto } = props;
+  const { entry, settlement, expectedTdsRate } = props;
   if (entry) {
     return paymentFormFrom(
       {
@@ -50,7 +47,6 @@ function initialForm(props: RecordPaymentSheetProps): PaymentFormState {
         gross: entry.gross,
         tds: entry.tds,
         bankFee: entry.bankFee,
-        receivedInto: entry.receivedInto,
         method: entry.method,
         reference: entry.reference,
         note: entry.note,
@@ -58,7 +54,7 @@ function initialForm(props: RecordPaymentSheetProps): PaymentFormState {
       true
     );
   }
-  const suggestion = suggestPayment(settlement, expectedTdsRate, { receivedInto: defaultReceivedInto, method: null }, todayKey());
+  const suggestion = suggestPayment(settlement, expectedTdsRate, null, todayKey());
   return paymentFormFrom(suggestion, false);
 }
 

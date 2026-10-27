@@ -17,6 +17,7 @@ const ENTITY_TYPES: Record<ActivityEntityType, true> = {
   affiliatePayout: true,
   payment: true,
   expense: true,
+  partnerTransfer: true,
   links: true,
   mediakit: true,
 };

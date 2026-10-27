@@ -21,7 +21,16 @@ import { todayKey } from "@/lib/day";
 import { expenseFormFrom, expenseInputFrom, type ExpenseFormDefaults, type ExpenseFormState } from "@/lib/expenseForm";
 import { validateExpense, type ExpenseDealOption } from "@/lib/expenses";
 import { formatMoney } from "@/lib/invoice";
-import { PAYER_OPTIONS, PAYMENT_METHOD_OPTIONS, type Payer, type PaymentMethod } from "@/lib/payers";
+import {
+  PAYER_OPTIONS,
+  PAYMENT_METHOD_OPTIONS,
+  isPartner,
+  otherPartner,
+  payerLabel,
+  type PartnerSettlement,
+  type Payer,
+  type PaymentMethod,
+} from "@/lib/payers";
 import {
   EXPENSE_CATEGORY_OPTIONS,
   EXPENSE_DESCRIPTION_MAX,
@@ -34,6 +43,7 @@ import { ReceiptUploadField } from "./ReceiptUploadField";
 // Radix Select can't take "" as an item value.
 const NO_METHOD = "__none__";
 const NO_DEAL = "__none__";
+const UNDECIDED = "__none__";
 
 interface ExpenseSheetProps {
   /** The expense being edited; absent records a new one. */
@@ -170,6 +180,34 @@ export function ExpenseSheet({ expense, dealOptions, defaults, onClose }: Expens
               </Select>
             </div>
           </div>
+
+          {isPartner(form.paidBy) && (
+            <div className="space-y-2">
+              <Label htmlFor={id("settlement")}>Settle it</Label>
+              <Select
+                value={form.settlement ?? UNDECIDED}
+                onValueChange={(value) =>
+                  update("settlement", value === UNDECIDED ? null : (value as PartnerSettlement))
+                }
+              >
+                <SelectTrigger id={id("settlement")} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="business">Repay from business funds</SelectItem>
+                  <SelectItem value="split">Split 50/50 with {payerLabel(otherPartner(form.paidBy))}</SelectItem>
+                  <SelectItem value={UNDECIDED}>Decide later</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                {form.settlement === "business"
+                  ? `The business owes ${payerLabel(form.paidBy)} this until it's repaid.`
+                  : form.settlement === "split"
+                    ? `${payerLabel(otherPartner(form.paidBy))} owes ${payerLabel(form.paidBy)} half.`
+                    : "Listed under Partners on Payments until you decide."}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor={id("method")}>Method</Label>

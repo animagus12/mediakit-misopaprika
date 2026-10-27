@@ -65,6 +65,8 @@ const ROUTES = {
   // from the campaigns table, the calendar and the dashboard), and comes off
   // the dashboard's margin.
   expenses: ["/", "/payments", "/campaigns", "/calendar"],
+  // Who owes whom between the partners, shown on Payments.
+  partnerTransfers: ["/payments"],
   // Commission is income, so every page that reads the earnings summary is
   // invalidated by an affiliate write, not just /affiliates itself.
   affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]", "/payments"],

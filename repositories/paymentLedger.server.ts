@@ -9,7 +9,7 @@ import {
   validatePayment,
   type PaymentValidationContext,
 } from "@/lib/payments";
-import { payerLabel, type Payer, type PaymentMethod } from "@/lib/payers";
+import type { PaymentMethod } from "@/lib/payers";
 import type { RecordChange } from "@/lib/activityDiff";
 import type { ActivityEntity } from "./activity";
 import { campaignTypeHasCash } from "./campaigns";
@@ -332,31 +332,27 @@ export async function deleteTargetPayment(id: string): Promise<PaymentWrite<Paym
 }
 
 /**
- * The account and method the last payment recorded for this brand used, else
- * the last recorded for any brand: what a one-click "received" assumes.
+ * The method the last payment recorded for this brand used, else the last
+ * recorded for any brand: what a one-click "received" assumes.
  */
-export function lastUsedPayment(
-  ledger: CampaignLedger,
-  brandId: string | null
-): { receivedInto: Payer | null; method: PaymentMethod | null } | null {
+export function lastUsedPayment(ledger: CampaignLedger, brandId: string | null): { method: PaymentMethod | null } | null {
   const recorded = ledger.payments
-    .filter((record) => record.origin === "recorded" && record.receivedInto !== null)
+    .filter((record) => record.origin === "recorded")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const brandOf = ({ target }: PaymentRecord): string | null =>
     target.kind === "invoice"
       ? ledger.invoices.find((invoice) => invoice.id === target.invoiceId)?.brandId ?? null
       : ledger.campaigns.find((campaign) => campaign.id === target.campaignId)?.brandId ?? null;
   const pick = (brandId !== null ? recorded.find((record) => brandOf(record) === brandId) : undefined) ?? recorded[0];
-  return pick ? { receivedInto: pick.receivedInto, method: pick.method } : null;
+  return pick ? { method: pick.method } : null;
 }
 
-/** The activity fields a payment event carries: the payment, its deal or invoice, and where the money went. */
+/** The activity fields a payment event carries: the payment, its deal or invoice, and what landed. */
 export function paymentActivity(record: PaymentRecord, ctx: TargetContext) {
-  const into = record.receivedInto ? payerLabel(record.receivedInto) : "an account not recorded";
   return {
     entity: { type: "payment" as const, id: record.id, label: ctx.label },
     parent: ctx.parent,
-    detail: `${ctx.brand.trim() || ctx.label} · Net ${formatMoney(paymentNet(record))} into ${into}`,
+    detail: `${ctx.brand.trim() || ctx.label} · Net ${formatMoney(paymentNet(record))}`,
     amount: record.gross,
   };
 }

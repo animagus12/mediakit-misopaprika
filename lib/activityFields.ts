@@ -203,11 +203,8 @@ export const paymentFields: readonly DiffField<PaymentRecord>[] = [
   { label: "date", value: (payment) => payment.date },
   { label: "TDS", value: (payment) => payment.tds, format: money },
   { label: "charges", value: (payment) => payment.bankFee, format: money },
-  {
-    label: "received into",
-    value: (payment) => payment.receivedInto ?? "",
-    format: (value) => (value ? payerLabel(toPayer(value)) : ""),
-  },
+  // No "received into": money in always lands in the business account, and
+  // an old payment's account moving to it on edit isn't a change worth logging.
   { label: "method", value: (payment) => payment.method ?? "" },
   // A bank reference is the payment's handle at the bank: recorded as
   // changed, never quoted, like an invoice's UPI id.

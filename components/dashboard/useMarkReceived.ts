@@ -4,13 +4,12 @@ import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
 import { markTargetReceived, undoMarkReceived } from "@/app/payments/actions";
 import { formatMoney } from "@/lib/invoice";
-import { payerLabel } from "@/lib/payers";
 import { paymentTargetKey, type PaymentTarget } from "@/repositories/payments";
 
 // Shared one-click "received" for PaymentsDueCard, NeedsAttentionCard and the
 // renewals card: the row vanishes the instant it's clicked (optimistic), and
 // a payment for everything still owed is recorded in the background, dated
-// today, with TDS at the expected rate, into the account last used for the
+// today, with TDS at the expected rate and the method last used for the
 // brand. The toast says what was recorded and carries an Undo that removes
 // exactly that payment. On failure the optimistic hide reverts itself when the
 // transition ends, so the row simply reappears.
@@ -38,7 +37,7 @@ export function useMarkReceived() {
             if (!undo.success) toast.error("Couldn't undo", { description: undo.error });
           }),
       };
-      const title = `${label}: ${formatMoney(result.gross)} received into ${payerLabel(result.receivedInto)}`;
+      const title = `${label}: ${formatMoney(result.gross)} received`;
       const description = "Edit it from the deal's Payments section.";
 
       if (result.warning) {

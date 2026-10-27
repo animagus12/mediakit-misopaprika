@@ -3,7 +3,6 @@
 import { describeChanges } from "@/lib/activityDiff";
 import { paymentFields } from "@/lib/activityFields";
 import { todayKey } from "@/lib/day";
-import type { Payer } from "@/lib/payers";
 import { ALREADY_PAID_IN_FULL, suggestPayment } from "@/lib/payments";
 import { revalidateStores } from "@/lib/revalidation";
 import { requireSession } from "@/lib/session.server";
@@ -89,13 +88,13 @@ export async function deletePayment(
 
 /**
  * The one-click "received" on a payments-due or renewal row: everything still
- * owed, dated today, TDS at the expected rate, into the account last used for
+ * owed, dated today, TDS at the expected rate, with the method last used for
  * this brand. `clientId` makes a double tap save once.
  */
 export async function markTargetReceived(
   target: PaymentTarget,
   clientId: string
-): Promise<{ success: true; paymentId: string; gross: number; receivedInto: Payer; warning?: string } | Fail> {
+): Promise<{ success: true; paymentId: string; gross: number; warning?: string } | Fail> {
   const denied = await requireSession();
   if (denied) return denied;
   try {
@@ -111,7 +110,6 @@ export async function markTargetReceived(
       success: true,
       paymentId: result.id,
       gross: result.gross,
-      receivedInto: result.receivedInto ?? suggestion.receivedInto,
       warning,
     };
   } catch (err) {
