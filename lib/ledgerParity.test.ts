@@ -62,7 +62,7 @@ const NOW = new Date("2026-10-27T06:00:00.000Z");
  */
 function readJoin(records: CampaignRecord[], invoiceRecords: InvoiceRecord[]) {
   const campaigns: Campaign[] = ledgerCampaigns(records, invoiceRecords, []);
-  const invoices: Invoice[] = attachInvoiceSettlements(invoiceRecords.map(toInvoice), campaigns, [], false);
+  const invoices: Invoice[] = attachInvoiceSettlements(invoiceRecords.map(toInvoice), campaigns, []);
   return { campaigns, invoices };
 }
 
@@ -290,6 +290,19 @@ describe("ledger parity: money reports", () => {
     expect(report(campaignsSeed as CampaignRecord[], invoicesSeed as InvoiceRecord[])).toMatchSnapshot();
   });
 
+  // Stage 2 (reports read settlements) moved these figures on purpose:
+  //   N1  Deal cash is filed by the day the money arrived: F1 moves from
+  //       2026-08 (posted) to 2026-09 (paid), F10 from 2027-03 to 2027-04.
+  //   N2  An invoice advance on a deal or renewal still pending counts as
+  //       received: F2's ₹20,000 (2026-09) and R0002's ₹3,000 (2026-10) move
+  //       out of pending, brand pending and payments due, into paid.
+  //   N3  A linked invoice follows its deal (inv-lp reads sent while F11 is
+  //       pending), and a paid or void invoice owes nothing (inv-sa, inv-void).
+  //   N5  Pending, payments due and owed renewals count what is still owed.
+  //   Scam deals owe no cash, so F12's ₹4,000 is no longer pending.
+  //   Months gain tds, fees and net (paid = net + tds + fees); TDS rows are
+  //   one per payment, dated as day keys. Seed: the one ₹0 Miniso row drops
+  //   out of its month's deal list.
   it("matches the golden figures on the fixture book", () => {
     expect(report(FIXTURE_CAMPAIGNS, FIXTURE_INVOICES)).toMatchSnapshot();
   });

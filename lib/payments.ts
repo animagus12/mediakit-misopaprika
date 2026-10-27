@@ -31,7 +31,7 @@ import {
   type UsageRenewal,
   type UsageRenewalRecord,
 } from "@/repositories/campaigns";
-import type { Invoice, InvoiceDisplayStatus, InvoiceRecord, InvoiceStatus } from "@/repositories/invoices";
+import type { Invoice, InvoiceRecord, InvoiceStatus } from "@/repositories/invoices";
 import {
   PAYMENT_NOTE_MAX,
   PAYMENT_REFERENCE_MAX,
@@ -345,17 +345,14 @@ export function projectInvoiceStatus(storedStatus: InvoiceStatus, settlement: Se
 }
 
 /**
- * Every invoice with its owner and settlement joined on.
- *
- * `project` false keeps the stored status and balance, so the invoice lists
- * read as before; true derives both from the settlement (a paid invoice owes
- * nothing, a linked invoice follows its deal).
+ * Every invoice with its owner and settlement joined on, and its status and
+ * balance derived from that settlement: a paid invoice owes nothing, and a
+ * linked invoice follows the deal or renewal it bills.
  */
 export function attachInvoiceSettlements(
   invoices: Invoice[],
   campaigns: Campaign[],
-  payments: PaymentRecord[],
-  project: boolean
+  payments: PaymentRecord[]
 ): Invoice[] {
   const owners = invoiceOwners(campaigns);
   const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
@@ -367,7 +364,6 @@ export function attachInvoiceSettlements(
       (owner && ownerSettlement(owner, campaignById)) ??
       invoiceOwnSettlement(invoice, index.get(paymentTargetKey({ kind: "invoice", invoiceId: invoice.id })) ?? []);
     const storedStatus = invoice.storedStatus;
-    if (!project) return { ...invoice, owner, settlement };
     const status = projectInvoiceStatus(storedStatus, settlement);
     const balanceDue =
       status === "paid" || status === "void" ? 0 : Math.max(0, roundMoney(invoice.subtotal - settlement.settled));
@@ -415,13 +411,8 @@ export function barterState(
   );
 }
 
-/** "partial" for a draft or sent invoice part of whose money has arrived; its status otherwise. */
-export function invoiceDisplayStatus(invoice: Pick<Invoice, "status" | "settlement">): InvoiceDisplayStatus {
-  if ((invoice.status === "draft" || invoice.status === "sent") && invoice.settlement.status === "partial") {
-    return "partial";
-  }
-  return invoice.status;
-}
+// Lives with the other invoice status helpers; re-exported for the ledger's callers.
+export { invoiceDisplayStatus } from "@/lib/invoice";
 
 const SETTLEMENT_LABELS: Record<Settlement["status"], string> = {
   paid: "Paid",

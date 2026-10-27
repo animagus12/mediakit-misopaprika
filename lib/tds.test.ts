@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { makeCampaign, makeRenewal, makeUsage } from "@/lib/testing/fixtures";
+import {
+  ledgerCampaigns,
+  makeCampaign,
+  makeCampaignRecord,
+  makeInvoiceRecord,
+  makePaymentRecord,
+  makeRenewal,
+  makeUsage,
+} from "@/lib/testing/fixtures";
 import type { CampaignRecord, StoredUsageRenewal } from "@/repositories/campaigns";
 import {
   calculateTdsAmount,
@@ -66,24 +74,28 @@ describe("summarizeTds", () => {
 
     expect(summary.payments).toEqual([
       {
+        paymentId: "legacy:status:deal:B",
         campaignId: "B",
         renewalId: null,
         source: "deal",
         campaign: "Launch",
         brand: "Beta",
-        paidDate: "12/05/2026",
+        paidDate: "2026-05-12",
+        gross: 15000,
         cashAmount: 15000,
         tdsRate: 10,
         tdsAmount: 1500,
         estimated: true,
       },
       {
+        paymentId: "legacy:status:deal:A",
         campaignId: "A",
         renewalId: null,
         source: "deal",
         campaign: "Launch",
         brand: "Acme",
-        paidDate: "10/05/2026",
+        paidDate: "2026-05-10",
+        gross: 20000,
         cashAmount: 20000,
         tdsRate: 10,
         tdsAmount: 1800,
@@ -234,24 +246,28 @@ describe("TDS on usage renewals", () => {
 
     expect(summary.payments).toEqual([
       {
+        paymentId: "legacy:status:renewal:MSP-MC0007:R0001",
         campaignId: "MSP-MC0007",
         renewalId: "R0001",
         source: "renewal",
         campaign: "Summer",
         brand: "Acme",
-        paidDate: "15/06/2026",
+        paidDate: "2026-06-15",
+        gross: 5000,
         cashAmount: 5000,
         tdsRate: 10,
         tdsAmount: 500,
         estimated: true,
       },
       {
+        paymentId: "legacy:status:deal:MSP-MC0007",
         campaignId: "MSP-MC0007",
         renewalId: null,
         source: "deal",
         campaign: "Summer",
         brand: "Acme",
-        paidDate: "10/05/2026",
+        paidDate: "2026-05-10",
+        gross: 20000,
         cashAmount: 20000,
         tdsRate: 10,
         tdsAmount: 2000,
@@ -387,5 +403,45 @@ describe("TDS form helpers", () => {
     expect(validateTdsValues(null, null)).toBeNull();
     expect(validateTdsValues(101, null)).toMatch(/rate/);
     expect(validateTdsValues(null, -1)).toMatch(/non-negative/);
+  });
+});
+
+describe("TDS from the payment ledger", () => {
+  const deal = makeCampaignRecord({ id: "D1", brand: "Acme", amount: 50000, paymentStatus: "pending", tdsRate: 10 });
+
+  it("lists each recorded instalment that withheld TDS, filed by the day it arrived", () => {
+    const campaigns = ledgerCampaigns(
+      [deal],
+      [],
+      [
+        makePaymentRecord({ id: "p1", target: { kind: "deal", campaignId: "D1" }, date: "2026-11-05", gross: 20000, tds: 2000, bankFee: 118 }),
+        makePaymentRecord({ id: "p2", target: { kind: "deal", campaignId: "D1" }, date: "2027-04-10", gross: 30000, tds: 3000 }),
+      ]
+    );
+
+    expect(summarizeTds(campaigns, 2026).payments).toEqual([
+      expect.objectContaining({ paymentId: "p1", paidDate: "2026-11-05", gross: 20000, tdsAmount: 2000, estimated: false }),
+    ]);
+    expect(summarizeTds(campaigns, 2027).totalTds).toBe(3000);
+    expect(tdsFinancialYears(campaigns, new Date("2026-10-27T06:00:00.000Z"))).toEqual([2027, 2026]);
+  });
+
+  it("leaves out a recorded payment that withheld nothing", () => {
+    const campaigns = ledgerCampaigns(
+      [deal],
+      [],
+      [makePaymentRecord({ id: "p1", target: { kind: "deal", campaignId: "D1" }, date: "2026-11-05", gross: 50000, tds: 0 })]
+    );
+
+    expect(summarizeTds(campaigns, 2026).payments).toEqual([]);
+  });
+
+  it("leaves out an invoice advance, which has no date", () => {
+    const campaigns = ledgerCampaigns(
+      [{ ...deal, invoiceId: "inv", invoiceRef: "MSP-INV-0009" }],
+      [makeInvoiceRecord({ id: "inv", invoiceNo: "0009", status: "sent", issueDate: "2026-09-01", advance: 20000 })]
+    );
+
+    expect(summarizeTds(campaigns, 2026).payments).toEqual([]);
   });
 });

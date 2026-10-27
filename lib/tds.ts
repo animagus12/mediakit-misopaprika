@@ -1,17 +1,25 @@
-import { financialYearStart, financialYearsPresent, toFinancialDayKey } from "@/lib/financialYear";
-import type { Campaign, CampaignPaymentStatus } from "@/repositories/campaigns";
+import { financialYearStart, financialYearsPresent } from "@/lib/financialYear";
+import { roundMoney, sumMoney } from "@/lib/money";
+import type { Campaign } from "@/repositories/campaigns";
+import type { LedgerEntry, Settlement } from "@/repositories/payments";
 
 /** What a TDS row was withheld from: the deal's own payment, or a usage renewal's. */
 export type TdsSource = "deal" | "renewal";
 
 export interface TdsPayment {
+  /** The ledger entry this row is: a recorded payment's id, or a legacy one's virtual id. */
+  paymentId: string;
   campaignId: string;
   /** The renewal this row is for, or null for the deal's own payment. */
   renewalId: string | null;
   source: TdsSource;
   campaign: string;
   brand: string;
+  /** The day the money arrived, as a yyyy-mm-dd day key. */
   paidDate: string;
+  /** The amount settled by this payment, TDS included. */
+  gross: number;
+  /** Same as `gross`: kept so the page and the totals read one name. */
   cashAmount: number;
   tdsRate: number | null;
   tdsAmount: number;
@@ -81,54 +89,48 @@ export function parseTdsInput(text: string): number | null {
   return text.trim() ? Number(text) : null;
 }
 
-// One received payment that carries a TDS record, whichever of a deal's
-// payments it is. The deal's own payment and each renewal are separate
-// transactions (see UsageRenewalRecord), so each is its own row.
+// One payment that carries a TDS record: an entry in a deal's or a renewal's
+// settlement (lib/payments.ts). A deal paid in instalments has a row per
+// instalment, each filed by the day it arrived; the deal's own payment and
+// each renewal are separate transactions (see UsageRenewalRecord).
 interface TdsBearingPayment {
   campaign: Campaign;
   renewalId: string | null;
-  paidDate: string;
-  cashAmount: number;
+  entry: LedgerEntry;
   tdsRate: number | null;
-  tdsAmount: number | null;
 }
 
-interface TaxablePayment {
-  paymentStatus: CampaignPaymentStatus;
-  paidDate: string;
-  tdsRate: number | null;
-  tdsAmount: number | null;
+// A dated entry only: a payment with no known day belongs to no financial
+// year. A recorded payment counts once it withheld something; a legacy entry
+// (a deal marked received before the ledger) counts whenever its deal had a
+// TDS rate or amount on it, as it always has, estimate included.
+function carriesTds(entry: LedgerEntry, tdsRate: number | null, tdsAmount: number | null): boolean {
+  if (!entry.date) return false;
+  if (entry.source === "stored") return entry.tds > 0;
+  return entry.legacyKind === "status" && (tdsRate !== null || tdsAmount !== null);
 }
 
-function carriesTds(payment: TaxablePayment): boolean {
-  if (payment.paymentStatus !== "received" || !payment.paidDate) return false;
-  return payment.tdsRate !== null || payment.tdsAmount !== null;
+function collect(
+  out: TdsBearingPayment[],
+  campaign: Campaign,
+  renewalId: string | null,
+  settlement: Settlement | null,
+  tdsRate: number | null,
+  tdsAmount: number | null
+) {
+  for (const entry of settlement?.entries ?? []) {
+    if (carriesTds(entry, tdsRate, tdsAmount)) out.push({ campaign, renewalId, entry, tdsRate });
+  }
 }
 
 function tdsBearingPayments(campaigns: Campaign[]): TdsBearingPayment[] {
   const payments: TdsBearingPayment[] = [];
   for (const campaign of campaigns) {
-    if (carriesTds(campaign)) {
-      payments.push({
-        campaign,
-        renewalId: null,
-        paidDate: campaign.paidDate,
-        // Cash, never barter: tax is withheld from money paid out.
-        cashAmount: campaign.cash,
-        tdsRate: campaign.tdsRate,
-        tdsAmount: campaign.tdsAmount,
-      });
-    }
+    // Cash, never barter: tax is withheld from money paid out, and only a
+    // deal with a cash half has a settlement.
+    collect(payments, campaign, null, campaign.settlement, campaign.tdsRate, campaign.tdsAmount);
     for (const renewal of campaign.usage.renewals) {
-      if (!carriesTds(renewal)) continue;
-      payments.push({
-        campaign,
-        renewalId: renewal.id,
-        paidDate: renewal.paidDate,
-        cashAmount: renewal.amount,
-        tdsRate: renewal.tdsRate,
-        tdsAmount: renewal.tdsAmount,
-      });
+      collect(payments, campaign, renewal.id, renewal.settlement, renewal.tdsRate, renewal.tdsAmount);
     }
   }
   return payments;
@@ -136,47 +138,41 @@ function tdsBearingPayments(campaigns: Campaign[]): TdsBearingPayment[] {
 
 export function tdsFinancialYears(campaigns: Campaign[], now: Date = new Date()): number[] {
   return financialYearsPresent(
-    tdsBearingPayments(campaigns).map((payment) => payment.paidDate),
+    tdsBearingPayments(campaigns).map((payment) => payment.entry.date),
     now
   );
 }
 
 export function summarizeTds(campaigns: Campaign[], year: number): TdsSummary {
   const payments: TdsPayment[] = [];
-  for (const payment of tdsBearingPayments(campaigns)) {
-    if (financialYearStart(payment.paidDate) !== year) continue;
-    const tds = resolveTds(payment.cashAmount, payment.tdsRate, payment.tdsAmount);
-    if (!tds) continue;
+  for (const { campaign, renewalId, entry, tdsRate } of tdsBearingPayments(campaigns)) {
+    if (financialYearStart(entry.date) !== year) continue;
 
     payments.push({
-      campaignId: payment.campaign.id,
-      renewalId: payment.renewalId,
-      source: payment.renewalId === null ? "deal" : "renewal",
-      campaign: payment.campaign.campaign,
-      brand: payment.campaign.brand,
-      paidDate: payment.paidDate,
-      cashAmount: payment.cashAmount,
-      tdsRate: payment.tdsRate,
-      tdsAmount: tds.amount,
-      estimated: tds.estimated,
+      paymentId: entry.id,
+      campaignId: campaign.id,
+      renewalId,
+      source: renewalId === null ? "deal" : "renewal",
+      campaign: campaign.campaign,
+      brand: campaign.brand,
+      paidDate: entry.date,
+      gross: entry.gross,
+      cashAmount: entry.gross,
+      tdsRate,
+      tdsAmount: entry.tds,
+      estimated: entry.tdsEstimated,
     });
   }
 
-  // Day keys sort as plain strings, and read both date formats a paid date
-  // can arrive in. Every payment here has one: the year filter above skips
-  // any date that does not parse.
-  payments.sort(
-    (a, b) =>
-      (toFinancialDayKey(b.paidDate) ?? "").localeCompare(toFinancialDayKey(a.paidDate) ?? "") ||
-      a.brand.localeCompare(b.brand)
-  );
+  // Ledger dates are day keys, which sort as plain strings.
+  payments.sort((a, b) => b.paidDate.localeCompare(a.paidDate) || a.brand.localeCompare(b.brand));
 
   const brandMap = new Map<string, TdsBrandTotal>();
   for (const payment of payments) {
     const key = payment.brand.trim() || "Unknown brand";
     const total = brandMap.get(key) ?? { brand: key, paymentCount: 0, tdsAmount: 0 };
     total.paymentCount += 1;
-    total.tdsAmount += payment.tdsAmount;
+    total.tdsAmount = roundMoney(total.tdsAmount + payment.tdsAmount);
     brandMap.set(key, total);
   }
 
@@ -185,7 +181,7 @@ export function summarizeTds(campaigns: Campaign[], year: number): TdsSummary {
     brands: [...brandMap.values()].sort(
       (a, b) => b.tdsAmount - a.tdsAmount || a.brand.localeCompare(b.brand)
     ),
-    totalCash: payments.reduce((total, payment) => total + payment.cashAmount, 0),
-    totalTds: payments.reduce((total, payment) => total + payment.tdsAmount, 0),
+    totalCash: sumMoney(payments.map((payment) => payment.cashAmount)),
+    totalTds: sumMoney(payments.map((payment) => payment.tdsAmount)),
   };
 }

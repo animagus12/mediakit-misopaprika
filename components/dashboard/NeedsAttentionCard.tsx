@@ -47,16 +47,19 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
           // payments card uses, rather than a line of buttons under each.
           <div
             key={`${item.kind}-${item.campaignId || `${item.brand}-${item.campaign}`}`}
-            className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm odd:bg-muted/30"
+            className="@container flex items-center gap-3 rounded-md px-2 py-1.5 text-sm odd:bg-muted/30"
           >
+            {/* Below 24rem of row the reason moves under the brand rather
+                than squeezing it to a letter (same rule as PaymentsDueCard). */}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{item.brand}</p>
               <p className="flex min-w-0 gap-1 text-xs text-muted-foreground">
                 <span className="truncate">{item.campaign || "-"}</span>
                 <span className="shrink-0 tabular-nums">· {formatMoney(item.amount)}</span>
               </p>
+              <p className="text-xs text-muted-foreground @sm:hidden">{item.label}</p>
             </div>
-            <p className="shrink-0 text-right text-xs text-muted-foreground">{item.label}</p>
+            <p className="hidden shrink-0 text-right text-xs text-muted-foreground @sm:block">{item.label}</p>
             <div className="flex min-w-6 shrink-0 justify-end pointer-coarse:min-w-11">
               <AttentionAction item={item} isPending={isPending} onMarkReceived={markReceived} />
             </div>

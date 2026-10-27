@@ -316,9 +316,9 @@ describe("barterState", () => {
 });
 
 describe("invoices", () => {
-  function joined(invoices: InvoiceRecord[], records: CampaignRecord[] = [], payments: PaymentRecord[] = [], project = true) {
+  function joined(invoices: InvoiceRecord[], records: CampaignRecord[] = [], payments: PaymentRecord[] = []) {
     const campaigns = ledgerCampaigns(records, invoices, payments);
-    return attachInvoiceSettlements(invoices.map(toInvoice), campaigns, payments, project);
+    return attachInvoiceSettlements(invoices.map(toInvoice), campaigns, payments);
   }
 
   it("owes nothing once paid", () => {
@@ -347,17 +347,6 @@ describe("invoices", () => {
     );
     expect(invoice.owner).toEqual(DEAL);
     expect(invoice).toMatchObject({ storedStatus: "paid", status: "sent", balanceDue: 10000 });
-  });
-
-  it("keeps the stored status and balance while projection is off", () => {
-    const [invoice] = joined(
-      [makeInvoiceRecord({ id: "inv", status: "paid", advance: 1000 })],
-      [makeCampaignRecord({ paymentStatus: "pending", invoiceRef: "X", invoiceId: "inv" })],
-      [],
-      false
-    );
-    expect(invoice).toMatchObject({ status: "paid", balanceDue: 9000 });
-    expect(invoice.settlement.target).toEqual(DEAL);
   });
 
   it("reads a standalone paid invoice as one entry", () => {
@@ -604,14 +593,14 @@ describe("worked examples", () => {
     });
     expect(afterA).toMatchObject({ paymentStatus: "pending", paidDate: "" });
     expect(settlementLabel(afterA.settlement!)).toBe("Partially paid");
-    const [invoice] = attachInvoiceSettlements([toInvoice(exampleInvoice)], [afterA], [entryA], true);
+    const [invoice] = attachInvoiceSettlements([toInvoice(exampleInvoice)], [afterA], [entryA]);
     expect(invoiceDisplayStatus(invoice)).toBe("partial");
     expect(invoice.balanceDue).toBe(30000);
 
     const afterB = onlyDeal([exampleDeal], [exampleInvoice], [entryA, entryB]);
     expect(afterB.settlement).toMatchObject({ status: "paid", paidOn: "2027-04-10", method: "Multiple", remaining: 0 });
     expect(afterB).toMatchObject({ paymentStatus: "received", paidDate: "10/04/2027", tdsAmount: 5000 });
-    const [paidInvoice] = attachInvoiceSettlements([toInvoice(exampleInvoice)], [afterB], [entryA, entryB], true);
+    const [paidInvoice] = attachInvoiceSettlements([toInvoice(exampleInvoice)], [afterB], [entryA, entryB]);
     expect(paidInvoice).toMatchObject({ status: "paid", balanceDue: 0 });
   });
 
@@ -668,7 +657,7 @@ describe("worked examples", () => {
     const before = onlyDeal([deal], [invoice]);
     expect(before.settlement).toMatchObject({ status: "partial", remaining: 40000 });
     expect(before.paymentStatus).toBe("pending");
-    const [partialInvoice] = attachInvoiceSettlements([toInvoice(invoice)], [before], [], true);
+    const [partialInvoice] = attachInvoiceSettlements([toInvoice(invoice)], [before], []);
     expect(invoiceDisplayStatus(partialInvoice)).toBe("partial");
     expect(partialInvoice.balanceDue).toBe(40000);
 
@@ -682,7 +671,7 @@ describe("worked examples", () => {
     expect(received).toMatchObject({ gross: 40000, tds: 4000 });
     const paid = onlyDeal([deal], [{ ...invoice, advance: 0 }], [advance, received]);
     expect(paid.settlement).toMatchObject({ status: "paid", paidOn: "2026-10-27" });
-    const [paidInvoice] = attachInvoiceSettlements([toInvoice({ ...invoice, advance: 0 })], [paid], [advance, received], true);
+    const [paidInvoice] = attachInvoiceSettlements([toInvoice({ ...invoice, advance: 0 })], [paid], [advance, received]);
     expect(paidInvoice).toMatchObject({ status: "paid", balanceDue: 0 });
 
     const undone = onlyDeal([deal], [{ ...invoice, advance: 0 }], [advance]);

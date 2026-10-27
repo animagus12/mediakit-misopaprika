@@ -17,6 +17,7 @@ import {
   formatInvoiceDate,
   formatInvoiceStatus,
   formatMoney,
+  invoiceDisplayStatus,
   invoiceStatusStyle,
   isInvoiceOverdue,
   type InvoiceEditorJobOption,
@@ -81,7 +82,7 @@ export function BrandInvoicesTab({ brandId, invoices, editorJobs }: BrandInvoice
           </TableHeader>
           <TableBody>
             {rows.map((invoice) => {
-              const status = invoiceStatusStyle(invoice.status);
+              const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
               const overdue = isInvoiceOverdue(invoice);
               const margin = computeInvoiceMargin(invoice, editorJobs);
               return (
@@ -109,7 +110,7 @@ export function BrandInvoicesTab({ brandId, invoices, editorJobs }: BrandInvoice
                   )}
                   <TableCell>
                     <Badge variant={status.variant} className={status.className}>
-                      {formatInvoiceStatus(invoice.status)}
+                      {formatInvoiceStatus(invoiceDisplayStatus(invoice))}
                     </Badge>
                   </TableCell>
                 </TableRow>

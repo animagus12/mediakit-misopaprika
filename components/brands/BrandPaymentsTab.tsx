@@ -24,7 +24,8 @@ import {
   type PaymentPunctuality,
   type PaymentReliability,
 } from "@/lib/paymentReliability";
-import { paymentDisplayStatus, type PaymentDisplayStatus } from "@/lib/campaigns";
+import { paymentDisplayLabel, paymentDisplayStatus, type PaymentDisplayStatus } from "@/lib/campaigns";
+import { settlementSummary } from "@/lib/payments";
 import { cn } from "@/lib/utils";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import { selectBrandPaymentRows, type BrandStats } from "@/lib/brandCampaignStats";
@@ -53,6 +54,11 @@ function paymentStatusStyle(status: PaymentDisplayStatus): StatusStyle {
       return {
         variant: "outline",
         className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+      };
+    case "partial":
+      return {
+        variant: "outline",
+        className: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400",
       };
     case "pending":
       return {
@@ -264,8 +270,13 @@ export function BrandPaymentsTab({
                     <TableCell className="text-right tabular-nums">{formatMoney(row.total)}</TableCell>
                     <TableCell>
                       <Badge variant={status.variant} className={status.className}>
-                        {paymentState === "unknown" ? "-" : paymentState}
+                        {paymentState === "unknown" ? "-" : paymentDisplayLabel(paymentState)}
                       </Badge>
+                      {paymentState === "partial" && row.settlement && (
+                        <span className="mt-1 block whitespace-nowrap text-[11px] text-muted-foreground">
+                          {settlementSummary(row.settlement)}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {row.paidDate || "-"}

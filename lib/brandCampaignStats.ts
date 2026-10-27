@@ -1,7 +1,9 @@
 import { isCampaignCalledOff } from "@/lib/campaigns";
+import { roundMoney } from "@/lib/money";
 import { computePaymentReliability, type PaymentReliability } from "@/lib/paymentReliability";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
 import type { CampaignStatus } from "@/repositories/campaigns";
+import type { Settlement } from "@/repositories/payments";
 import { isDayKey, todayKey } from "@/lib/day";
 
 // Client-safe aggregation over BrandCampaignRecord[]: kept out of
@@ -40,14 +42,14 @@ export function parseSheetDate(date: string | null): number {
 export interface BrandStats {
   campaignCount: number; // excludes cancelled
   totalBilled: number; // sum of Total, excluding cancelled
-  totalReceived: number; // sum of Total where Payment column says received
+  totalReceived: number; // cash received plus delivered barter
   /**
-   * Money only: the cash half of received deals plus received renewals.
-   * totalReceived also counts barter, which is product rather than money, so
-   * a figure labelled "received" reads this one instead.
+   * Money only: every payment settled against the brand's deals and renewals,
+   * part payments included. totalReceived also counts barter, which is
+   * product rather than money, so a figure labelled "received" reads this one.
    */
   cashReceived: number;
-  pending: number; // sum of Total where Payment column says pending
+  pending: number; // cash still owed on pending deals and renewals, plus barter not yet delivered
   lastCollabDate: string | null; // DD/MM/YYYY, most recent non-cancelled record
   // Ad-usage renewal fees, broken out of the totals above rather than kept
   // outside them. They *are* money billed to this brand, so leaving them out
@@ -70,33 +72,54 @@ export const EMPTY_STATS: BrandStats = {
   renewalCount: 0,
 };
 
+// Payments actually recorded against a called-off deal or its renewals: the
+// one part of it that still counts (a kill fee is real money).
+function recordedCash(settlement: Settlement | null): number {
+  return (settlement?.entries ?? [])
+    .filter((entry) => entry.source === "stored")
+    .reduce((sum, entry) => sum + entry.gross, 0);
+}
+
 // A called-off deal never happened commercially: excluded entirely, same as
-// repositories/earnings.ts.
+// repositories/earnings.ts, except for money recorded as paid against it.
+//
+// Cash comes from each settlement (lib/payments.ts), so a deal paid in part
+// counts what arrived as received and only the rest as pending.
 export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
   const stats = { ...EMPTY_STATS };
   let lastCollabTime = Number.NEGATIVE_INFINITY;
 
   for (const record of records) {
-    if (isCampaignCalledOff(record.status)) continue;
+    if (isCampaignCalledOff(record.status)) {
+      const recorded =
+        recordedCash(record.settlement) +
+        record.usage.renewals.reduce((sum, renewal) => sum + recordedCash(renewal.settlement), 0);
+      stats.cashReceived += recorded;
+      stats.totalReceived += recorded;
+      continue;
+    }
 
     stats.campaignCount += 1;
     stats.totalBilled += record.total;
-    if (record.paymentStatus === "received") {
-      stats.totalReceived += record.total;
-      stats.cashReceived += record.amount;
+    if (record.settlement) {
+      stats.cashReceived += record.settlement.settled;
+      stats.totalReceived += record.settlement.settled;
+      if (record.paymentStatus === "pending") stats.pending += record.settlement.remaining;
     }
-    if (record.paymentStatus === "pending") stats.pending += record.total;
+    if (record.barterValue > 0) {
+      if (record.barterState === "received") stats.totalReceived += record.barterValue;
+      else if (record.barterState === "pending") stats.pending += record.barterValue;
+    }
 
     for (const renewal of record.usage.renewals) {
       stats.renewalCount += 1;
       stats.totalBilled += renewal.amount;
-      if (renewal.paymentStatus === "received") {
-        stats.renewalReceived += renewal.amount;
-        stats.totalReceived += renewal.amount;
-        stats.cashReceived += renewal.amount;
-      } else if (renewal.paymentStatus === "pending") {
-        stats.renewalPending += renewal.amount;
-        stats.pending += renewal.amount;
+      stats.renewalReceived += renewal.settlement.settled;
+      stats.totalReceived += renewal.settlement.settled;
+      stats.cashReceived += renewal.settlement.settled;
+      if (renewal.paymentStatus === "pending") {
+        stats.renewalPending += renewal.settlement.remaining;
+        stats.pending += renewal.settlement.remaining;
       }
     }
 
@@ -108,7 +131,15 @@ export function computeBrandStats(records: BrandCampaignRecord[]): BrandStats {
     }
   }
 
-  return stats;
+  return {
+    ...stats,
+    totalBilled: roundMoney(stats.totalBilled),
+    totalReceived: roundMoney(stats.totalReceived),
+    cashReceived: roundMoney(stats.cashReceived),
+    pending: roundMoney(stats.pending),
+    renewalReceived: roundMoney(stats.renewalReceived),
+    renewalPending: roundMoney(stats.renewalPending),
+  };
 }
 
 // Bulk variant for the /brands list page: one pass per brand rather than
@@ -178,9 +209,23 @@ export function selectDuePayments(records: BrandCampaignRecord[], now: Date = ne
     .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 }
 
+/**
+ * What a pending deal still owes: the cash not yet settled (a deal paid in
+ * part owes only the rest) and the barter parcel, until it is delivered.
+ */
+export function duePaymentOwed(record: Pick<BrandCampaignRecord, "settlement" | "barterState" | "barterValue">): {
+  cash: number;
+  barter: number;
+  total: number;
+} {
+  const cash = record.settlement?.remaining ?? 0;
+  const barter = record.barterState === "pending" ? record.barterValue : 0;
+  return { cash, barter, total: roundMoney(cash + barter) };
+}
+
 export interface DuePaymentsSummary {
   count: number;
-  /** Sum of Total across the rows: what the deals are worth. */
+  /** What the rows still owe, cash and barter: what each row prints. */
   outstanding: number;
   overdueCount: number;
   /** Cash already past its due date. */
@@ -232,18 +277,24 @@ export function summarizeDuePayments(
   };
 
   for (const entry of due) {
-    summary.outstanding += entry.record.total;
+    const owed = duePaymentOwed(entry.record);
+    summary.outstanding += owed.total;
     if (entry.overdue) {
       summary.overdueCount += 1;
-      summary.overdueAmount += entry.record.amount;
+      summary.overdueAmount += owed.cash;
     }
-    if (entry.daysUntilDue <= windowDays && entry.record.amount > 0) {
-      summary.cashInWindow += entry.record.amount;
+    if (entry.daysUntilDue <= windowDays && owed.cash > 0) {
+      summary.cashInWindow += owed.cash;
       summary.windowCount += 1;
     }
   }
 
-  return summary;
+  return {
+    ...summary,
+    outstanding: roundMoney(summary.outstanding),
+    overdueAmount: roundMoney(summary.overdueAmount),
+    cashInWindow: roundMoney(summary.cashInWindow),
+  };
 }
 
 // --- Payment rows ----------------------------------------------------------
@@ -278,6 +329,10 @@ export interface BrandPaymentRow {
    * from, and counted barter value as money overdue.
    */
   amount: number;
+  /** The cash still owed; 0 once settled. Only this can be overdue. */
+  outstanding: number;
+  /** The cash half settled against the payment ledger; null on a deal with no cash half. */
+  settlement: Settlement | null;
   paymentStatus: BrandCampaignRecord["paymentStatus"];
   paymentDue: string;
   paidDate: string;
@@ -310,6 +365,8 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
       status: record.status,
       total: record.total,
       amount: record.amount,
+      outstanding: record.settlement?.remaining ?? 0,
+      settlement: record.settlement,
       paymentStatus: record.paymentStatus,
       paymentDue: record.paymentDue,
       paidDate: record.paidDate,
@@ -330,6 +387,8 @@ export function selectBrandPaymentRows(records: BrandCampaignRecord[]): BrandPay
         // are the same figure.
         total: renewal.amount,
         amount: renewal.amount,
+        outstanding: renewal.settlement.remaining,
+        settlement: renewal.settlement,
         paymentStatus: renewal.paymentStatus,
         paymentDue: renewal.paymentDue,
         paidDate: renewal.paidDate,

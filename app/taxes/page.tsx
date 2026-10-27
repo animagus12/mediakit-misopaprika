@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toSheetDate } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
 import { currentFinancialYearStart, financialYearLabel, resolveFinancialYearParam } from "@/lib/financialYear";
 import { summarizeTds, tdsFinancialYears, type TdsSource } from "@/lib/tds";
@@ -86,7 +87,7 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
               <CardDescription>Gross amount with TDS</CardDescription>
               <CardTitle className="tabular-nums">{formatMoney(summary.totalCash)}</CardTitle>
               <p className="text-xs text-muted-foreground">
-                Cash paid on the payments above, before tax. Payments with no TDS recorded are left out.
+                Settled by the payments in the table below, before tax. Payments with no TDS recorded are left out.
               </p>
             </CardHeader>
           </Card>
@@ -129,14 +130,15 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
           <CardHeader>
             <CardTitle className="text-base">Payment details</CardTitle>
             <CardDescription>
-              TDS is grouped by the date each deal or usage renewal was paid. Estimates use the rate entered
-              on that deal or renewal.
+              Each payment with TDS recorded, filed by the date the money arrived. A deal paid in
+              instalments has a row for each. Estimates use the rate entered on that deal or renewal.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {summary.payments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Mark a deal or usage renewal as received and enter its TDS details to see it here.
+                Record a payment with the TDS the brand withheld, or set a TDS rate on a deal already marked
+                received, to see it here.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -153,9 +155,9 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
                   </TableHeader>
                   <TableBody>
                     {summary.payments.map((payment) => (
-                      <TableRow key={`${payment.campaignId}:${payment.renewalId ?? "deal"}`}>
+                      <TableRow key={payment.paymentId}>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {payment.paidDate}
+                          {toSheetDate(payment.paidDate)}
                         </TableCell>
                         <TableCell>
                           <span className="block font-medium">{payment.brand}</span>

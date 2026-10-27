@@ -2,7 +2,7 @@ import type { VariantProps } from "class-variance-authority";
 import type { badgeVariants } from "@/components/ui/badge";
 import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
-import type { Invoice, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
+import type { Invoice, InvoiceDisplayStatus, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
 import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
@@ -23,8 +23,21 @@ export interface InvoiceLineItem extends InvoiceLineItemInput {
 // <Select> options: mirrors lib/editorTransactions.ts's status options.
 export const INVOICE_STATUS_OPTIONS: InvoiceStatus[] = ["draft", "sent", "paid", "void"];
 
-export function formatInvoiceStatus(status: InvoiceStatus): string {
+export function formatInvoiceStatus(status: InvoiceDisplayStatus): string {
+  if (status === "partial") return "Partly paid";
   return status[0].toUpperCase() + status.slice(1);
+}
+
+/**
+ * What an invoice's badge reads: "partial" for a draft or sent invoice part
+ * of whose money has arrived (see its settlement in lib/payments.ts), its
+ * status otherwise.
+ */
+export function invoiceDisplayStatus(invoice: Pick<Invoice, "status" | "settlement">): InvoiceDisplayStatus {
+  if ((invoice.status === "draft" || invoice.status === "sent") && invoice.settlement.status === "partial") {
+    return "partial";
+  }
+  return invoice.status;
 }
 
 export function formatMoney(amount: number): string {
@@ -433,8 +446,13 @@ interface InvoiceStatusStyle {
 // Same low-opacity palette-color convention as the workspace's transaction
 // status badges (see EditEditorTransactionSheet): globals.css has no
 // success/warning token, so meaning is carried by raw Tailwind colors.
-export function invoiceStatusStyle(status: InvoiceStatus): InvoiceStatusStyle {
+export function invoiceStatusStyle(status: InvoiceDisplayStatus): InvoiceStatusStyle {
   switch (status) {
+    case "partial":
+      return {
+        variant: "outline",
+        className: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400",
+      };
     case "paid":
       return {
         variant: "outline",
@@ -586,8 +604,8 @@ export function invoicesInFinancialYear<T extends Pick<Invoice, "issueDate">>(
 export type InvoiceSortColumn = "issueDate" | "dueDate" | "subtotal" | "balanceDue" | "status";
 export type SortDirection = "asc" | "desc";
 
-// Draft → Sent → Paid → Void: pipeline order, so ascending reads left-to-right.
-const INVOICE_STATUS_ORDER: Record<InvoiceStatus, number> = { draft: 0, sent: 1, paid: 2, void: 3 };
+// Draft → Sent → Partly paid → Paid → Void: pipeline order, so ascending reads left-to-right.
+const INVOICE_STATUS_ORDER: Record<InvoiceDisplayStatus, number> = { draft: 0, sent: 1, partial: 2, paid: 3, void: 4 };
 
 export function sortInvoices(
   invoices: Invoice[],
@@ -605,7 +623,7 @@ export function sortInvoices(
         delta = a.balanceDue - b.balanceDue;
         break;
       case "status":
-        delta = INVOICE_STATUS_ORDER[a.status] - INVOICE_STATUS_ORDER[b.status];
+        delta = INVOICE_STATUS_ORDER[invoiceDisplayStatus(a)] - INVOICE_STATUS_ORDER[invoiceDisplayStatus(b)];
         break;
       case "dueDate":
         delta = a.dueDate.localeCompare(b.dueDate);

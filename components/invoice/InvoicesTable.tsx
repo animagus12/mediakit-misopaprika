@@ -24,6 +24,7 @@ import {
   formatInvoiceStatus,
   formatMoney,
   INVOICE_FILTER_TABS,
+  invoiceDisplayStatus,
   invoiceStatusStyle,
   isInvoiceFilter,
   isInvoiceOverdue,
@@ -234,7 +235,7 @@ export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: Inv
               </TableHeader>
               <TableBody>
                 {pageRows.map((invoice) => {
-                  const status = invoiceStatusStyle(invoice.status);
+                  const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
                   const overdue = isInvoiceOverdue(invoice);
                   const duplicate = duplicateNumbers.has(invoice.invoiceNo.trim());
                   const label = buildInvoiceNumber(invoice.invoiceNo);
@@ -312,7 +313,7 @@ export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: Inv
                       </TableCell>
                       <TableCell>
                         <Badge variant={status.variant} className={status.className}>
-                          {formatInvoiceStatus(invoice.status)}
+                          {formatInvoiceStatus(invoiceDisplayStatus(invoice))}
                         </Badge>
                       </TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()}>
@@ -328,7 +329,7 @@ export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: Inv
           {/* Mobile: stacked cards */}
           <ul className="space-y-2 md:hidden">
             {pageRows.map((invoice) => {
-              const status = invoiceStatusStyle(invoice.status);
+              const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
               const overdue = isInvoiceOverdue(invoice);
               const duplicate = duplicateNumbers.has(invoice.invoiceNo.trim());
               const label = buildInvoiceNumber(invoice.invoiceNo);
@@ -351,7 +352,7 @@ export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: Inv
                           </p>
                         </div>
                         <Badge variant={status.variant} className={status.className}>
-                          {formatInvoiceStatus(invoice.status)}
+                          {formatInvoiceStatus(invoiceDisplayStatus(invoice))}
                         </Badge>
                       </div>
                       <p className="truncate">

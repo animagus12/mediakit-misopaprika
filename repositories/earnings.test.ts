@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { makeCampaign, makePayout, makeRenewal, makeUsage } from "@/lib/testing/fixtures";
+import {
+  ledgerCampaigns,
+  makeCampaign,
+  makeCampaignRecord,
+  makeInvoiceRecord,
+  makePaymentRecord,
+  makePayout,
+  makeRenewal,
+  makeUsage,
+} from "@/lib/testing/fixtures";
 import { summarizeEarnings } from "./earnings";
 
 // summarizeEarnings is pure, but its module also holds the repository that
@@ -23,14 +32,7 @@ vi.mock("./affiliatePayouts.writer.server", () => ({
 
 describe("summarizeEarnings", () => {
   it("returns zeroes and no months for an empty book", () => {
-    expect(summarizeEarnings([])).toEqual({
-      total: 0,
-      paid: 0,
-      barter: 0,
-      commission: 0,
-      pending: 0,
-      monthly: [],
-    });
+    expect(summarizeEarnings([])).toEqual({ total: 0, paid: 0, tds: 0, fees: 0, net: 0, barter: 0, commission: 0, pending: 0, monthly: [] });
   });
 
   it("splits received from pending and keeps pending out of total", () => {
@@ -121,7 +123,7 @@ describe("summarizeEarnings", () => {
       makeCampaign({ id: "B", status: "Redacted", paymentStatus: "pending", uploadDate: "12/05/2026" }),
     ]);
 
-    expect(summary).toEqual({ total: 0, paid: 0, barter: 0, commission: 0, pending: 0, monthly: [] });
+    expect(summary).toEqual({ total: 0, paid: 0, tds: 0, fees: 0, net: 0, barter: 0, commission: 0, pending: 0, monthly: [] });
   });
 
   it("skips a deal whose payment status is unknown", () => {
@@ -129,7 +131,7 @@ describe("summarizeEarnings", () => {
       makeCampaign({ paymentStatus: "unknown", uploadDate: "12/05/2026", amount: 9000 }),
     ]);
 
-    expect(summary).toEqual({ total: 0, paid: 0, barter: 0, commission: 0, pending: 0, monthly: [] });
+    expect(summary).toEqual({ total: 0, paid: 0, tds: 0, fees: 0, net: 0, barter: 0, commission: 0, pending: 0, monthly: [] });
   });
 
   describe("usage renewals", () => {
@@ -240,5 +242,153 @@ describe("summarizeEarnings", () => {
 
     expect(summary.paid + summary.barter + summary.commission).toBe(summary.total);
     expect(summary.total).toBe(5000 + 1500 + 7000 + 2000 + 900);
+  });
+
+  describe("payment ledger", () => {
+    const deal = (overrides: Parameters<typeof makeCampaignRecord>[0] = {}) =>
+      makeCampaignRecord({ id: "D1", amount: 50000, paymentStatus: "pending", uploadDate: "20/10/2026", ...overrides });
+
+    it("files each instalment in the month it arrived and keeps the rest pending", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns(
+          [deal()],
+          [],
+          [
+            makePaymentRecord({
+              id: "p1",
+              target: { kind: "deal", campaignId: "D1" },
+              date: "2026-11-05",
+              gross: 20000,
+              tds: 2000,
+              bankFee: 118,
+            }),
+          ]
+        )
+      );
+
+      expect(summary).toMatchObject({ paid: 20000, tds: 2000, fees: 118, net: 17882, pending: 30000 });
+      const byMonth = Object.fromEntries(summary.monthly.map((month) => [month.month, month]));
+      expect(byMonth["2026-11"]).toMatchObject({ paid: 20000, tds: 2000, fees: 118, net: 17882, pending: 0 });
+      expect(byMonth["2026-10"]).toMatchObject({ paid: 0, pending: 30000 });
+    });
+
+    it("adds instalments in one month onto a single deal row", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns(
+          [deal()],
+          [],
+          [
+            makePaymentRecord({ id: "p1", target: { kind: "deal", campaignId: "D1" }, date: "2026-11-05", gross: 20000 }),
+            makePaymentRecord({ id: "p2", target: { kind: "deal", campaignId: "D1" }, date: "2026-11-25", gross: 30000 }),
+          ]
+        )
+      );
+
+      expect(summary.pending).toBe(0);
+      expect(summary.monthly).toHaveLength(1);
+      expect(summary.monthly[0].deals).toEqual([{ brand: "Acme", amount: 50000, deliverables: "1 Organic Reel" }]);
+    });
+
+    it("keeps paid equal to net plus TDS plus charges in every month", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns(
+          [deal(), deal({ id: "D2", amount: 9000 })],
+          [],
+          [
+            makePaymentRecord({ id: "p1", target: { kind: "deal", campaignId: "D1" }, date: "2026-11-05", gross: 20000.1, tds: 2000.05, bankFee: 0.03 }),
+            makePaymentRecord({ id: "p2", target: { kind: "deal", campaignId: "D2" }, date: "2026-11-09", gross: 9000, tds: 900 }),
+          ]
+        )
+      );
+
+      for (const month of summary.monthly) {
+        expect(Math.round((month.net + month.tds + month.fees) * 100)).toBe(Math.round(month.paid * 100));
+      }
+    });
+
+    it("files a received deal by its paid date, falling back to the posting month", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns([
+          deal({ id: "A", amount: 1000, paymentStatus: "received", paidDate: "02/12/2026" }),
+          deal({ id: "B", amount: 2000, paymentStatus: "received", paidDate: "" }),
+        ])
+      );
+
+      expect(summary.monthly.map((month) => [month.month, month.paid])).toEqual([
+        ["2026-12", 1000],
+        ["2026-10", 2000],
+      ]);
+    });
+
+    it("counts a linked invoice's advance as received in the invoice's issue month", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns(
+          [deal({ amount: 60000, invoiceId: "inv", invoiceRef: "MSP-INV-0009" })],
+          [makeInvoiceRecord({ id: "inv", invoiceNo: "0009", status: "sent", issueDate: "2026-09-01", advance: 20000 })]
+        )
+      );
+
+      expect(summary.paid).toBe(20000);
+      expect(summary.pending).toBe(40000);
+      expect(summary.monthly.find((month) => month.month === "2026-09")?.paid).toBe(20000);
+    });
+
+    it("counts money recorded on a called-off deal but not its legacy fields", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns(
+          [
+            deal({ id: "K", status: "Cancelled", amount: 40000 }),
+            deal({ id: "L", status: "Cancelled", amount: 15000, paymentStatus: "received", paidDate: "01/06/2026" }),
+          ],
+          [],
+          [makePaymentRecord({ id: "kill", target: { kind: "deal", campaignId: "K" }, date: "2026-10-30", gross: 10000 })]
+        )
+      );
+
+      expect(summary.paid).toBe(10000);
+      expect(summary.pending).toBe(0);
+      expect(summary.monthly.map((month) => month.month)).toEqual(["2026-10"]);
+    });
+
+    it("keeps a delivered barter half when the cash half is still owed", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns([
+          deal({ type: "Barter+Paid", amount: 8000, barterValue: 3000, paymentStatus: "pending", barterStatus: "received" }),
+        ])
+      );
+
+      expect(summary).toMatchObject({ paid: 0, barter: 3000, pending: 8000, total: 3000 });
+    });
+
+    it("leaves a Scam deal out of pending money", () => {
+      const summary = summarizeEarnings(
+        ledgerCampaigns([deal({ type: "Scam", amount: 4000, paymentStatus: "pending" })])
+      );
+
+      expect(summary.pending).toBe(0);
+    });
+
+    it("counts a renewal's recorded payment and only its remaining amount as pending", () => {
+      const renewals = [makeRenewal({ id: "R1", amount: 8000, paymentStatus: "pending", paidDate: "", startDate: "30/08/2026" })];
+      const summary = summarizeEarnings(
+        ledgerCampaigns(
+          [deal({ amount: 10000, paymentStatus: "received", paidDate: "20/10/2026", usage: makeUsage({ renewals }) })],
+          [],
+          [
+            makePaymentRecord({
+              id: "r1",
+              target: { kind: "renewal", campaignId: "D1", renewalId: "R1" },
+              date: "2026-09-15",
+              gross: 3000,
+            }),
+          ]
+        )
+      );
+
+      const byMonth = Object.fromEntries(summary.monthly.map((month) => [month.month, month]));
+      expect(byMonth["2026-09"]).toMatchObject({ paid: 3000 });
+      expect(byMonth["2026-08"]).toMatchObject({ pending: 5000 });
+      expect(summary.paid).toBe(13000);
+    });
   });
 });

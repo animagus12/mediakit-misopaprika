@@ -31,6 +31,7 @@ import {
   filterCampaigns,
   isCampaignCancelled,
   isCampaignFilter,
+  paymentDisplayLabel,
   paymentDisplayStatus,
   sortCampaigns,
   type CampaignBrandOption,
@@ -43,6 +44,7 @@ import {
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import { formatMoney, type CampaignInvoiceOption } from "@/lib/invoice";
 import { paymentTiming, type PaymentPunctuality } from "@/lib/paymentReliability";
+import { settlementSummary } from "@/lib/payments";
 import { formatUsageDays, renewalTotal, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
@@ -64,6 +66,11 @@ function paymentStatusStyle(status: PaymentDisplayStatus): StatusStyle {
       return {
         variant: "outline",
         className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+      };
+    case "partial":
+      return {
+        variant: "outline",
+        className: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400",
       };
     case "pending":
       return {
@@ -491,8 +498,11 @@ export function CampaignsTable({
                                 about it, the invoice and the method, still shows. */}
                             {paymentState !== "unknown" && (
                               <Badge variant={payment.variant} className={payment.className}>
-                                {paymentState}
+                                {paymentDisplayLabel(paymentState)}
                               </Badge>
+                            )}
+                            {paymentState === "partial" && campaign.settlement && (
+                              <Sub className="whitespace-nowrap">{settlementSummary(campaign.settlement)}</Sub>
                             )}
                             {(campaign.invoiceId || campaign.paymentMethod) && (
                               <Sub className={cn(paymentState === "unknown" && "mt-0")}>

@@ -152,12 +152,13 @@ export function computeMonthForecast(
   for (const campaign of campaigns) {
     if (isCampaignCalledOff(campaign.status)) continue;
 
+    // What is still owed, so a deal paid in part forecasts only the rest.
     if (campaign.paymentStatus === "pending") {
-      countDue(campaign.paymentDue, campaign.cash);
+      countDue(campaign.paymentDue, campaign.settlement?.remaining ?? 0);
     }
     for (const renewal of campaign.usage.renewals) {
       if (renewal.paymentStatus !== "pending") continue;
-      countDue(renewal.paymentDue, renewal.amount);
+      countDue(renewal.paymentDue, renewal.settlement.remaining);
     }
   }
 

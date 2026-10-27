@@ -22,6 +22,9 @@ const RECENT_MONTHS = 6;
 const EMPTY_MONTH: Omit<MonthlyEarnings, "month"> = {
   total: 0,
   paid: 0,
+  tds: 0,
+  fees: 0,
+  net: 0,
   barter: 0,
   commission: 0,
   pending: 0,

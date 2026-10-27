@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatMoney, newInvoiceHref } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
-import { summarizeDuePayments, type DuePayment } from "@/lib/brandCampaignStats";
+import { duePaymentOwed, summarizeDuePayments, type DuePayment } from "@/lib/brandCampaignStats";
 import type { CollectionLag } from "@/lib/cashTiming";
 import { useMarkReceived } from "./useMarkReceived";
 
@@ -145,30 +145,34 @@ interface DuePaymentRowProps {
 // than a row of their own, which is what made four payments take a screen.
 function DuePaymentRow({ payment, striped, isPending, onMarkReceived }: DuePaymentRowProps) {
   const { record, dueDate, daysUntilDue, overdue, label } = payment;
+  const tone = overdue
+    ? "text-destructive"
+    : daysUntilDue <= 3
+      ? "text-amber-600 dark:text-amber-400"
+      : "text-muted-foreground";
+  // A container query on the row, not the screen: the card is narrow on a
+  // phone and in the dashboard's side column alike. Below 24rem the due
+  // timer moves under the brand instead of squeezing it to a letter.
   return (
-    <div className={cn("flex items-center gap-3 rounded-md px-2 py-1.5 text-sm", striped && "bg-muted/30")}>
+    <div className={cn("@container flex items-center gap-3 rounded-md px-2 py-1.5 text-sm", striped && "bg-muted/30")}>
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{record.brand}</p>
         {/* Only the campaign name gives way on a narrow row; the amount is
             the half of this line worth reading. */}
         <p className="flex min-w-0 gap-1 text-xs text-muted-foreground">
           <span className="truncate">{record.campaign || "-"}</span>
-          <span className="shrink-0 tabular-nums">· {formatMoney(record.total)}</span>
+          <span className="shrink-0 tabular-nums">· {formatMoney(duePaymentOwed(record).total)}</span>
+        </p>
+        {record.settlement?.status === "partial" && (
+          <p className="text-xs text-muted-foreground tabular-nums">left of {formatMoney(record.total)}</p>
+        )}
+        <p className="text-xs tabular-nums @sm:hidden">
+          <span className={cn("font-medium", tone)}>{label}</span>
+          <span className="text-muted-foreground"> · {dueDate}</span>
         </p>
       </div>
-      <div className="shrink-0 text-right">
-        <p
-          className={cn(
-            "font-medium tabular-nums",
-            overdue
-              ? "text-destructive"
-              : daysUntilDue <= 3
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-muted-foreground"
-          )}
-        >
-          {label}
-        </p>
+      <div className="hidden shrink-0 text-right @sm:block">
+        <p className={cn("font-medium tabular-nums", tone)}>{label}</p>
         <p className="text-xs text-muted-foreground tabular-nums">{dueDate}</p>
       </div>
       {/* Two buttons wide, so the due column lines up whether a row has one

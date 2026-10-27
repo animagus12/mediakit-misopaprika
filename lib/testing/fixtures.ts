@@ -138,6 +138,9 @@ export function makeMonthlyEarnings(
     month,
     total: 0,
     paid: 0,
+    tds: 0,
+    fees: 0,
+    net: 0,
     barter: 0,
     commission: 0,
     pending: 0,
@@ -208,31 +211,55 @@ export function makeEditorJob(overrides: Partial<InvoiceEditorJobOption> = {}): 
   };
 }
 
-export function makeBrandCampaignRecord(
-  overrides: Partial<BrandCampaignRecord> = {}
-): BrandCampaignRecord {
+type BrandCampaignRecordOverrides = Partial<
+  Omit<BrandCampaignRecord, "usage" | "settlement" | "barterState">
+> & { usage?: StoredUsage };
+
+/**
+ * A brand CRM row, built through toCampaign from the deal it projects, so its
+ * settlement and barter state are derived exactly as a read derives them.
+ * `amount` is the row's cash (the deal's amount plus any usage fee).
+ */
+export function makeBrandCampaignRecord(overrides: BrandCampaignRecordOverrides = {}): BrandCampaignRecord {
   const amount = overrides.amount ?? 10000;
   const barterValue = overrides.barterValue ?? 0;
+  const usage = overrides.usage ?? emptyUsage();
+  const campaign = toCampaign(
+    makeCampaignRecord({
+      id: overrides.campaignId ?? "MSP-MC0001",
+      type: barterValue > 0 ? (amount > 0 ? "Barter+Paid" : "Barter") : "Paid",
+      status: overrides.status ?? "Posted",
+      amount: amount - (usage.fee ?? 0),
+      barterValue,
+      paymentStatus: overrides.paymentStatus ?? "pending",
+      paidDate: overrides.paidDate ?? "",
+      paymentDue: overrides.paymentDue ?? "",
+      paymentMethod: overrides.paymentMethod ?? "",
+      usage,
+    })
+  );
   return {
-    campaignId: "MSP-MC0001",
+    campaignId: campaign.id,
     brand: "Acme",
     brandId: null,
     campaign: "Launch",
     deliverables: "1 Organic Reel",
     date: "01/05/2026",
     uploadDate: "",
-    status: "Posted",
+    status: campaign.status,
     amount,
     barterValue,
     total: amount + barterValue,
     invoiceRef: "",
     invoiceId: null,
-    paymentStatus: "pending",
-    paymentDue: "",
-    paidDate: "",
-    paymentMethod: "",
-    usage: emptyUsage(),
+    paymentStatus: campaign.paymentStatus,
+    paymentDue: campaign.paymentDue,
+    paidDate: campaign.paidDate,
+    paymentMethod: campaign.paymentMethod,
     ...overrides,
+    settlement: campaign.settlement,
+    barterState: campaign.barterState,
+    usage: campaign.usage,
   };
 }
 

@@ -28,7 +28,7 @@ import { paymentStatusLabel } from "@/lib/campaigns";
 import { resolveTds } from "@/lib/tds";
 import { formatUsageDays, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
-import type { Campaign, UsageRenewalRecord } from "@/repositories/campaigns";
+import type { Campaign, UsageRenewal, UsageRenewalRecord } from "@/repositories/campaigns";
 import { RenewUsageSheet } from "./RenewUsageSheet";
 import { RenewalTdsSheet } from "./RenewalTdsSheet";
 
@@ -45,7 +45,10 @@ const STATE_TONES: Record<UsageState, string> = {
   ended: "text-muted-foreground",
 };
 
-function renewalStatusClass(renewal: UsageRenewalRecord): string {
+function renewalStatusClass(renewal: UsageRenewal): string {
+  if (renewal.settlement.status === "partial") {
+    return "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400";
+  }
   if (renewal.paymentStatus === "received") {
     return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400";
   }
@@ -56,7 +59,12 @@ function renewalStatusClass(renewal: UsageRenewalRecord): string {
 }
 
 // " · TDS ₹1,000" (or "≈ ₹1,000" while only the rate is known), "" when none.
-function renewalTdsLabel(renewal: UsageRenewalRecord): string {
+// Once a payment is recorded against the renewal, the TDS those payments
+// actually withheld.
+function renewalTdsLabel(renewal: UsageRenewal): string {
+  if (renewal.settlement.hasStored) {
+    return renewal.settlement.tds > 0 ? ` · TDS ${formatMoney(renewal.settlement.tds)}` : "";
+  }
   const tds = resolveTds(renewal.amount, renewal.tdsRate, renewal.tdsAmount);
   if (!tds) return "";
   return ` · TDS ${tds.estimated ? "≈ " : ""}${formatMoney(tds.amount)}`;
@@ -298,7 +306,9 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <Badge variant="outline" className={renewalStatusClass(renewal)}>
-                  {paymentStatusLabel(renewal.paymentStatus)}
+                  {renewal.settlement.status === "partial"
+                    ? "Partly paid"
+                    : paymentStatusLabel(renewal.paymentStatus)}
                 </Badge>
                 {renewal.amount > 0 && (
                   <Button

@@ -24,11 +24,6 @@ import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice }
 // so that logic lives here rather than in ./invoices.
 const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
-// Whether a read projects each invoice's status and balance from the payment
-// ledger. Off while the ledger is only read alongside (the lists show what was
-// stored); the next stage turns it on and then removes the flag.
-const PROJECT_INVOICE_SETTLEMENTS = false;
-
 // Every invoice read carries the brand of the deal it bills (withLinkedBrand),
 // so the brand page, the invoices list and the media kit agree on it without
 // each re-deriving it, and the settlement of whatever it bills (the deal's or
@@ -38,7 +33,7 @@ const PROJECT_INVOICE_SETTLEMENTS = false;
 // readRecords and store what the editor saved.
 function joinInvoices(records: InvoiceRecord[], ledger: CampaignLedger): Invoice[] {
   const invoices = records.map((record) => withLinkedBrand(toInvoice(record), ledger.campaigns));
-  return attachInvoiceSettlements(invoices, ledger.campaigns, ledger.payments, PROJECT_INVOICE_SETTLEMENTS);
+  return attachInvoiceSettlements(invoices, ledger.campaigns, ledger.payments);
 }
 
 // Falls back to the bundled data/invoices.json seed (empty) until the first

@@ -247,6 +247,7 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
                     <p className="truncate text-xs text-muted-foreground">
                       {formatUsageDays(renewal.days)} ·{" "}
                       {formatMoney(renewal.amount)}
+                      {renewal.amount < renewal.fee && ` left of ${formatMoney(renewal.fee)}`}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

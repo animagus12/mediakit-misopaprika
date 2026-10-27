@@ -1,7 +1,8 @@
 import "server-only";
 import { campaignDeliverables } from "@/lib/campaigns";
 import { getCampaigns } from "./campaigns.writer.server";
-import type { Campaign, CampaignPaymentStatus, CampaignStatus, CampaignUsage } from "./campaigns";
+import type { Campaign, CampaignPaymentStatus, CampaignStatus, CampaignUsageView } from "./campaigns";
+import type { Settlement } from "./payments";
 
 export type BrandCampaignPaymentStatus = CampaignPaymentStatus;
 
@@ -17,7 +18,7 @@ export interface BrandCampaignRecord {
   date: string; // DD/MM/YYYY, deal date
   uploadDate: string; // DD/MM/YYYY, actual delivery date, often blank until posted
   status: CampaignStatus; // pipeline status: Discussion/Filming/Posted/Cancelled/...
-  amount: number; // the deal's cash: its amount plus the ad usage fee (Campaign.cash)
+  amount: number; // the deal's cash: its amount plus the ad usage fee (Campaign.cash), owed or not
   barterValue: number;
   total: number;
   invoiceRef: string; // the free-text reference typed on the deal, "" when none
@@ -26,7 +27,11 @@ export interface BrandCampaignRecord {
   paymentDue: string; // DD/MM/YYYY the payment is expected by, or "" when unset
   paidDate: string; // DD/MM/YYYY the money landed; the other half of the reliability read
   paymentMethod: string;
-  usage: CampaignUsage; // the ad-usage licence, for the brand's renewal history
+  /** The cash half settled against the payment ledger; null on a deal with no cash half. */
+  settlement: Settlement | null;
+  /** Whether the barter half was delivered; null on a deal with no barter half. */
+  barterState: CampaignPaymentStatus | null;
+  usage: CampaignUsageView; // the ad-usage licence with each renewal settled, for the brand's renewal history
 }
 
 export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
@@ -48,6 +53,8 @@ export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     paymentDue: campaign.paymentDue,
     paidDate: campaign.paidDate,
     paymentMethod: campaign.paymentMethod,
+    settlement: campaign.settlement,
+    barterState: campaign.barterState,
     usage: campaign.usage,
   };
 }
