@@ -124,6 +124,9 @@ export interface MonthMargin {
    */
   cash: number;
   editorCost: number;
+  /** Expenses paid that month: props, equipment, software and the rest. */
+  expenseCost: number;
+  /** cash less editing and expenses. */
   margin: number;
   /** margin as a share of cash; null when nothing came in to take a share of. */
   marginPercent: number | null;
@@ -157,25 +160,32 @@ export interface MonthMargin {
  * paid ahead of the income it was for, which is exactly the month a creator
  * most needs to see.
  *
- * Newest-first, like `monthly`: the months are the union of both inputs.
+ * Expenses come off the same way, by the month they were paid
+ * (expenseCostByMonth in lib/expenses.ts), so a prop bought for a shoot
+ * lowers the month it was bought in the moment it is recorded.
+ *
+ * Newest-first, like `monthly`: the months are the union of every input.
  */
 export function computeMarginSeries(
   monthly: MonthlyEarnings[],
-  editorCostByMonth: Map<string, number>
+  editorCostByMonth: Map<string, number>,
+  expenseCostByMonth: Map<string, number> = new Map()
 ): MonthMargin[] {
   const cashByMonth = new Map(monthly.map((month) => [month.month, cashReceived(month)]));
-  const months = [...new Set([...cashByMonth.keys(), ...editorCostByMonth.keys()])].sort((a, b) =>
-    b.localeCompare(a)
-  );
+  const months = [
+    ...new Set([...cashByMonth.keys(), ...editorCostByMonth.keys(), ...expenseCostByMonth.keys()]),
+  ].sort((a, b) => b.localeCompare(a));
 
   return months.map((month) => {
     const cash = cashByMonth.get(month) ?? 0;
     const editorCost = roundMoney(editorCostByMonth.get(month) ?? 0);
-    const margin = roundMoney(cash - editorCost);
+    const expenseCost = roundMoney(expenseCostByMonth.get(month) ?? 0);
+    const margin = roundMoney(cash - editorCost - expenseCost);
     return {
       month,
       cash,
       editorCost,
+      expenseCost,
       margin,
       marginPercent: cash > 0 ? (margin / cash) * 100 : null,
     };

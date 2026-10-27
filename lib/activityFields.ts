@@ -17,6 +17,7 @@ import type { Contact } from "@/repositories/contacts";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { Editor } from "@/repositories/editors";
 import type { EditorTransactionRecord } from "@/repositories/editorTransactions";
+import { expenseCategoryLabel, type ExpenseRecord } from "@/repositories/expenses";
 import type { InvoiceRecord } from "@/repositories/invoices";
 import type { PaymentRecord } from "@/repositories/payments";
 
@@ -212,4 +213,21 @@ export const paymentFields: readonly DiffField<PaymentRecord>[] = [
   // changed, never quoted, like an invoice's UPI id.
   { label: "reference", value: (payment) => payment.reference, redact: true },
   { label: "note", value: (payment) => payment.note, redact: true },
+];
+
+export const expenseFields: readonly DiffField<ExpenseRecord>[] = [
+  { label: "amount", value: (expense) => expense.amount, format: money },
+  { label: "date", value: (expense) => expense.date },
+  { label: "description", value: (expense) => expense.description },
+  { label: "category", value: (expense) => expenseCategoryLabel(expense.category) },
+  {
+    label: "paid by",
+    value: (expense) => expense.paidBy ?? "",
+    format: (value) => (value ? payerLabel(toPayer(value)) : ""),
+  },
+  { label: "method", value: (expense) => expense.method ?? "" },
+  // Which deal, by id: the diff says it moved, the deal's name is in the event label.
+  { label: "deal", value: (expense) => expense.campaignId ?? "", redact: true },
+  { label: "receipt", value: (expense) => expense.receiptUrl ?? "", redact: true },
+  { label: "note", value: (expense) => expense.note, redact: true },
 ];

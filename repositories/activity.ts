@@ -29,6 +29,7 @@ const ENTITY_FLAGS = {
   affiliatePartner: true,
   affiliatePayout: true,
   payment: true,
+  expense: true,
   links: true,
   mediakit: true,
 } as const;
@@ -92,6 +93,10 @@ const ACTION_FLAGS = {
   "payment.updated": true,
   "payment.deleted": true,
   "payment.restored": true,
+  "expense.recorded": true,
+  "expense.updated": true,
+  "expense.deleted": true,
+  "expense.restored": true,
   "links.published": true,
   "mediakit.published": true,
 } as const;

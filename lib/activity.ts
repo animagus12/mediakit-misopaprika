@@ -6,6 +6,7 @@ import {
   Handshake,
   IndianRupee,
   Link2,
+  ReceiptText,
   Sparkles,
   UserRound,
   Video,
@@ -92,6 +93,11 @@ const TITLES: Record<ActivityAction, (label: string, activity: Activity) => stri
   "payment.updated": (label) => `Payment for ${label} edited`,
   "payment.deleted": (label) => `Payment for ${label} deleted`,
   "payment.restored": (label) => `Payment for ${label} restored`,
+  "expense.recorded": (label, activity) =>
+    activity.amount !== undefined ? `Spent ${formatMoney(activity.amount)} on ${label}` : `Expense ${label} recorded`,
+  "expense.updated": (label) => `Expense ${label} edited`,
+  "expense.deleted": (label) => `Expense ${label} deleted`,
+  "expense.restored": (label) => `Expense ${label} restored`,
   "links.published": () => "Links page published",
   "mediakit.published": () => "Media kit published",
 };
@@ -115,6 +121,7 @@ const TONES: Partial<Record<ActivityAction, ActivityTone>> = {
   "affiliatePayout.deleted": "destructive",
   "content.deleted": "destructive",
   "payment.deleted": "destructive",
+  "expense.deleted": "destructive",
 };
 
 // Icons follow the entity, not the action, so the same kind of record always
@@ -132,6 +139,7 @@ const ICONS: Record<ActivityEntityType, LucideIcon> = {
   affiliatePartner: BadgePercent,
   affiliatePayout: BadgePercent,
   payment: IndianRupee,
+  expense: ReceiptText,
   links: Link2,
   mediakit: Sparkles,
 };
@@ -153,6 +161,8 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   // A payment has no page of its own; every one is listed on Payments (see
   // activityHref for one that belongs to an invoice).
   payment: { detail: null, list: "/payments" },
+  // Every expense is listed under Money out on Payments.
+  expense: { detail: null, list: "/payments?view=out" },
   links: { detail: null, list: "/links-editor" },
   mediakit: { detail: null, list: "/mediakit-generator" },
 };
@@ -185,6 +195,7 @@ export const activityFilters: readonly ActivityFilter[] = [
   { id: "content", label: "Content", types: ["content"] },
   { id: "invoices", label: "Invoices", types: ["invoice"] },
   { id: "payments", label: "Payments", types: ["payment"] },
+  { id: "expenses", label: "Expenses", types: ["expense"] },
   { id: "workspace", label: "Workspace", types: ["editor", "editorTransaction"] },
   { id: "affiliates", label: "Affiliates", types: ["affiliatePartner", "affiliatePayout"] },
   { id: "publishing", label: "Publishing", types: ["links", "mediakit"] },

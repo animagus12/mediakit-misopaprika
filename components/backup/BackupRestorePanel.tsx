@@ -46,6 +46,7 @@ const PREVIEW_COUNT_LABELS = [
   ["campaigns", "Campaigns"],
   ["invoices", "Invoices"],
   ["payments", "Payments"],
+  ["expenses", "Expenses"],
   ["calendarItems", "Calendar items"],
   ["contacts", "Contacts"],
   ["agencies", "Agencies"],
@@ -117,6 +118,7 @@ interface BackupPreview {
     campaigns: number;
     invoices: number;
     payments: number;
+    expenses: number;
     calendarItems: number;
     contacts: number;
     agencies: number;

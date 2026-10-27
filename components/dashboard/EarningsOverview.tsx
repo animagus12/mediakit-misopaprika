@@ -48,7 +48,7 @@ export function EarningsOverview({
   summary: EarningsSummary;
   /** The month in progress, finished out with what is contractually due. */
   forecast: MonthForecast;
-  /** Cash net of editing, newest first, filtered here to the charted window. */
+  /** Cash net of editing and expenses, newest first, filtered here to the charted window. */
   margins: MonthMargin[];
 }) {
   const thisMonthKey = currentMonthKey();

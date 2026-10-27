@@ -14,7 +14,7 @@ import { COOKIE_NAME, verifySessionToken } from "./auth";
 // routes separate is deliberate: they are distinct paths, so an allow-list or
 // rate limit can later diverge per surface without reshaping the caller.
 
-const ALLOWED_CONTENT_TYPES = [
+const IMAGE_CONTENT_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -24,8 +24,22 @@ const ALLOWED_CONTENT_TYPES = [
   "image/heif",
 ];
 
-/** Issues a client upload token to a signed-in session, and nobody else. */
-export async function handleBlobUpload(request: Request): Promise<NextResponse> {
+// A receipt is as often a PDF from a shop's email as a photo of a paper slip.
+const RECEIPT_CONTENT_TYPES = [...IMAGE_CONTENT_TYPES, "application/pdf"];
+
+/** Issues a client upload token for an image to a signed-in session, and nobody else. */
+export function handleBlobUpload(request: Request): Promise<NextResponse> {
+  return issueUploadToken(request, IMAGE_CONTENT_TYPES);
+}
+
+/** The same for an expense's receipt, which may also be a PDF. */
+export function handleReceiptUpload(request: Request): Promise<NextResponse> {
+  return issueUploadToken(request, RECEIPT_CONTENT_TYPES);
+}
+
+// Separate exports rather than a parameter: a route re-exports one as its
+// POST, and Next calls POST with a second argument of its own.
+async function issueUploadToken(request: Request, allowedContentTypes: string[]): Promise<NextResponse> {
   const cookieStore = await cookies();
   const isAuthenticated = await verifySessionToken(cookieStore.get(COOKIE_NAME)?.value);
   if (!isAuthenticated) {
@@ -39,7 +53,7 @@ export async function handleBlobUpload(request: Request): Promise<NextResponse> 
       body,
       request,
       onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ALLOWED_CONTENT_TYPES,
+        allowedContentTypes,
         addRandomSuffix: true,
       }),
       onUploadCompleted: async () => {},

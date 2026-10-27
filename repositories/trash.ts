@@ -6,6 +6,7 @@ import type { Contact } from "./contacts";
 import type { CampaignRecord } from "./campaigns";
 import type { ContentItemRecord } from "./contentPlan";
 import type { EditorTransactionRecord } from "./editorTransactions";
+import type { ExpenseRecord } from "./expenses";
 import type { InvoiceRecord } from "./invoices";
 import type { LinkItem, LinkSection, SocialHandle } from "./links";
 import type { PaymentRecord } from "./payments";
@@ -60,6 +61,7 @@ export type TrashPayload =
       /** What the payment was for, as it read when deleted: "Acme · Launch". */
       targetLabel: string;
     }
+  | { type: "expense"; record: ExpenseRecord }
   | { type: "editorTransaction"; record: EditorTransactionRecord }
   | { type: "contentItem"; record: ContentItemRecord }
   | (LinkTrashDeletion & { targets: LinkTrashTarget[] });
@@ -88,6 +90,8 @@ export function trashTypeLabel(type: TrashPayload["type"]): string {
       return "Campaign";
     case "payment":
       return "Payment";
+    case "expense":
+      return "Expense";
     case "editorTransaction":
       return "Editor transaction";
     case "contentItem":

@@ -50,7 +50,21 @@ const ROUTES = {
   contacts: ["/", "/brands", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
   agencies: ["/", "/brands", "/brands/[id]"],
   editors: ["/", "/workspace"],
-  editorTransactions: ["/", "/workspace", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
+  // An editor job is a deal's editing cost, and a paid one is money out.
+  editorTransactions: [
+    "/",
+    "/workspace",
+    "/brands/[id]",
+    "/invoices/[id]",
+    "/invoices/new",
+    "/campaigns",
+    "/calendar",
+    "/payments",
+  ],
+  // An expense is money out, a cost on the deal it was for (whose sheet opens
+  // from the campaigns table, the calendar and the dashboard), and comes off
+  // the dashboard's margin.
+  expenses: ["/", "/payments", "/campaigns", "/calendar"],
   // Commission is income, so every page that reads the earnings summary is
   // invalidated by an affiliate write, not just /affiliates itself.
   affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]"],

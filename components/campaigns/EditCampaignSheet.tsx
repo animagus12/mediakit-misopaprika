@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatMoney, type CampaignInvoiceOption } from "@/lib/invoice";
 import { todayKey } from "@/lib/day";
+import { DealCosts } from "@/components/expenses/DealCosts";
 import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import {
   CampaignFormFields,
@@ -298,6 +299,14 @@ export function EditCampaignSheet({
                   expectedTdsRate={campaign.tdsRate}
                 />
               </div>
+            </>
+          )}
+
+          {/* Same as the payments: writes on click, shown for the deal as last saved. */}
+          {campaign.costs && (
+            <>
+              <Separator />
+              <DealCosts campaign={campaign} />
             </>
           )}
 

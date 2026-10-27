@@ -96,7 +96,7 @@ export const navEntries: NavEntry[] = [
   {
     href: "/payments",
     title: "Payments",
-    description: "Every payment brands made, by financial year.",
+    description: "Money in from brands and money out on editing and expenses, by financial year.",
     Icon: IndianRupee,
     access: "protected",
     group: "manage",

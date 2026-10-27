@@ -5,7 +5,10 @@ import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
 import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
+import { attachDealCosts } from "@/lib/expenses";
 import { attachSettlements } from "@/lib/payments";
+import { getEditorTransactions } from "./editorTransactions.writer.server";
+import { readExpenseRecords } from "./expenseRecords.server";
 import { getTrashedCampaignIds } from "./trash.writer.server";
 import { readInvoiceRecords } from "./invoiceRecords.server";
 import { readPaymentRecords } from "./paymentRecords.server";
@@ -95,8 +98,19 @@ export async function readCampaignLedger(): Promise<CampaignLedger> {
 
 // Falls back to the bundled data/campaigns.json seed until the first write,
 // or whenever Redis isn't configured (e.g. local dev without KV env vars).
+/**
+ * The deals as pages show them: settled against the ledger, and with what
+ * each cost to make joined on (its editing job and its expenses), so a deal's
+ * sheet can say what it kept wherever it is opened from. Strict like the
+ * ledger read: a failed read throws rather than showing a deal as free to make.
+ */
 export async function getCampaigns(): Promise<Campaign[]> {
-  return (await readCampaignLedger()).campaigns;
+  const [ledger, expenses, editorTransactions] = await Promise.all([
+    readCampaignLedger(),
+    readExpenseRecords(),
+    getEditorTransactions(),
+  ]);
+  return attachDealCosts(ledger.campaigns, ledger.invoices, expenses, editorTransactions);
 }
 
 export async function getCampaignRecord(id: string): Promise<CampaignRecord | null> {

@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import AppShell from "@/components/common/AppShell";
 import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
+import { MoneyOutView } from "@/components/payments/MoneyOutView";
 import { UnlinkedPayments } from "@/components/payments/UnlinkedPayments";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toSheetDate } from "@/lib/campaigns";
@@ -127,8 +129,58 @@ function PaymentsTable({ rows }: { rows: LedgerRow[] }) {
   );
 }
 
+type View = "in" | "out";
+
+const VIEWS: { view: View; label: string }[] = [
+  { view: "in", label: "Money in" },
+  { view: "out", label: "Money out" },
+];
+
+// Links rather than client tabs, like the year filter: the view lives in
+// ?view=, so it survives a reload and a shared address. The year is kept.
+function viewHref(params: Record<string, string | string[] | undefined>, view: View): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "view" || value === undefined) continue;
+    for (const entry of Array.isArray(value) ? value : [value]) query.append(key, entry);
+  }
+  if (view === "out") query.set("view", "out");
+  const search = query.toString();
+  return search ? `/payments?${search}` : "/payments";
+}
+
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
   const params = await searchParams;
+  const view: View = params.view === "out" ? "out" : "in";
+
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-screen-lg space-y-6 px-4 py-10 xl:max-w-6xl 2xl:max-w-[1440px]">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
+          <p className="text-sm text-muted-foreground">
+            Money in from brands, and money out on editing and expenses, filed by the day it moved. Financial years
+            run from April through March.
+          </p>
+        </div>
+
+        <nav aria-label="Money in or out" className="flex gap-2">
+          {VIEWS.map((option) => (
+            <Button key={option.view} asChild size="sm" variant={option.view === view ? "default" : "outline"}>
+              <Link href={viewHref(params, option.view)} aria-current={option.view === view ? "page" : undefined}>
+                {option.label}
+              </Link>
+            </Button>
+          ))}
+        </nav>
+
+        {view === "out" ? <MoneyOutView searchParams={params} /> : <MoneyIn params={params} />}
+      </div>
+    </AppShell>
+  );
+}
+
+async function MoneyIn({ params }: { params: Record<string, string | string[] | undefined> }) {
   let book: PaymentBook = { rows: [], orphans: [] };
   let error: string | null = null;
   try {
@@ -153,82 +205,73 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   ];
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-screen-lg space-y-6 px-4 py-10 xl:max-w-6xl 2xl:max-w-[1440px]">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Payments</h1>
-          <p className="text-sm text-muted-foreground">
-            Every payment brands made, filed by the day it arrived. Financial years run from April through March.
-          </p>
-        </div>
-
-        {error && (
-          <Card>
-            <CardContent className="py-4 text-sm text-destructive">Payments couldn&apos;t be loaded: {error}</CardContent>
-          </Card>
-        )}
-
-        <FinancialYearFilter pathname="/payments" searchParams={params} years={years} selected={selectedYear} includeAll />
-
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {stats.map((stat) => (
-            <Card key={stat.label}>
-              <CardHeader>
-                <CardDescription>{stat.label}</CardDescription>
-                <CardTitle className="tabular-nums">{formatMoney(stat.value)}</CardTitle>
-                {stat.hint && <p className="text-xs text-muted-foreground">{stat.hint}</p>}
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-
+    <>
+      {error && (
         <Card>
+          <CardContent className="py-4 text-sm text-destructive">Payments couldn&apos;t be loaded: {error}</CardContent>
+        </Card>
+      )}
+
+      <FinancialYearFilter pathname="/payments" searchParams={params} years={years} selected={selectedYear} includeAll />
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <Card key={stat.label}>
+            <CardHeader>
+              <CardDescription>{stat.label}</CardDescription>
+              <CardTitle className="tabular-nums">{formatMoney(stat.value)}</CardTitle>
+              {stat.hint && <p className="text-xs text-muted-foreground">{stat.hint}</p>}
+            </CardHeader>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {rows.length} payment{rows.length === 1 ? "" : "s"} · {period}
+          </CardTitle>
+          <CardDescription>
+            Record, edit or delete a payment on its deal, renewal or invoice. Invoices marked Paid by hand before
+            payments were recorded show here once a payment is recorded on them.
+            {undatedElsewhere > 0 &&
+              ` ${undatedElsewhere} payment${undatedElsewhere === 1 ? "" : "s"} from earlier records with no date ${undatedElsewhere === 1 ? "shows" : "show"} under All only.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {selectedYear === null ? "No payments recorded yet." : `Nothing received in ${period} yet.`}
+            </p>
+          ) : (
+            <>
+              <ul className="space-y-2 md:hidden">
+                {rows.map((row) => (
+                  <PaymentCard key={row.paymentId} row={row} />
+                ))}
+              </ul>
+              <div className="hidden md:block">
+                <PaymentsTable rows={rows} />
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {book.orphans.length > 0 && (
+        <Card id="unlinked" className="scroll-mt-20">
           <CardHeader>
-            <CardTitle className="text-base">
-              {rows.length} payment{rows.length === 1 ? "" : "s"} · {period}
-            </CardTitle>
+            <CardTitle className="text-base">Payments with no deal</CardTitle>
             <CardDescription>
-              Record, edit or delete a payment on its deal, renewal or invoice. Invoices marked Paid by hand before
-              payments were recorded show here once a payment is recorded on them.
-              {undatedElsewhere > 0 &&
-                ` ${undatedElsewhere} payment${undatedElsewhere === 1 ? "" : "s"} from earlier records with no date ${undatedElsewhere === 1 ? "shows" : "show"} under All only.`}
+              What they were for no longer exists, so they count nowhere. Restore it from Trash if it is there, or
+              delete them.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {selectedYear === null ? "No payments recorded yet." : `Nothing received in ${period} yet.`}
-              </p>
-            ) : (
-              <>
-                <ul className="space-y-2 md:hidden">
-                  {rows.map((row) => (
-                    <PaymentCard key={row.paymentId} row={row} />
-                  ))}
-                </ul>
-                <div className="hidden md:block">
-                  <PaymentsTable rows={rows} />
-                </div>
-              </>
-            )}
+            <UnlinkedPayments payments={book.orphans} />
           </CardContent>
         </Card>
-
-        {book.orphans.length > 0 && (
-          <Card id="unlinked" className="scroll-mt-20">
-            <CardHeader>
-              <CardTitle className="text-base">Payments with no deal</CardTitle>
-              <CardDescription>
-                What they were for no longer exists, so they count nowhere. Restore it from Trash if it is there, or
-                delete them.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UnlinkedPayments payments={book.orphans} />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </AppShell>
+      )}
+    </>
   );
 }

@@ -24,6 +24,7 @@ import { getContacts } from "@/repositories/contacts.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
 import { getPaymentBook } from "@/repositories/paymentBook.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
+import { readExpenseRecords } from "@/repositories/expenseRecords.server";
 import { getLinksAnalytics } from "@/repositories/linkStats.server";
 import { getLinksData } from "@/repositories/links.writer.server";
 import { getMediaKitUniqueVisitors, getMediaKitViews } from "@/lib/cache";
@@ -37,6 +38,8 @@ import {
 } from "@/lib/invoice";
 import { computeEditorPayouts, computeMonthlyEditorCost } from "@/lib/editorTransactions";
 import { cashReceived, computeMarginSeries, currentMonthKey } from "@/lib/earnings";
+import { expenseCostByMonth } from "@/lib/expenses";
+import { sumMoney } from "@/lib/money";
 import { computeCollectionLag, computeMonthForecast } from "@/lib/cashTiming";
 import { computeRateRealization, toRateCard } from "@/lib/rateCard";
 import { computeFallthroughRate, computePipelineValue } from "@/lib/dealFlow";
@@ -212,10 +215,11 @@ async function WeekAheadSection() {
 // failure than a missing earnings block, and both are derived from the
 // summary that has already loaded.
 async function EarningsSection() {
-  const [earnings, campaigns, editorTransactions] = await Promise.all([
+  const [earnings, campaigns, editorTransactions, expenses] = await Promise.all([
     earningsRepository.getSummary().catch(() => null),
     campaignRepository.getAll().catch(() => []),
     getEditorTransactions().catch(() => []),
+    readExpenseRecords().catch(() => []),
   ]);
   if (!earnings) return null;
 
@@ -224,7 +228,11 @@ async function EarningsSection() {
     <EarningsOverview
       summary={earnings}
       forecast={computeMonthForecast(campaigns, thisMonth ? cashReceived(thisMonth) : 0)}
-      margins={computeMarginSeries(earnings.monthly, computeMonthlyEditorCost(editorTransactions))}
+      margins={computeMarginSeries(
+        earnings.monthly,
+        computeMonthlyEditorCost(editorTransactions),
+        expenseCostByMonth(expenses)
+      )}
     />
   );
 }
@@ -260,14 +268,16 @@ async function BusinessMixSection() {
 // an empty list rather than taking the section down: a missing editor payout
 // is a wrong figure, but a blank dashboard is a broken one.
 async function MoneyFlowSection() {
-  const [invoices, editorTransactions] = await Promise.all([
+  const [invoices, editorTransactions, expenses] = await Promise.all([
     getInvoices().catch(() => []),
     getEditorTransactions().catch(() => []),
+    readExpenseRecords().catch(() => []),
   ]);
   return (
     <MoneyFlowCard
       invoices={computeInvoiceStats(invoices)}
       payouts={computeEditorPayouts(editorTransactions)}
+      expensesPaid={sumMoney(expenses.map((expense) => expense.amount))}
       margins={computeInvoiceMarginTotals(invoices, buildInvoiceEditorJobOptions(editorTransactions))}
       className="mb-6"
     />

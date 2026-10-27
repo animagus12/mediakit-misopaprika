@@ -10,7 +10,23 @@ describe("computeMarginSeries", () => {
     );
 
     expect(series).toEqual([
-      { month: "2026-05", cash: 12000, editorCost: 3000, margin: 9000, marginPercent: 75 },
+      { month: "2026-05", cash: 12000, editorCost: 3000, expenseCost: 0, margin: 9000, marginPercent: 75 },
+    ]);
+  });
+
+  it("takes expenses off the month they were paid in, alongside editing", () => {
+    const series = computeMarginSeries(
+      [makeMonthlyEarnings("2026-05", { paid: 10000 })],
+      new Map([["2026-05", 2000]]),
+      new Map([
+        ["2026-05", 1500],
+        ["2026-03", 700],
+      ])
+    );
+
+    expect(series).toEqual([
+      { month: "2026-05", cash: 10000, editorCost: 2000, expenseCost: 1500, margin: 6500, marginPercent: 65 },
+      { month: "2026-03", cash: 0, editorCost: 0, expenseCost: 700, margin: -700, marginPercent: null },
     ]);
   });
 
@@ -26,7 +42,7 @@ describe("computeMarginSeries", () => {
   it("nets a month with no editing to its cash", () => {
     const series = computeMarginSeries([makeMonthlyEarnings("2026-05", { paid: 5000 })], new Map());
 
-    expect(series[0]).toEqual({ month: "2026-05", cash: 5000, editorCost: 0, margin: 5000, marginPercent: 100 });
+    expect(series[0]).toEqual({ month: "2026-05", cash: 5000, editorCost: 0, expenseCost: 0, margin: 5000, marginPercent: 100 });
   });
 
   it("reports a negative margin when editing cost more than came in", () => {
@@ -44,7 +60,7 @@ describe("computeMarginSeries", () => {
       new Map([["2026-05", 400]])
     );
 
-    expect(series[0]).toEqual({ month: "2026-05", cash: 0, editorCost: 400, margin: -400, marginPercent: null });
+    expect(series[0]).toEqual({ month: "2026-05", cash: 0, editorCost: 400, expenseCost: 0, margin: -400, marginPercent: null });
   });
 
   it("keeps the order of the monthly list it is given", () => {
@@ -66,8 +82,8 @@ describe("computeMarginSeries", () => {
     );
 
     expect(series).toEqual([
-      { month: "2026-05", cash: 5000, editorCost: 1000, margin: 4000, marginPercent: 80 },
-      { month: "2026-04", cash: 0, editorCost: 800, margin: -800, marginPercent: null },
+      { month: "2026-05", cash: 5000, editorCost: 1000, expenseCost: 0, margin: 4000, marginPercent: 80 },
+      { month: "2026-04", cash: 0, editorCost: 800, expenseCost: 0, margin: -800, marginPercent: null },
     ]);
   });
 

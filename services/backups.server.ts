@@ -24,6 +24,7 @@ const ARRAY_KEYS = [
   "contacts",
   "editor_transactions",
   "editors",
+  "expenses",
   "invoices",
   "payments",
   "trash",
@@ -58,6 +59,7 @@ const RECORD_LABELS: Record<RecordKey, string> = {
   contacts: "Contacts",
   editor_transactions: "Editor transactions",
   editors: "Editors",
+  expenses: "Expenses",
   invoices: "Invoices",
   payments: "Payments",
   trash: "Trash",
@@ -94,6 +96,7 @@ export interface BackupPreview {
     campaigns: number;
     invoices: number;
     payments: number;
+    expenses: number;
     calendarItems: number;
     contacts: number;
     agencies: number;
@@ -218,6 +221,7 @@ export function previewBackup({ snapshot, missingKeys }: ParsedBackup): BackupPr
       campaigns: recordCount(records.campaigns),
       invoices: recordCount(records.invoices),
       payments: recordCount(records.payments),
+      expenses: recordCount(records.expenses),
       calendarItems: recordCount(records.content_plan),
       contacts: recordCount(records.contacts),
       agencies: recordCount(records.agencies),
@@ -290,6 +294,7 @@ export async function restoreBackupSnapshot(snapshot: BackupSnapshot): Promise<v
     "contentPlan",
     "invoices",
     "payments",
+    "expenses",
     "brands",
     "contacts",
     "agencies",

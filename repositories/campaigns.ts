@@ -8,6 +8,7 @@
 // unchanged: same choice already made for data/editor-transactions.json.
 
 import { addMonthsToDay, daysBetween } from "@/lib/day";
+import type { DealCosts } from "./expenses";
 import {
   deriveBarterState,
   firstDayKey,
@@ -422,6 +423,13 @@ export interface Campaign extends CampaignRecord {
   settlement: Settlement | null;
   /** Whether the barter half was delivered; null on a deal with no barter half. */
   barterState: CampaignPaymentStatus | null;
+  /**
+   * What the deal cost to make: its editing job and the expenses recorded
+   * against it, joined on by getCampaigns (see attachDealCosts in
+   * lib/expenses.ts). Null where costs weren't read, which is every read that
+   * doesn't show them; never stored.
+   */
+  costs: DealCosts | null;
 }
 
 export interface NewCampaignInput {
@@ -565,6 +573,7 @@ export function toCampaign(record: CampaignRecord): Campaign {
       barterStatus,
       settlement
     ),
+    costs: null,
   };
 }
 
