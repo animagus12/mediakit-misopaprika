@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-10-30
+
 ### Added
 
 - **Automated checks now guard the money calculations.** Earnings, TDS, invoice totals, editor costs, margins and the payments-due summary are covered by tests that run with `npm test`, so a change that shifts any of these figures is caught before it ships.
