@@ -20,11 +20,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   buildInvoiceNumber,
   filterInvoices,
-  findDuplicateInvoiceNumbers,
   formatInvoiceDate,
   formatInvoiceStatus,
   formatMoney,
   INVOICE_FILTER_TABS,
+  invoiceDisplayStatus,
   invoiceStatusStyle,
   isInvoiceFilter,
   isInvoiceOverdue,
@@ -46,6 +46,8 @@ const DEFAULT_SORT: SortState = { column: "issueDate", direction: "desc" };
 
 interface InvoicesTableProps {
   invoices: Invoice[];
+  /** Invoice numbers used more than once across every invoice, not only these. */
+  duplicateNumbers: string[];
 }
 
 function SortHeader({
@@ -76,7 +78,7 @@ function SortHeader({
   );
 }
 
-export function InvoicesTable({ invoices }: InvoicesTableProps) {
+export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: InvoicesTableProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -129,7 +131,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
     );
   }
 
-  const duplicateNumbers = useMemo(() => findDuplicateInvoiceNumbers(invoices), [invoices]);
+  const duplicateNumbers = useMemo(() => new Set(duplicateList), [duplicateList]);
 
   const filtered = useMemo(
     () => filterInvoices(invoices, { filter: tab, query }),
@@ -233,7 +235,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
               </TableHeader>
               <TableBody>
                 {pageRows.map((invoice) => {
-                  const status = invoiceStatusStyle(invoice.status);
+                  const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
                   const overdue = isInvoiceOverdue(invoice);
                   const duplicate = duplicateNumbers.has(invoice.invoiceNo.trim());
                   const label = buildInvoiceNumber(invoice.invoiceNo);
@@ -311,7 +313,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                       </TableCell>
                       <TableCell>
                         <Badge variant={status.variant} className={status.className}>
-                          {formatInvoiceStatus(invoice.status)}
+                          {formatInvoiceStatus(invoiceDisplayStatus(invoice))}
                         </Badge>
                       </TableCell>
                       <TableCell onClick={(event) => event.stopPropagation()}>
@@ -327,7 +329,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
           {/* Mobile: stacked cards */}
           <ul className="space-y-2 md:hidden">
             {pageRows.map((invoice) => {
-              const status = invoiceStatusStyle(invoice.status);
+              const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
               const overdue = isInvoiceOverdue(invoice);
               const duplicate = duplicateNumbers.has(invoice.invoiceNo.trim());
               const label = buildInvoiceNumber(invoice.invoiceNo);
@@ -350,7 +352,7 @@ export function InvoicesTable({ invoices }: InvoicesTableProps) {
                           </p>
                         </div>
                         <Badge variant={status.variant} className={status.className}>
-                          {formatInvoiceStatus(invoice.status)}
+                          {formatInvoiceStatus(invoiceDisplayStatus(invoice))}
                         </Badge>
                       </div>
                       <p className="truncate">

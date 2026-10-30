@@ -13,6 +13,12 @@ import styles from "./invoice.module.css";
 
 interface InvoicePreviewProps {
   state: InvoiceFormState;
+  /**
+   * What the payment ledger says has been received against this invoice: a
+   * linked invoice's deal payments, a standalone invoice's own. 0 for an
+   * invoice not yet saved.
+   */
+  amountReceived: number;
 }
 
 const FIRST_PAGE_ITEM_LIMIT = 2;
@@ -28,9 +34,12 @@ function paginateItems(items: InvoiceLineItem[]): InvoiceLineItem[][] {
   return pages;
 }
 
-export function InvoicePreview({ state }: InvoicePreviewProps) {
+export function InvoicePreview({ state, amountReceived }: InvoicePreviewProps) {
   const subtotal = computeSubtotal(state.items);
-  const balanceDue = computeBalanceDue(subtotal, state.advance);
+  const balanceDue = computeBalanceDue(subtotal, amountReceived);
+  // Only once something has arrived: a fresh invoice reads Subtotal, then
+  // Balance due, with no zero line between them.
+  const showReceived = amountReceived > 0;
   const instagramHandle = state.instagramHandle.trim().replace(/^@+/, "");
   const youtubeHandle = state.youtubeHandle.trim().replace(/^@+/, "");
   const pages = paginateItems(state.items);
@@ -205,20 +214,24 @@ export function InvoicePreview({ state }: InvoicePreviewProps) {
               <col className={styles.colTotal} />
             </colgroup>
             <tbody>
-              <tr className={styles.totalsStrong}>
+              <tr
+                className={`${styles.totalsStrong} ${!showReceived && !state.barterOn ? styles.totalsLastline : ""}`}
+              >
                 <td>SUBTOTAL</td>
                 <td></td>
                 <td></td>
                 <td className={styles.c}>{formatMoney(subtotal)}</td>
               </tr>
-              <tr
-                className={`${styles.totalsStrong} ${!state.barterOn ? styles.totalsLastline : ""}`}
-              >
-                <td>ADVANCE RECEIVED</td>
-                <td></td>
-                <td></td>
-                <td className={styles.c}>{formatMoney(state.advance)}</td>
-              </tr>
+              {showReceived && (
+                <tr
+                  className={`${styles.totalsStrong} ${!state.barterOn ? styles.totalsLastline : ""}`}
+                >
+                  <td>AMOUNT RECEIVED</td>
+                  <td></td>
+                  <td></td>
+                  <td className={styles.c}>{formatMoney(amountReceived)}</td>
+                </tr>
+              )}
               {state.barterOn && (
                 <tr className={`${styles.totalsStrong} ${styles.totalsLastline}`}>
                   <td>Barter Component</td>

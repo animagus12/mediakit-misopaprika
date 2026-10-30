@@ -1,4 +1,5 @@
 import { addMonths, monthKeyOf, todayKey } from "@/lib/day";
+import { roundMoney, sumMoney } from "@/lib/money";
 import type { MonthlyEarnings } from "@/repositories/earnings";
 
 export function monthLabel(month: string): string {
@@ -22,6 +23,40 @@ export function currentMonthKey(now: Date = new Date()): string {
 // "YYYY-MM" strings compare chronologically as plain strings.
 export function monthsAgoKey(count: number, now: Date = new Date()): string {
   return addMonths(currentMonthKey(now), -count);
+}
+
+/**
+ * Spendable money received in a month: deal cash plus affiliate commission.
+ *
+ * MonthlyEarnings.total also counts barter, which is product rather than
+ * money. Anything labelled "Received" or netted against a cash cost reads
+ * this instead, and barter keeps its own figure beside it.
+ */
+export function cashReceived(month: Pick<MonthlyEarnings, "paid" | "commission">): number {
+  return sumMoney([month.paid, month.commission]);
+}
+
+export type EarningsTotals = Pick<
+  MonthlyEarnings,
+  "total" | "paid" | "tds" | "fees" | "net" | "barter" | "commission" | "pending"
+>;
+
+/**
+ * The figures of several months added together, such as the months of one
+ * financial year. Each figure is summed on its own, so cashReceived reads the
+ * result exactly as it reads a single month.
+ */
+export function sumMonthlyEarnings(months: readonly MonthlyEarnings[]): EarningsTotals {
+  return {
+    total: sumMoney(months.map((month) => month.total)),
+    paid: sumMoney(months.map((month) => month.paid)),
+    tds: sumMoney(months.map((month) => month.tds)),
+    fees: sumMoney(months.map((month) => month.fees)),
+    net: sumMoney(months.map((month) => month.net)),
+    barter: sumMoney(months.map((month) => month.barter)),
+    commission: sumMoney(months.map((month) => month.commission)),
+    pending: sumMoney(months.map((month) => month.pending)),
+  };
 }
 
 function monthlyTotal(monthly: MonthlyEarnings[], key: string): number {
@@ -89,6 +124,9 @@ export interface MonthMargin {
    */
   cash: number;
   editorCost: number;
+  /** Expenses paid that month: props, equipment, software and the rest. */
+  expenseCost: number;
+  /** cash less editing and expenses. */
   margin: number;
   /** margin as a share of cash; null when nothing came in to take a share of. */
   marginPercent: number | null;
@@ -116,20 +154,38 @@ export interface MonthMargin {
  * case only when no cash came in either, so a caller can tell "kept all of it"
  * apart from "there was nothing to keep".
  *
- * Order follows `monthly`, which is newest-first.
+ * The reverse holds too: a month that paid for editing but received nothing
+ * still appears, with zero cash and a negative margin. Building the series
+ * from `monthly` alone dropped those months, and with them the editing bill
+ * paid ahead of the income it was for, which is exactly the month a creator
+ * most needs to see.
+ *
+ * Expenses come off the same way, by the month they were paid
+ * (expenseCostByMonth in lib/expenses.ts), so a prop bought for a shoot
+ * lowers the month it was bought in the moment it is recorded.
+ *
+ * Newest-first, like `monthly`: the months are the union of every input.
  */
 export function computeMarginSeries(
   monthly: MonthlyEarnings[],
-  editorCostByMonth: Map<string, number>
+  editorCostByMonth: Map<string, number>,
+  expenseCostByMonth: Map<string, number> = new Map()
 ): MonthMargin[] {
-  return monthly.map((month) => {
-    const editorCost = editorCostByMonth.get(month.month) ?? 0;
-    const cash = month.paid + month.commission;
-    const margin = cash - editorCost;
+  const cashByMonth = new Map(monthly.map((month) => [month.month, cashReceived(month)]));
+  const months = [
+    ...new Set([...cashByMonth.keys(), ...editorCostByMonth.keys(), ...expenseCostByMonth.keys()]),
+  ].sort((a, b) => b.localeCompare(a));
+
+  return months.map((month) => {
+    const cash = cashByMonth.get(month) ?? 0;
+    const editorCost = roundMoney(editorCostByMonth.get(month) ?? 0);
+    const expenseCost = roundMoney(expenseCostByMonth.get(month) ?? 0);
+    const margin = roundMoney(cash - editorCost - expenseCost);
     return {
-      month: month.month,
+      month,
       cash,
       editorCost,
+      expenseCost,
       margin,
       marginPercent: cash > 0 ? (margin / cash) * 100 : null,
     };

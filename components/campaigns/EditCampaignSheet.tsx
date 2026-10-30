@@ -35,8 +35,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { CampaignInvoiceOption } from "@/lib/invoice";
+import { formatMoney, type CampaignInvoiceOption } from "@/lib/invoice";
 import { todayKey } from "@/lib/day";
+import { DealCosts } from "@/components/expenses/DealCosts";
+import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import {
   CampaignFormFields,
   campaignAmounts,
@@ -54,7 +56,7 @@ import {
 } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import { renewalTotal } from "@/lib/usageRights";
-import type { Campaign } from "@/repositories/campaigns";
+import { campaignTypeHasCash, type Campaign } from "@/repositories/campaigns";
 import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 
 // Radix Select can't take "" as an item value, so "not linked" needs its own.
@@ -74,8 +76,12 @@ function licenceContext(campaign: Campaign): CampaignLicenceContext {
   };
 }
 
+// On a deal with cash the paid date, method and actual TDS belong to its
+// payments now (see the Payments section), so the form only carries them for
+// a barter-only deal, where "paid date" is the day the goods arrived.
 function formFromCampaign(campaign: Campaign): CampaignFormState {
   const renewal = latestRenewal(campaign);
+  const barterOnly = !campaignTypeHasCash(campaign.type);
   return {
     brand: campaign.brand,
     brandId: campaign.brandId,
@@ -89,14 +95,15 @@ function formFromCampaign(campaign: Campaign): CampaignFormState {
     status: campaign.status,
     amount: campaign.amount > 0 ? String(campaign.amount) : "",
     barterValue: campaign.barterValue > 0 ? String(campaign.barterValue) : "",
-    paymentStatus: campaign.paymentStatus,
+    paymentStatus: campaign.storedPaymentStatus,
+    barterStatus: campaign.barterState ?? "pending",
     date: toIsoDate(campaign.date) || todayKey(),
     uploadDate: toIsoDate(campaign.uploadDate),
     paymentDue: toIsoDate(campaign.paymentDue),
-    paidDate: toIsoDate(campaign.paidDate),
-    paymentMethod: campaign.paymentMethod,
+    paidDate: barterOnly ? toIsoDate(campaign.paidDate) : "",
+    paymentMethod: barterOnly ? campaign.paymentMethod : "",
     tdsRate: campaign.tdsRate === null ? "" : String(campaign.tdsRate),
-    tdsAmount: campaign.tdsAmount === null ? "" : String(campaign.tdsAmount),
+    tdsAmount: barterOnly && campaign.tdsAmount !== null ? String(campaign.tdsAmount) : "",
     editorTransactionId: campaign.editorTransactionId,
     usageDays: campaign.usage.days > 0 ? String(campaign.usage.days) : "",
     usageIndefinite: campaign.usage.indefinite,
@@ -144,6 +151,13 @@ export function EditCampaignSheet({
   const [isPending, startTransition] = useTransition();
   const [isUnlinking, startUnlinkTransition] = useTransition();
 
+  // Lowering the amount below what has already arrived would leave the deal
+  // overpaid; said before saving rather than discovered on the dashboard.
+  const formAmounts = campaignAmounts(form);
+  const formCash = formAmounts.amount + formAmounts.usageFee;
+  const settled = campaign.settlement?.settled ?? 0;
+  const overpaidAfterSave = campaignTypeHasCash(form.type) ? Math.max(0, settled - formCash) : 0;
+
   const formId = `edit-campaign-${campaign.id}`;
   // A deal linked to its invoice opens it. One that isn't gets the editor
   // prefilled from the deal, unless there is nothing to bill: a called-off deal
@@ -187,6 +201,7 @@ export function EditCampaignSheet({
         status: form.status,
         ...campaignAmounts(form),
         paymentStatus: form.paymentStatus,
+        ...(form.type === "Barter+Paid" ? { barterStatus: form.barterStatus } : {}),
         date: form.date,
         uploadDate: form.uploadDate,
         paymentDue: dueInvoice ? dueInvoice.dueDate : form.paymentDue,
@@ -261,8 +276,39 @@ export function EditCampaignSheet({
               videoOptions={videoOptions}
               dueInvoice={dueInvoice}
             />
+            {overpaidAfterSave > 0 && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                {formatMoney(settled)} already received; saving at {formatMoney(formCash)} leaves{" "}
+                {formatMoney(overpaidAfterSave)} overpaid.
+              </p>
+            )}
             {error && <p className="text-xs text-destructive">{error}</p>}
           </form>
+
+          {/* Like the licence panel, its controls write on click rather than on
+              Save. Shown for the deal as last saved: a deal turned barter only
+              in the form still has these payments until it is saved. */}
+          {campaign.settlement && campaign.cash > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-xs font-medium">Payments</p>
+                <PaymentHistory
+                  settlement={campaign.settlement}
+                  targetLabel={campaignLabel(campaign.campaign, campaign.brand)}
+                  expectedTdsRate={campaign.tdsRate}
+                />
+              </div>
+            </>
+          )}
+
+          {/* Same as the payments: writes on click, shown for the deal as last saved. */}
+          {campaign.costs && (
+            <>
+              <Separator />
+              <DealCosts campaign={campaign} />
+            </>
+          )}
 
           {(invoiceHref || availableInvoices.length > 0) && (
             <>

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import AppShell from "@/components/common/AppShell";
+import { FinancialYearFilter } from "@/components/common/FinancialYearFilter";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -12,8 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toSheetDate } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
-import { currentFinancialYearStart, summarizeTds, tdsFinancialYears } from "@/lib/tds";
+import { currentFinancialYearStart, financialYearLabel, resolveFinancialYearParam } from "@/lib/financialYear";
+import { summarizeTds, tdsFinancialYears, type TdsSource } from "@/lib/tds";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import type { Campaign } from "@/repositories/campaigns";
 
@@ -24,16 +25,17 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-interface TaxesPageProps {
-  searchParams: Promise<{ fy?: string }>;
-}
+const SOURCE_LABELS: Record<TdsSource, string> = {
+  deal: "Deal",
+  renewal: "Usage renewal",
+};
 
-function financialYearLabel(start: number): string {
-  return `FY ${start}-${String(start + 1).slice(-2)}`;
+interface TaxesPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default async function TaxesPage({ searchParams }: TaxesPageProps) {
-  const { fy } = await searchParams;
+  const params = await searchParams;
   let campaigns: Campaign[] = [];
   let error: string | null = null;
   try {
@@ -43,11 +45,7 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
   }
 
   const years = tdsFinancialYears(campaigns);
-  const requestedYear = fy && /^\d{4}$/.test(fy) ? Number(fy) : null;
-  const selectedYear =
-    requestedYear !== null && years.includes(requestedYear)
-      ? requestedYear
-      : currentFinancialYearStart();
+  const selectedYear = resolveFinancialYearParam(params.fy, years) ?? currentFinancialYearStart();
   const summary = summarizeTds(campaigns, selectedYear);
 
   return (
@@ -56,7 +54,8 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">TDS &amp; tax</h1>
           <p className="text-sm text-muted-foreground">
-            Track tax withheld from brand payments. Financial years run from April through March.
+            Track tax withheld from brand payments, deals and usage renewals alike. Financial years run
+            from April through March.
           </p>
         </div>
 
@@ -68,13 +67,7 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
           </Card>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {years.map((year) => (
-            <Button key={year} asChild variant={year === selectedYear ? "default" : "outline"} size="sm">
-              <Link href={`/taxes?fy=${year}`}>{financialYearLabel(year)}</Link>
-            </Button>
-          ))}
-        </div>
+        <FinancialYearFilter pathname="/taxes" searchParams={params} years={years} selected={selectedYear} />
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Card>
@@ -91,8 +84,11 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
           </Card>
           <Card>
             <CardHeader>
-              <CardDescription>Gross campaign value</CardDescription>
+              <CardDescription>Gross amount with TDS</CardDescription>
               <CardTitle className="tabular-nums">{formatMoney(summary.totalCash)}</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Settled by the payments in the table below, before tax. Payments with no TDS recorded are left out.
+              </p>
             </CardHeader>
           </Card>
         </div>
@@ -134,13 +130,15 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
           <CardHeader>
             <CardTitle className="text-base">Payment details</CardTitle>
             <CardDescription>
-              TDS is grouped by the campaign payment date. Estimates use the rate entered on the campaign.
+              Each payment with TDS recorded, filed by the date the money arrived. A deal paid in
+              instalments has a row for each. Estimates use the rate entered on that deal or renewal.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {summary.payments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Mark a campaign payment as received and enter its TDS details to see it here.
+                Record a payment with the TDS the brand withheld, or set a TDS rate on a deal already marked
+                received, to see it here.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -152,18 +150,20 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
                       <TableHead className="text-right">Gross amount</TableHead>
                       <TableHead>Rate</TableHead>
                       <TableHead className="text-right">TDS</TableHead>
-                      <TableHead>Source</TableHead>
+                      <TableHead>Basis</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {summary.payments.map((payment) => (
-                      <TableRow key={payment.campaignId}>
+                      <TableRow key={payment.paymentId}>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {payment.paidDate}
+                          {toSheetDate(payment.paidDate)}
                         </TableCell>
                         <TableCell>
                           <span className="block font-medium">{payment.brand}</span>
-                          <span className="block text-xs text-muted-foreground">{payment.campaign}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {payment.campaign || "-"} · {SOURCE_LABELS[payment.source]}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatMoney(payment.cashAmount)}

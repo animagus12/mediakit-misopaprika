@@ -1,6 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAME, verifySessionToken } from "@/lib/auth";
-import { MAX_BACKUP_BYTES, createBackupSnapshot, parseBackupSnapshot, restoreBackupSnapshot } from "@/services/backups.server";
+import {
+  MAX_BACKUP_BYTES,
+  createBackupSnapshot,
+  parseBackupSnapshot,
+  previewBackup,
+  restoreBackupSnapshot,
+} from "@/services/backups.server";
 
 export async function GET(request: NextRequest) {
   if (!(await verifySessionToken(request.cookies.get(COOKIE_NAME)?.value))) {
@@ -32,6 +38,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST ?preview=1 validates the uploaded file and returns what it contains
+// without restoring, so the restore dialog can list the collections the file
+// leaves out (and therefore clears) before the owner confirms. Both modes
+// share the size checks and parseBackupSnapshot below.
 export async function POST(request: NextRequest) {
   if (!(await verifySessionToken(request.cookies.get(COOKIE_NAME)?.value))) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -65,16 +75,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "The uploaded file is not valid JSON." }, { status: 400 });
   }
 
-  const snapshot = parseBackupSnapshot(value);
-  if (!snapshot) {
+  const parsed = parseBackupSnapshot(value);
+  if (!parsed) {
     return NextResponse.json(
-      { error: "This file is not a supported MediaKit backup or its data is incomplete." },
+      { error: "This file is not a supported MediaKit backup. It may be damaged or come from a newer version of the app." },
       { status: 400 }
     );
   }
 
+  if (request.nextUrl.searchParams.get("preview") === "1") {
+    return NextResponse.json(previewBackup(parsed), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
   try {
-    await restoreBackupSnapshot(snapshot);
+    await restoreBackupSnapshot(parsed.snapshot);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Backup restore failed", error);

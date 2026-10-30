@@ -28,6 +28,12 @@ interface CampaignsListSectionProps {
   brandOptions?: CampaignBrandOption[];
   videoOptions?: EditorVideoOption[];
   invoiceOptions?: CampaignInvoiceOption[];
+  /** The monthly breakdown's financial year, or null for every month. */
+  ledgerYear?: number | null;
+  /** Years the breakdown's filter offers, newest first. */
+  ledgerYears?: number[];
+  /** The page's search params, kept by the year filter's links. */
+  searchParams?: Record<string, string | string[] | undefined>;
 }
 
 export function CampaignsListSection({
@@ -37,6 +43,9 @@ export function CampaignsListSection({
   brandOptions = [],
   videoOptions = [],
   invoiceOptions = [],
+  ledgerYear = null,
+  ledgerYears = [],
+  searchParams = {},
 }: CampaignsListSectionProps) {
   const stats = computeCampaignStats(campaigns);
 
@@ -120,7 +129,12 @@ export function CampaignsListSection({
           {/* Below the table, not above it: the table is what the page is for,
               and the ledger answers "what came in when", which is a question
               you go looking for rather than one you land on. */}
-          <MonthlyEarningsLedger monthly={earnings?.monthly ?? []} />
+          <MonthlyEarningsLedger
+            monthly={earnings?.monthly ?? []}
+            financialYear={ledgerYear}
+            financialYears={ledgerYears}
+            searchParams={searchParams}
+          />
         </>
       )}
     </section>

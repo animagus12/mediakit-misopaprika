@@ -12,113 +12,104 @@
 // their transactions is a single intent. Same reasoning, and the same layer,
 // as lib/revalidation.ts.
 
-export type ActivityEntityType =
-  | "brand"
-  | "agency"
-  | "contact"
-  | "campaign"
-  | "content"
-  | "invoice"
-  | "editor"
-  | "editorTransaction"
-  | "affiliatePartner"
-  | "affiliatePayout"
-  | "links"
-  | "mediakit";
+// The entity and action unions are derived from these maps, so a type or an
+// action cannot exist without being registered for isActivity. A hand-kept
+// list beside the union is how both affiliate types and all six affiliate
+// actions went missing: isActivity drops what is not registered, so every
+// affiliate event was written and then silently left out of the feed.
+const ENTITY_FLAGS = {
+  brand: true,
+  agency: true,
+  contact: true,
+  campaign: true,
+  content: true,
+  invoice: true,
+  editor: true,
+  editorTransaction: true,
+  affiliatePartner: true,
+  affiliatePayout: true,
+  payment: true,
+  expense: true,
+  partnerTransfer: true,
+  links: true,
+  mediakit: true,
+} as const;
+
+export type ActivityEntityType = keyof typeof ENTITY_FLAGS;
 
 // Recorded actions are intent-level. Draft autosaves (saveLinks,
 // saveMediaKit, saveInvoiceDefaults) are deliberately absent: a log that
 // captures every keystroke-driven save is one nobody reads.
-export type ActivityAction =
-  | "brand.created"
-  | "brand.updated"
-  | "brand.deleted"
-  | "brand.logo_assigned"
-  | "brand.imported"
-  | "agency.created"
-  | "agency.updated"
-  | "contact.created"
-  | "contact.updated"
-  | "contact.deleted"
-  | "campaign.created"
-  | "campaign.updated"
-  | "campaign.deleted"
-  | "campaign.payment_received"
-  | "campaign.payment_reverted"
-  | "campaign.scheduled"
-  | "campaign.unscheduled"
-  | "campaign.usage_paused"
-  | "campaign.usage_resumed"
-  | "campaign.usage_ended"
-  | "campaign.usage_renewed"
-  | "campaign.usage_payment_received"
-  | "campaign.usage_payment_reverted"
-  | "content.created"
-  | "content.updated"
-  | "content.deleted"
-  | "content.scheduled"
-  | "content.unscheduled"
-  | "invoice.created"
-  | "invoice.updated"
-  | "invoice.paid"
-  | "invoice.deleted"
-  | "editor.created"
-  | "editor.updated"
-  | "editor.renamed"
-  | "editorTransaction.created"
-  | "editorTransaction.updated"
-  | "editorTransaction.deleted"
-  | "affiliatePartner.created"
-  | "affiliatePartner.updated"
-  | "affiliatePayout.created"
-  | "affiliatePayout.updated"
-  | "affiliatePayout.paid"
-  | "affiliatePayout.deleted"
-  | "links.published"
-  | "mediakit.published";
+//
+// Never remove an action once events carry it: isActivity drops unknown
+// actions on read, so removing one deletes that history from the feed. The
+// campaign.*payment_* and invoice.paid actions are kept for exactly that
+// reason, though payments are now recorded as payment.* events.
+const ACTION_FLAGS = {
+  "brand.created": true,
+  "brand.updated": true,
+  "brand.deleted": true,
+  "brand.logo_assigned": true,
+  "brand.imported": true,
+  "agency.created": true,
+  "agency.updated": true,
+  "contact.created": true,
+  "contact.updated": true,
+  "contact.deleted": true,
+  "campaign.created": true,
+  "campaign.updated": true,
+  "campaign.deleted": true,
+  "campaign.payment_received": true,
+  "campaign.payment_reverted": true,
+  "campaign.scheduled": true,
+  "campaign.unscheduled": true,
+  "campaign.usage_paused": true,
+  "campaign.usage_resumed": true,
+  "campaign.usage_ended": true,
+  "campaign.usage_renewed": true,
+  "campaign.usage_payment_received": true,
+  "campaign.usage_payment_reverted": true,
+  "content.created": true,
+  "content.updated": true,
+  "content.deleted": true,
+  "content.scheduled": true,
+  "content.unscheduled": true,
+  "invoice.created": true,
+  "invoice.updated": true,
+  "invoice.paid": true,
+  "invoice.deleted": true,
+  "editor.created": true,
+  "editor.updated": true,
+  "editor.renamed": true,
+  "editorTransaction.created": true,
+  "editorTransaction.updated": true,
+  "editorTransaction.deleted": true,
+  "affiliatePartner.created": true,
+  "affiliatePartner.updated": true,
+  "affiliatePayout.created": true,
+  "affiliatePayout.updated": true,
+  "affiliatePayout.paid": true,
+  "affiliatePayout.deleted": true,
+  "payment.recorded": true,
+  "payment.updated": true,
+  "payment.deleted": true,
+  "payment.restored": true,
+  "expense.recorded": true,
+  "expense.updated": true,
+  "expense.deleted": true,
+  "expense.restored": true,
+  "partnerTransfer.recorded": true,
+  "partnerTransfer.deleted": true,
+  "links.published": true,
+  "mediakit.published": true,
+} as const;
 
-export const activityActions: readonly ActivityAction[] = [
-  "brand.created",
-  "brand.updated",
-  "brand.deleted",
-  "brand.logo_assigned",
-  "brand.imported",
-  "agency.created",
-  "agency.updated",
-  "contact.created",
-  "contact.updated",
-  "contact.deleted",
-  "campaign.created",
-  "campaign.updated",
-  "campaign.deleted",
-  "campaign.payment_received",
-  "campaign.payment_reverted",
-  "campaign.scheduled",
-  "campaign.unscheduled",
-  "campaign.usage_paused",
-  "campaign.usage_resumed",
-  "campaign.usage_ended",
-  "campaign.usage_renewed",
-  "campaign.usage_payment_received",
-  "campaign.usage_payment_reverted",
-  "content.created",
-  "content.updated",
-  "content.deleted",
-  "content.scheduled",
-  "content.unscheduled",
-  "invoice.created",
-  "invoice.updated",
-  "invoice.paid",
-  "invoice.deleted",
-  "editor.created",
-  "editor.updated",
-  "editor.renamed",
-  "editorTransaction.created",
-  "editorTransaction.updated",
-  "editorTransaction.deleted",
-  "links.published",
-  "mediakit.published",
-] as const;
+export type ActivityAction = keyof typeof ACTION_FLAGS;
+
+export const activityActions = Object.keys(ACTION_FLAGS) as readonly ActivityAction[];
+
+const ENTITY_TYPES: ReadonlySet<string> = new Set(Object.keys(ENTITY_FLAGS));
+const ACTIONS: ReadonlySet<string> = new Set(activityActions);
 
 export interface ActivityEntity {
   type: ActivityEntityType;
@@ -155,6 +146,11 @@ export interface Activity {
   detail?: string;
   /** Only where money is the point of the event, for display alongside it. */
   amount?: number;
+  /**
+   * The record the entity belongs to, where it has no page of its own: a
+   * payment's deal or invoice. Snapshotted like `entity`, never joined.
+   */
+  parent?: ActivityEntity;
 }
 
 /** id and at are stamped by recordActivity, so call sites never pass them. */
@@ -168,21 +164,6 @@ export interface ActivityPage {
   /** Offset for the next page, or null when this page reached the end. */
   nextOffset: number | null;
 }
-
-const ENTITY_TYPES = new Set<string>([
-  "brand",
-  "agency",
-  "contact",
-  "campaign",
-  "content",
-  "invoice",
-  "editor",
-  "editorTransaction",
-  "links",
-  "mediakit",
-]);
-
-const ACTIONS = new Set<string>(activityActions);
 
 export function isActivityEntityType(value: string): value is ActivityEntityType {
   return ENTITY_TYPES.has(value);
@@ -201,8 +182,13 @@ export function isActivity(value: unknown): value is Activity {
   const candidate = value as Partial<Activity>;
   if (typeof candidate.id !== "string" || typeof candidate.at !== "string") return false;
   if (typeof candidate.action !== "string" || !ACTIONS.has(candidate.action)) return false;
-  const entity = candidate.entity;
-  if (typeof entity !== "object" || entity === null) return false;
+  if (!isActivityEntity(candidate.entity)) return false;
+  return candidate.parent === undefined || isActivityEntity(candidate.parent);
+}
+
+function isActivityEntity(value: unknown): value is ActivityEntity {
+  if (typeof value !== "object" || value === null) return false;
+  const entity = value as Partial<ActivityEntity>;
   if (typeof entity.type !== "string" || !ENTITY_TYPES.has(entity.type)) return false;
   if (entity.id !== null && typeof entity.id !== "string") return false;
   return typeof entity.label === "string";

@@ -7,7 +7,8 @@ import { ArrowUpRight, Check, CircleSlash, PauseCircle, RefreshCw, ShieldAlert }
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { setCampaignUsageState, setUsageRenewalPaymentStatus } from "@/app/(dashboard)/actions";
+import { setCampaignUsageState } from "@/app/(dashboard)/actions";
+import { useMarkReceived } from "@/components/dashboard/useMarkReceived";
 import { formatMoney } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import { formatUsageDays, type OwedRenewal, type UsageAlert } from "@/lib/usageRights";
@@ -88,40 +89,18 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
     });
   }
 
+  // The renewal fee is collected the same way a deal's payment is: one click
+  // records a payment for what is still owed, with an Undo.
+  const { isHidden, isPending: isMarking, markReceived } = useMarkReceived();
+  const renewalTarget = (renewal: OwedRenewal) =>
+    ({ kind: "renewal", campaignId: renewal.campaignId, renewalId: renewal.renewalId }) as const;
+
   function collect(renewal: OwedRenewal) {
-    startTransition(async () => {
-      hide(`owed:${renewal.campaignId}:${renewal.renewalId}`);
-      const result = await setUsageRenewalPaymentStatus(
-        renewal.campaignId,
-        renewal.renewalId,
-        "received"
-      );
-      if (!result.success) {
-        toast.error("Couldn't mark received", { description: result.error });
-        return;
-      }
-      toast.success(`${renewal.brand}: renewal marked received`, {
-        description: formatMoney(renewal.amount),
-        action: {
-          label: "Undo",
-          onClick: () =>
-            startTransition(async () => {
-              const undo = await setUsageRenewalPaymentStatus(
-                renewal.campaignId,
-                renewal.renewalId,
-                "pending"
-              );
-              if (!undo.success) toast.error("Couldn't undo", { description: undo.error });
-            }),
-        },
-      });
-    });
+    markReceived(renewalTarget(renewal), `${renewal.brand} renewal`);
   }
 
   const visibleAlerts = alerts.filter((alert) => !hiddenKeys.includes(`alert:${alert.campaignId}`));
-  const visibleOwed = owed.filter(
-    (renewal) => !hiddenKeys.includes(`owed:${renewal.campaignId}:${renewal.renewalId}`)
-  );
+  const visibleOwed = owed.filter((renewal) => !isHidden(renewalTarget(renewal)));
   if (visibleAlerts.length === 0 && visibleOwed.length === 0) return null;
 
   const expired = visibleAlerts.filter((alert) => alert.term.state === "expired").length;
@@ -191,6 +170,7 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
                 campaignId={alert.campaignId}
                 brand={alert.brand}
                 term={alert.term}
+                defaultTdsRate={alert.tdsRate}
                 // Renewing is a decision like pausing or ending, so the row
                 // leaves the queue the moment it is made rather than waiting
                 // for the revalidation to land. Wrapped in a transition
@@ -246,6 +226,7 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
                     <p className="truncate text-xs text-muted-foreground">
                       {formatUsageDays(renewal.days)} ·{" "}
                       {formatMoney(renewal.amount)}
+                      {renewal.amount < renewal.fee && ` left of ${formatMoney(renewal.fee)}`}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -269,11 +250,11 @@ export function UsageRenewalsCard({ alerts, owed, href, className }: UsageRenewa
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={isPending}
+                    disabled={isPending || isMarking}
                     onClick={() => collect(renewal)}
                   >
                     <Check />
-                    {isPending ? "Saving…" : "Mark received"}
+                    {isMarking ? "Saving…" : "Mark received"}
                   </Button>
                 </div>
               </div>

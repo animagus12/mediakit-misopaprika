@@ -1,5 +1,6 @@
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/invoice";
+import { roundMoney } from "@/lib/money";
 import type { BrandStats } from "@/lib/brandCampaignStats";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,9 @@ interface BrandSummaryCardsProps {
 }
 
 export function BrandSummaryCards({ stats }: BrandSummaryCardsProps) {
+  // totalReceived is cash plus delivered barter at its value; the tile says
+  // money, so barter is shown beside it rather than inside it.
+  const barterReceived = roundMoney(stats.totalReceived - stats.cashReceived);
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <Card className={STAT_TONES.neutral.card}>
@@ -26,10 +30,13 @@ export function BrandSummaryCards({ stats }: BrandSummaryCardsProps) {
       </Card>
       <Card className={STAT_TONES.cash.card}>
         <CardHeader>
-          <CardDescription>Total revenue</CardDescription>
+          <CardDescription>Cash received</CardDescription>
           <CardTitle className={cn("text-lg tabular-nums", STAT_TONES.cash.value)}>
-            {formatMoney(stats.totalReceived)}
+            {formatMoney(stats.cashReceived)}
           </CardTitle>
+          {barterReceived > 0 && (
+            <p className="text-xs text-muted-foreground tabular-nums">+ {formatMoney(barterReceived)} barter</p>
+          )}
         </CardHeader>
       </Card>
       <Card className={STAT_TONES.amber.card}>

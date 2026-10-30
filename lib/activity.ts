@@ -4,13 +4,17 @@ import {
   Clapperboard,
   FileText,
   Handshake,
+  IndianRupee,
   Link2,
+  ReceiptText,
+  Scale,
   Sparkles,
   UserRound,
   Video,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CALENDAR_TIME_ZONE, dayKeyOf } from "@/lib/day";
+import { formatMoney } from "@/lib/invoice";
 import type {
   Activity,
   ActivityAction,
@@ -36,8 +40,9 @@ export interface ActivityDescription {
 // A Record keyed by ActivityAction rather than a switch with a default:
 // adding an action to the union then fails the build here until it has been
 // given words, which is the only thing keeping a new event from rendering as
-// a blank row six months from now.
-const TITLES: Record<ActivityAction, (label: string) => string> = {
+// a blank row six months from now. The event is passed for the few titles
+// that name its amount.
+const TITLES: Record<ActivityAction, (label: string, activity: Activity) => string> = {
   "brand.created": (label) => `Brand ${label} added`,
   "brand.updated": (label) => `Brand ${label} updated`,
   "brand.deleted": (label) => `Brand ${label} deleted`,
@@ -82,6 +87,21 @@ const TITLES: Record<ActivityAction, (label: string) => string> = {
   "affiliatePayout.updated": (label) => `Commission period ${label} updated`,
   "affiliatePayout.paid": (label) => `Commission received for ${label}`,
   "affiliatePayout.deleted": (label) => `Commission period ${label} deleted`,
+  "payment.recorded": (label, activity) =>
+    activity.amount !== undefined
+      ? `Payment of ${formatMoney(activity.amount)} recorded for ${label}`
+      : `Payment recorded for ${label}`,
+  "payment.updated": (label) => `Payment for ${label} edited`,
+  "payment.deleted": (label) => `Payment for ${label} deleted`,
+  "payment.restored": (label) => `Payment for ${label} restored`,
+  "expense.recorded": (label, activity) =>
+    activity.amount !== undefined ? `Spent ${formatMoney(activity.amount)} on ${label}` : `Expense ${label} recorded`,
+  "expense.updated": (label) => `Expense ${label} edited`,
+  "expense.deleted": (label) => `Expense ${label} deleted`,
+  "expense.restored": (label) => `Expense ${label} restored`,
+  "partnerTransfer.recorded": (label, activity) =>
+    activity.amount !== undefined ? `${label} ${formatMoney(activity.amount)} to settle up` : `${label} to settle up`,
+  "partnerTransfer.deleted": (label) => `Settle-up deleted: ${label}`,
   "links.published": () => "Links page published",
   "mediakit.published": () => "Media kit published",
 };
@@ -96,6 +116,7 @@ const TONES: Partial<Record<ActivityAction, ActivityTone>> = {
   "campaign.usage_renewed": "positive",
   "invoice.paid": "positive",
   "affiliatePayout.paid": "positive",
+  "payment.recorded": "positive",
   "brand.deleted": "destructive",
   "campaign.deleted": "destructive",
   "contact.deleted": "destructive",
@@ -103,6 +124,9 @@ const TONES: Partial<Record<ActivityAction, ActivityTone>> = {
   "editorTransaction.deleted": "destructive",
   "affiliatePayout.deleted": "destructive",
   "content.deleted": "destructive",
+  "payment.deleted": "destructive",
+  "expense.deleted": "destructive",
+  "partnerTransfer.deleted": "destructive",
 };
 
 // Icons follow the entity, not the action, so the same kind of record always
@@ -119,6 +143,9 @@ const ICONS: Record<ActivityEntityType, LucideIcon> = {
   editorTransaction: Clapperboard,
   affiliatePartner: BadgePercent,
   affiliatePayout: BadgePercent,
+  payment: IndianRupee,
+  expense: ReceiptText,
+  partnerTransfer: Scale,
   links: Link2,
   mediakit: Sparkles,
 };
@@ -137,11 +164,23 @@ const ROUTES: Record<ActivityEntityType, { detail: ((id: string) => string) | nu
   editorTransaction: { detail: null, list: "/workspace" },
   affiliatePartner: { detail: null, list: "/affiliates" },
   affiliatePayout: { detail: null, list: "/affiliates" },
+  // A payment has no page of its own; every one is listed on Payments (see
+  // activityHref for one that belongs to an invoice).
+  payment: { detail: null, list: "/payments" },
+  // Every expense is listed on Payments, filtered here to money out.
+  expense: { detail: null, list: "/payments?flow=out" },
+  // Settle-ups are listed under Partners on Payments.
+  partnerTransfer: { detail: null, list: "/payments#partners" },
   links: { detail: null, list: "/links-editor" },
   mediakit: { detail: null, list: "/mediakit-generator" },
 };
 
-function activityHref(action: ActivityAction, entity: ActivityEntity): string {
+function activityHref(action: ActivityAction, entity: ActivityEntity, parent?: ActivityEntity): string {
+  // A payment against a standalone invoice is shown on that invoice's page,
+  // which outlives the payment itself.
+  if (entity.type === "payment" && parent?.type === "invoice" && parent.id) {
+    return `/invoices/${parent.id}`;
+  }
   const route = ROUTES[entity.type];
   if (action.endsWith(".deleted") || !entity.id || !route.detail) return route.list;
   return route.detail(entity.id);
@@ -163,6 +202,8 @@ export const activityFilters: readonly ActivityFilter[] = [
   { id: "campaigns", label: "Campaigns", types: ["campaign"] },
   { id: "content", label: "Content", types: ["content"] },
   { id: "invoices", label: "Invoices", types: ["invoice"] },
+  { id: "payments", label: "Payments", types: ["payment"] },
+  { id: "expenses", label: "Expenses", types: ["expense", "partnerTransfer"] },
   { id: "workspace", label: "Workspace", types: ["editor", "editorTransaction"] },
   { id: "affiliates", label: "Affiliates", types: ["affiliatePartner", "affiliatePayout"] },
   { id: "publishing", label: "Publishing", types: ["links", "mediakit"] },
@@ -176,8 +217,8 @@ export function resolveActivityFilter(id: string | undefined): ActivityFilter {
 export function describeActivity(activity: Activity): ActivityDescription {
   const { action, entity } = activity;
   return {
-    title: TITLES[action](entity.label),
-    href: activityHref(action, entity),
+    title: TITLES[action](entity.label, activity),
+    href: activityHref(action, entity, activity.parent),
     Icon: ICONS[entity.type],
     tone: TONES[action] ?? "default",
   };

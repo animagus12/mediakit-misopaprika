@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CircleAlert, FileText } from "lucide-react";
+import { Check, CircleAlert, FileText, IndianRupee, type LucideIcon } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,13 +18,15 @@ interface NeedsAttentionCardProps {
 const MAX_ROWS = 6;
 
 // Operational open loops: delivered work with no invoice, posted deals
-// with untracked payment: each with the one action that closes it. Sits
+// with untracked payment, money recorded beyond what a deal is worth or
+// against a deal that is gone: each with the one action that closes it. Sits
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
 // due date, so the two lists don't overlap. Renders nothing when clear.
 export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps) {
-  const { hiddenIds, isPending, markReceived } = useMarkReceived();
+  const { isHidden, isPending, markReceived: markTarget } = useMarkReceived();
+  const markReceived = (campaignId: string, brand: string) => markTarget({ kind: "deal", campaignId }, brand);
 
-  const visible = items.filter((item) => !hiddenIds.includes(item.campaignId));
+  const visible = items.filter((item) => !isHidden({ kind: "deal", campaignId: item.campaignId }));
   if (visible.length === 0) return null;
 
   const shown = visible.slice(0, MAX_ROWS);
@@ -47,16 +49,19 @@ export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps
           // payments card uses, rather than a line of buttons under each.
           <div
             key={`${item.kind}-${item.campaignId || `${item.brand}-${item.campaign}`}`}
-            className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm odd:bg-muted/30"
+            className="@container flex items-center gap-3 rounded-md px-2 py-1.5 text-sm odd:bg-muted/30"
           >
+            {/* Below 24rem of row the reason moves under the brand rather
+                than squeezing it to a letter (same rule as PaymentsDueCard). */}
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{item.brand}</p>
               <p className="flex min-w-0 gap-1 text-xs text-muted-foreground">
                 <span className="truncate">{item.campaign || "-"}</span>
                 <span className="shrink-0 tabular-nums">· {formatMoney(item.amount)}</span>
               </p>
+              <p className="text-xs text-muted-foreground @sm:hidden">{item.label}</p>
             </div>
-            <p className="shrink-0 text-right text-xs text-muted-foreground">{item.label}</p>
+            <p className="hidden shrink-0 text-right text-xs text-muted-foreground @sm:block">{item.label}</p>
             <div className="flex min-w-6 shrink-0 justify-end pointer-coarse:min-w-11">
               <AttentionAction item={item} isPending={isPending} onMarkReceived={markReceived} />
             </div>
@@ -81,13 +86,23 @@ interface AttentionActionProps {
 // The one action that closes the loop, as an icon button with its name on
 // hover. Styled with buttonVariants on the trigger rather than wrapping
 // <Button>, which fails to server render (see PaymentsDueCard).
+function attentionLink(item: AttentionItem): { href: string; label: string; Icon: LucideIcon } | null {
+  switch (item.kind) {
+    case "uninvoiced":
+      return { href: newInvoiceHref(item.brand, item.campaign, item.campaignId), label: "Create invoice", Icon: FileText };
+    case "overdue-invoice":
+      return { href: `/invoices/${item.campaignId}`, label: "View invoice", Icon: FileText };
+    case "overpaid":
+      return item.href ? { href: item.href, label: "Check the payments", Icon: IndianRupee } : null;
+    case "orphan-payment":
+      return item.href ? { href: item.href, label: "Review on Payments", Icon: IndianRupee } : null;
+    case "untracked-payment":
+      return null;
+  }
+}
+
 function AttentionAction({ item, isPending, onMarkReceived }: AttentionActionProps) {
-  const link =
-    item.kind === "uninvoiced"
-      ? { href: newInvoiceHref(item.brand, item.campaign, item.campaignId), label: "Create invoice" }
-      : item.kind === "overdue-invoice"
-        ? { href: `/invoices/${item.campaignId}`, label: "View invoice" }
-        : null;
+  const link = attentionLink(item);
 
   if (link) {
     return (
@@ -98,7 +113,7 @@ function AttentionAction({ item, isPending, onMarkReceived }: AttentionActionPro
             aria-label={link.label}
             className={buttonVariants({ variant: "outline", size: "icon-sm" })}
           >
-            <FileText />
+            <link.Icon />
           </Link>
         </TooltipTrigger>
         <TooltipContent side="left">{link.label}</TooltipContent>

@@ -15,18 +15,62 @@ import { revalidatePath } from "next/cache";
  * a new store, add the route here rather than to the action.
  */
 const ROUTES = {
-  campaigns: ["/", "/campaigns", "/calendar", "/brands", "/brands/[id]", "/taxes"],
+  // A linked invoice's settlement is its deal's, so a deal write reaches the
+  // invoice pages and the media kit's paid-brand list too.
+  campaigns: [
+    "/",
+    "/campaigns",
+    "/calendar",
+    "/brands",
+    "/brands/[id]",
+    "/taxes",
+    "/invoices",
+    "/invoices/[id]",
+    "/mediakit-generator",
+    "/payments",
+  ],
+  // The payment ledger feeds every money figure: deal and renewal status,
+  // invoice balances, earnings, TDS and the brand totals.
+  payments: [
+    "/",
+    "/campaigns",
+    "/calendar",
+    "/brands",
+    "/brands/[id]",
+    "/invoices",
+    "/invoices/[id]",
+    "/invoices/new",
+    "/taxes",
+    "/mediakit-generator",
+    "/payments",
+  ],
   contentPlan: ["/", "/calendar"],
-  invoices: ["/", "/invoices", "/invoices/[id]", "/invoices/new", "/brands/[id]"],
+  invoices: ["/", "/invoices", "/invoices/[id]", "/invoices/new", "/brands/[id]", "/payments"],
   brands: ["/", "/campaigns", "/brands", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
   contacts: ["/", "/brands", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
   agencies: ["/", "/brands", "/brands/[id]"],
   editors: ["/", "/workspace"],
-  editorTransactions: ["/", "/workspace", "/brands/[id]", "/invoices/[id]", "/invoices/new"],
+  // An editor job is a deal's editing cost, and a paid one is money out.
+  editorTransactions: [
+    "/",
+    "/workspace",
+    "/brands/[id]",
+    "/invoices/[id]",
+    "/invoices/new",
+    "/campaigns",
+    "/calendar",
+    "/payments",
+  ],
+  // An expense is money out, a cost on the deal it was for (whose sheet opens
+  // from the campaigns table, the calendar and the dashboard), and comes off
+  // the dashboard's margin.
+  expenses: ["/", "/payments", "/campaigns", "/calendar"],
+  // Who owes whom between the partners, shown on Payments.
+  partnerTransfers: ["/payments"],
   // Commission is income, so every page that reads the earnings summary is
   // invalidated by an affiliate write, not just /affiliates itself.
-  affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
-  affiliatePayouts: ["/", "/affiliates", "/campaigns", "/brands/[id]"],
+  affiliatePartners: ["/", "/affiliates", "/campaigns", "/brands/[id]", "/payments"],
+  affiliatePayouts: ["/", "/affiliates", "/campaigns", "/brands/[id]", "/payments"],
   brandNotes: ["/brands/[id]"],
   campaignContacts: ["/brands/[id]"],
   invoiceDefaults: ["/invoices/new", "/invoices/[id]"],

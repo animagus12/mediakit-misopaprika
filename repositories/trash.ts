@@ -6,8 +6,11 @@ import type { Contact } from "./contacts";
 import type { CampaignRecord } from "./campaigns";
 import type { ContentItemRecord } from "./contentPlan";
 import type { EditorTransactionRecord } from "./editorTransactions";
+import type { ExpenseRecord } from "./expenses";
+import type { PartnerTransferRecord } from "./partnerTransfers";
 import type { InvoiceRecord } from "./invoices";
 import type { LinkItem, LinkSection, SocialHandle } from "./links";
+import type { PaymentRecord } from "./payments";
 
 export type LinkTrashTarget = "draft" | "published";
 
@@ -43,8 +46,24 @@ export type TrashPayload =
         invoiceLink: { invoiceId: string; invoiceRef: string } | null;
         renewalLinks: { renewalId: string; invoiceId: string }[];
       }[];
+      /** The invoice's own payments, when it was standalone. Absent on older entries. */
+      payments?: PaymentRecord[];
     }
-  | { type: "campaign"; record: CampaignRecord; contacts: CampaignContact[] }
+  | {
+      type: "campaign";
+      record: CampaignRecord;
+      contacts: CampaignContact[];
+      /** Payments against the deal and its renewals. Absent on older entries. */
+      payments?: PaymentRecord[];
+    }
+  | {
+      type: "payment";
+      record: PaymentRecord;
+      /** What the payment was for, as it read when deleted: "Acme · Launch". */
+      targetLabel: string;
+    }
+  | { type: "expense"; record: ExpenseRecord }
+  | { type: "partnerTransfer"; record: PartnerTransferRecord }
   | { type: "editorTransaction"; record: EditorTransactionRecord }
   | { type: "contentItem"; record: ContentItemRecord }
   | (LinkTrashDeletion & { targets: LinkTrashTarget[] });
@@ -71,6 +90,12 @@ export function trashTypeLabel(type: TrashPayload["type"]): string {
       return "Invoice";
     case "campaign":
       return "Campaign";
+    case "payment":
+      return "Payment";
+    case "expense":
+      return "Expense";
+    case "partnerTransfer":
+      return "Settle-up";
     case "editorTransaction":
       return "Editor transaction";
     case "contentItem":

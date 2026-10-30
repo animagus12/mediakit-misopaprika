@@ -3,17 +3,20 @@ import { getRedis } from "@/lib/cache";
 import type { RecordChange } from "@/lib/activityDiff";
 import {
   buildInvoiceNumber,
+  editorJobTakenMessage,
+  findEditorJobHolder,
+  holdsEditorJob,
   invoiceNoKey,
   isInvoiceNoTaken,
   isValidPanNumber,
   validateInvoiceInput,
   withLinkedBrand,
 } from "@/lib/invoice";
-import { getCampaigns } from "./campaigns.writer.server";
-import type { Campaign } from "./campaigns";
+import { attachInvoiceSettlements } from "@/lib/payments";
+import { readCampaignLedger, type CampaignLedger } from "./campaigns.writer.server";
 import { INVOICES_KEY, readInvoiceRecords as readRecords } from "./invoiceRecords.server";
 import { toInvoice } from "./invoices";
-import type { Invoice, InvoiceRecord, InvoiceStatus, InvoiceUpdate, NewInvoice } from "./invoices";
+import type { Invoice, InvoiceRecord, InvoiceUpdate, NewInvoice } from "./invoices";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly. Reading/writing
@@ -23,29 +26,38 @@ const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL 
 
 // Every invoice read carries the brand of the deal it bills (withLinkedBrand),
 // so the brand page, the invoices list and the media kit agree on it without
-// each re-deriving it. Best-effort: campaigns that can't be read leave each
-// invoice's own brand. Writes go through readRecords and store what the
-// editor saved, which after this is the linked brand too.
-async function linkedCampaigns(): Promise<Campaign[]> {
-  try {
-    return await getCampaigns();
-  } catch {
-    return [];
-  }
+// each re-deriving it, and the settlement of whatever it bills (the deal's or
+// the renewal's when linked, its own when standalone). Read from the same
+// snapshot as the deals (readCampaignLedger), and strict for the same reason:
+// a settlement read half-way would misstate what is owed. Writes go through
+// readRecords and store what the editor saved.
+function joinInvoices(records: InvoiceRecord[], ledger: CampaignLedger): Invoice[] {
+  const invoices = records.map((record) => withLinkedBrand(toInvoice(record), ledger.campaigns));
+  return attachInvoiceSettlements(invoices, ledger.campaigns, ledger.payments);
 }
 
 // Falls back to the bundled data/invoices.json seed (empty) until the first
 // invoice is saved, or whenever Redis isn't configured (e.g. local dev
 // without KV env vars).
 export async function getInvoices(): Promise<Invoice[]> {
-  const [records, campaigns] = await Promise.all([readRecords(), linkedCampaigns()]);
-  return records.map((record) => withLinkedBrand(toInvoice(record), campaigns));
+  const ledger = await readCampaignLedger();
+  return joinInvoices(ledger.invoices, ledger);
+}
+
+/**
+ * The deals and the invoices settled from one read, for the readers that need
+ * every payment in the book (earnings, the Payments page): reading them
+ * separately could pair a payment with a deal from a different moment.
+ */
+export async function readSettledLedger(): Promise<CampaignLedger & { settledInvoices: Invoice[] }> {
+  const ledger = await readCampaignLedger();
+  return { ...ledger, settledInvoices: joinInvoices(ledger.invoices, ledger) };
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
-  const [records, campaigns] = await Promise.all([readRecords(), linkedCampaigns()]);
-  const record = records.find((r) => r.id === id);
-  return record ? withLinkedBrand(toInvoice(record), campaigns) : null;
+  const ledger = await readCampaignLedger();
+  const record = ledger.invoices.find((r) => r.id === id);
+  return record ? (joinInvoices([record], ledger)[0] ?? null) : null;
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of what
@@ -128,18 +140,38 @@ function assertInvoiceNoFree(invoiceNo: string, records: InvoiceRecord[], except
   }
 }
 
+// One editing job is one cost, so it bills against one invoice: linked to two,
+// the margin after editing subtracts it twice. Refused here for the same
+// reason assertInvoiceNoFree is: the editor's picker already hides held jobs,
+// but a form opened before another invoice took the job would not know.
+function assertEditorJobFree(
+  invoice: Pick<InvoiceRecord, "status" | "editorTransactionId">,
+  records: InvoiceRecord[],
+  exceptId?: string
+): void {
+  if (!holdsEditorJob(invoice)) return;
+  const holder = findEditorJobHolder(invoice.editorTransactionId, records, exceptId);
+  if (holder) throw new Error(editorJobTakenMessage(holder));
+}
+
 export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
   assertInvoiceNoFree(input.invoiceNo, records);
   const now = new Date().toISOString();
+  const normalized = normalize(input);
   const record: InvoiceRecord = {
     id: crypto.randomUUID(),
-    ...normalize(input),
+    ...normalized,
+    // A new invoice has had nothing paid against it: money arrives as
+    // payments (see lib/payments.ts), never as a status or an advance.
+    status: normalized.status === "paid" ? "sent" : normalized.status,
+    advance: 0,
     createdAt: now,
     updatedAt: now,
   };
+  assertEditorJobFree(record, records);
   await redis.set(INVOICES_KEY, [...records, record]);
   return record;
 }
@@ -165,7 +197,26 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
   if (invoiceNoKey(input.invoiceNo) !== invoiceNoKey(before.invoiceNo)) {
     assertInvoiceNoFree(input.invoiceNo, records, input.id);
   }
-  const after: InvoiceRecord = { ...before, ...normalize(input), updatedAt: new Date().toISOString() };
+  // An invoice is paid by its payments (see lib/payments.ts): its own when it
+  // stands alone, its deal's when it bills one. "Paid" is not the editor's to
+  // set and the advance is not editable, so neither can disagree with the
+  // ledger. A "Paid" or an advance stored before the ledger is kept: it reads
+  // as a payment from an earlier record until one is recorded.
+  const normalized = normalize(input);
+  const after: InvoiceRecord = {
+    ...before,
+    ...normalized,
+    advance: before.advance,
+    status: normalized.status === "paid" && before.status !== "paid" ? "sent" : normalized.status,
+    updatedAt: new Date().toISOString(),
+  };
+  // Only when this save takes a job it did not already hold (a new link, or a
+  // void invoice coming back): an invoice that shares a job from before the
+  // rule should still take other edits, and is fixed by unlinking one side.
+  const takesJob =
+    holdsEditorJob(after) &&
+    (after.editorTransactionId !== before.editorTransactionId || !holdsEditorJob(before));
+  if (takesJob) assertEditorJobFree(after, records, input.id);
   await redis.set(INVOICES_KEY, records.map((record) => (record.id === input.id ? after : record)));
   return { before, after };
 }
@@ -201,19 +252,31 @@ export async function restoreInvoicesForBrand(invoiceIds: string[], brandId: str
   );
 }
 
-// Writes just the status, leaving every other field untouched: mirrors
-// setCampaignPaymentStatus in campaigns.writer.server.ts, and backs the
-// dashboard's "Mark received" keeping a linked invoice in step.
-export async function setInvoiceStatus(id: string, status: InvoiceStatus): Promise<void> {
+/**
+ * Clears the payment an invoice recorded before the ledger, once that payment
+ * has been written into the ledger (see paymentLedger.server.ts): `advance`
+ * zeroes the advance, `paid` moves a stored "paid" back to "sent". The only
+ * write to these fields outside the editor, and only ever after the ledger
+ * holds the same money, so nothing is lost or counted twice.
+ */
+export async function clearInvoiceLegacyPayment(
+  id: string,
+  clear: { advance: boolean; paid: boolean }
+): Promise<void> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
-  if (!records.some((record) => record.id === id)) throw new Error(`Invoice "${id}" not found`);
+  const before = records.find((record) => record.id === id);
+  if (!before) return;
+  const after: InvoiceRecord = {
+    ...before,
+    advance: clear.advance ? 0 : before.advance,
+    status: clear.paid && before.status === "paid" ? "sent" : before.status,
+  };
+  if (after.advance === before.advance && after.status === before.status) return;
   await redis.set(
     INVOICES_KEY,
-    records.map((record): InvoiceRecord =>
-      record.id === id ? { ...record, status, updatedAt: new Date().toISOString() } : record
-    )
+    records.map((record) => (record.id === id ? { ...after, updatedAt: new Date().toISOString() } : record))
   );
 }
 
@@ -237,5 +300,9 @@ export async function restoreInvoice(record: InvoiceRecord): Promise<void> {
   const records = await readRecords();
   if (records.some((entry) => entry.id === record.id)) return;
   assertInvoiceNoFree(record.invoiceNo, records);
-  await redis.set(INVOICES_KEY, [...records, record]);
+  // The job may have been linked to another invoice while this one sat in
+  // Trash. The invoice comes back without the link rather than not at all,
+  // since the job's cost already belongs to the one that holds it now.
+  const jobTaken = holdsEditorJob(record) && findEditorJobHolder(record.editorTransactionId, records, record.id);
+  await redis.set(INVOICES_KEY, [...records, jobTaken ? { ...record, editorTransactionId: null } : record]);
 }

@@ -7,6 +7,7 @@ import { getBrands } from "@/repositories/brands.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
 import { buildCampaignInvoiceOptions } from "@/lib/invoice";
 import { buildCampaignBrandOptions } from "@/lib/campaigns";
+import { financialYearsOfMonths, resolveFinancialYearParam } from "@/lib/financialYear";
 import { buildEditorVideoOptions } from "@/lib/contentPlan";
 import { getContentItems } from "@/repositories/contentPlan.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
@@ -24,7 +25,12 @@ export const metadata: Metadata = {
 // and a cached render would keep offering yesterday's decisions.
 export const dynamic = "force-dynamic";
 
-export default async function CampaignsPage() {
+interface CampaignsPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function CampaignsPage({ searchParams }: CampaignsPageProps) {
+  const params = await searchParams;
   let campaigns: Campaign[] = [];
   let earnings: EarningsSummary | null = null;
   let error: string | null = null;
@@ -50,6 +56,10 @@ export default async function CampaignsPage() {
   // another deal is hidden from the choices for this one.
   const videoOptions = buildEditorVideoOptions(editorTransactions, [...contentItems, ...campaigns]);
   const invoiceOptions = buildCampaignInvoiceOptions(invoices, campaigns);
+  // The monthly breakdown's year filter. No ?fy= is the "All" view, which is
+  // the ledger exactly as it read before the filter existed.
+  const ledgerYears = financialYearsOfMonths((earnings?.monthly ?? []).map((month) => month.month));
+  const ledgerYear = resolveFinancialYearParam(params.fy, ledgerYears);
 
   return (
     <AppShell>
@@ -61,6 +71,9 @@ export default async function CampaignsPage() {
           brandOptions={brandOptions}
           videoOptions={videoOptions}
           invoiceOptions={invoiceOptions}
+          ledgerYear={ledgerYear}
+          ledgerYears={ledgerYears}
+          searchParams={params}
         />
       </div>
     </AppShell>

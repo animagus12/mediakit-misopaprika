@@ -4,7 +4,8 @@ import { revalidateStores } from "@/lib/revalidation";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { describeChanges } from "@/lib/activityDiff";
 import { editorFields, editorTransactionFields } from "@/lib/activityFields";
-import { isEditorTransactionStatus } from "@/lib/editorTransactions";
+import { isDayKey } from "@/lib/day";
+import { isEditorTransactionStatus, validateEditorTransactionInput } from "@/lib/editorTransactions";
 import {
   addEditorTransaction,
   changeEditorTransactionRevisions,
@@ -18,10 +19,14 @@ import { addEditor, getEditors, updateEditor as updateEditorRecord } from "@/rep
 import type { EditorUpdate, NewEditor } from "@/repositories/editors";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { getEditorTransactionRecord } from "@/repositories/editorTransactions.writer.server";
+import { requireSession } from "@/lib/session.server";
 
 export async function createEditor(
   input: NewEditor
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await addEditor(input);
     revalidateStores("editors");
@@ -41,6 +46,9 @@ export async function createEditor(
 export async function updateEditor(
   input: EditorUpdate
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     // Transactions are filed under the editor's name, so a rename has to carry
     // them along or that editor's history detaches: read the old name before
@@ -75,12 +83,17 @@ export async function updateEditor(
 export async function createEditorTransaction(
   input: NewEditorTransaction
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  const invalid = validateEditorTransactionInput(input);
+  if (invalid) return { success: false, error: invalid };
   try {
-    await addEditorTransaction(input);
+    const record = await addEditorTransaction(input);
     revalidateStores("editorTransactions");
     await recordActivity({
       action: "editorTransaction.created",
-      entity: { type: "editorTransaction", id: null, label: input.video.trim() },
+      entity: { type: "editorTransaction", id: record.id, label: record.video },
       detail: input.editor.trim() || undefined,
       amount: input.amount ?? undefined,
     });
@@ -96,6 +109,11 @@ export async function createEditorTransaction(
 export async function updateEditorTransaction(
   input: EditorTransactionUpdate
 ): Promise<{ success: true } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  const invalid = validateEditorTransactionInput(input);
+  if (invalid) return { success: false, error: invalid };
   try {
     const change = await updateEditorTransactionRecord(input);
     revalidateStores("editorTransactions");
@@ -116,13 +134,28 @@ export async function updateEditorTransaction(
   }
 }
 
+/**
+ * `restorePaidDate` (yyyy-mm-dd, or "" for none) is only sent by Undo, to put
+ * back the paid date the change being undone cleared rather than stamping
+ * today's.
+ */
 export async function setEditorTransactionStatus(
   id: string,
-  status: string
+  status: string,
+  restorePaidDate?: string
 ): Promise<{ success: true } | { success: false; error: string }> {
-  if (!isEditorTransactionStatus(status)) return { success: false, error: "Pick a status" };
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  if (typeof status !== "string" || !isEditorTransactionStatus(status)) {
+    return { success: false, error: "Pick a status" };
+  }
+  const restoreIsValid =
+    restorePaidDate === undefined ||
+    (typeof restorePaidDate === "string" && (restorePaidDate === "" || isDayKey(restorePaidDate)));
+  if (!restoreIsValid) return { success: false, error: "Enter a valid paid date" };
   try {
-    const change = await setEditorTransactionStatusRecord(id, status);
+    const change = await setEditorTransactionStatusRecord(id, status, restorePaidDate);
     if (!change) return { success: false, error: "That transaction no longer exists" };
     revalidateStores("editorTransactions");
     const detail = describeChanges(change, editorTransactionFields);
@@ -153,6 +186,9 @@ export async function changeEditorTransactionRevision(
   id: string,
   delta: 1 | -1
 ): Promise<{ success: true; charged: number } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (delta !== 1 && delta !== -1) return { success: false, error: "Invalid revision change" };
   try {
     const editors = await getEditors();
@@ -184,6 +220,9 @@ export async function changeEditorTransactionRevision(
 export async function removeEditorTransaction(
   id: string
 ): Promise<{ success: true; trashId?: string } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed: Awaited<ReturnType<typeof deleteEditorTransaction>> = null;
   try {

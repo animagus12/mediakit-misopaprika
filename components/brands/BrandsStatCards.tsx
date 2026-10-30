@@ -49,7 +49,7 @@ export function BrandsStatCards({ stats }: BrandsStatCardsProps) {
       tone: STAT_TONES.info,
       tab: "pipeline",
     },
-    { label: "Total revenue", value: formatMoney(stats.totalRevenue), tone: STAT_TONES.cash, tab: "working" },
+    { label: "Cash received", value: formatMoney(stats.totalRevenue), tone: STAT_TONES.cash, tab: "working" },
     {
       label: "Pending payments",
       value: formatMoney(stats.pendingPayments),

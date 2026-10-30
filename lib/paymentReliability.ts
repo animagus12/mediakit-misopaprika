@@ -28,6 +28,11 @@ export interface PaymentTimingSource {
    * do (see lib/brandCampaignStats.ts, where `total` is now its own field).
    */
   amount: number;
+  /**
+   * The cash still owed, once part of it has been paid; `amount` when absent.
+   * Only what is still owed can be overdue.
+   */
+  outstanding?: number;
   paymentStatus: CampaignPaymentStatus;
   paymentDue: string; // DD/MM/YYYY
   paidDate: string; // DD/MM/YYYY
@@ -221,7 +226,7 @@ export function computePaymentReliability(
 
     if (timing.punctuality === "overdue") {
       stats.overdue += 1;
-      stats.overdueAmount += record.amount;
+      stats.overdueAmount += record.outstanding ?? record.amount;
       lateness.push(timing.delayDays);
       continue;
     }

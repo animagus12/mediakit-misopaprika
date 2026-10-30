@@ -17,8 +17,17 @@ import {
   DEFAULT_EDITOR_TRANSACTION_AMOUNT,
   DEFAULT_EDITOR_TRANSACTION_STATUS,
   EDITOR_TRANSACTION_STATUS_OPTIONS,
+  isPaidEditorStatus,
 } from "@/lib/editorTransactions";
 import { formatMoney } from "@/lib/invoice";
+import {
+  PAYER_OPTIONS,
+  PAYMENT_METHOD_OPTIONS,
+  toPayer,
+  toPaymentMethod,
+  type Payer,
+  type PaymentMethod,
+} from "@/lib/payers";
 import type { NewEditorTransaction } from "@/repositories/editorTransactions";
 import type { Editor } from "@/repositories/editors";
 import { todayKey } from "@/lib/day";
@@ -32,7 +41,13 @@ export interface EditorTransactionFormState {
   status: string;
   revisions: number;
   revisionRate: number | null;
+  paidDate: string;
+  paidBy: Payer | "";
+  paymentMethod: PaymentMethod | "";
 }
+
+// Radix Select can't hold an empty value, so "not recorded" gets its own.
+const NOT_SET = "none";
 
 export function editorTransactionInitialForm(editors: Editor[] = []): EditorTransactionFormState {
   const today = todayKey();
@@ -45,6 +60,9 @@ export function editorTransactionInitialForm(editors: Editor[] = []): EditorTran
     status: DEFAULT_EDITOR_TRANSACTION_STATUS,
     revisions: 0,
     revisionRate: null,
+    paidDate: "",
+    paidBy: "",
+    paymentMethod: "",
   };
 }
 
@@ -59,6 +77,11 @@ export function editorTransactionInputFromForm(form: EditorTransactionFormState)
     status: form.status,
     revisions: form.revisions,
     revisionRate: form.revisionRate,
+    // Hidden fields keep their values while the status is toggled, but only
+    // Paid work carries a paid date (the writer enforces the same).
+    paidDate: isPaidEditorStatus(form.status) ? form.paidDate : "",
+    paidBy: form.paidBy || undefined,
+    paymentMethod: form.paymentMethod || undefined,
   };
 }
 
@@ -183,13 +206,77 @@ export function EditorTransactionFormFields({
               <Label id={`${idPrefix}-status-label`}>Status</Label>
               <OptionToggle
                 value={form.status}
-                onChange={(status) => setForm((f) => ({ ...f, status }))}
+                onChange={(status) =>
+                  setForm((f) => ({
+                    ...f,
+                    status,
+                    // Becoming Paid prefills today, the same as the table's
+                    // quick status change; it stays editable below.
+                    paidDate:
+                      isPaidEditorStatus(status) && !isPaidEditorStatus(f.status) && !f.paidDate
+                        ? todayKey()
+                        : f.paidDate,
+                  }))
+                }
                 options={EDITOR_TRANSACTION_STATUS_OPTIONS}
                 labelledBy={`${idPrefix}-status-label`}
                 columns={3}
               />
             </div>
           </div>
+
+          {/* Only paid work has a payment to describe. */}
+          {isPaidEditorStatus(form.status) && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="min-w-0 space-y-2">
+                <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
+                <Input
+                  id={`${idPrefix}-paidDate`}
+                  type="date"
+                  value={form.paidDate}
+                  onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
+                />
+              </div>
+              <div className="min-w-0 space-y-2">
+                <Label htmlFor={`${idPrefix}-paidBy`}>Paid by</Label>
+                <Select
+                  value={form.paidBy || NOT_SET}
+                  onValueChange={(value) => setForm((f) => ({ ...f, paidBy: toPayer(value) ?? "" }))}
+                >
+                  <SelectTrigger id={`${idPrefix}-paidBy`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NOT_SET}>Not recorded</SelectItem>
+                    {PAYER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="min-w-0 space-y-2">
+                <Label htmlFor={`${idPrefix}-paymentMethod`}>Payment method</Label>
+                <Select
+                  value={form.paymentMethod || NOT_SET}
+                  onValueChange={(value) => setForm((f) => ({ ...f, paymentMethod: toPaymentMethod(value) ?? "" }))}
+                >
+                  <SelectTrigger id={`${idPrefix}-paymentMethod`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NOT_SET}>Not recorded</SelectItem>
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label id={`${idPrefix}-revisions-label`}>Revisions</Label>

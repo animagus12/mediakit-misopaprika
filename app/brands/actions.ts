@@ -38,6 +38,7 @@ import { getCampaigns } from "@/repositories/campaigns.writer.server";
 import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import type { TrashPayload } from "@/repositories/trash";
+import { requireSession } from "@/lib/session.server";
 
 type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
@@ -46,6 +47,9 @@ function toActionError(err: unknown, fallback: string): ActionResult {
 }
 
 export async function createAgency(input: NewAgency): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const agency = await addAgency(input);
     revalidateStores("agencies");
@@ -60,6 +64,9 @@ export async function createAgency(input: NewAgency): Promise<ActionResult> {
 }
 
 export async function updateAgency(input: AgencyUpdate): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateAgencyRecord(input);
     revalidateStores("agencies");
@@ -79,6 +86,9 @@ export async function updateAgency(input: AgencyUpdate): Promise<ActionResult> {
 export async function createBrand(
   input: NewBrand
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const brand = await addBrand(input);
     revalidateStores("brands");
@@ -93,6 +103,9 @@ export async function createBrand(
 }
 
 export async function updateBrand(input: BrandUpdate): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateBrandRecord(input);
     // A rename reaches every deal linked to the brand, so the campaigns table
@@ -118,6 +131,9 @@ export async function updateBrand(input: BrandUpdate): Promise<ActionResult> {
 // Attaches an already-uploaded media kit logo to a brand instead of
 // re-uploading the same image: see components/brands/MediaKitLogosSection.tsx.
 export async function assignBrandLogo(brandId: string, logoUrl: string): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const brand = await setBrandLogo(brandId, logoUrl);
     revalidateStores("brands");
@@ -134,6 +150,9 @@ export async function assignBrandLogo(brandId: string, logoUrl: string): Promise
 }
 
 export async function removeBrand(id: string): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let deletionStarted = false;
   try {
@@ -200,6 +219,9 @@ export async function assignCampaignContact(
   brandId: string,
   contactId: string | null
 ): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await setCampaignContact(campaignId, brandId, contactId);
     revalidateStores("campaignContacts");
@@ -220,6 +242,9 @@ export async function assignCampaignContact(
 export async function importBrandsFromCampaigns(): Promise<
   { success: true; imported: number; skipped: number } | { success: false; error: string }
 > {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const [records, existingBrands] = await Promise.all([fetchBrandCampaignRecords(), getBrands()]);
     const existingNames = new Set(existingBrands.map((brand) => brand.name.trim().toLowerCase()));
@@ -273,6 +298,9 @@ export async function importBrandsFromCampaigns(): Promise<
 export async function createContact(
   input: NewContact
 ): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const contact = await addContact(input);
     revalidateStores("contacts", "brands");
@@ -287,6 +315,9 @@ export async function createContact(
 }
 
 export async function updateContact(input: ContactUpdate): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateContactRecord(input);
     revalidateStores("contacts", "brands");
@@ -306,6 +337,9 @@ export async function updateContact(input: ContactUpdate): Promise<ActionResult>
 // brandId is no longer a parameter: revalidateStores() derives the affected
 // pages from the store, so the caller does not have to know them.
 export async function removeContact(id: string): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed: Awaited<ReturnType<typeof deleteContactRecord>> = null;
   try {
@@ -336,6 +370,9 @@ export async function removeContact(id: string): Promise<ActionResult> {
 }
 
 export async function createBrandNote(input: NewBrandNote): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await addBrandNote(input);
     revalidateStores("brandNotes");
@@ -346,6 +383,9 @@ export async function createBrandNote(input: NewBrandNote): Promise<ActionResult
 }
 
 export async function removeBrandNote(id: string): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let deleted = false;
   try {

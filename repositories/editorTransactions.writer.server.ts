@@ -8,7 +8,15 @@ import type {
   EditorTransactionUpdate,
   NewEditorTransaction,
 } from "./editorTransactions";
-import { applyRevisionChange, toNonNegativeInt, toSheetDate } from "@/lib/editorTransactions";
+import {
+  applyRevisionChange,
+  isPaidEditorStatus,
+  paidDateAfterStatusChange,
+  toNonNegativeInt,
+  toSheetDate,
+} from "@/lib/editorTransactions";
+import { todayKey } from "@/lib/day";
+import { isPartner, toPayer, toPaymentMethod, type PartnerSettlement } from "@/lib/payers";
 import type { RecordChange } from "@/lib/activityDiff";
 
 // server-only, and never imported from a client component: the server
@@ -38,7 +46,8 @@ export async function getEditorTransactionRecord(id: string): Promise<EditorTran
   return (await readRecords()).find((record) => record.id === id) ?? null;
 }
 
-export async function addEditorTransaction(input: NewEditorTransaction): Promise<void> {
+// Answers the record it wrote, so the caller can log the new id.
+export async function addEditorTransaction(input: NewEditorTransaction): Promise<EditorTransactionRecord> {
   const redis = getRedis();
   if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
   const records = await readRecords();
@@ -51,8 +60,10 @@ export async function addEditorTransaction(input: NewEditorTransaction): Promise
     editor: input.editor.trim(),
     status: input.status,
     ...revisionFields(input),
+    ...paymentFields(input),
   };
   await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
+  return record;
 }
 
 /**
@@ -97,6 +108,17 @@ function revisionFields(input: { revisions: number; revisionRate: number | null 
   };
 }
 
+// A paid date only while the work is Paid (see paidDateAfterStatusChange for
+// why); who paid and how are kept as entered, so flipping the status back
+// and forth never loses them. Unknown values are dropped rather than stored.
+function paymentFields(input: { status: string; paidDate: string; paidBy?: unknown; paymentMethod?: unknown }) {
+  return {
+    paidDate: isPaidEditorStatus(input.status) ? toSheetDate(input.paidDate) : "",
+    paidBy: toPayer(input.paidBy),
+    paymentMethod: toPaymentMethod(input.paymentMethod),
+  };
+}
+
 // Rewrites one record through `update`. Answers the record either side of the
 // write, or null when the id matched nothing, so the caller can say what
 // actually changed without re-reading the list this already holds. Comparing
@@ -122,25 +144,53 @@ async function replaceRecord(
 export async function updateEditorTransaction(
   input: EditorTransactionUpdate
 ): Promise<RecordChange<EditorTransactionRecord> | null> {
-  return replaceRecord(input.id, (before) => ({
-    id: before.id,
-    video: input.video.trim(),
-    videoDate: toSheetDate(input.videoDate),
-    deliveryDate: toSheetDate(input.deliveryDate),
-    amount: input.amount,
-    editor: input.editor.trim(),
-    status: input.status,
-    ...revisionFields(input),
-  }));
+  return replaceRecord(input.id, (before) => {
+    const payment = paymentFields(input);
+    return {
+      id: before.id,
+      video: input.video.trim(),
+      videoDate: toSheetDate(input.videoDate),
+      deliveryDate: toSheetDate(input.deliveryDate),
+      amount: input.amount,
+      editor: input.editor.trim(),
+      status: input.status,
+      ...revisionFields(input),
+      ...payment,
+      // Settled on the Payments page, so the workspace form never sends it:
+      // kept while a partner still paid, dropped once the business did.
+      settlement: isPartner(payment.paidBy) ? (before.settlement ?? null) : null,
+    };
+  });
+}
+
+/** How a job a partner paid for is settled; null puts it back to undecided. */
+export async function setEditorTransactionSettlement(
+  id: string,
+  settlement: PartnerSettlement | null
+): Promise<RecordChange<EditorTransactionRecord> | null> {
+  return replaceRecord(id, (before) => ({ ...before, settlement }));
 }
 
 // Status only, for the table's inline select: nothing else on the record is
-// read from the client, so a stale row can't write back old values.
+// read from the client, so a stale row can't write back old values. The paid
+// date follows the status (stamped with today's IST date on becoming Paid,
+// cleared on leaving it); `restorePaidDate` (yyyy-mm-dd) is the undo path,
+// putting back the exact date the change being undone cleared.
 export async function setEditorTransactionStatus(
   id: string,
-  status: string
+  status: string,
+  restorePaidDate?: string
 ): Promise<RecordChange<EditorTransactionRecord> | null> {
-  return replaceRecord(id, (before) => ({ ...before, status }));
+  return replaceRecord(id, (before) => ({
+    ...before,
+    status,
+    paidDate: paidDateAfterStatusChange(
+      before,
+      status,
+      toSheetDate(todayKey()),
+      restorePaidDate === undefined ? undefined : toSheetDate(restorePaidDate)
+    ),
+  }));
 }
 
 /**

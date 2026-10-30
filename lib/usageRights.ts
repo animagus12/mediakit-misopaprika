@@ -1,6 +1,7 @@
 import { addDays, daysBetween, isDayKey, todayKey } from "@/lib/day";
 import { isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
-import type { Campaign, CampaignUsage } from "@/repositories/campaigns";
+import { roundMoney } from "@/lib/money";
+import type { Campaign, CampaignUsage, CampaignUsageView } from "@/repositories/campaigns";
 
 // When a brand's right to keep running the content as an ad runs out, and
 // what is owed if it wants longer.
@@ -100,14 +101,16 @@ const UNTRACKED: UsageTerm = {
   label: "Not tracked",
 };
 
-function renewalMoney(usage: CampaignUsage): { received: number; pending: number } {
+// Received is what each renewal's settlement says arrived (part payments
+// included); pending is what a renewal still waiting on payment owes.
+function renewalMoney(usage: Pick<CampaignUsageView, "renewals">): { received: number; pending: number } {
   let received = 0;
   let pending = 0;
   for (const renewal of usage.renewals) {
-    if (renewal.paymentStatus === "received") received += renewal.amount;
-    else if (renewal.paymentStatus === "pending") pending += renewal.amount;
+    received += renewal.settlement.settled;
+    if (renewal.paymentStatus === "pending") pending += renewal.settlement.remaining;
   }
-  return { received, pending };
+  return { received: roundMoney(received), pending: roundMoney(pending) };
 }
 
 /**
@@ -119,7 +122,7 @@ function renewalMoney(usage: CampaignUsage): { received: number; pending: number
  * it into the deal would count that money twice and give the deal a payment
  * status that covers money it doesn't. Screens show it beside the total.
  */
-export function renewalTotal(usage: CampaignUsage): number {
+export function renewalTotal(usage: Pick<CampaignUsageView, "renewals">): number {
   const { received, pending } = renewalMoney(usage);
   return received + pending;
 }
@@ -241,6 +244,8 @@ export interface UsageAlert {
   campaign: string;
   /** The deal's own value, for ranking a list of decisions by what is at stake. */
   amount: number;
+  /** The deal's TDS rate, which a renewal recorded from the alert opens on. */
+  tdsRate: number | null;
   term: UsageTerm;
 }
 
@@ -263,6 +268,7 @@ export function selectExpiringUsage(campaigns: Campaign[], now: Date = new Date(
       brand: campaign.brand,
       campaign: campaign.campaign,
       amount: campaign.total,
+      tdsRate: campaign.tdsRate,
       term: usageTerm(campaign, now),
     }))
     .filter((alert) => alert.term.state === "expiring" || alert.term.state === "expired")
@@ -314,7 +320,10 @@ export interface OwedRenewal {
   renewalId: string;
   brand: string;
   campaign: string;
+  /** What is still owed: the fee, less anything already paid against it. */
   amount: number;
+  /** The renewal's whole fee. */
+  fee: number;
   days: number;
   /** DD/MM/YYYY it was agreed to be paid by, or "" when nothing was agreed. */
   paymentDue: string;
@@ -344,7 +353,7 @@ export function selectOwedRenewals(campaigns: Campaign[], now: Date = new Date()
   for (const campaign of campaigns) {
     if (isCampaignCalledOff(campaign.status)) continue;
     for (const renewal of campaign.usage.renewals) {
-      if (renewal.paymentStatus !== "pending" || renewal.amount <= 0) continue;
+      if (renewal.paymentStatus !== "pending" || renewal.settlement.remaining <= 0) continue;
 
       const dueKey = toIsoDate(renewal.paymentDue);
       const daysUntilDue = dueKey === "" ? null : daysBetween(today, dueKey);
@@ -353,7 +362,8 @@ export function selectOwedRenewals(campaigns: Campaign[], now: Date = new Date()
         renewalId: renewal.id,
         brand: campaign.brand,
         campaign: campaign.campaign,
-        amount: renewal.amount,
+        amount: renewal.settlement.remaining,
+        fee: renewal.amount,
         days: renewal.days,
         paymentDue: renewal.paymentDue,
         daysUntilDue,

@@ -31,7 +31,9 @@ export function BrandDetailHeader({ brand, agencyName, agencies, contacts, missi
       </Link>
 
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        {/* min-w-0 lets the name and its status line give way to the Edit
+            and Delete buttons on a phone, rather than pushing them off screen. */}
+        <div className="flex min-w-0 items-center gap-3">
           <div className="relative shrink-0">
             <Avatar size="lg">
               <AvatarImage src={brand.logoUrl ?? undefined} alt="" />
@@ -41,9 +43,9 @@ export function BrandDetailHeader({ brand, agencyName, agencies, contacts, missi
               <span className="absolute top-0 right-0 size-2.5 rounded-full bg-amber-500 ring-2 ring-background" />
             )}
           </div>
-          <div className="space-y-1">
-            <h1 className="font-heading text-lg font-semibold">{brand.name}</h1>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="min-w-0 space-y-1">
+            <h1 className="font-heading text-lg font-semibold break-words">{brand.name}</h1>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
               <Badge variant={status.variant} className={status.className}>
                 {brand.status}
               </Badge>

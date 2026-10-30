@@ -10,9 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { updateCampaign } from "@/app/(dashboard)/actions";
-import { STATUS_OPTIONS, CAMPAIGN_TYPES, toIsoDate } from "@/lib/campaigns";
-import { todayKey } from "@/lib/day";
+import { setCampaignWorkflowStatus } from "@/app/(dashboard)/actions";
+import { STATUS_OPTIONS } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
 import type { Campaign, CampaignStatus } from "@/repositories/campaigns";
 
@@ -24,11 +23,11 @@ interface CampaignStatusSelectProps {
 // Advance a deal through the pipeline straight from its dashboard card,
 // without opening the full edit sheet. The Select reflects the new stage
 // instantly (optimistic) while the update runs; the success toast carries an
-// Undo that moves it back. Writes the same CampaignFormUpdate the sheet does
-// (every other field carried through unchanged), so the two stay
-// interchangeable. Type is coerced to a valid option the same way
-// EditCampaignSheet does it. The status needs no such care: the store reads
-// every record into the shared vocabulary, so it is always one of the options.
+// Undo that moves it back. Writes the status and nothing else: resaving the
+// whole deal from what this card holds used to unlink its editing job and
+// re-send payment fields a status move should never touch. The status needs
+// no coercion: the store reads every record into the shared vocabulary, so it
+// is always one of the options.
 export function CampaignStatusSelect({
   campaign,
   className,
@@ -40,37 +39,7 @@ export function CampaignStatusSelect({
     startTransition(async () => {
       setOptimisticStatus(nextStatus);
 
-      const type = CAMPAIGN_TYPES.includes(
-        campaign.type as (typeof CAMPAIGN_TYPES)[number]
-      )
-        ? (campaign.type as (typeof CAMPAIGN_TYPES)[number])
-        : "Barter";
-
-      const result = await updateCampaign({
-        id: campaign.id,
-        brand: campaign.brand,
-        brandId: campaign.brandId,
-        campaign: campaign.campaign,
-        type,
-        reels: campaign.reels,
-        reelTypes: campaign.reelTypes,
-        story: campaign.story,
-        status: nextStatus,
-        amount: campaign.amount,
-        barterValue: campaign.barterValue,
-        paymentStatus: campaign.paymentStatus,
-        date: toIsoDate(campaign.date) || todayKey(),
-        uploadDate: toIsoDate(campaign.uploadDate),
-        invoiceRef: campaign.invoiceRef,
-        paymentDue: toIsoDate(campaign.paymentDue),
-        paidDate: toIsoDate(campaign.paidDate),
-        paymentMethod: campaign.paymentMethod,
-        tdsRate: campaign.tdsRate,
-        tdsAmount: campaign.tdsAmount,
-        usageDays: campaign.usage.days,
-        usageIndefinite: campaign.usage.indefinite,
-        usageFee: campaign.usage.fee,
-      });
+      const result = await setCampaignWorkflowStatus(campaign.id, nextStatus);
 
       if (!result.success) {
         toast.error("Couldn't update status", { description: result.error });

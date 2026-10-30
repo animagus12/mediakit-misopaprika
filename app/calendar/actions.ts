@@ -26,6 +26,7 @@ import type { RecordChange } from "@/lib/activityDiff";
 import type { ActivityAction } from "@/repositories/activity";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { PostSource } from "@/lib/contentCalendar";
+import { requireSession } from "@/lib/session.server";
 
 export type CalendarResult =
   | { success: true; trashId?: string }
@@ -82,6 +83,9 @@ export async function schedulePost(
   id: string,
   isoDate: string
 ): Promise<CalendarResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   const invalid = invalidDate(isoDate);
   if (invalid) return { success: false, error: invalid };
   const stored = isoDate ? toSheetDate(isoDate) : "";
@@ -144,6 +148,9 @@ export async function schedulePost(
  * changes stage from its own edit sheet (see BoardPost.movable).
  */
 export async function setContentStatus(id: string, status: string): Promise<CalendarResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (!isContentStatus(status)) return { success: false, error: "Pick a status" };
 
   try {
@@ -186,6 +193,9 @@ function linkedVideoId(value: string | null): string | null {
 }
 
 export async function createContentItem(input: ContentFormValues): Promise<CalendarResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   const invalid = invalidContent(input);
   if (invalid) return { success: false, error: invalid };
 
@@ -218,6 +228,9 @@ export async function updateContentItem(
   id: string,
   input: ContentFormValues
 ): Promise<CalendarResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   const invalid = invalidContent(input);
   if (invalid) return { success: false, error: invalid };
 
@@ -245,6 +258,9 @@ export async function updateContentItem(
 }
 
 export async function deleteContentItem(id: string): Promise<CalendarResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed: Awaited<ReturnType<typeof removeContentItem>> = null;
   try {
