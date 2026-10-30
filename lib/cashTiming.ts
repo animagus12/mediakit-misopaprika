@@ -1,6 +1,7 @@
 import { daysBetween, monthKeyOf } from "@/lib/day";
 import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
 import { currentMonthKey } from "@/lib/earnings";
+import { roundMoney } from "@/lib/money";
 import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
 
 // When money arrives, as opposed to whether it arrives on time.
@@ -122,8 +123,9 @@ export interface MonthForecast {
  * argument. Actuals plus what is contractually due before the month is out is
  * a number the month can be judged on while it is still running.
  *
- * Total rather than cash, because it forecasts the Received tile it sits
- * under, and that tile counts barter. projectCashIn above is the cash read.
+ * Cash rather than total, because it forecasts the Received tile it sits
+ * under, and that tile counts money only (see cashReceived in lib/earnings).
+ * A pending deal contributes its cash half; a barter parcel is not money due.
  *
  * A payment due earlier this month and still unpaid is counted: it was booked
  * for this month and dropping it would forecast a month that assumes its own
@@ -150,14 +152,16 @@ export function computeMonthForecast(
   for (const campaign of campaigns) {
     if (isCampaignCalledOff(campaign.status)) continue;
 
+    // What is still owed, so a deal paid in part forecasts only the rest.
     if (campaign.paymentStatus === "pending") {
-      countDue(campaign.paymentDue, campaign.total);
+      countDue(campaign.paymentDue, campaign.settlement?.remaining ?? 0);
     }
     for (const renewal of campaign.usage.renewals) {
       if (renewal.paymentStatus !== "pending") continue;
-      countDue(renewal.paymentDue, renewal.amount);
+      countDue(renewal.paymentDue, renewal.settlement.remaining);
     }
   }
 
-  return { month, received, expected, forecast: received + expected, sources };
+  expected = roundMoney(expected);
+  return { month, received, expected, forecast: roundMoney(received + expected), sources };
 }

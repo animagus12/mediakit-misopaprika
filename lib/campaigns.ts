@@ -141,19 +141,29 @@ export function isCampaignCalledOff(status: CampaignStatus): boolean {
  *
  * A received payment outranks the cancellation, because it is a fact about
  * money that actually moved: reading "cancelled" over a deal whose ₹5,000
- * landed would have the table contradicting the earnings page.
+ * landed would have the table contradicting the earnings page. A part payment
+ * ("partial", read from the deal's settlement in the payment ledger) outranks
+ * it for the same reason.
  */
-export type PaymentDisplayStatus = CampaignPaymentStatus | "cancelled";
+export type PaymentDisplayStatus = CampaignPaymentStatus | "partial" | "cancelled";
 
 export function paymentDisplayStatus(deal: {
   /** Null for a row with no pipeline status of its own, a usage renewal. */
   status: CampaignStatus | null;
   paymentStatus: CampaignPaymentStatus;
+  /** The deal's settlement, when it has a cash half; see lib/payments.ts. */
+  settlement?: { status: string } | null;
 }): PaymentDisplayStatus {
   if (deal.paymentStatus === "received") return "received";
+  if (deal.settlement?.status === "partial") return "partial";
   return deal.status !== null && isCampaignCancelled(deal.status)
     ? "cancelled"
     : deal.paymentStatus;
+}
+
+/** What a payment badge reads: the status itself, or "partly paid". */
+export function paymentDisplayLabel(status: PaymentDisplayStatus): string {
+  return status === "partial" ? "partly paid" : status;
 }
 
 // Sheet dates are entered as "DD/MM/YYYY"; undated rows sort last.

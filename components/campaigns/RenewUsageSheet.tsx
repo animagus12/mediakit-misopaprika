@@ -3,15 +3,9 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Sheet,
   SheetClose,
@@ -23,34 +17,46 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { renewCampaignUsage } from "@/app/(dashboard)/actions";
-import { PAYMENT_STATUS_OPTIONS, paymentStatusLabel } from "@/lib/campaigns";
+import { PaymentFields } from "@/components/payments/PaymentFields";
+import { todayKey } from "@/lib/day";
 import { buildInvoiceNumber } from "@/lib/invoice";
+import { hasNegativeCharges, paymentFormFrom, paymentValuesFrom, withGross, type PaymentFormState } from "@/lib/paymentForm";
+import { parseTdsInput } from "@/lib/tds";
 import { defaultRenewalStart, formatUsageDays, type UsageTerm } from "@/lib/usageRights";
-import type { CampaignPaymentStatus } from "@/repositories/campaigns";
+import { TdsFields } from "./TdsFields";
 
 interface RenewFormState {
   days: string;
   amount: string;
   startDate: string;
-  paymentStatus: CampaignPaymentStatus;
   paymentDue: string;
-  paidDate: string;
-  paymentMethod: string;
+  tdsRate: string;
+  /** The brand has already paid for this renewal: record that payment with it. */
+  received: boolean;
+  payment: PaymentFormState;
+}
+
+function blankPayment(): PaymentFormState {
+  return paymentFormFrom(
+    { date: todayKey(), gross: 0, tds: 0, bankFee: 0, method: null, reference: "", note: "" },
+    false
+  );
 }
 
 // Ninety days, a quarter, is the term most licences are written for, so it is
 // what the field opens on; the amount deliberately is not guessed from the deal, since
 // a renewal is negotiated separately and a prefilled price is one nobody
-// re-reads before saving.
-function initialForm(term: UsageTerm): RenewFormState {
+// re-reads before saving. The TDS rate is: a brand withholds at the same rate
+// on every payment it makes, so the deal's rate is the likely answer.
+function initialForm(term: UsageTerm, defaultTdsRate: number | null): RenewFormState {
   return {
     days: "90",
     amount: "",
     startDate: defaultRenewalStart(term),
-    paymentStatus: "pending",
     paymentDue: "",
-    paidDate: "",
-    paymentMethod: "",
+    tdsRate: defaultTdsRate === null ? "" : String(defaultTdsRate),
+    received: false,
+    payment: blankPayment(),
   };
 }
 
@@ -58,47 +64,81 @@ interface RenewUsageSheetProps {
   campaignId: string;
   brand: string;
   term: UsageTerm;
+  /** The deal's TDS rate, which a new renewal's rate opens on; null leaves it blank. */
+  defaultTdsRate: number | null;
   trigger: ReactNode;
   /** Fired once the renewal is saved, so a list can drop the row it came from. */
   onRenewed?: () => void;
 }
 
 /**
- * Buys another term on a licence, and records what the brand paid for it.
+ * Buys another term on a licence, and records what the brand paid for it when
+ * it has already paid.
  *
  * A sheet rather than an inline control because a renewal is a transaction:
- * it has a price, a payment status, a due date and a method, and squeezing
- * that into a row in an alert list would either lose fields or make the row
- * unreadable. The same reason the deal itself is edited in one.
+ * it has a price, a due date and possibly a payment, and squeezing that into a
+ * row in an alert list would either lose fields or make the row unreadable.
+ * The same reason the deal itself is edited in one.
  */
 export function RenewUsageSheet({
   campaignId,
   brand,
   term,
+  defaultTdsRate,
   trigger,
   onRenewed,
 }: RenewUsageSheetProps) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<RenewFormState>(() => initialForm(term));
+  const [form, setForm] = useState<RenewFormState>(() => initialForm(term, defaultTdsRate));
+  const [paymentId, setPaymentId] = useState(() => crypto.randomUUID());
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const formId = `renew-usage-${campaignId}`;
   const days = Number(form.days) || 0;
+  const amount = Number(form.amount) || 0;
+  const expectedRate = parseTdsInput(form.tdsRate);
+
+  // The payment settles the whole fee: its amount follows the fee as typed,
+  // and its TDS the expected rate, until the TDS is typed over.
+  function setAmount(value: string) {
+    setForm((f) => ({ ...f, amount: value, payment: withGross(f.payment, String(Number(value) || 0), parseTdsInput(f.tdsRate)) }));
+  }
+
+  function setReceived(received: boolean) {
+    setForm((f) => ({
+      ...f,
+      received,
+      payment: received ? withGross(f.payment, String(Number(f.amount) || 0), parseTdsInput(f.tdsRate)) : f.payment,
+    }));
+  }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    if (form.received) {
+      if (amount <= 0) {
+        setError("A free renewal has nothing to record as received");
+        return;
+      }
+      if (hasNegativeCharges(form.payment)) {
+        setError("Net received can't be more than the amount less TDS");
+        return;
+      }
+    }
+    const received = paymentValuesFrom(form.payment, paymentId);
     startTransition(async () => {
-      const result = await renewCampaignUsage(campaignId, {
-        startDate: form.startDate,
-        days,
-        amount: Number(form.amount) || 0,
-        paymentStatus: form.paymentStatus,
-        paymentDue: form.paymentDue,
-        paidDate: form.paidDate,
-        paymentMethod: form.paymentMethod.trim(),
-      });
+      const result = await renewCampaignUsage(
+        campaignId,
+        {
+          startDate: form.startDate,
+          days,
+          amount,
+          paymentDue: form.paymentDue,
+          tdsRate: expectedRate,
+        },
+        form.received ? received : undefined
+      );
       if (!result.success) {
         setError(result.error);
         return;
@@ -106,19 +146,17 @@ export function RenewUsageSheet({
       setOpen(false);
       onRenewed?.();
 
-      const term = `${formatUsageDays(days)} more`;
+      const termText = `${formatUsageDays(days)} more`;
       if (result.warning) {
-        // The renewal landed either way; the warning is about the invoice not
-        // following, which is worth saying rather than showing a plain success.
-        toast.warning(`${brand}: usage renewed`, {
-          description: `${term}. The invoice wasn't raised: ${result.warning}`,
-        });
+        // The renewal landed either way; the warning is about what didn't
+        // follow (its invoice or its payment), which is worth saying.
+        toast.warning(`${brand}: usage renewed`, { description: `${termText}. ${result.warning}` });
         return;
       }
       toast.success(`${brand}: usage renewed`, {
         description: result.invoiceNo
-          ? `${term}. Invoice ${buildInvoiceNumber(result.invoiceNo)} raised as a draft.`
-          : `${term}. No invoice raised: nothing was charged.`,
+          ? `${termText}. Invoice ${buildInvoiceNumber(result.invoiceNo)} raised as a draft.`
+          : `${termText}. No invoice raised: nothing was charged.`,
       });
     });
   }
@@ -132,23 +170,24 @@ export function RenewUsageSheet({
         // from a term that keeps moving, so a form built once would offer a
         // stale date the longer the page stayed open.
         if (next) {
-          setForm(initialForm(term));
+          setForm(initialForm(term, defaultTdsRate));
+          setPaymentId(crypto.randomUUID());
           setError(null);
         }
       }}
     >
       <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent className="flex flex-col gap-0">
+      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Renew ad usage</SheetTitle>
           <SheetDescription>
-            Extends {brand}&apos;s licence by another term and records what they paid for it.
+            Extends {brand}&apos;s licence by another term, and records the payment if they have already paid.
           </SheetDescription>
         </SheetHeader>
 
-        <form id={formId} onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-6">
+        <form id={formId} onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto px-6 pb-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label htmlFor={`${formId}-days`}>Days</Label>
               <Input
                 id={`${formId}-days`}
@@ -160,7 +199,7 @@ export function RenewUsageSheet({
                 onChange={(event) => setForm((f) => ({ ...f, days: event.target.value }))}
               />
             </div>
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
               <Label htmlFor={`${formId}-amount`}>Amount (₹)</Label>
               <Input
                 id={`${formId}-amount`}
@@ -168,49 +207,23 @@ export function RenewUsageSheet({
                 min={0}
                 placeholder="0"
                 value={form.amount}
-                onChange={(event) => setForm((f) => ({ ...f, amount: event.target.value }))}
+                onChange={(event) => setAmount(event.target.value)}
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-startDate`}>Runs from</Label>
-            <Input
-              id={`${formId}-startDate`}
-              type="date"
-              required
-              value={form.startDate}
-              onChange={(event) => setForm((f) => ({ ...f, startDate: event.target.value }))}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Defaults to the day after the current term ends, so there is no gap the brand was
-              running an ad it had no licence for.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-paymentStatus`}>Payment status</Label>
-            <Select
-              value={form.paymentStatus}
-              onValueChange={(value) =>
-                setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))
-              }
-            >
-              <SelectTrigger id={`${formId}-paymentStatus`} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAYMENT_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {paymentStatusLabel(option)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor={`${formId}-startDate`}>Runs from</Label>
+              <Input
+                id={`${formId}-startDate`}
+                type="date"
+                required
+                value={form.startDate}
+                onChange={(event) => setForm((f) => ({ ...f, startDate: event.target.value }))}
+              />
+            </div>
+            <div className="min-w-0 space-y-2">
               <Label htmlFor={`${formId}-paymentDue`}>Payment due</Label>
               <Input
                 id={`${formId}-paymentDue`}
@@ -219,45 +232,62 @@ export function RenewUsageSheet({
                 onChange={(event) => setForm((f) => ({ ...f, paymentDue: event.target.value }))}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${formId}-paidDate`}>Paid on</Label>
-              <Input
-                id={`${formId}-paidDate`}
-                type="date"
-                value={form.paidDate}
-                onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
-              />
-            </div>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            The term defaults to starting the day after the current one ends, so there is no gap the brand was
+            running an ad it had no licence for.
+          </p>
 
           {/* Said up front rather than discovered afterwards: this form writes
               to two stores, and an invoice appearing unannounced in /invoices
               reads as a duplicate rather than as the thing that was asked for. */}
           <p className="text-[11px] text-muted-foreground">
-            An invoice is raised for this automatically, as a draft, with the amount and term
-            filled in. Nothing is charged, and no invoice is raised, when the amount is 0.
+            An invoice is raised for this automatically, as a draft, with the amount and term filled in. Nothing
+            is charged, and no invoice is raised, when the amount is 0.
           </p>
 
-          <div className="space-y-2">
-            <Label htmlFor={`${formId}-paymentMethod`}>Payment method</Label>
-            <Input
-              id={`${formId}-paymentMethod`}
-              placeholder="UPI, Bank transfer, ..."
-              value={form.paymentMethod}
-              onChange={(event) => setForm((f) => ({ ...f, paymentMethod: event.target.value }))}
-            />
+          <TdsFields
+            idPrefix={formId}
+            rate={form.tdsRate}
+            onRateChange={(value) => setForm((f) => ({ ...f, tdsRate: value }))}
+            gross={amount}
+            description={
+              defaultTdsRate === null
+                ? "The rate the brand withholds from this renewal's fee."
+                : "The rate starts at the deal's. Change it if this renewal differs."
+            }
+          />
+
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`${formId}-received`}
+                checked={form.received}
+                onCheckedChange={(checked) => setReceived(checked === true)}
+              />
+              <Label htmlFor={`${formId}-received`}>Already received</Label>
+            </div>
+            {form.received && (
+              <PaymentFields
+                idPrefix={`${formId}-payment`}
+                form={form.payment}
+                onChange={(payment) => setForm((f) => ({ ...f, payment }))}
+                expectedTdsRate={expectedRate}
+                grossLocked
+              />
+            )}
           </div>
 
           {error && <p className="text-xs text-destructive">{error}</p>}
         </form>
 
-        <SheetFooter className="flex-row">
+        <SheetFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <SheetClose asChild>
-            <Button type="button" variant="outline" className="flex-1">
+            <Button type="button" variant="outline">
               Cancel
             </Button>
           </SheetClose>
-          <Button type="submit" form={formId} className="flex-1" disabled={isPending || days < 1}>
+          <Button type="submit" form={formId} disabled={isPending || days < 1}>
             {isPending ? "Saving…" : "Record renewal"}
           </Button>
         </SheetFooter>

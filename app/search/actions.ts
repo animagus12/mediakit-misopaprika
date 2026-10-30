@@ -11,7 +11,8 @@ import type { Agency } from "@/repositories/agencies";
 import type { Contact } from "@/repositories/contacts";
 import type { Invoice } from "@/repositories/invoices";
 import type { GlobalSearchResult } from "@/lib/globalSearch";
-import { buildInvoiceNumber } from "@/lib/invoice";
+import { buildInvoiceNumber, formatInvoiceStatus, invoiceDisplayStatus } from "@/lib/invoice";
+import { requireSession } from "@/lib/session.server";
 
 type SearchResponse =
   | { success: true; results: GlobalSearchResult[] }
@@ -87,12 +88,12 @@ function invoiceResults(invoices: Invoice[], query: string): GlobalSearchResult[
       invoice.client.name,
       invoice.client.contactName,
       invoice.campaignName,
-      invoice.status,
+      invoiceDisplayStatus(invoice),
     ],
     (invoice) => ({
       type: "invoice",
       label: buildInvoiceNumber(invoice.invoiceNo),
-      detail: `${invoice.client.name || invoice.campaignName} · ${invoice.status}`,
+      detail: `${invoice.client.name || invoice.campaignName} · ${formatInvoiceStatus(invoiceDisplayStatus(invoice)).toLowerCase()}`,
       href: `/invoices/${encodeURIComponent(invoice.id)}`,
     })
   );
@@ -132,6 +133,9 @@ function contactResults(
 }
 
 export async function searchRecords(rawQuery: string): Promise<SearchResponse> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   if (typeof rawQuery !== "string") {
     return { success: false, error: "Enter a search term" };
   }

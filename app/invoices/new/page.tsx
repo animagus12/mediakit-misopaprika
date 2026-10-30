@@ -7,6 +7,7 @@ import { primaryContactForBrand } from "@/lib/contacts";
 import {
   buildInvoiceBrandOptions,
   buildInvoiceEditorJobOptions,
+  findEditorJobHolder,
   reservedInvoiceNumbers,
   resolveCampaignInvoice,
   todayISO,
@@ -68,7 +69,7 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
     ]);
     takenInvoiceNumbers = invoices.map((invoice) => invoice.invoiceNo);
     brandOptions = buildInvoiceBrandOptions(brands, contacts);
-    editorJobOptions = buildInvoiceEditorJobOptions(editorTransactions);
+    editorJobOptions = buildInvoiceEditorJobOptions(editorTransactions, { invoices });
 
     // Always counted from what exists rather than trusting the stored seed,
     // which only moves forward: a top number freed by renaming or deleting an
@@ -88,6 +89,12 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
         today: todayISO(),
       });
       linkedCampaign = toInvoiceLinkedCampaign({ campaign: deal, renewalId: null });
+      // The deal's editing job may already be billed on another invoice, and
+      // the picker hides it for that reason. Prefilling it anyway would show a
+      // link the form cannot offer and that saving would refuse.
+      if (findEditorJobHolder(prefill.editorTransactionId, invoices)) {
+        prefill = { ...prefill, editorTransactionId: null };
+      }
     }
   } catch {
     // keep the fallbacks

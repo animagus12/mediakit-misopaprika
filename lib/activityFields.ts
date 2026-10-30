@@ -1,5 +1,6 @@
 import { campaignDeliverables } from "@/lib/campaigns";
 import { formatMoney } from "@/lib/invoice";
+import { payerLabel, toPayer } from "@/lib/payers";
 import { formatUsageDays, formatUsageGrant } from "@/lib/usageRights";
 import { countOf, type DiffField } from "@/lib/activityDiff";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
@@ -16,7 +17,9 @@ import type { Contact } from "@/repositories/contacts";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { Editor } from "@/repositories/editors";
 import type { EditorTransactionRecord } from "@/repositories/editorTransactions";
+import { expenseCategoryLabel, type ExpenseRecord } from "@/repositories/expenses";
 import type { InvoiceRecord } from "@/repositories/invoices";
+import type { PaymentRecord } from "@/repositories/payments";
 
 // Which fields an update event reports on, per record type. Gathered here
 // rather than next to each action so that "what does the log actually watch"
@@ -158,6 +161,12 @@ export const editorTransactionFields: readonly DiffField<EditorTransactionRecord
   // ?? 0: a record from before revisions existed has no count, and reading
   // that as a change to 0 would log an edit nobody made.
   { label: "revisions", value: (record) => record.revisions ?? 0 },
+  // Records from before payment details existed carry none of these, which
+  // renders as "" exactly like a cleared value, so they never log a change
+  // nobody made.
+  { label: "paid on", value: (record) => record.paidDate },
+  { label: "paid by", value: (record) => payerLabel(toPayer(record.paidBy)) },
+  { label: "payment method", value: (record) => record.paymentMethod },
   { label: "editor", value: (record) => record.editor },
   { label: "video", value: (record) => record.video },
   { label: "delivery date", value: (record) => record.deliveryDate },
@@ -187,4 +196,35 @@ export const affiliatePayoutFields: readonly DiffField<AffiliatePayout>[] = [
   { label: "period end", value: (payout) => payout.periodEnd },
   { label: "period start", value: (payout) => payout.periodStart },
   { label: "payment method", value: (payout) => payout.paymentMethod },
+];
+
+export const paymentFields: readonly DiffField<PaymentRecord>[] = [
+  { label: "amount", value: (payment) => payment.gross, format: money },
+  { label: "date", value: (payment) => payment.date },
+  { label: "TDS", value: (payment) => payment.tds, format: money },
+  { label: "charges", value: (payment) => payment.bankFee, format: money },
+  // No "received into": money in always lands in the business account, and
+  // an old payment's account moving to it on edit isn't a change worth logging.
+  { label: "method", value: (payment) => payment.method ?? "" },
+  // A bank reference is the payment's handle at the bank: recorded as
+  // changed, never quoted, like an invoice's UPI id.
+  { label: "reference", value: (payment) => payment.reference, redact: true },
+  { label: "note", value: (payment) => payment.note, redact: true },
+];
+
+export const expenseFields: readonly DiffField<ExpenseRecord>[] = [
+  { label: "amount", value: (expense) => expense.amount, format: money },
+  { label: "date", value: (expense) => expense.date },
+  { label: "description", value: (expense) => expense.description },
+  { label: "category", value: (expense) => expenseCategoryLabel(expense.category) },
+  {
+    label: "paid by",
+    value: (expense) => expense.paidBy ?? "",
+    format: (value) => (value ? payerLabel(toPayer(value)) : ""),
+  },
+  { label: "method", value: (expense) => expense.method ?? "" },
+  // Which deal, by id: the diff says it moved, the deal's name is in the event label.
+  { label: "deal", value: (expense) => expense.campaignId ?? "", redact: true },
+  { label: "receipt", value: (expense) => expense.receiptUrl ?? "", redact: true },
+  { label: "note", value: (expense) => expense.note, redact: true },
 ];

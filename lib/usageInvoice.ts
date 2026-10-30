@@ -32,8 +32,6 @@ export interface RenewalInvoiceInput {
   startDate: string; // yyyy-mm-dd, the day the extended term runs from
   /** yyyy-mm-dd the fee is due, or "" to fall back to the defaults' terms. */
   dueDate: string;
-  /** Whether the money was already collected when the renewal was recorded. */
-  paid: boolean;
   today: string; // yyyy-mm-dd
 }
 
@@ -82,11 +80,12 @@ export function addDaysISO(iso: string, days: number): string {
  *
  * Two choices worth stating:
  *
- * It is saved as a **draft** unless the money is already in, never as "sent".
- * The app cannot know an invoice has actually been emailed, and marking one
- * sent would have the dashboard chasing a document still sitting unsent in the
- * app. The renewal fee is already chased by the usage card, so nothing is lost
- * by waiting for the creator to send it and say so.
+ * It is always saved as a **draft**, never as "sent". The app cannot know an
+ * invoice has actually been emailed, and marking one sent would have the
+ * dashboard chasing a document still sitting unsent in the app. The renewal
+ * fee is already chased by the usage card, so nothing is lost by waiting for
+ * the creator to send it and say so. Whether it is paid is read from the
+ * renewal's payments (see lib/payments.ts).
  *
  * Its **campaign name is not the deal's**: "IG Page usage renewal", so the
  * document can't be mistaken for the deal's own invoice in the invoices list.
@@ -97,7 +96,7 @@ export function buildRenewalInvoice(input: RenewalInvoiceInput): NewInvoice {
   const campaign = input.campaignName.trim();
 
   return {
-    status: input.paid ? "paid" : "draft",
+    status: "draft",
     invoiceNo: nextInvoiceNo(input.existing, defaults.invoiceNumberSeed),
     brandId: input.brandId,
     editorTransactionId: null,

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentProps } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,10 +26,13 @@ import {
   type InvoiceEditorJobOption,
   type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
+import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import type { InvoiceContact, InvoicePaymentMode, InvoicePreset } from "@/repositories/invoice";
 import type { InvoiceStatus } from "@/repositories/invoices";
+import type { Settlement } from "@/repositories/payments";
 import { InvoiceImageUploadField } from "./InvoiceImageUploadField";
 import { InvoiceLineItemEditor } from "./InvoiceLineItemEditor";
+import { StandaloneInvoicePayments } from "./StandaloneInvoicePayments";
 import type { InvoiceFormActions, InvoiceFormState } from "./types";
 import styles from "./invoice.module.css";
 
@@ -50,6 +54,16 @@ interface InvoiceControlsProps {
   isExisting: boolean;
   /** The campaign (or renewal) this invoice bills, or null for a one-off. */
   linkedCampaign: InvoiceLinkedCampaign | null;
+  /**
+   * The payments of the deal or renewal a linked invoice bills. Whether the
+   * invoice is paid follows them, so the editor shows them in place of a
+   * "Paid" status and an advance.
+   */
+  ownerSettlement: Settlement | null;
+  /** The owner's expected TDS rate, for recording a payment from here. */
+  ownerTdsRate: number | null;
+  /** A saved invoice that bills no deal: its own payments. Null for a linked or unsaved one. */
+  standalone: ComponentProps<typeof StandaloneInvoicePayments> | null;
   onImageUploadError: (message: string) => void;
 }
 
@@ -67,8 +81,14 @@ export function InvoiceControls({
   hasAttemptedSave,
   isExisting,
   linkedCampaign,
+  ownerSettlement,
+  ownerTdsRate,
+  standalone,
   onImageUploadError,
 }: InvoiceControlsProps) {
+  // An invoice is paid by its payments, never by hand. A "Paid" it already
+  // reads stays selectable so the select can show it.
+  const statusOptions = INVOICE_STATUS_OPTIONS.filter((option) => option !== "paid" || state.status === "paid");
   const numberClash = isInvoiceNoTaken(state.invoiceNo, takenInvoiceNumbers);
   const clientPanInvalid = !isValidPanNumber(state.clientPanNumber);
   const payeePanInvalid = !isValidPanNumber(state.panNumber);
@@ -129,7 +149,7 @@ export function InvoiceControls({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {INVOICE_STATUS_OPTIONS.map((option) => (
+            {statusOptions.map((option) => (
               <SelectItem key={option} value={option}>
                 {formatInvoiceStatus(option)}
               </SelectItem>
@@ -143,6 +163,23 @@ export function InvoiceControls({
             <span className="font-medium text-foreground">{linkedCampaign.label}</span>
           </p>
         )}
+
+        {ownerSettlement && linkedCampaign && (
+          <div className="mt-3 space-y-2 rounded-lg border border-border p-3">
+            <p className="text-xs font-medium">Payments are recorded on the {linkedCampaign.renewal ? "renewal" : "deal"}</p>
+            <p className="text-[11px] text-muted-foreground">
+              This invoice reads Paid once they cover what is owed.
+            </p>
+            <PaymentHistory
+              settlement={ownerSettlement}
+              targetLabel={linkedCampaign.label}
+              expectedTdsRate={ownerTdsRate}
+              compact
+            />
+          </div>
+        )}
+
+        {standalone && <StandaloneInvoicePayments {...standalone} />}
 
         <Label className={styles.fieldLabel} htmlFor="campaignName">
           Campaign
@@ -318,19 +355,8 @@ export function InvoiceControls({
 
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>Money</legend>
-        <Label className={styles.fieldLabel} htmlFor="advance">
-          Advance received (₹)
-        </Label>
-        <Input
-          id="advance"
-          type="number"
-          min={0}
-          step={1}
-          aria-invalid={hasAttemptedSave && (!Number.isFinite(state.advance) || state.advance < 0)}
-          value={state.advance}
-          onChange={(e) => actions.setField("advance", Number(e.target.value))}
-        />
-
+        {/* Money received is recorded under Payments (above), never typed
+            here: an advance field would be a second record of the same rupees. */}
         <div className={styles.toggle}>
           <Checkbox
             id="barterOn"

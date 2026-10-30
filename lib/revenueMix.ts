@@ -166,10 +166,14 @@ export interface BarterShare {
  *
  * The direction compares the last three complete months against the three
  * before them. Complete months only, and for the reason computeMonthTrend
- * gives at length: income here is counted when it is received, so the month in
- * progress is near-empty by construction and comparing part of a month against
- * whole ones is not a comparison. Three months rather than one, because a
- * single barter deal can swing one month's mix by forty points.
+ * gives at length. A deal counts only once its payment is marked received,
+ * but it is filed under the month it was posted (its upload date, falling back
+ * to the deal date), not the month the money arrived. Renewals and commission
+ * are filed under their paid date when one is recorded. Most of the month in
+ * progress is therefore still pending and missing from these figures, and
+ * comparing part of a month against whole ones is not a comparison. Three
+ * months rather than one, because a single barter deal can swing one month's
+ * mix by forty points.
  *
  * Percentage points, never a percentage change: barter going from 10% to 20%
  * of income is a ten point move, and calling it "100% up" describes the same

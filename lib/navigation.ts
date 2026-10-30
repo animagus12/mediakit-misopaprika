@@ -1,4 +1,4 @@
-import { BadgePercent, Building2, CalendarDays, Clapperboard, DatabaseBackup, FileText, Handshake, History, LayoutDashboard, Link2, ReceiptText, Sparkles, Trash2, UserRound } from "lucide-react";
+import { BadgePercent, Building2, CalendarDays, Clapperboard, DatabaseBackup, FileText, Handshake, History, IndianRupee, LayoutDashboard, Link2, ReceiptText, Sparkles, Trash2, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // Sidebar sections. Grouping lives here rather than in the sidebar component
@@ -90,6 +90,14 @@ export const navEntries: NavEntry[] = [
     title: "Affiliates",
     description: "Creator codes, commission periods, and how well each code converts.",
     Icon: BadgePercent,
+    access: "protected",
+    group: "manage",
+  },
+  {
+    href: "/payments",
+    title: "Payments",
+    description: "Money in from brands and money out on editing and expenses, by financial year.",
+    Icon: IndianRupee,
     access: "protected",
     group: "manage",
   },

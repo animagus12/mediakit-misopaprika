@@ -4,6 +4,7 @@ import AppShell from "@/components/common/AppShell";
 import { InvoiceGenerator } from "@/components/invoice/InvoiceGenerator";
 import {
   buildInvoiceBrandOptions,
+  buildInvoiceDealOptions,
   buildInvoiceEditorJobOptions,
   invoiceOwner,
   toInvoiceLinkedCampaign,
@@ -40,7 +41,14 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
   ]);
 
   if (!invoice) notFound();
-  const linkedCampaign = toInvoiceLinkedCampaign(invoiceOwner(invoice.id, campaigns));
+  const owner = invoiceOwner(invoice.id, campaigns);
+  const linkedCampaign = toInvoiceLinkedCampaign(owner);
+  // The rate a payment recorded from this invoice's page starts its TDS at.
+  const ownerRenewal = owner?.renewalId
+    ? owner.campaign.usage.renewals.find((renewal) => renewal.id === owner.renewalId)
+    : undefined;
+  const ownerTdsRate = ownerRenewal?.tdsRate ?? owner?.campaign.tdsRate ?? null;
+  const dealOptions = owner ? [] : buildInvoiceDealOptions(invoice, campaigns);
 
   const takenInvoiceNumbers = invoices
     .filter((other) => other.id !== id)
@@ -60,9 +68,11 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
         data={{ ...data, brandHandle }}
         invoice={invoice}
         linkedCampaign={linkedCampaign}
+        ownerTdsRate={ownerTdsRate}
+        dealOptions={dealOptions}
         takenInvoiceNumbers={takenInvoiceNumbers}
         brandOptions={buildInvoiceBrandOptions(brands, contacts)}
-        editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions)}
+        editorJobOptions={buildInvoiceEditorJobOptions(editorTransactions, { invoices, currentInvoiceId: id })}
       />
     </AppShell>
   );

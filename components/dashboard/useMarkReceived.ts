@@ -2,28 +2,28 @@
 
 import { useOptimistic, useTransition } from "react";
 import { toast } from "sonner";
-import {
-  markCampaignPaymentReceived,
-  unmarkCampaignPaymentReceived,
-} from "@/app/(dashboard)/actions";
+import { markTargetReceived, undoMarkReceived } from "@/app/payments/actions";
+import { formatMoney } from "@/lib/invoice";
+import { paymentTargetKey, type PaymentTarget } from "@/repositories/payments";
 
-// Shared "mark a payment received" behaviour for PaymentsDueCard and
-// NeedsAttentionCard: the row vanishes the instant it's clicked (optimistic),
-// the write happens in the background, and the success toast carries an
-// Undo that puts payment status back to pending. On failure the optimistic
-// hide reverts itself when the transition ends, so the row simply reappears.
+// Shared one-click "received" for PaymentsDueCard, NeedsAttentionCard and the
+// renewals card: the row vanishes the instant it's clicked (optimistic), and
+// a payment for everything still owed is recorded in the background, dated
+// today, with TDS at the expected rate and the method last used for the
+// brand. The toast says what was recorded and carries an Undo that removes
+// exactly that payment. On failure the optimistic hide reverts itself when the
+// transition ends, so the row simply reappears.
 //
-// Marking received also moves the deal's linked invoice to "paid". The Undo
-// carries the status that invoice held beforehand, so reverting restores it
-// exactly rather than assuming it was "sent".
+// The id is made here, once per click, so a double tap records one payment.
 export function useMarkReceived() {
   const [isPending, startTransition] = useTransition();
-  const [hiddenIds, hide] = useOptimistic<string[], string>([], (ids, id) => [...ids, id]);
+  const [hiddenKeys, hide] = useOptimistic<string[], string>([], (keys, key) => [...keys, key]);
 
-  function markReceived(campaignId: string, label: string) {
+  function markReceived(target: PaymentTarget, label: string) {
+    const clientId = crypto.randomUUID();
     startTransition(async () => {
-      hide(campaignId);
-      const result = await markCampaignPaymentReceived(campaignId);
+      hide(paymentTargetKey(target));
+      const result = await markTargetReceived(target, clientId);
       if (!result.success) {
         toast.error("Couldn't mark received", { description: result.error });
         return;
@@ -33,27 +33,22 @@ export function useMarkReceived() {
         label: "Undo",
         onClick: () =>
           startTransition(async () => {
-            const undo = await unmarkCampaignPaymentReceived(campaignId, result.previousInvoiceStatus);
+            const undo = await undoMarkReceived(result.paymentId);
             if (!undo.success) toast.error("Couldn't undo", { description: undo.error });
           }),
       };
+      const title = `${label}: ${formatMoney(result.gross)} received`;
+      const description = "Edit it from the deal's Payments section.";
 
-      // The payment landed either way; the warning is about the invoice not
-      // following, which is worth saying rather than showing a plain success.
       if (result.warning) {
-        toast.warning(`${label}: marked received`, {
-          description: `The linked invoice wasn't updated: ${result.warning}`,
-          action: undoAction,
-        });
+        toast.warning(title, { description: result.warning, action: undoAction });
         return;
       }
-
-      toast.success(`${label}: marked received`, {
-        description: result.previousInvoiceStatus ? "Linked invoice marked paid." : undefined,
-        action: undoAction,
-      });
+      toast.success(title, { description, action: undoAction });
     });
   }
 
-  return { hiddenIds, isPending, markReceived };
+  const isHidden = (target: PaymentTarget) => hiddenKeys.includes(paymentTargetKey(target));
+
+  return { isHidden, isPending, markReceived };
 }

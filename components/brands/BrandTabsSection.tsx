@@ -42,15 +42,20 @@ export function BrandTabsSection({
   affiliates,
 }: BrandTabsSectionProps) {
   return (
-    <Tabs defaultValue="overview">
-      <TabsList>
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="contacts">Contacts</TabsTrigger>
-        <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-        <TabsTrigger value="payments">Payments</TabsTrigger>
-        <TabsTrigger value="invoices">Invoices</TabsTrigger>
-        <TabsTrigger value="notes">Notes</TabsTrigger>
-      </TabsList>
+    <Tabs defaultValue="overview" className="min-w-0">
+      {/* Six tabs are wider than a phone: they scroll sideways, edge to edge,
+          rather than pushing the whole page wider than the screen (the same
+          as the campaigns table's tabs). */}
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <TabsList className="w-max">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+          <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+        </TabsList>
+      </div>
 
       <TabsContent value="overview" className="pt-4">
         <BrandOverviewTab brand={brand} agency={agency} />

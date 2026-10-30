@@ -123,6 +123,12 @@
   html {
     @apply font-sans;
   }
+  /* An open sheet or dialog sets pointer-events: none on body, which the
+     toaster inherits; its toasts' actions (Undo) must stay clickable.
+     Sonner's own unlayered rule still disables hidden toasts. */
+  [data-sonner-toast] {
+    pointer-events: auto;
+  }
 }
 
 /* AppShell chrome (sidebar + navbar) must never appear in a printed/PDF

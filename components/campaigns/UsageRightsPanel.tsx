@@ -4,30 +4,29 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import {
-  Check,
+  ChevronDown,
   CircleSlash,
   FileText,
   PauseCircle,
+  Percent,
   PlayCircle,
   RefreshCw,
-  Undo2,
   Unlink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  raiseInvoiceForRenewal,
-  setCampaignUsageState,
-  setUsageRenewalPaymentStatus,
-  unlinkRenewalInvoice,
-} from "@/app/(dashboard)/actions";
+import { raiseInvoiceForRenewal, setCampaignUsageState, unlinkRenewalInvoice } from "@/app/(dashboard)/actions";
+import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
 import { paymentStatusLabel } from "@/lib/campaigns";
+import { resolveTds } from "@/lib/tds";
 import { formatUsageDays, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
-import type { Campaign, UsageRenewalRecord } from "@/repositories/campaigns";
+import type { Campaign, UsageRenewal, UsageRenewalRecord } from "@/repositories/campaigns";
 import { RenewUsageSheet } from "./RenewUsageSheet";
+import { RenewalTdsSheet } from "./RenewalTdsSheet";
 
 // Same vocabulary the campaigns table and the dashboard card use, so a
 // licence looks the same wherever it is read.
@@ -42,7 +41,10 @@ const STATE_TONES: Record<UsageState, string> = {
   ended: "text-muted-foreground",
 };
 
-function renewalStatusClass(renewal: UsageRenewalRecord): string {
+function renewalStatusClass(renewal: UsageRenewal): string {
+  if (renewal.settlement.status === "partial") {
+    return "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400";
+  }
   if (renewal.paymentStatus === "received") {
     return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400";
   }
@@ -50,6 +52,18 @@ function renewalStatusClass(renewal: UsageRenewalRecord): string {
     return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400";
   }
   return "";
+}
+
+// " · TDS ₹1,000" (or "≈ ₹1,000" while only the rate is known), "" when none.
+// Once a payment is recorded against the renewal, the TDS those payments
+// actually withheld.
+function renewalTdsLabel(renewal: UsageRenewal): string {
+  if (renewal.settlement.hasStored) {
+    return renewal.settlement.tds > 0 ? ` · TDS ${formatMoney(renewal.settlement.tds)}` : "";
+  }
+  const tds = resolveTds(renewal.amount, renewal.tdsRate, renewal.tdsAmount);
+  if (!tds) return "";
+  return ` · TDS ${tds.estimated ? "≈ " : ""}${formatMoney(tds.amount)}`;
 }
 
 /**
@@ -63,10 +77,11 @@ function renewalStatusClass(renewal: UsageRenewalRecord): string {
  * panel is that record, and it is on the deal because that is what a renewal
  * belongs to.
  *
- * Read-only except for the two things that are genuinely one click: moving the
- * licence between its states, and collecting a fee. Changing a renewal's terms
+ * Read-only except for moving the licence between its states and recording
+ * what each renewal's brand paid (its Payments). Changing a renewal's terms
  * after the fact is deliberately absent: what was agreed was agreed, and a
- * mistake is corrected by recording a new renewal.
+ * mistake is corrected by recording a new renewal. The expected TDS rate is
+ * the exception (see RenewalTdsSheet): it is often only learned later.
  */
 export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
   const [isPending, startTransition] = useTransition();
@@ -115,21 +130,6 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
     });
   }
 
-  function setRenewalPaid(renewal: UsageRenewalRecord, received: boolean) {
-    startTransition(async () => {
-      const result = await setUsageRenewalPaymentStatus(
-        campaign.id,
-        renewal.id,
-        received ? "received" : "pending"
-      );
-      if (!result.success) {
-        toast.error("Couldn't update the renewal payment", { description: result.error });
-        return;
-      }
-      toast.success(received ? "Renewal marked received" : "Renewal put back to pending");
-    });
-  }
-
   if (term.state === "untracked") {
     return (
       <p className="text-[11px] text-muted-foreground">
@@ -161,6 +161,7 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             campaignId={campaign.id}
             brand={campaign.brand}
             term={term}
+            defaultTdsRate={campaign.tdsRate}
             trigger={
               <Button type="button" size="sm" variant="outline" disabled={isPending}>
                 <RefreshCw />
@@ -210,10 +211,8 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
         <div className="space-y-1">
           <p className="text-[11px] font-medium text-muted-foreground">Renewals</p>
           {renewals.map((renewal) => (
-            <div
-              key={renewal.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5"
-            >
+            <Collapsible key={renewal.id} className="rounded-md bg-muted/40 px-2 py-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0 text-xs">
                 <p className="font-medium tabular-nums">
                   {formatUsageDays(renewal.days)} ·{" "}
@@ -222,66 +221,95 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
                 <p className="text-[11px] text-muted-foreground tabular-nums">
                   from {renewal.startDate}
                   {renewal.paidDate ? ` · paid ${renewal.paidDate}` : ""}
+                  {renewalTdsLabel(renewal)}
                 </p>
-                {renewal.invoiceId && (
-                  <span className="inline-flex items-center gap-1">
-                    <Link
-                      href={`/invoices/${renewal.invoiceId}`}
-                      className="text-[11px] text-foreground hover:underline"
+                <div className="flex flex-wrap items-center gap-x-3">
+                  {renewal.invoiceId && (
+                    <span className="inline-flex items-center gap-1">
+                      <Link
+                        href={`/invoices/${renewal.invoiceId}`}
+                        className="text-[11px] text-foreground hover:underline"
+                      >
+                        View invoice
+                      </Link>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            size="icon-xs"
+                            variant="ghost"
+                            aria-label="Unlink renewal invoice"
+                            disabled={isPending}
+                            onClick={() => unlinkInvoice(renewal)}
+                          >
+                            <Unlink />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Unlink invoice</TooltipContent>
+                      </Tooltip>
+                    </span>
+                  )}
+                  {!renewal.invoiceId && renewal.amount > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-auto px-0 text-[11px] hover:bg-transparent hover:underline"
+                      disabled={isPending}
+                      onClick={() => raiseInvoice(renewal)}
                     >
-                      View invoice
-                    </Link>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                      <FileText />
+                      Raise invoice
+                    </Button>
+                  )}
+                  {renewal.amount > 0 && (
+                    <RenewalTdsSheet
+                      campaignId={campaign.id}
+                      brand={campaign.brand}
+                      renewal={renewal}
+                      trigger={
                         <Button
                           type="button"
-                          size="icon-xs"
+                          size="sm"
                           variant="ghost"
-                          aria-label="Unlink renewal invoice"
+                          className="h-auto px-0 text-[11px] hover:bg-transparent hover:underline"
                           disabled={isPending}
-                          onClick={() => unlinkInvoice(renewal)}
                         >
-                          <Unlink />
+                          <Percent />
+                          {renewal.tdsRate === null ? "Set TDS rate" : "Edit TDS rate"}
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Unlink invoice</TooltipContent>
-                    </Tooltip>
-                  </span>
-                )}
-                {!renewal.invoiceId && renewal.amount > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-auto px-0 text-[11px] hover:bg-transparent hover:underline"
-                    disabled={isPending}
-                    onClick={() => raiseInvoice(renewal)}
-                  >
-                    <FileText />
-                    Raise invoice
-                  </Button>
-                )}
+                      }
+                    />
+                  )}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <Badge variant="outline" className={renewalStatusClass(renewal)}>
-                  {paymentStatusLabel(renewal.paymentStatus)}
+                  {renewal.settlement.status === "partial"
+                    ? "Partly paid"
+                    : paymentStatusLabel(renewal.paymentStatus)}
                 </Badge>
                 {renewal.amount > 0 && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={isPending}
-                    onClick={() =>
-                      setRenewalPaid(renewal, renewal.paymentStatus !== "received")
-                    }
-                  >
-                    {renewal.paymentStatus === "received" ? <Undo2 /> : <Check />}
-                    {renewal.paymentStatus === "received" ? "Revert" : "Mark paid"}
-                  </Button>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" size="sm" variant="ghost" className="group/payments">
+                      Payments
+                      <ChevronDown className="transition group-data-[state=open]/payments:rotate-180" />
+                    </Button>
+                  </CollapsibleTrigger>
                 )}
               </div>
             </div>
+            {renewal.amount > 0 && (
+              <CollapsibleContent className="pt-2">
+                <PaymentHistory
+                  settlement={renewal.settlement}
+                  targetLabel={`${campaign.campaign.trim() || campaign.brand} · renewal ${renewal.id}`}
+                  expectedTdsRate={renewal.tdsRate ?? campaign.tdsRate}
+                  compact
+                />
+              </CollapsibleContent>
+            )}
+            </Collapsible>
           ))}
         </div>
       )}

@@ -13,8 +13,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { toIsoDate } from "@/lib/editorTransactions";
+import { isPaidEditorStatus, toIsoDate } from "@/lib/editorTransactions";
 import { formatMoney } from "@/lib/invoice";
+import { payerLabel } from "@/lib/payers";
 import { updateEditorTransaction } from "@/app/workspace/actions";
 import {
   EditorTransactionFormFields,
@@ -37,6 +38,9 @@ function formFromTransaction(txn: EditorTransaction): EditorTransactionFormState
     status: txn.status,
     revisions: txn.revisions,
     revisionRate: txn.revisionRate,
+    paidDate: toIsoDate(txn.paidDate),
+    paidBy: txn.paidBy ?? "",
+    paymentMethod: txn.paymentMethod ?? "",
   };
 }
 
@@ -138,6 +142,26 @@ export function EditEditorTransactionSheet({ transaction, editors }: EditEditorT
             disabled={quick.isPending}
             onChange={(next) => quick.setStatus(next, view.status)}
           />
+          {/* Phones have no room for the Paid on column, so the date rides
+              under the status it belongs to. */}
+          {view.paidDate && (
+            <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground md:hidden">{view.paidDate}</p>
+          )}
+        </TableCell>
+        <TableCell className="hidden md:table-cell">
+          {isPaidEditorStatus(view.status) ? (
+            <div className="leading-tight">
+              <p className="tabular-nums text-muted-foreground">{view.paidDate || "-"}</p>
+              {transaction.paidBy && (
+                <p className="max-w-36 truncate text-[11px] text-muted-foreground">
+                  {payerLabel(transaction.paidBy)}
+                  {transaction.paymentMethod && ` · ${transaction.paymentMethod}`}
+                </p>
+              )}
+            </div>
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
         </TableCell>
         <TableCell className="py-1" onClick={(event) => event.stopPropagation()}>
           <DeleteEditorTransactionButton id={transaction.id} video={transaction.video} />

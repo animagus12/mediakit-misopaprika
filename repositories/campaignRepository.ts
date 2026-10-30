@@ -4,10 +4,10 @@ import {
   addCampaignUsageRenewal,
   getCampaigns,
   setCampaignInvoice,
-  setCampaignPaymentStatus,
+  setCampaignStatus,
   setCampaignUploadDate,
   setUsageRenewalInvoice,
-  setUsageRenewalPayment,
+  setUsageRenewalTds,
   transitionCampaignUsage,
   updateCampaign as writeCampaignUpdate,
 } from "./campaigns.writer.server";
@@ -51,15 +51,18 @@ export interface CampaignFormValues {
   status: CampaignStatus;
   amount: number;
   barterValue: number;
+  // On a deal with cash: "unknown" or "pending" only; the money itself is
+  // recorded as payments (app/payments/actions.ts).
   paymentStatus: CampaignPaymentStatus;
+  barterStatus?: CampaignPaymentStatus; // a Barter+Paid deal's barter half; absent keeps it
   date: string; // "yyyy-mm-dd", as produced by <input type="date">
   uploadDate?: string; // "yyyy-mm-dd"
   invoiceRef?: string; // not on the form: written from the invoice's number when one is linked (see linkInvoice); absent keeps the stored one
   paymentDue?: string; // "yyyy-mm-dd"
-  paidDate?: string; // "yyyy-mm-dd", the day the money actually landed
-  paymentMethod?: string;
-  tdsRate?: number | null;
-  tdsAmount?: number | null;
+  paidDate?: string; // "yyyy-mm-dd": a barter-only deal's delivery day; ignored on a deal with cash
+  paymentMethod?: string; // barter-only deals; ignored on a deal with cash
+  tdsRate?: number | null; // the rate the brand is expected to withhold
+  tdsAmount?: number | null; // barter-only deals; ignored on a deal with cash
   editorTransactionId?: string | null; // the editing job behind the video, or null
   usageDays?: number; // base ad-usage licence term in days; 0 or absent = not tracked
   usageIndefinite?: boolean; // granted with no end date; absent on update keeps the stored setting
@@ -76,20 +79,21 @@ export interface CampaignFormUpdate extends CampaignFormValues {
 }
 
 /**
- * Form-shaped renewal input, as the renew dialog produces it.
- *
- * Its own type rather than a partial CampaignFormValues: a renewal shares the
- * payment vocabulary with a deal and nothing else, and the two are written to
- * different places.
+ * Form-shaped renewal input, as the renew dialog produces it. Its money is
+ * recorded as a payment (app/payments/actions.ts), so there is no status,
+ * paid date or method here.
  */
 export interface UsageRenewalFormValues {
   startDate: string; // "yyyy-mm-dd", the day the extended term runs from
   days: number;
   amount: number;
-  paymentStatus: CampaignPaymentStatus;
   paymentDue: string; // "yyyy-mm-dd"
-  paidDate: string; // "yyyy-mm-dd"
-  paymentMethod: string;
+  tdsRate?: number | null; // percent the brand is expected to withhold; null or absent when not known
+}
+
+/** The TDS rate one renewal's brand is expected to withhold; null clears it. */
+export interface UsageRenewalTdsValues {
+  tdsRate: number | null;
 }
 
 export interface ICampaignRepository {
@@ -100,12 +104,10 @@ export interface ICampaignRepository {
   // Answers the record either side of the write (null when the id matched
   // nothing), so a caller can report what changed.
   update(input: CampaignFormUpdate): Promise<RecordChange<CampaignRecord> | null>;
-  // Marks the deal's payment as collected without touching any other field: 
-  // the dashboard's quick action on a payments-due row.
-  setPaymentReceived(campaignId: string): Promise<CampaignRecord>;
-  // Reverts that: puts payment status back to "pending". Backs the Undo on
-  // the "Mark received" toast.
-  setPaymentPending(campaignId: string): Promise<CampaignRecord>;
+  // Moves the deal's pipeline status and nothing else: the dashboard's quick
+  // status control. Answers the record either side (null when the id matched
+  // nothing).
+  setStatus(campaignId: string, status: CampaignStatus): Promise<RecordChange<CampaignRecord> | null>;
   // Sets the deal's posting day, or clears it back off with "": the content
   // calendar's inline scheduler, which moves that one field rather than
   // resaving a whole form. Answers the record either side of the write (null
@@ -124,12 +126,11 @@ export interface ICampaignRepository {
     campaignId: string,
     input: UsageRenewalFormValues
   ): Promise<RecordChange<CampaignRecord> | null>;
-  // Collects (or un-collects) one renewal's payment, stamping the day it
-  // landed the same way setPaymentReceived does for a deal.
-  setRenewalPaymentStatus(
+  // Sets (or clears) the TDS rate one renewal's brand is expected to withhold.
+  setRenewalTds(
     campaignId: string,
     renewalId: string,
-    status: CampaignPaymentStatus
+    tds: UsageRenewalTdsValues
   ): Promise<RecordChange<CampaignRecord> | null>;
   // Points the deal at the invoice record that bills it, once that invoice
   // exists, or clears the link with "". `invoiceRef` replaces the deal's typed
@@ -164,6 +165,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       amount: input.amount,
       barterValue: input.barterValue,
       paymentStatus: input.paymentStatus,
+      barterStatus: input.barterStatus,
       uploadDate: input.uploadDate ? toSheetDate(input.uploadDate) : "",
       invoiceRef: input.invoiceRef,
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
@@ -193,6 +195,7 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       amount: input.amount,
       barterValue: input.barterValue,
       paymentStatus: input.paymentStatus,
+      barterStatus: input.barterStatus,
       uploadDate: input.uploadDate ? toSheetDate(input.uploadDate) : "",
       invoiceRef: input.invoiceRef,
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
@@ -209,15 +212,8 @@ class CampaignRepositoryImpl implements ICampaignRepository {
     });
   }
 
-  // Stamped with today rather than preserving whatever date was on the record:
-  // this is the button on a row that is still pending, so any date already
-  // there is a leftover from an earlier mark-and-undo, not a correction.
-  async setPaymentReceived(campaignId: string): Promise<CampaignRecord> {
-    return setCampaignPaymentStatus(campaignId, "received", today());
-  }
-
-  async setPaymentPending(campaignId: string): Promise<CampaignRecord> {
-    return setCampaignPaymentStatus(campaignId, "pending", "");
+  async setStatus(campaignId: string, status: CampaignStatus): Promise<RecordChange<CampaignRecord> | null> {
+    return setCampaignStatus(campaignId, status);
   }
 
   async schedulePost(
@@ -242,24 +238,17 @@ class CampaignRepositoryImpl implements ICampaignRepository {
       startDate: input.startDate ? toSheetDate(input.startDate) : today(),
       days: input.days,
       amount: input.amount,
-      paymentStatus: input.paymentStatus,
       paymentDue: input.paymentDue ? toSheetDate(input.paymentDue) : "",
-      paidDate: input.paidDate ? toSheetDate(input.paidDate) : "",
-      paymentMethod: input.paymentMethod,
+      tdsRate: input.tdsRate ?? null,
     });
   }
 
-  async setRenewalPaymentStatus(
+  async setRenewalTds(
     campaignId: string,
     renewalId: string,
-    status: CampaignPaymentStatus
+    tds: UsageRenewalTdsValues
   ): Promise<RecordChange<CampaignRecord> | null> {
-    return setUsageRenewalPayment(
-      campaignId,
-      renewalId,
-      status,
-      status === "received" ? today() : ""
-    );
+    return setUsageRenewalTds(campaignId, renewalId, tds);
   }
 
   async linkInvoice(campaignId: string, invoiceId: string, invoiceRef?: string): Promise<CampaignRecord | null> {

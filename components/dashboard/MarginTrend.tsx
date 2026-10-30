@@ -16,8 +16,8 @@ interface MarginTrendProps {
 }
 
 /**
- * Cash received each month with the editing bill taken out, drawn under the
- * bars it is derived from.
+ * Cash received each month with the editing bill and expenses taken out,
+ * drawn under the bars it is derived from.
  *
  * The chart above stacks what came in. This is what was kept, which is a
  * different line and on some months a much lower one: the dashboard reported
@@ -35,10 +35,13 @@ interface MarginTrendProps {
  */
 export function MarginTrend({ series, className }: MarginTrendProps) {
   // Two points make a line; one makes a dot that implies a trend it cannot
-  // show. And with no editing recorded anywhere in the window this is the cash
+  // show. And with no cost recorded anywhere in the window this is the cash
   // bars redrawn as a line, which is a second way of saying what the chart
   // above already says.
-  if (series.length < 2 || !series.some((month) => month.editorCost > 0)) return null;
+  const hasEditing = series.some((month) => month.editorCost > 0);
+  const hasExpenses = series.some((month) => month.expenseCost > 0);
+  if (series.length < 2 || (!hasEditing && !hasExpenses)) return null;
+  const netOf = hasEditing && hasExpenses ? "editing and expenses" : hasEditing ? "editing" : "expenses";
 
   const values = series.map((month) => month.margin);
   const min = Math.min(0, ...values);
@@ -56,7 +59,7 @@ export function MarginTrend({ series, className }: MarginTrendProps) {
   return (
     <div className={cn("space-y-1.5 border-t border-border/60 pt-3", className)}>
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-[0.7rem] text-muted-foreground">Cash kept, net of editing</p>
+        <p className="text-[0.7rem] text-muted-foreground">Cash kept, net of {netOf}</p>
         <p className="text-[0.7rem] tabular-nums">
           <span
             className={cn(
@@ -68,7 +71,7 @@ export function MarginTrend({ series, className }: MarginTrendProps) {
           </span>
           <span className="ml-1.5 font-normal text-muted-foreground">
             in {monthLabel(latest.month).split(" ")[0]}
-            {latest.marginPercent !== null && latest.editorCost > 0
+            {latest.marginPercent !== null && latest.editorCost + latest.expenseCost > 0
               ? ` · ${Math.round(latest.marginPercent)}% of cash`
               : ""}
           </span>

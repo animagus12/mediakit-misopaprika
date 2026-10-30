@@ -21,6 +21,7 @@ import type { AffiliatePayoutUpdate, NewAffiliatePayout } from "@/repositories/a
 import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.server";
 import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
+import { requireSession } from "@/lib/session.server";
 
 type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
@@ -35,6 +36,9 @@ async function partnerLabel(partnerId: string, period: string): Promise<string> 
 }
 
 export async function createAffiliatePartner(input: NewAffiliatePartner): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await addAffiliatePartner(input);
     revalidateStores("affiliatePartners");
@@ -55,6 +59,9 @@ export async function createAffiliatePartner(input: NewAffiliatePartner): Promis
 export async function updateAffiliatePartner(
   input: AffiliatePartnerUpdate
 ): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateAffiliatePartnerRecord(input);
     revalidateStores("affiliatePartners");
@@ -75,6 +82,9 @@ export async function updateAffiliatePartner(
 }
 
 export async function createAffiliatePayout(input: NewAffiliatePayout): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     await addAffiliatePayout(input);
     // Both stores, because a payout changes what every partner card reports.
@@ -98,6 +108,9 @@ export async function createAffiliatePayout(input: NewAffiliatePayout): Promise<
 }
 
 export async function updateAffiliatePayout(input: AffiliatePayoutUpdate): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const change = await updateAffiliatePayoutRecord(input);
     revalidateStores("affiliatePayouts", "affiliatePartners");
@@ -128,6 +141,9 @@ export async function updateAffiliatePayout(input: AffiliatePayoutUpdate): Promi
 }
 
 export async function removeAffiliatePayout(id: string): Promise<ActionResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   let trashId: string | null = null;
   let removed: Awaited<ReturnType<typeof deleteAffiliatePayout>> = null;
   try {

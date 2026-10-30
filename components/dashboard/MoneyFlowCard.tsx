@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { formatMoney, type InvoiceStats, type InvoiceMarginTotals } from "@/lib/invoice";
+import { sumMoney } from "@/lib/money";
 import type { EditorPayoutSummary } from "@/lib/editorTransactions";
 import { StatTile, type StatTone } from "./StatTile";
 
@@ -14,6 +15,8 @@ interface Tile {
 interface MoneyFlowCardProps {
   invoices: InvoiceStats;
   payouts: EditorPayoutSummary;
+  /** Every expense recorded to date (see lib/expenses.ts). */
+  expensesPaid: number;
   margins: InvoiceMarginTotals;
   className?: string;
 }
@@ -35,7 +38,8 @@ interface MoneyFlowCardProps {
  * transactions by delivery date, which is a different and defensible claim
  * ("what this month's output cost to make") and is labelled as one.
  */
-export function MoneyFlowCard({ invoices, payouts, margins, className }: MoneyFlowCardProps) {
+export function MoneyFlowCard({ invoices, payouts, expensesPaid, margins, className }: MoneyFlowCardProps) {
+  const spent = sumMoney([payouts.paid, expensesPaid]);
   const tiles: Tile[] = [
     {
       label: "Outstanding on invoices",
@@ -57,10 +61,12 @@ export function MoneyFlowCard({ invoices, payouts, margins, className }: MoneyFl
       tone: "out",
     },
     {
-      label: "Paid to editors",
-      value: formatMoney(payouts.paid),
-      hint: null,
-      href: "/workspace",
+      // Everything that left: editors as the workspace records them, and
+      // expenses. Split in the hint so the editing figure stays readable.
+      label: "Spent to date",
+      value: formatMoney(spent),
+      hint: spent > 0 ? `${formatMoney(payouts.paid)} editing · ${formatMoney(expensesPaid)} expenses` : null,
+      href: "/payments?flow=out",
       tone: "neutral",
     },
   ];

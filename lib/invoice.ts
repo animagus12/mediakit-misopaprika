@@ -2,16 +2,18 @@ import type { VariantProps } from "class-variance-authority";
 import type { badgeVariants } from "@/components/ui/badge";
 import type { InvoiceFormState } from "@/components/invoice/types";
 import type { InvoiceData, InvoiceLineItemInput } from "@/repositories/invoice";
-import type { Invoice, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
+import type { Invoice, InvoiceDisplayStatus, InvoiceStatus, NewInvoice } from "@/repositories/invoices";
 import type { Brand } from "@/repositories/brands";
-import type { Campaign, CampaignPaymentStatus, CampaignStatus } from "@/repositories/campaigns";
+import type { Campaign } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
 import type { EditorTransaction } from "@/repositories/editorTransactions";
-import { isCampaignCalledOff, toSheetDate } from "./campaigns";
+import { campaignLabel, isCampaignCalledOff, toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
 import { addDays, todayKey } from "./day";
+import { financialYearsPresent, isInFinancialYear } from "./financialYear";
+import { roundMoney } from "./money";
 
 export interface InvoiceLineItem extends InvoiceLineItemInput {
   id: string;
@@ -21,8 +23,21 @@ export interface InvoiceLineItem extends InvoiceLineItemInput {
 // <Select> options: mirrors lib/editorTransactions.ts's status options.
 export const INVOICE_STATUS_OPTIONS: InvoiceStatus[] = ["draft", "sent", "paid", "void"];
 
-export function formatInvoiceStatus(status: InvoiceStatus): string {
+export function formatInvoiceStatus(status: InvoiceDisplayStatus): string {
+  if (status === "partial") return "Partly paid";
   return status[0].toUpperCase() + status.slice(1);
+}
+
+/**
+ * What an invoice's badge reads: "partial" for a draft or sent invoice part
+ * of whose money has arrived (see its settlement in lib/payments.ts), its
+ * status otherwise.
+ */
+export function invoiceDisplayStatus(invoice: Pick<Invoice, "status" | "settlement">): InvoiceDisplayStatus {
+  if ((invoice.status === "draft" || invoice.status === "sent") && invoice.settlement.status === "partial") {
+    return "partial";
+  }
+  return invoice.status;
 }
 
 export function formatMoney(amount: number): string {
@@ -54,9 +69,6 @@ export function validateInvoiceInput(input: NewInvoice): string | null {
     }
   }
 
-  if (!Number.isFinite(input.advance) || input.advance < 0) {
-    return "Advance received must be a non-negative amount";
-  }
   if (input.barter.enabled && (!Number.isFinite(input.barter.value) || input.barter.value < 0)) {
     return "Barter value must be a non-negative amount";
   }
@@ -314,23 +326,31 @@ export function buildCampaignInvoiceOptions(
     .sort((a, b) => b.number.localeCompare(a.number, undefined, { numeric: true }));
 }
 
+/** One deal a standalone invoice could be linked to before its first payment. */
+export interface InvoiceDealOption {
+  id: string;
+  /** "Brand · Campaign" */
+  label: string;
+}
+
 /**
- * The payment status a deal moves to when the invoice billing it is marked
- * `invoiceStatus`, or null to leave the deal alone.
- *
- * Sent means the money is owed and paid means it arrived, whatever the deal
- * said before, "Not tracked" included: raising and sending the invoice is the
- * tracking. A called-off deal is owed nothing, so an invoice cannot put a
- * payment back on it; drafts and void invoices say nothing about money.
+ * The deals a standalone invoice could bill: cash deals no invoice bills yet
+ * and not called off, the invoice's own brand first. Asked before its first
+ * payment, so money for a deal is recorded on that deal and not twice.
  */
-export function paymentStatusForInvoice(
-  campaign: { status: CampaignStatus; paymentStatus: CampaignPaymentStatus },
-  invoiceStatus: InvoiceStatus
-): CampaignPaymentStatus | null {
-  if (invoiceStatus !== "paid" && invoiceStatus !== "sent") return null;
-  if (isCampaignCalledOff(campaign.status)) return null;
-  const target = invoiceStatus === "paid" ? "received" : "pending";
-  return campaign.paymentStatus === target ? null : target;
+export function buildInvoiceDealOptions(
+  invoice: Pick<Invoice, "brandId">,
+  campaigns: Pick<Campaign, "id" | "brand" | "brandId" | "campaign" | "invoiceId" | "cash" | "status">[]
+): InvoiceDealOption[] {
+  return campaigns
+    .filter((campaign) => !campaign.invoiceId && campaign.cash > 0 && !isCampaignCalledOff(campaign.status))
+    .map((campaign) => ({
+      id: campaign.id,
+      label: campaignLabel(campaign.campaign, campaign.brand),
+      ownBrand: invoice.brandId !== null && campaign.brandId === invoice.brandId,
+    }))
+    .sort((a, b) => Number(b.ownBrand) - Number(a.ownBrand) || a.label.localeCompare(b.label))
+    .map(({ id, label }) => ({ id, label }));
 }
 
 export function lineItemTotal(item: InvoiceLineItemInput): number {
@@ -431,8 +451,13 @@ interface InvoiceStatusStyle {
 // Same low-opacity palette-color convention as the workspace's transaction
 // status badges (see EditEditorTransactionSheet): globals.css has no
 // success/warning token, so meaning is carried by raw Tailwind colors.
-export function invoiceStatusStyle(status: InvoiceStatus): InvoiceStatusStyle {
+export function invoiceStatusStyle(status: InvoiceDisplayStatus): InvoiceStatusStyle {
   switch (status) {
+    case "partial":
+      return {
+        variant: "outline",
+        className: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-400",
+      };
     case "paid":
       return {
         variant: "outline",
@@ -554,11 +579,38 @@ export function filterInvoices(
   );
 }
 
+// Invoices are filed by financial year on their issue date: the date the
+// bill is dated with, and the one a year's sales are counted by.
+
+/** Every financial year an invoice was issued in, plus the current one, newest first. */
+export function invoiceFinancialYears(
+  invoices: Pick<Invoice, "issueDate">[],
+  now: Date = new Date()
+): number[] {
+  return financialYearsPresent(
+    invoices.map((invoice) => invoice.issueDate),
+    now
+  );
+}
+
+/**
+ * The invoices issued in one financial year. A null year is the "All" view
+ * and keeps every invoice, including any without a readable issue date,
+ * which no single year can claim.
+ */
+export function invoicesInFinancialYear<T extends Pick<Invoice, "issueDate">>(
+  invoices: T[],
+  year: number | null
+): T[] {
+  if (year === null) return invoices;
+  return invoices.filter((invoice) => isInFinancialYear(invoice.issueDate, year));
+}
+
 export type InvoiceSortColumn = "issueDate" | "dueDate" | "subtotal" | "balanceDue" | "status";
 export type SortDirection = "asc" | "desc";
 
-// Draft → Sent → Paid → Void: pipeline order, so ascending reads left-to-right.
-const INVOICE_STATUS_ORDER: Record<InvoiceStatus, number> = { draft: 0, sent: 1, paid: 2, void: 3 };
+// Draft → Sent → Partly paid → Paid → Void: pipeline order, so ascending reads left-to-right.
+const INVOICE_STATUS_ORDER: Record<InvoiceDisplayStatus, number> = { draft: 0, sent: 1, partial: 2, paid: 3, void: 4 };
 
 export function sortInvoices(
   invoices: Invoice[],
@@ -576,7 +628,7 @@ export function sortInvoices(
         delta = a.balanceDue - b.balanceDue;
         break;
       case "status":
-        delta = INVOICE_STATUS_ORDER[a.status] - INVOICE_STATUS_ORDER[b.status];
+        delta = INVOICE_STATUS_ORDER[invoiceDisplayStatus(a)] - INVOICE_STATUS_ORDER[invoiceDisplayStatus(b)];
         break;
       case "dueDate":
         delta = a.dueDate.localeCompare(b.dueDate);
@@ -613,7 +665,6 @@ export function invoiceDefaultsToFormState(data: InvoiceData): InvoiceFormState 
     clientPanNumber: "",
     clientGstNumber: "",
     items: itemsWithStableIds(data.defaultItems),
-    advance: 0,
     barterOn: data.barter.defaultEnabled,
     barterVal: data.barter.defaultValue,
     barterStatus: data.barter.defaultStatus,
@@ -657,7 +708,6 @@ export function invoiceRecordToFormState(record: NewInvoice): InvoiceFormState {
     clientPanNumber: record.client.panNumber || "",
     clientGstNumber: record.client.gstNumber || "",
     items: itemsWithStableIds(record.items),
-    advance: record.advance,
     barterOn: record.barter.enabled,
     barterVal: record.barter.value,
     barterStatus: record.barter.status,
@@ -708,7 +758,9 @@ export function formStateToInvoiceInput(state: InvoiceFormState): NewInvoice {
       qty: item.qty,
       price: item.price,
     })),
-    advance: state.advance,
+    // Money received is recorded as payments, never typed on the invoice: the
+    // writer keeps whatever advance an invoice already stores.
+    advance: 0,
     barter: {
       enabled: state.barterOn,
       value: state.barterVal,
@@ -769,11 +821,72 @@ export interface InvoiceEditorJobOption {
   status: string;
 }
 
+/** The fields that decide whether an invoice holds an editor job. */
+export type InvoiceEditorJobClaim = Pick<Invoice, "id" | "invoiceNo" | "status" | "editorTransactionId">;
+
+/**
+ * Whether an invoice holds the editor job it links to.
+ *
+ * A void invoice does not: it was withdrawn, and voiding one to reissue it is
+ * exactly when the job has to move to the replacement. A draft does, since it
+ * is on its way to being issued and a second draft for the same edit is the
+ * duplicate this guards against. Truthiness rather than a null check, since a
+ * record stored before the link existed has no such field at all.
+ */
+export function holdsEditorJob(invoice: Pick<Invoice, "status" | "editorTransactionId">): boolean {
+  return Boolean(invoice.editorTransactionId) && invoice.status !== "void";
+}
+
+/**
+ * The other invoice already holding an editor job, or null when it is free.
+ *
+ * One edit is one cost: linked to two invoices, its cost is netted off both
+ * and the margin reads lower than it is. `exceptInvoiceId` is the invoice
+ * being edited, which never blocks its own link.
+ */
+export function findEditorJobHolder<T extends InvoiceEditorJobClaim>(
+  jobId: string | null,
+  invoices: T[],
+  exceptInvoiceId?: string | null
+): T | null {
+  if (!jobId) return null;
+  return (
+    invoices.find(
+      (invoice) => invoice.id !== exceptInvoiceId && holdsEditorJob(invoice) && invoice.editorTransactionId === jobId
+    ) ?? null
+  );
+}
+
+/** The error a save shows when the job it links is held by another invoice. */
+export function editorJobTakenMessage(holder: Pick<Invoice, "invoiceNo">): string {
+  return `That editor job is already linked to ${buildInvoiceNumber(holder.invoiceNo)}. Unlink it there first.`;
+}
+
 // Most recent (by assigned date) first: the job a fresh invoice is most
 // likely to bill for. Cancelled jobs are dropped: nothing to bill against.
-export function buildInvoiceEditorJobOptions(transactions: EditorTransaction[]): InvoiceEditorJobOption[] {
+//
+// With `claims`, the list is for the editor's picker: jobs another invoice
+// already holds are hidden, the same "linked once" rule the calendar and
+// campaign video pickers follow (buildEditorVideoOptions). The invoice being
+// edited keeps its own link visible even when legacy data shares it. Without
+// `claims` every job is returned, which is what the margin lookups need: they
+// resolve the job an invoice already links, whoever else links it.
+export function buildInvoiceEditorJobOptions(
+  transactions: EditorTransaction[],
+  claims?: { invoices: InvoiceEditorJobClaim[]; currentInvoiceId?: string | null }
+): InvoiceEditorJobOption[] {
+  const ownLink = claims?.currentInvoiceId
+    ? (claims.invoices.find((invoice) => invoice.id === claims.currentInvoiceId)?.editorTransactionId ?? null)
+    : null;
+  const heldElsewhere = new Set(
+    (claims?.invoices ?? [])
+      .filter((invoice) => invoice.id !== claims?.currentInvoiceId && holdsEditorJob(invoice))
+      .map((invoice) => invoice.editorTransactionId)
+  );
+
   return transactions
     .filter((txn) => txn.status.trim().toLowerCase() !== "cancelled")
+    .filter((txn) => txn.id === ownLink || !heldElsewhere.has(txn.id))
     .slice()
     .sort((a, b) => {
       const delta = parseSheetDate(b.videoDate) - parseSheetDate(a.videoDate);
@@ -825,21 +938,31 @@ export interface InvoiceMarginTotals {
  *
  * Drafts and void invoices are excluded, matching computeInvoiceStats: a
  * draft has not been issued, so nothing has been billed to net a cost off.
+ *
+ * Each editor job's cost is netted off once, however many invoices link it.
+ * Saving refuses a second link now, but data saved before that rule can still
+ * hold one job on two invoices (a deal and its renewal, say). Both still count
+ * as billed; the edit was only paid for once.
  */
 export function computeInvoiceMarginTotals(
   invoices: Invoice[],
   jobs: InvoiceEditorJobOption[]
 ): InvoiceMarginTotals {
   const totals: InvoiceMarginTotals = { invoices: 0, billed: 0, editorCost: 0, margin: 0 };
+  const costed = new Set<string>();
   for (const invoice of invoices) {
     if (invoice.status === "void" || invoice.status === "draft") continue;
     const margin = computeInvoiceMargin(invoice, jobs);
-    if (!margin) continue;
+    if (!margin || !invoice.editorTransactionId) continue;
+    const editorCost = costed.has(invoice.editorTransactionId) ? 0 : margin.editorCost;
+    costed.add(invoice.editorTransactionId);
     totals.invoices += 1;
     totals.billed += invoice.subtotal;
-    totals.editorCost += margin.editorCost;
-    totals.margin += margin.margin;
+    totals.editorCost += editorCost;
   }
+  totals.billed = roundMoney(totals.billed);
+  totals.editorCost = roundMoney(totals.editorCost);
+  totals.margin = roundMoney(totals.billed - totals.editorCost);
   return totals;
 }
 
@@ -856,20 +979,4 @@ export function invoicesForBrand(
       invoice.brandId === brand.id ||
       (!invoice.brandId && key.length > 0 && normalizeBrandName(invoice.client.name) === key)
   );
-}
-
-// A one-line note when the campaign record's payment status and the saved
-// invoice's status disagree, so the mismatch is visible without opening
-// both. null when they're consistent (or too loosely related to compare).
-export function invoicePaymentMismatch(
-  campaignPaymentStatus: "received" | "pending" | "unknown",
-  invoiceStatus: InvoiceStatus
-): string | null {
-  if (campaignPaymentStatus === "received" && invoiceStatus !== "paid" && invoiceStatus !== "void") {
-    return "Campaign says received: invoice isn't marked paid";
-  }
-  if (campaignPaymentStatus === "pending" && invoiceStatus === "paid") {
-    return "Invoice marked paid: campaign still says pending";
-  }
-  return null;
 }
