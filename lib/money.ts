@@ -29,3 +29,46 @@ export function sumMoney(values: Iterable<number>): number {
   }
   return roundMoney(total);
 }
+
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+  "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+/** 1 to 99 in words; "" for 0. */
+function belowHundredInWords(n: number): string {
+  if (n < 20) return ONES[n];
+  return [TENS[Math.floor(n / 10)], ONES[n % 10]].filter(Boolean).join(" ");
+}
+
+/** A whole number in words on the Indian system (crore, lakh, thousand); "" for 0. */
+function wholeInWords(n: number): string {
+  const crore = Math.floor(n / 10_000_000);
+  const lakh = Math.floor(n / 100_000) % 100;
+  const thousand = Math.floor(n / 1000) % 100;
+  const hundred = Math.floor(n / 100) % 10;
+  return [
+    crore > 0 ? `${wholeInWords(crore)} Crore` : "",
+    lakh > 0 ? `${belowHundredInWords(lakh)} Lakh` : "",
+    thousand > 0 ? `${belowHundredInWords(thousand)} Thousand` : "",
+    hundred > 0 ? `${ONES[hundred]} Hundred` : "",
+    belowHundredInWords(n % 100),
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * An amount written out the way Indian invoices print it: "Rupees Nine
+ * Thousand Five Hundred Only", or "Rupees Ten and Fifty Paise Only" when there
+ * are paise.
+ */
+export function amountInWords(amount: number): string {
+  const rounded = roundMoney(amount);
+  const rupees = Math.floor(Math.abs(rounded));
+  const paise = Math.round((Math.abs(rounded) - rupees) * 100);
+  const sign = rounded < 0 ? "Minus " : "";
+  const paiseWords = paise > 0 ? ` and ${belowHundredInWords(paise)} Paise` : "";
+  return `${sign}Rupees ${wholeInWords(rupees) || "Zero"}${paiseWords} Only`;
+}
