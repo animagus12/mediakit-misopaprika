@@ -64,6 +64,7 @@
 }
 
 .pages {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -263,19 +264,38 @@
   object-fit: cover;
 }
 
+/* The room a page has for content: inset by the smallest gaps allowed above
+   the title and below the footer, so its height is what useInvoicePageSizes
+   fills. The spacers inside add the roomier gaps when content leaves space. */
 .sheet {
   position: absolute;
-  inset: 0;
-  padding: 0 26mm 22mm;
+  inset: 24mm 0 22mm;
+  padding: 0 26mm;
   display: flex;
   flex-direction: column;
+}
+
+.sheet > * {
+  flex-shrink: 0;
+}
+
+/* Free space is shared between the gap above the title and the gap above the
+   footer. Above the title it tops out where the title has always sat, 48mm
+   down; the rest goes above the footer, which keeps it at the bottom. As
+   content grows, both gaps close together until a new page is needed. */
+.spacerTop {
+  flex: 1 0 0;
+  max-height: 24mm;
+}
+
+.spacerBottom {
+  flex: 1 0 0;
 }
 
 .titlerow {
   display: flex;
   align-items: center;
   gap: 12mm;
-  margin-top: 48mm;
 }
 
 .rule {
@@ -356,11 +376,14 @@
   object-fit: contain;
 }
 
+.itemsBlock {
+  padding-top: 9mm;
+}
+
 .items {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  margin-top: 9mm;
 }
 
 .items th {
@@ -395,8 +418,8 @@
   text-align: right;
 }
 
-.items tbody tr:last-child td {
-  padding-bottom: 5mm;
+.itemsEnd {
+  padding-top: 1.6mm;
   border-bottom: 1px solid var(--invoice-rule);
 }
 
@@ -472,7 +495,6 @@
 }
 
 .pagefoot {
-  margin-top: auto;
   flex: 0 0 auto;
 }
 
@@ -522,12 +544,21 @@
 }
 
 .continuedFooter {
-  margin: auto 0 0;
+  margin: 0;
   padding-top: 5mm;
   text-align: center;
   font-size: 9pt;
   font-weight: 500;
   letter-spacing: 0.08em;
+}
+
+/* The hidden page InvoicePreview lays every block out on for measuring. */
+.measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ---------- print ---------- */
@@ -547,7 +578,8 @@
   }
 
   .panel,
-  .toast {
+  .toast,
+  .measure {
     display: none !important;
   }
 
@@ -573,13 +605,14 @@
   .page {
     box-shadow: none;
     margin: 0;
-    break-after: page;
-    page-break-after: always;
   }
 
-  .page:last-child {
-    break-after: auto;
-    page-break-after: auto;
+  /* Breaking before every page but the first, rather than after every page
+     but the last child, so the hidden measuring page that follows the last
+     one can't leave a blank page at the end. */
+  .page + .page {
+    break-before: page;
+    page-break-before: always;
   }
 }
 
