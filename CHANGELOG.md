@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-11-07
+
 ### Fixed
 
 - **Long invoices no longer run into the blue band at the bottom.** A page used to keep a fixed gap above the title and start a new page after a set number of lines, so a long address or bullet pushed the closing line, signature and GST note into the bottom band. Now, as text is added, the gap above the title and the gap above the footer shrink together, and a line moves to a new page only once both are used up. Removing text moves lines back. The totals always share a page with at least one line where the invoice has two or more. A short invoice looks the same as before, and the PDF has exactly as many pages as the preview.
