@@ -7,6 +7,7 @@ import {
   lineItemTotal,
 } from "@/lib/invoice";
 import { splitIntoPages } from "@/lib/invoicePagination";
+import { amountInWords } from "@/lib/money";
 import { SocialIcon } from "@/components/links/SocialIcon";
 import type { InvoiceLineItem } from "@/lib/invoice";
 import type { InvoiceFormState } from "./types";
@@ -264,48 +265,55 @@ function InvoiceTotals({ state, subtotal, amountReceived, balanceDue }: InvoiceT
   const showReceived = amountReceived > 0;
 
   return (
-    <table className={styles.totals}>
-      <colgroup>
-        <col className={styles.colDesc} />
-        <col className={styles.colQty} />
-        <col className={styles.colPrice} />
-        <col className={styles.colTotal} />
-      </colgroup>
-      <tbody>
-        <tr
-          className={`${styles.totalsStrong} ${!showReceived && !state.barterOn ? styles.totalsLastline : ""}`}
-        >
-          <td>SUBTOTAL</td>
-          <td></td>
-          <td></td>
-          <td className={styles.c}>{formatMoney(subtotal)}</td>
-        </tr>
-        {showReceived && (
+    <div>
+      <table className={styles.totals}>
+        <colgroup>
+          <col className={styles.colDesc} />
+          <col className={styles.colQty} />
+          <col className={styles.colPrice} />
+          <col className={styles.colTotal} />
+        </colgroup>
+        <tbody>
           <tr
-            className={`${styles.totalsStrong} ${!state.barterOn ? styles.totalsLastline : ""}`}
+            className={`${styles.totalsStrong} ${!showReceived && !state.barterOn ? styles.totalsLastline : ""}`}
           >
-            <td>AMOUNT RECEIVED</td>
+            <td>SUBTOTAL</td>
             <td></td>
             <td></td>
-            <td className={styles.c}>{formatMoney(amountReceived)}</td>
+            <td className={styles.c}>{formatMoney(subtotal)}</td>
           </tr>
-        )}
-        {state.barterOn && (
-          <tr className={`${styles.totalsStrong} ${styles.totalsLastline}`}>
-            <td>Barter Component</td>
-            <td className={styles.qtyCell}>1</td>
-            <td className={styles.c}>{formatMoney(state.barterVal)}</td>
-            <td className={styles.c}>{state.barterStatus}</td>
+          {showReceived && (
+            <tr
+              className={`${styles.totalsStrong} ${!state.barterOn ? styles.totalsLastline : ""}`}
+            >
+              <td>AMOUNT RECEIVED</td>
+              <td></td>
+              <td></td>
+              <td className={styles.c}>{formatMoney(amountReceived)}</td>
+            </tr>
+          )}
+          {state.barterOn && (
+            <tr className={`${styles.totalsStrong} ${styles.totalsLastline}`}>
+              <td>Barter Component</td>
+              <td className={styles.qtyCell}>1</td>
+              <td className={styles.c}>{formatMoney(state.barterVal)}</td>
+              <td className={styles.c}>{state.barterStatus}</td>
+            </tr>
+          )}
+          <tr className={styles.totalsDue}>
+            <td>BALANCE DUE</td>
+            <td></td>
+            <td></td>
+            <td className={styles.c}>{formatMoney(balanceDue)}</td>
           </tr>
-        )}
-        <tr className={styles.totalsDue}>
-          <td>BALANCE DUE</td>
-          <td></td>
-          <td></td>
-          <td className={styles.c}>{formatMoney(balanceDue)}</td>
-        </tr>
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+      {/* The invoice's value, as Indian invoices state it, rather than the
+          balance due, which only differs once part of it has been paid. */}
+      <p className={`${styles.val} ${styles.inWords}`}>
+        <strong>Total in words:</strong> {amountInWords(subtotal)}
+      </p>
+    </div>
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roundMoney, sumMoney } from "./money";
+import { amountInWords, roundMoney, sumMoney } from "./money";
 
 describe("roundMoney", () => {
   it("rounds to whole paise", () => {
@@ -43,5 +43,42 @@ describe("sumMoney", () => {
 
   it("accepts any iterable, such as a Map's values", () => {
     expect(sumMoney(new Map([["a", 1.1], ["b", 2.2]]).values())).toBe(3.3);
+  });
+});
+
+describe("amountInWords", () => {
+  it("writes whole rupees out the way an Indian invoice prints them", () => {
+    expect(amountInWords(9500)).toBe("Rupees Nine Thousand Five Hundred Only");
+    expect(amountInWords(6000)).toBe("Rupees Six Thousand Only");
+    expect(amountInWords(21)).toBe("Rupees Twenty One Only");
+    expect(amountInWords(115)).toBe("Rupees One Hundred Fifteen Only");
+  });
+
+  it("counts in lakh and crore", () => {
+    expect(amountInWords(150000)).toBe("Rupees One Lakh Fifty Thousand Only");
+    expect(amountInWords(12345678)).toBe(
+      "Rupees One Crore Twenty Three Lakh Forty Five Thousand Six Hundred Seventy Eight Only"
+    );
+    expect(amountInWords(100000000)).toBe("Rupees Ten Crore Only");
+  });
+
+  it("names the crores themselves in lakh and thousand past ninety nine crore", () => {
+    expect(amountInWords(1_250_000_000_000)).toBe("Rupees One Lakh Twenty Five Thousand Crore Only");
+  });
+
+  it("adds paise when there are any", () => {
+    expect(amountInWords(9500.5)).toBe("Rupees Nine Thousand Five Hundred and Fifty Paise Only");
+    expect(amountInWords(10.05)).toBe("Rupees Ten and Five Paise Only");
+  });
+
+  it("rounds to whole paise first", () => {
+    expect(amountInWords(99.999)).toBe("Rupees One Hundred Only");
+    expect(amountInWords(0.1 + 0.2)).toBe("Rupees Zero and Thirty Paise Only");
+  });
+
+  it("writes zero, and marks a negative amount", () => {
+    expect(amountInWords(0)).toBe("Rupees Zero Only");
+    expect(amountInWords(-500)).toBe("Minus Rupees Five Hundred Only");
+    expect(amountInWords(Number.NaN)).toBe("Rupees Zero Only");
   });
 });

@@ -494,6 +494,10 @@
   padding-bottom: 4mm;
 }
 
+.inWords {
+  padding-top: 1mm;
+}
+
 .pagefoot {
   flex: 0 0 auto;
 }
