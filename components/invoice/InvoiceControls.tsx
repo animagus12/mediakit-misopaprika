@@ -638,6 +638,7 @@ export function InvoiceControls({
           className="w-full"
           onClick={actions.save}
           disabled={isSaving}
+          aria-keyshortcuts="Control+S Meta+S"
         >
           {isSaving ? "Saving…" : isExisting ? "Save changes" : "Save invoice"}
         </Button>
