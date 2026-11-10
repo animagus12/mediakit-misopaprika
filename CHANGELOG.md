@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Security
+
+- **Next.js updated to 16.4.6 to close critical security holes.** Earlier 16.x versions had flaws that could let an outsider run code on the server through the share images for **/links** and **/mediakit**, or through the built-in image resizer. Nothing looks or works differently.
+
 ## [1.26.1] - 2026-11-07
 
 ### Added
