@@ -3,9 +3,9 @@
 import { upload } from "@vercel/blob/client";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { publishMediaKit, saveMediaKit } from "@/app/mediakit-generator/actions";
+import { deliverPdf } from "@/components/common/deliver-pdf";
 import { BLANK_LOGO, toFormState, toMediaKitData } from "@/lib/mediakit";
 import { fetchMediaKitPdf } from "@/lib/mediakitPrint";
-import { savePdf } from "@/lib/printPdf";
 import type { MediaKitData, MediaKitLogo, MediaKitTileStats } from "@/repositories/mediakit";
 import { MediaKitControls } from "./MediaKitControls";
 import { MediaKitPreview } from "./MediaKitPreview";
@@ -196,13 +196,14 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
 
   // Makes the media kit PDF as the server draws it (see lib/printPdf.ts), so
   // the file is the same A4 sheet from a phone as from a computer, then
-  // downloads it. Should the server fail, the browser's print dialog still
-  // makes one (the print rules in mediakit.module.css print only the sheet),
-  // if with whatever margins the device adds.
+  // downloads it or, on a phone, offers to share it (deliverPdf). Should the
+  // server fail, the browser's print dialog still makes one (the print rules
+  // in mediakit.module.css print only the sheet), if with whatever margins
+  // the device adds.
   const downloadPdf = useCallback(() => {
     startPdfTransition(async () => {
       try {
-        savePdf(await fetchMediaKitPdf({ state }));
+        deliverPdf(await fetchMediaKitPdf({ state }));
       } catch (error) {
         console.error("Media kit PDF failed", error);
         showToast("Couldn't create the PDF, opening print instead");

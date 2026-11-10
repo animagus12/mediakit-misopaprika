@@ -35,6 +35,20 @@ export async function fetchPdf(endpoint: string, payload: unknown, filename: str
   return new File([await response.blob()], filename, { type: "application/pdf" });
 }
 
+/**
+ * Whether `file` should go to the share sheet rather than Downloads: on a
+ * touch-first device (a phone or tablet) whose browser shares files.
+ * Computers keep the plain download even where the browser could share, as
+ * that is what a desktop expects.
+ */
+export function canSharePdf(file: File): boolean {
+  return (
+    typeof navigator.canShare === "function" &&
+    navigator.canShare({ files: [file] }) &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
+}
+
 /** Saves `file` to the device's downloads. */
 export function savePdf(file: File): void {
   const url = URL.createObjectURL(file);

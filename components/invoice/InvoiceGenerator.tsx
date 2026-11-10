@@ -7,6 +7,7 @@ import {
   saveInvoiceDefaults,
   updateInvoice as updateInvoiceAction,
 } from "@/app/invoices/actions";
+import { deliverPdf } from "@/components/common/deliver-pdf";
 import {
   buildInvoiceNumber,
   formStateToInvoiceInput,
@@ -23,7 +24,6 @@ import {
   type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
 import { fetchInvoicePdf } from "@/lib/invoicePrint";
-import { savePdf } from "@/lib/printPdf";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { Invoice, NewInvoice } from "@/repositories/invoices";
 import { InvoiceControls } from "./InvoiceControls";
@@ -248,14 +248,15 @@ export function InvoiceGenerator({
   }, [state, data, invoice, campaignId, router, showToast]);
 
   // Makes the invoice PDF as the server draws it (see lib/printPdf.ts), so
-  // the file is the same from a phone as from a computer, then downloads it.
-  // Independent of Save: the record isn't touched. Should the server fail,
-  // the browser's print dialog still makes one (invoice.module.css prints
-  // only the A4 sheets), if with whatever margins the device adds.
+  // the file is the same from a phone as from a computer, then downloads it
+  // or, on a phone, offers to share it (deliverPdf). Independent of Save: the
+  // record isn't touched. Should the server fail, the browser's print dialog
+  // still makes one (invoice.module.css prints only the A4 sheets), if with
+  // whatever margins the device adds.
   const download = useCallback(() => {
     startPdfTransition(async () => {
       try {
-        savePdf(await fetchInvoicePdf({ state, amountReceived }));
+        deliverPdf(await fetchInvoicePdf({ state, amountReceived }));
       } catch (error) {
         console.error("Invoice PDF failed", error);
         showToast("Couldn't create the PDF, opening print instead");

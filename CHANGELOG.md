@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Share a PDF straight from your phone.** On a phone or tablet, **Download PDF** on an invoice and **Save as PDF** on the media kit no longer drop the file into Downloads. Once it is ready, a **PDF ready** message names the file and offers **Share**, which opens the phone's share sheet (WhatsApp, Gmail and the rest) with the PDF attached, or **Save**, which downloads it as before. It takes that second tap because phones only open the share sheet from a fresh tap, and the one on the PDF button is used up by the second or two it takes to make the file. The message stays for 20 seconds. If the share sheet can't open, the PDF is saved to your downloads instead. On a computer the PDF still downloads straight away.
+
 ### Fixed
 
 - **Invoice PDFs from a phone no longer have a white border.** **Download PDF** used to open the device's print dialog, and phones add their own margins (and some default to Letter paper), so an invoice saved from a phone came out with a white frame around the cream page. The PDF is now made on the server and downloads as a file, so it is the same A4 page, edge to edge, from any phone or computer. The button reads **Preparing PDF…** for a second or two while it is made. If the server can't make it, the print dialog opens as before.
