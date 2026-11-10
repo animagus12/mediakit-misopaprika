@@ -3,7 +3,7 @@
 import { Suspense, use } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
+import { Globe, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
 import {
@@ -55,6 +55,21 @@ function NavBadge({ badges, href }: { badges: Promise<NavBadgeMap>; href: string
   );
 }
 
+// Behind login is the default, so only the exceptions are marked: a lock on
+// every other row would say nothing the login screen hasn't. Public rows never
+// carry a count, so this shares the badge slot without colliding with one.
+function PublicMark() {
+  return (
+    <SidebarMenuBadge
+      title="Public: anyone with the link can open it"
+      className="pointer-events-auto text-sidebar-foreground/50"
+    >
+      <Globe aria-hidden className="size-3.5" />
+      <span className="sr-only">Public page</span>
+    </SidebarMenuBadge>
+  );
+}
+
 const photoSkeleton = <Skeleton className="size-8 shrink-0 rounded-full" />;
 
 // Streamed like the badges, so no page waits on the media kit store to show
@@ -84,12 +99,18 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
     if (isMobile) setOpenMobile(false);
   };
 
-  const renderItem = ({ href, title, Icon }: Pick<NavEntry, "href" | "title" | "Icon">) => (
+  const renderItem = ({
+    href,
+    title,
+    Icon,
+    access,
+  }: Pick<NavEntry, "href" | "title" | "Icon" | "access">) => (
     <SidebarMenuItem key={href}>
       <SidebarMenuButton
         asChild
         isActive={isNavHrefActive(pathname, href)}
-        tooltip={title}
+        // The badge slot is hidden when collapsed, so the tooltip carries it.
+        tooltip={access === "public" ? `${title} (public)` : title}
         className="h-9 gap-3 text-sm pointer-coarse:h-11"
       >
         <Link href={href} onClick={closeOnMobile}>
@@ -97,6 +118,7 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
           <span>{title}</span>
         </Link>
       </SidebarMenuButton>
+      {access === "public" && <PublicMark />}
       {badges && (
         <Suspense fallback={null}>
           <NavBadge badges={badges} href={href} />

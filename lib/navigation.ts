@@ -145,10 +145,11 @@ export const navEntries: NavEntry[] = [
 
 // The dashboard has no card on the dashboard page itself, so it is not one of
 // navEntries: but the sidebar and the top bar both have to name it.
-export const dashboardEntry: Pick<NavEntry, "href" | "title" | "Icon"> = {
+export const dashboardEntry: Pick<NavEntry, "href" | "title" | "Icon" | "access"> = {
   href: "/",
   title: "Dashboard",
   Icon: LayoutDashboard,
+  access: "protected",
 };
 
 // "/" matches only itself; every other entry also owns its nested routes, so
