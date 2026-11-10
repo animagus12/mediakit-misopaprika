@@ -26,6 +26,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `INSTAGRAM_ACCESS_TOKEN` | no | Instagram follower counts. Omit and the stat is simply absent. |
 | `YOUTUBE_API_KEY` | no | YouTube subscriber counts. |
 | `YOUTUBE_CHANNEL_ID` | no | Channel the YouTube cron reads. |
+| `CHROME_EXECUTABLE_PATH` | no | Local dev only: the Chrome or Edge that renders invoice and media kit PDFs. Omit to use one installed in the usual place. On Vercel the bundled `@sparticuz/chromium` is used. |
 
 > `.env.local` in this repo points at the **live** Upstash store. Local dev
 > shares production data.

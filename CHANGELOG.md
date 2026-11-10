@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Invoice PDFs from a phone no longer have a white border.** **Download PDF** used to open the device's print dialog, and phones add their own margins (and some default to Letter paper), so an invoice saved from a phone came out with a white frame around the cream page. The PDF is now made on the server and downloads as a file, so it is the same A4 page, edge to edge, from any phone or computer. The button reads **Preparing PDF…** for a second or two while it is made. If the server can't make it, the print dialog opens as before.
+- **Media kit PDFs from a phone no longer have a white border either.** **Save as PDF** on the media kit editor now makes the PDF on the server the same way, so it downloads as the same edge-to-edge A4 page from any device, with whatever is in the editor, saved or not. It is named after your handle, for example **misopaprika-media-kit.pdf**, and the links on the sheet still work in the PDF. The button reads **Preparing PDF…** while it is made, and the print dialog opens as before if the server can't make it.
+
 ### Security
 
 - **Next.js updated to 16.4.6 to close critical security holes.** Earlier 16.x versions had flaws that could let an outsider run code on the server through the share images for **/links** and **/mediakit**, or through the built-in image resizer. Nothing looks or works differently.

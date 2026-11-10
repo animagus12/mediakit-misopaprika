@@ -56,7 +56,8 @@ export interface MediaKitFormActions {
   reorderLogos: (fromIndex: number, toIndex: number) => void;
   setTileUrl: (index: number, url: string) => void;
   openPicker: (target: MediaKitPickerTarget) => void;
-  print: () => void;
+  downloadPdf: () => void;
+  isPreparingPdf: boolean;
   save: () => void;
   isSaving: boolean;
   publish: () => void;

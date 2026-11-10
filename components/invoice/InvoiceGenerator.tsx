@@ -22,6 +22,8 @@ import {
   type InvoiceLineItem,
   type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
+import { fetchInvoicePdf } from "@/lib/invoicePrint";
+import { savePdf } from "@/lib/printPdf";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { Invoice, NewInvoice } from "@/repositories/invoices";
 import { InvoiceControls } from "./InvoiceControls";
@@ -107,7 +109,9 @@ export function InvoiceGenerator({
   );
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
+  const [isPreparingPdf, startPdfTransition] = useTransition();
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+  const amountReceived = invoice ? invoice.settlement.settled : 0;
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -243,12 +247,22 @@ export function InvoiceGenerator({
     });
   }, [state, data, invoice, campaignId, router, showToast]);
 
-  // Opens the browser's print/Save-as-PDF dialog for the live preview. The
-  // invoice.module.css @media print rules hide the controls panel, so only
-  // the A4 sheet prints. Independent of Save: the record isn't touched.
+  // Makes the invoice PDF as the server draws it (see lib/printPdf.ts), so
+  // the file is the same from a phone as from a computer, then downloads it.
+  // Independent of Save: the record isn't touched. Should the server fail,
+  // the browser's print dialog still makes one (invoice.module.css prints
+  // only the A4 sheets), if with whatever margins the device adds.
   const download = useCallback(() => {
-    window.print();
-  }, []);
+    startPdfTransition(async () => {
+      try {
+        savePdf(await fetchInvoicePdf({ state, amountReceived }));
+      } catch (error) {
+        console.error("Invoice PDF failed", error);
+        showToast("Couldn't create the PDF, opening print instead");
+        window.print();
+      }
+    });
+  }, [state, amountReceived, showToast]);
 
   const setQrImage = useCallback((dataUrl: string | null) => {
     setState((prev) => ({ ...prev, qrImage: dataUrl }));
@@ -302,6 +316,7 @@ export function InvoiceGenerator({
         brandOptions={brandOptions}
         editorJobOptions={editorJobOptions}
         isSaving={isSaving}
+        isPreparingPdf={isPreparingPdf}
         hasAttemptedSave={hasAttemptedSave}
         isExisting={invoice != null}
         linkedCampaign={linkedCampaign}
@@ -313,11 +328,12 @@ export function InvoiceGenerator({
 
       <main className={styles.stage}>
         <div className={styles.stageInner}>
-          <InvoicePreview state={state} amountReceived={invoice ? invoice.settlement.settled : 0} />
+          <InvoicePreview state={state} amountReceived={amountReceived} />
         </div>
       </main>
 
       <div className={`${styles.toast} ${toastMsg ? styles.toastShow : ""}`}>{toastMsg}</div>
+
     </div>
   );
 }

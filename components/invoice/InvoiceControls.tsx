@@ -50,6 +50,7 @@ interface InvoiceControlsProps {
   brandOptions: InvoiceBrandOption[];
   editorJobOptions: InvoiceEditorJobOption[];
   isSaving: boolean;
+  isPreparingPdf: boolean;
   hasAttemptedSave: boolean;
   isExisting: boolean;
   /** The campaign (or renewal) this invoice bills, or null for a one-off. */
@@ -78,6 +79,7 @@ export function InvoiceControls({
   brandOptions,
   editorJobOptions,
   isSaving,
+  isPreparingPdf,
   hasAttemptedSave,
   isExisting,
   linkedCampaign,
@@ -644,8 +646,9 @@ export function InvoiceControls({
           variant="outline"
           className="w-full"
           onClick={actions.download}
+          disabled={isPreparingPdf}
         >
-          Download PDF
+          {isPreparingPdf ? "Preparing PDF…" : "Download PDF"}
         </Button>
         <Button type="button" variant="ghost" className="w-full" onClick={actions.reset}>
           Reset fields

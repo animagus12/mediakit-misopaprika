@@ -302,8 +302,13 @@ export function MediaKitControls({
         ))}
       </fieldset>
 
-      <Button type="button" className="mt-2.5 w-full" onClick={actions.print}>
-        Save as PDF
+      <Button
+        type="button"
+        className="mt-2.5 w-full"
+        onClick={actions.downloadPdf}
+        disabled={actions.isPreparingPdf}
+      >
+        {actions.isPreparingPdf ? "Preparing PDF…" : "Save as PDF"}
       </Button>
       <Button
         type="button"
