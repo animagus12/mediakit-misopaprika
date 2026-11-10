@@ -22,20 +22,25 @@ export const metadata: Metadata = {
 };
 
 export default async function BrandsPage() {
+  // Started before the brand stores are awaited, since it doesn't depend on
+  // them: both then share one round trip instead of waiting in turn. Its
+  // failure is settled here rather than awaited in a try, so it can't go
+  // unhandled when the batch below throws first.
+  const campaignRead = fetchBrandCampaignRecords().then(
+    (records) => ({ records, campaignError: null }),
+    (err: unknown) => ({
+      records: [] as BrandCampaignRecord[],
+      campaignError: err instanceof Error ? err.message : "Something went wrong",
+    }),
+  );
+
   const [brands, agencies, contacts, mediaKitData] = await Promise.all([
     getBrands(),
     getAgencies(),
     getContacts(),
     getMediaKitData(),
   ]);
-
-  let records: BrandCampaignRecord[] = [];
-  let campaignError: string | null = null;
-  try {
-    records = await fetchBrandCampaignRecords();
-  } catch (err) {
-    campaignError = err instanceof Error ? err.message : "Something went wrong";
-  }
+  const { records, campaignError } = await campaignRead;
 
   const statsByBrand = computeStatsByBrand(brands, records);
   // Rows first: the tiles count the same derived statuses the table shows, so

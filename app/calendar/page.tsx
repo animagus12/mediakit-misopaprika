@@ -64,6 +64,16 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   // and the waiting counts can't disagree by a millisecond across midnight.
   const now = new Date();
 
+  // The editing workspace and the brand book are conveniences here, not the
+  // page's subject: a failure to read either costs a picker inside a form,
+  // not the calendar, so both are caught separately rather than joining the
+  // two below. Started first, since they don't depend on those two: all four
+  // reads then share one round trip instead of waiting in turn.
+  const pickers = Promise.all([
+    getEditorTransactions().catch((): EditorTransaction[] => []),
+    getBrands().catch(() => []),
+  ]);
+
   let campaigns: Campaign[] = [];
   let contentItems: ContentItem[] = [];
   let error: string | null = null;
@@ -75,15 +85,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   } catch (err) {
     error = err instanceof Error ? err.message : "Something went wrong";
   }
-
-  // The editing workspace and the brand book are conveniences here, not the
-  // page's subject: a failure to read either costs a picker inside a form,
-  // not the calendar, so both are caught separately rather than joining the
-  // two above.
-  const [editorTransactions, brands] = await Promise.all([
-    getEditorTransactions().catch((): EditorTransaction[] => []),
-    getBrands().catch(() => []),
-  ]);
+  const [editorTransactions, brands] = await pickers;
 
   const today = todayKey(now);
   const scheduled = selectScheduledPosts(campaigns, contentItems, now);
