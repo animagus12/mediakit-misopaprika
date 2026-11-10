@@ -80,3 +80,8 @@ or previously saved online backups cannot be decrypted.
 | `npm run build` | Production build. |
 | `npm start` | Serve the production build. |
 | `npm run lint` | ESLint. |
+| `npm run typecheck` | Generate Next's route types, then `tsc --noEmit`. |
+| `npm test` | Vitest, once. |
+
+Every pull request to `develop` or `main` runs lint, typecheck and test on
+GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
