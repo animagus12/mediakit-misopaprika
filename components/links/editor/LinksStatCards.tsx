@@ -60,19 +60,19 @@ export function LinksStatCards({ summary }: LinksStatCardsProps) {
       <StatTile
         icon={Eye}
         label="Views on /links"
-        value={summary.views.toLocaleString()}
+        value={summary.views.toLocaleString("en-IN")}
         tone="audience"
       />
       <StatTile
         icon={Users}
         label="Unique visitors"
-        value={summary.uniqueVisitors.toLocaleString()}
+        value={summary.uniqueVisitors.toLocaleString("en-IN")}
         tone="audience"
       />
       <StatTile
         icon={MousePointerClick}
         label="Link clicks"
-        value={summary.totalClicks.toLocaleString()}
+        value={summary.totalClicks.toLocaleString("en-IN")}
         tone="action"
       />
       <StatTile

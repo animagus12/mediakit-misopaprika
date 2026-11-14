@@ -49,35 +49,35 @@ export function AudienceCard({ mediaKit, links, className }: AudienceCardProps) 
         <StatTile
           icon={Users}
           label="Media kit visitors"
-          value={mediaKit.uniqueVisitors.toLocaleString()}
+          value={mediaKit.uniqueVisitors.toLocaleString("en-IN")}
           tone="audience"
           href="/mediakit-generator"
         />
         <StatTile
           icon={Eye}
           label="Media kit views"
-          value={mediaKit.views.toLocaleString()}
+          value={mediaKit.views.toLocaleString("en-IN")}
           tone="audience"
           href="/mediakit-generator"
         />
         <StatTile
           icon={Users}
           label="Links visitors"
-          value={links.uniqueVisitors.toLocaleString()}
+          value={links.uniqueVisitors.toLocaleString("en-IN")}
           tone="audience"
           href="/links-editor"
         />
         <StatTile
           icon={Eye}
           label="Links views"
-          value={links.views.toLocaleString()}
+          value={links.views.toLocaleString("en-IN")}
           tone="audience"
           href="/links-editor"
         />
         <StatTile
           icon={MousePointerClick}
           label="Link clicks"
-          value={links.totalClicks.toLocaleString()}
+          value={links.totalClicks.toLocaleString("en-IN")}
           tone="action"
           href="/links-editor"
         />
