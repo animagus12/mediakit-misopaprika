@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { ledgerCampaigns, makeCampaignRecord, makeInvoice, makePaymentRecord } from "@/lib/testing/fixtures";
 import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
-import type { OutflowRow } from "./expenses";
+import type { OutflowRow, ReimbursementRow } from "./expenses";
 import {
   cashOwedToYou,
   commissionRows,
+  entryCash,
   entryCategory,
   entryDetail,
   entryFlags,
   entryHref,
   entryKey,
+  entryMethod,
   entryTitle,
   filterEntries,
   flowsByMonth,
@@ -19,6 +21,7 @@ import {
   parseMoneyFlow,
   sumFlows,
   type CommissionRow,
+  type MoneyEntry,
 } from "./moneyBook";
 import type { LedgerRow } from "./payments";
 
@@ -60,6 +63,7 @@ function outflow(overrides: Partial<OutflowRow> = {}): OutflowRow {
     dealLabel: "Blinkit · Rakhi",
     paidBy: "ritika",
     settlement: null,
+    reimbursement: null,
     method: "UPI",
     receiptUrl: null,
     note: "",
@@ -170,6 +174,8 @@ describe("cash flow and profit", () => {
       fees: 18,
       commission: 600,
       barter: 3000,
+      reimbursable: 0,
+      reimbursed: 0,
       income: 18600,
       costs: 1618,
       profit: 16982,
@@ -216,5 +222,71 @@ describe("cashOwedToYou", () => {
       [payout({ paymentStatus: "pending", commissionAmount: 450 })]
     );
     expect(owed).toBe(7500 + 3000 + 450);
+  });
+});
+
+describe("purchases a brand pays back", () => {
+  const owedBack = outflow({ id: "r1", amount: 1500, reimbursement: { receivedOn: "" } });
+  const paidBack = outflow({ id: "r2", amount: 700, reimbursement: { receivedOn: "2026-10-20" } });
+  const refund: ReimbursementRow = {
+    id: "r2",
+    date: "2026-10-20",
+    fy: 2026,
+    amount: 700,
+    description: "Serum",
+    brand: "Minimalist",
+    deal: "Serum launch",
+  };
+  const book = moneyEntries([payment()], [], [owedBack, paidBack, outflow()], [refund]);
+
+  function find(match: (entry: MoneyEntry) => boolean): MoneyEntry {
+    const entry = book.find(match);
+    if (!entry) throw new Error("No such entry");
+    return entry;
+  }
+
+  it("moves cash both ways but never profit", () => {
+    const totals = sumFlows(book, 0);
+    expect(totals).toMatchObject({
+      cashIn: 9682, // 8,982 landed + 700 paid back
+      cashOut: 3400, // 1,500 + 700 fronted + 1,200 spent
+      reimbursable: 2200,
+      reimbursed: 700,
+      costs: 1218, // the 1,200 spent and 18 in charges
+    });
+    expect(totals.profit).toBe(sumFlows(moneyEntries([payment()], [], [outflow()]), 0).profit);
+    expect(totals.profit).toBe(totals.netCash + totals.tds + totals.barter + totals.reimbursable - totals.reimbursed);
+  });
+
+  it("names a refund by its brand and deal, links it to the deal and flags each purchase", () => {
+    const entry = find((candidate) => candidate.kind === "reimbursement");
+    expect([
+      entryKey(entry),
+      entryCategory(entry),
+      entryTitle(entry),
+      entryDetail(entry),
+      entryHref(entry),
+      entryMethod(entry),
+      entryCash(entry),
+    ]).toEqual(["reimbursement:r2", "Reimbursement", "Minimalist", "Serum · Serum launch", "/campaigns?q=Serum%20launch", null, 700]);
+    const flags = (id: string) => entryFlags(find((candidate) => candidate.kind === "outflow" && candidate.row.id === id));
+    expect(flags("r1")).toEqual(["Brand to pay back"]);
+    expect(flags("r2")).toEqual(["Paid back 20/10/2026"]);
+    expect(flags("e1")).toEqual([]);
+  });
+
+  it("counts what is still owed back as owed to you", () => {
+    expect(
+      cashOwedToYou(
+        [],
+        [],
+        [],
+        [
+          { amount: 1500, reimbursement: { receivedOn: "" } },
+          { amount: 700, reimbursement: { receivedOn: "2026-10-20" } },
+          { amount: 50, reimbursement: null },
+        ]
+      )
+    ).toBe(1500);
   });
 });

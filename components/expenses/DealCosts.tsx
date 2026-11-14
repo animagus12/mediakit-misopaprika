@@ -5,18 +5,22 @@ import { Badge } from "@/components/ui/badge";
 import { toSheetDate } from "@/lib/campaigns";
 import { dealCashAfterCosts, dealName, lastExpenseDefaults } from "@/lib/expenses";
 import { formatMoney } from "@/lib/invoice";
+import { OWED_BACK_FLAG } from "@/lib/moneyBook";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/repositories/campaigns";
-import { expenseCategoryLabel } from "@/repositories/expenses";
+import { expenseCategoryLabel, isReimbursementOwed } from "@/repositories/expenses";
 import { AddExpenseButton, ExpenseRowMenu } from "./ExpenseActions";
 
 const ROW = "flex min-w-0 items-start gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs";
+// Money still owed back reads amber, the semantic colour convention's raw palette.
+const OWED_TONE = "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400";
 
 /**
  * What a deal cost to make and what it kept: its editing job, read from the
  * Editor workspace, and the expenses recorded against it, with the actions to
- * add, edit or delete one. Renders nothing when the deal was read without
- * its costs.
+ * add, edit or delete one. A purchase the brand pays back is listed with the
+ * rest but kept out of what it cost, and what is still owed back is called
+ * out. Renders nothing when the deal was read without its costs.
  */
 export function DealCosts({ campaign }: { campaign: Campaign }) {
   const { costs } = campaign;
@@ -36,6 +40,11 @@ export function DealCosts({ campaign }: { campaign: Campaign }) {
             {formatMoney(summary.kept)} kept
           </span>{" "}
           of {formatMoney(summary.cash)} cash
+        </p>
+      )}
+      {costs.reimbursementOwed > 0 && (
+        <p className="text-xs text-amber-700 tabular-nums dark:text-amber-400">
+          {formatMoney(costs.reimbursementOwed)} still to be paid back by {campaign.brand.trim() || "the brand"}
         </p>
       )}
 
@@ -71,10 +80,24 @@ export function DealCosts({ campaign }: { campaign: Campaign }) {
                 <p className="truncate text-muted-foreground">
                   {toSheetDate(expense.date)} · {expenseCategoryLabel(expense.category)}
                 </p>
-                {expense.receiptUrl && (
-                  <Badge variant="outline" className="text-[10px]">
-                    Receipt
-                  </Badge>
+                {(expense.reimbursement || expense.receiptUrl) && (
+                  <span className="flex flex-wrap gap-1">
+                    {expense.reimbursement && (
+                      <Badge
+                        variant="outline"
+                        className={cn("text-[10px]", isReimbursementOwed(expense) && OWED_TONE)}
+                      >
+                        {expense.reimbursement.receivedOn
+                          ? `Paid back ${toSheetDate(expense.reimbursement.receivedOn)}`
+                          : OWED_BACK_FLAG}
+                      </Badge>
+                    )}
+                    {expense.receiptUrl && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Receipt
+                      </Badge>
+                    )}
+                  </span>
                 )}
               </div>
               <ExpenseRowMenu expense={expense} dealOptions={dealOptions} defaults={defaults} />

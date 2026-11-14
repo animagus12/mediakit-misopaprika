@@ -8,6 +8,11 @@
 //
 // Expenses and editing jobs are tied to deals by id only. A deal's name, and
 // whether it still exists, are looked up on every read.
+//
+// An expense the deal's brand pays back is read here twice over: the money
+// leaving (outflowRows) and, once it is repaid, the money coming back
+// (reimbursementRows). It is no cost of the deal, so a deal's costs and the
+// margin series leave it out.
 
 import { campaignLabel, toIsoDate } from "@/lib/campaigns";
 import { isDayKey } from "@/lib/day";
@@ -36,12 +41,14 @@ import {
   EXPENSE_NOTE_MAX,
   expenseCategoryLabel,
   isExpenseCategory,
+  isReimbursementOwed,
   toReceiptUrl,
   type DealCosts,
   type DealEditingCost,
   type ExpenseCategory,
   type ExpenseInput,
   type ExpenseRecord,
+  type ExpenseReimbursement,
 } from "@/repositories/expenses";
 import type { InvoiceRecord } from "@/repositories/invoices";
 
@@ -78,6 +85,19 @@ export function validateExpense(input: ExpenseInput, today: string): string | nu
   if (input.method !== null && !isPaymentMethod(input.method)) return "Choose a payment method from the list";
   if (input.campaignId !== null && (typeof input.campaignId !== "string" || !input.campaignId.trim())) {
     return "Pick the deal it was for, or no deal";
+  }
+  const reimbursement = input.reimbursement;
+  if (reimbursement !== null) {
+    if (typeof reimbursement !== "object" || typeof reimbursement.receivedOn !== "string") {
+      return "Say whether the brand pays it back";
+    }
+    if (input.campaignId === null) return "Pick the deal whose brand pays it back";
+    const { receivedOn } = reimbursement;
+    if (receivedOn !== "") {
+      if (!isDayKey(receivedOn)) return "Pick the day it was paid back, or leave it blank";
+      if (receivedOn > today) return "It can't be paid back in the future";
+      if (receivedOn < input.date) return "It can't be paid back before the day it was bought";
+    }
   }
   if (input.receiptUrl !== null && toReceiptUrl(input.receiptUrl) === null) {
     return "That receipt didn't upload properly. Upload it again.";
@@ -198,7 +218,11 @@ export function attachDealCosts(
     const costs: DealCosts = {
       editing,
       expenses: dealExpenses,
-      total: sumMoney([editing?.amount ?? 0, ...dealExpenses.map((expense) => expense.amount)]),
+      total: sumMoney([
+        editing?.amount ?? 0,
+        ...dealExpenses.filter((expense) => expense.reimbursement === null).map((expense) => expense.amount),
+      ]),
+      reimbursementOwed: sumMoney(dealExpenses.filter(isReimbursementOwed).map((expense) => expense.amount)),
     };
     return { ...campaign, costs };
   });
@@ -206,8 +230,9 @@ export function attachDealCosts(
 
 /**
  * What a deal leaves once its costs are paid: its cash, renewals included,
- * less editing and expenses. Barter is left out because it can't pay a cost.
- * Null when the deal's costs weren't read.
+ * less editing and the expenses the business bears (one the brand pays back
+ * is not a cost). Barter is left out because it can't pay a cost. Null when
+ * the deal's costs weren't read.
  */
 export function dealCashAfterCosts(
   campaign: Pick<Campaign, "cash" | "costs" | "usage">
@@ -251,6 +276,8 @@ export interface OutflowRow {
   paidBy: Payer | null;
   /** How a cost a partner paid is settled (see lib/partners.ts); null when undecided or the business paid. */
   settlement: PartnerSettlement | null;
+  /** Whether the deal's brand pays it back, and when it did; null for a cost the business bears and for editing. */
+  reimbursement: ExpenseReimbursement | null;
   method: PaymentMethod | null;
   receiptUrl: string | null;
   note: string;
@@ -290,6 +317,7 @@ export function outflowRows(
     dealLabel: dealLabelFor(expense.campaignId, deals),
     paidBy: expense.paidBy,
     settlement: expense.settlement,
+    reimbursement: expense.reimbursement,
     method: expense.method,
     receiptUrl: expense.receiptUrl,
     note: expense.note,
@@ -318,6 +346,7 @@ export function outflowRows(
       dealLabel: deal ? dealName(deal) : null,
       paidBy,
       settlement: isPartner(paidBy) ? toPartnerSettlement(transaction.settlement) : null,
+      reimbursement: null,
       method: toPaymentMethod(transaction.paymentMethod) ?? null,
       receiptUrl: null,
       note: "",
@@ -325,6 +354,58 @@ export function outflowRows(
   }
 
   return rows.sort((a, b) => b.date.localeCompare(a.date) || a.description.localeCompare(b.description));
+}
+
+// --- Paid back --------------------------------------------------------------------
+
+/** One expense the deal's brand paid back, as money in. */
+export interface ReimbursementRow {
+  /** The expense's id. */
+  id: string;
+  /** yyyy-mm-dd the brand paid it back. */
+  date: string;
+  /** Start year of the financial year `date` falls in. */
+  fy: number | null;
+  amount: number;
+  /** What was bought. */
+  description: string;
+  /** The brand that paid it back; DELETED_DEAL_LABEL when its deal no longer resolves. */
+  brand: string;
+  /** The deal, by the name the campaigns table finds it under; null when it no longer resolves. */
+  deal: string | null;
+}
+
+/**
+ * Every expense the brand has paid back, by the day it did, newest first. The
+ * purchase itself stays among the outflows: the two are the money leaving and
+ * coming back, and neither is a cost or income.
+ */
+export function reimbursementRows(
+  expenses: ExpenseRecord[],
+  campaigns: Pick<Campaign, "id" | "brand" | "campaign">[]
+): ReimbursementRow[] {
+  const deals = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const rows: ReimbursementRow[] = [];
+  for (const expense of expenses) {
+    const receivedOn = expense.reimbursement?.receivedOn ?? "";
+    if (!receivedOn || !expense.campaignId) continue;
+    const deal = deals.get(expense.campaignId);
+    rows.push({
+      id: expense.id,
+      date: receivedOn,
+      fy: financialYearStart(receivedOn),
+      amount: expense.amount,
+      description: expense.description,
+      brand: deal ? deal.brand.trim() || dealName(deal) : DELETED_DEAL_LABEL,
+      deal: deal ? campaignLabel(deal.campaign, deal.brand) : null,
+    });
+  }
+  return rows.sort((a, b) => b.date.localeCompare(a.date) || a.description.localeCompare(b.description));
+}
+
+/** What brands still owe back across every expense they reimburse. */
+export function reimbursementsOwed(expenses: Pick<ExpenseRecord, "amount" | "reimbursement">[]): number {
+  return sumMoney(expenses.filter(isReimbursementOwed).map((expense) => expense.amount));
 }
 
 export interface OutflowTotals {
@@ -359,11 +440,15 @@ export function summarizeOutflows(rows: OutflowRow[]): OutflowTotals {
 
 /**
  * What expenses took out of each month, keyed "YYYY-MM" like the earnings
- * months, for the margin line under the earnings chart.
+ * months, for the margin line under the earnings chart. One the brand pays
+ * back is left out, as its refund is left out of the earnings.
  */
-export function expenseCostByMonth(expenses: Pick<ExpenseRecord, "date" | "amount">[]): Map<string, number> {
+export function expenseCostByMonth(
+  expenses: Pick<ExpenseRecord, "date" | "amount" | "reimbursement">[]
+): Map<string, number> {
   const byMonth = new Map<string, number>();
   for (const expense of expenses) {
+    if (expense.reimbursement !== null) continue;
     const month = expense.date.slice(0, 7);
     byMonth.set(month, roundMoney((byMonth.get(month) ?? 0) + expense.amount));
   }

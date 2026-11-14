@@ -34,6 +34,8 @@ export interface BrandCampaignRecord {
   /** Whether the barter half was delivered; null on a deal with no barter half. */
   barterState: CampaignPaymentStatus | null;
   usage: CampaignUsageView; // the ad-usage licence with each renewal settled, for the brand's renewal history
+  /** What the brand still owes back for purchases made for the deal (see DealCosts). */
+  reimbursementOwed: number;
 }
 
 export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
@@ -59,6 +61,7 @@ export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     settlement: campaign.settlement,
     barterState: campaign.barterState,
     usage: campaign.usage,
+    reimbursementOwed: campaign.costs?.reimbursementOwed ?? 0,
   };
 }
 
