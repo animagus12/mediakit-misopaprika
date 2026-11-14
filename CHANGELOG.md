@@ -32,6 +32,7 @@
   - the views and visitors badges on the **Media kit** editor.
 
   They used to follow the language setting of the browser or server, so the same count could read 100,000 in one place and 1,00,000 in another.
+- **Affiliate payouts with no end date stay in one order.** Two such payouts each claimed to sort after the other, so their order on **Affiliates** and a brand's page could change from one visit to the next. They now keep their order, still after the dated ones.
 - **An invoice turns overdue at midnight in India, everywhere.** An invoice used to count as overdue once its due date ended in the time zone of whatever was showing it: the server's (UTC) or your browser's. For five and a half hours after every due date, the **Invoices** badge in the sidebar and the **Overdue** marks on the invoices list could disagree. Both now go by the day in India, like the rest of the app.
 - **Duplicate invoice numbers are flagged however they were typed.** The **duplicate #** mark on **Invoices** compared numbers exactly as typed, so **0007** and **7** were not flagged, though saving already treats them as the same number. They are now flagged as one.
 - **Deleting an invoice unlinks every deal that pointed at it.** Only the first such deal was unlinked; a second one went on pointing at an invoice that no longer existed.
