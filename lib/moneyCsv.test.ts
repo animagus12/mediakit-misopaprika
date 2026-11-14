@@ -38,6 +38,7 @@ const expense: OutflowRow = {
   dealLabel: null,
   paidBy: null,
   settlement: null,
+  reimbursement: null,
   method: null,
   receiptUrl: "https://blob.example/r.pdf",
   note: "line one\nline two",

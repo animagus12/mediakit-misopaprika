@@ -84,8 +84,8 @@ export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResu
     await saveInvoiceData(data);
     revalidateStores("invoiceDefaults");
     return { success: true };
-  } catch {
-    return { success: false, error: "Couldn't save: check KV_REST_API_URL and KV_REST_API_TOKEN are set" };
+  } catch (err) {
+    return toActionError(err, "Couldn't save the invoice defaults");
   }
 }
 
@@ -194,34 +194,26 @@ export async function removeInvoice(id: string): Promise<ActionResult> {
       return { success: true };
     }
     if (payments.length > 0) await removePaymentsWhere(ownsPayment);
-    // A deal pointing at an invoice that no longer exists would resolve to
-    // nothing on every read; clearing the key returns it to its typed
-    // reference, which is where it was before the invoice was raised.
-    if (removed) {
-      const removedInvoice = removed;
-      const campaigns = await campaignRepository.getAll();
-      const linked = campaigns.find((campaign) => campaign.invoiceId === removedInvoice.id);
-      if (linked) await campaignRepository.linkInvoice(linked.id, "");
-      // A renewal left pointing at it would hide its "Raise invoice" action for
-      // good, since that only shows on a renewal with no invoice.
-      for (const campaign of campaigns) {
-        for (const renewal of campaign.usage.renewals) {
-          if (renewal.invoiceId === removedInvoice.id) {
-            await campaignRepository.linkRenewalInvoice(campaign.id, renewal.id, "");
-          }
-        }
+    // Unlinked from the links already gathered for Trash, every deal and
+    // renewal that pointed here. A deal pointing at an invoice that no longer
+    // exists would resolve to nothing on every read; clearing the key returns
+    // it to its typed reference, which is where it was before the invoice was
+    // raised. A renewal left pointing at it would hide its "Raise invoice"
+    // action for good, since that only shows on a renewal with no invoice.
+    for (const link of campaignLinks) {
+      if (link.invoiceLink) await campaignRepository.linkInvoice(link.campaignId, "");
+      for (const renewal of link.renewalLinks) {
+        await campaignRepository.linkRenewalInvoice(link.campaignId, renewal.renewalId, "");
       }
     }
     await activateTrashEntry(trashId);
     revalidateStores("invoices", "campaigns", "payments");
-    if (removed) {
-      await recordActivity({
-        action: "invoice.deleted",
-        entity: { type: "invoice", id: removed.id, label: buildInvoiceNumber(removed.invoiceNo) },
-        detail: removed.client.name || undefined,
-        amount: computeSubtotal(removed.items),
-      });
-    }
+    await recordActivity({
+      action: "invoice.deleted",
+      entity: { type: "invoice", id: removed.id, label: buildInvoiceNumber(removed.invoiceNo) },
+      detail: removed.client.name || undefined,
+      amount: computeSubtotal(removed.items),
+    });
     return { success: true, trashId };
   } catch (err) {
     if (trashId) {

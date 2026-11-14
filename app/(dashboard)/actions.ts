@@ -568,8 +568,12 @@ export async function renewCampaignUsage(
   if (!campaignId.trim()) {
     return { success: false, error: "This deal has no campaign ID to update" };
   }
-  if (input.days <= 0) {
+  // Written as "not greater than" so NaN is refused too.
+  if (!(input.days > 0)) {
     return { success: false, error: "A renewal needs a term of at least one day" };
+  }
+  if (!Number.isFinite(input.amount) || input.amount < 0) {
+    return { success: false, error: "Enter the renewal fee as zero or more" };
   }
   const tdsProblem = validateTdsValues(input.tdsRate, null);
   if (tdsProblem) return { success: false, error: tdsProblem };

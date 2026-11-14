@@ -13,13 +13,16 @@
 //   * Profit is what was earned less what it cost: income counts the TDS the
 //     brands withheld (tax paid on the creator's behalf, claimed back when
 //     filing) and barter received (income in goods), and costs count bank
-//     charges. So profit less cash flow is always exactly TDS plus barter,
-//     which is what the overview shows as the bridge between them.
+//     charges. A purchase a brand pays back is neither: it is cash out the
+//     day it was bought and cash in the day it was repaid, and profit counts
+//     neither side. So profit less cash flow is always exactly TDS plus
+//     barter, plus what was spent for brands less what they paid back, which
+//     is what the overview shows as the bridge between them.
 // Both are on a receipts basis: money counts in the month it moved. What is
 // still owed either way is reported beside them, never inside them.
 
-import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
-import { outflowCategoryLabel, type OutflowRow } from "@/lib/expenses";
+import { isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { outflowCategoryLabel, reimbursementsOwed, type OutflowRow, type ReimbursementRow } from "@/lib/expenses";
 import { financialYearOfMonth, financialYearStart, financialYearsPresent } from "@/lib/financialYear";
 import { roundMoney, sumMoney } from "@/lib/money";
 import { toPaymentMethod, type Payer, type PaymentMethod } from "@/lib/payers";
@@ -27,6 +30,7 @@ import type { LedgerRow } from "@/lib/payments";
 import type { AffiliatePartner } from "@/repositories/affiliatePartners";
 import type { AffiliatePayout } from "@/repositories/affiliatePayouts";
 import type { Campaign } from "@/repositories/campaigns";
+import type { ExpenseRecord } from "@/repositories/expenses";
 import type { Invoice } from "@/repositories/invoices";
 
 export type MoneyFlow = "in" | "out";
@@ -89,6 +93,7 @@ export function commissionRows(
 export type MoneyEntry =
   | { kind: "payment"; flow: "in"; row: LedgerRow }
   | { kind: "commission"; flow: "in"; row: CommissionRow }
+  | { kind: "reimbursement"; flow: "in"; row: ReimbursementRow }
   | { kind: "outflow"; flow: "out"; row: OutflowRow };
 
 export function entryKey(entry: MoneyEntry): string {
@@ -97,6 +102,8 @@ export function entryKey(entry: MoneyEntry): string {
       return `payment:${entry.row.paymentId}`;
     case "commission":
       return `commission:${entry.row.id}`;
+    case "reimbursement":
+      return `reimbursement:${entry.row.id}`;
     case "outflow":
       return `${entry.row.source}:${entry.row.id}`;
   }
@@ -116,7 +123,7 @@ export function entryFy(entry: MoneyEntry): number | null {
   return entry.row.fy;
 }
 
-/** What it was worth: a payment's gross (before TDS and charges), a commission, a cost. Always positive. */
+/** What it was worth: a payment's gross (before TDS and charges), a commission, a refund, a cost. Always positive. */
 export function entryAmount(entry: MoneyEntry): number {
   return entry.kind === "payment" ? entry.row.gross : entry.row.amount;
 }
@@ -127,6 +134,7 @@ export function entryCash(entry: MoneyEntry): number {
     case "payment":
       return entry.row.net;
     case "commission":
+    case "reimbursement":
       return entry.row.amount;
     case "outflow":
       return -entry.row.amount;
@@ -134,10 +142,16 @@ export function entryCash(entry: MoneyEntry): number {
 }
 
 /** Every transaction, newest first. */
-export function moneyEntries(payments: LedgerRow[], commissions: CommissionRow[], outflows: OutflowRow[]): MoneyEntry[] {
+export function moneyEntries(
+  payments: LedgerRow[],
+  commissions: CommissionRow[],
+  outflows: OutflowRow[],
+  reimbursements: ReimbursementRow[] = []
+): MoneyEntry[] {
   const entries: MoneyEntry[] = [
     ...payments.map((row): MoneyEntry => ({ kind: "payment", flow: "in", row })),
     ...commissions.map((row): MoneyEntry => ({ kind: "commission", flow: "in", row })),
+    ...reimbursements.map((row): MoneyEntry => ({ kind: "reimbursement", flow: "in", row })),
     ...outflows.map((row): MoneyEntry => ({ kind: "outflow", flow: "out", row })),
   ];
   return entries.sort((a, b) => entryDay(b).localeCompare(entryDay(a)) || entryKey(a).localeCompare(entryKey(b)));
@@ -172,6 +186,8 @@ export function entryCategory(entry: MoneyEntry): string {
       return PAYMENT_CATEGORIES[entry.row.target.kind];
     case "commission":
       return "Affiliate commission";
+    case "reimbursement":
+      return "Reimbursement";
     case "outflow":
       return outflowCategoryLabel(entry.row.category);
   }
@@ -181,6 +197,7 @@ export function entryCategory(entry: MoneyEntry): string {
 export function entryTitle(entry: MoneyEntry): string {
   switch (entry.kind) {
     case "payment":
+    case "reimbursement":
       return entry.row.brand;
     case "commission":
       return entry.row.partner;
@@ -196,6 +213,8 @@ export function entryDetail(entry: MoneyEntry): string {
       return entry.row.targetLabel;
     case "commission":
       return entry.row.period ? `Commission for ${entry.row.period}` : "Commission";
+    case "reimbursement":
+      return [entry.row.description, entry.row.deal].filter(Boolean).join(" · ");
     case "outflow":
       return [entry.row.editor, entry.row.dealLabel].filter(Boolean).join(" · ");
   }
@@ -210,23 +229,32 @@ export function entryPaidBy(entry: MoneyEntry): Payer | null {
   return entry.kind === "outflow" ? entry.row.paidBy : null;
 }
 
+/** How the money moved; null when not recorded, and always for a refund, which records only its day. */
 export function entryMethod(entry: MoneyEntry): PaymentMethod | null {
-  return entry.row.method;
+  return entry.kind === "reimbursement" ? null : entry.row.method;
 }
+
+/** The flag on a purchase the brand has yet to pay back. */
+export const OWED_BACK_FLAG = "Brand to pay back";
 
 /** Notes on where a figure comes from, worded for a person. */
 export function entryFlags(entry: MoneyEntry): string[] {
   const flags: string[] = [];
   if (entry.kind === "payment" && entry.row.origin === "legacy") flags.push("From earlier record");
   if (entry.kind === "outflow" && entry.row.source === "editing") flags.push("From Editor workspace");
-  if (entry.kind !== "payment" && entry.row.estimated) flags.push("Date estimated");
+  if ((entry.kind === "commission" || entry.kind === "outflow") && entry.row.estimated) flags.push("Date estimated");
+  if (entry.kind === "outflow" && entry.row.reimbursement) {
+    const { receivedOn } = entry.row.reimbursement;
+    flags.push(receivedOn ? `Paid back ${toSheetDate(receivedOn)}` : OWED_BACK_FLAG);
+  }
   return flags;
 }
 
 /**
  * Where an entry is changed: its deal (found by name in the campaigns table),
  * its invoice, the affiliates page or the editor workspace. Null for an
- * expense, which is edited where it is listed.
+ * expense, which is edited where it is listed. A refund links to its deal,
+ * and is edited where it is listed too, as the expense it pays back.
  */
 export function entryHref(entry: MoneyEntry): string | null {
   switch (entry.kind) {
@@ -236,6 +264,8 @@ export function entryHref(entry: MoneyEntry): string | null {
         : `/campaigns?q=${encodeURIComponent(entry.row.deal ?? "")}`;
     case "commission":
       return "/affiliates";
+    case "reimbursement":
+      return entry.row.deal ? `/campaigns?q=${encodeURIComponent(entry.row.deal)}` : null;
     case "outflow":
       return entry.row.source === "editing" ? "/workspace" : null;
   }
@@ -244,9 +274,9 @@ export function entryHref(entry: MoneyEntry): string | null {
 // --- What it adds up to -------------------------------------------------------------
 
 export interface FlowTotals {
-  /** Landed in the accounts: payments after TDS and charges, plus commission. */
+  /** Landed in the accounts: payments after TDS and charges, commission, and what brands paid back. */
   cashIn: number;
-  /** Paid out: editing and expenses. */
+  /** Paid out: editing and expenses, the ones brands pay back included. */
   cashOut: number;
   /** cashIn less cashOut. */
   netCash: number;
@@ -257,11 +287,15 @@ export interface FlowTotals {
   commission: number;
   /** Barter received, at its value. */
   barter: number;
+  /** Spent on purchases brands pay back: in cashOut, but not a cost. */
+  reimbursable: number;
+  /** What brands paid back: in cashIn, but not income. */
+  reimbursed: number;
   /** gross + commission + barter. */
   income: number;
-  /** cashOut + fees. */
+  /** cashOut less reimbursable, plus fees. */
   costs: number;
-  /** income less costs; always netCash + tds + barter. */
+  /** income less costs; always netCash + tds + barter + reimbursable - reimbursed. */
   profit: number;
 }
 
@@ -274,9 +308,11 @@ export function sumFlows(entries: MoneyEntry[], barter: number): FlowTotals {
   const net = of((entry) => (entry.kind === "payment" ? entry.row.net : 0));
   const commission = of((entry) => (entry.kind === "commission" ? entry.row.amount : 0));
   const cashOut = of((entry) => (entry.kind === "outflow" ? entry.row.amount : 0));
-  const cashIn = roundMoney(net + commission);
+  const reimbursable = of((entry) => (entry.kind === "outflow" && entry.row.reimbursement ? entry.row.amount : 0));
+  const reimbursed = of((entry) => (entry.kind === "reimbursement" ? entry.row.amount : 0));
+  const cashIn = roundMoney(net + commission + reimbursed);
   const income = roundMoney(gross + commission + barter);
-  const costs = roundMoney(cashOut + fees);
+  const costs = roundMoney(cashOut - reimbursable + fees);
   return {
     cashIn,
     cashOut,
@@ -286,6 +322,8 @@ export function sumFlows(entries: MoneyEntry[], barter: number): FlowTotals {
     fees,
     commission,
     barter: roundMoney(barter),
+    reimbursable,
+    reimbursed,
     income,
     costs,
     profit: roundMoney(income - costs),
@@ -343,13 +381,15 @@ export function flowsByYear(entries: MoneyEntry[], barterByMonth: ReadonlyMap<st
 /**
  * Cash brands owe right now and isn't in any total above: what is left on
  * deals and renewals still expected, on invoices that bill no deal and have
- * been sent, and commission reported but not paid. Called-off deals owe
- * nothing.
+ * been sent, commission reported but not paid, and purchases brands have yet
+ * to pay back. Called-off deals owe nothing of their own, but a purchase made
+ * for one is owed back until its flag is taken off.
  */
 export function cashOwedToYou(
   campaigns: Pick<Campaign, "status" | "paymentStatus" | "settlement" | "usage">[],
   invoices: Pick<Invoice, "owner" | "status" | "balanceDue">[],
-  payouts: Pick<AffiliatePayout, "paymentStatus" | "commissionAmount">[]
+  payouts: Pick<AffiliatePayout, "paymentStatus" | "commissionAmount">[],
+  expenses: Pick<ExpenseRecord, "amount" | "reimbursement">[] = []
 ): number {
   const owed: number[] = [];
   for (const campaign of campaigns) {
@@ -365,5 +405,6 @@ export function cashOwedToYou(
   for (const payout of payouts) {
     if (payout.paymentStatus === "pending") owed.push(Math.max(0, payout.commissionAmount));
   }
+  owed.push(reimbursementsOwed(expenses));
   return sumMoney(owed);
 }

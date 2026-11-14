@@ -17,7 +17,11 @@ type ActionResult =
   | { success: true; trashIds: string[]; warning?: string }
   | { success: false; error: string };
 
-const REDIS_HINT = "check KV_REST_API_URL and KV_REST_API_TOKEN are set";
+// The store's own message: an unconfigured one already names the env vars
+// (see requireRedis), and any other failure is reported as what it was.
+function failure(verb: string, err: unknown): ActionResult {
+  return { success: false, error: `Couldn't ${verb}: ${err instanceof Error ? err.message : "try again"}` };
+}
 
 async function saveWithTrash(
   data: LinksData,
@@ -73,8 +77,8 @@ export async function saveLinks(data: LinksData, deletions: LinkTrashDeletion[] 
     const result = await saveWithTrash(data, deletions, ["draft"], false);
     revalidatePath("/links-editor");
     return result;
-  } catch {
-    return { success: false, error: `Couldn't save: ${REDIS_HINT}` };
+  } catch (err) {
+    return failure("save", err);
   }
 }
 
@@ -102,7 +106,7 @@ export async function publishLinks(data: LinksData, deletions: LinkTrashDeletion
       detail: `${data.sections.length} section${data.sections.length === 1 ? "" : "s"}, ${items} link${items === 1 ? "" : "s"}`,
     });
     return result;
-  } catch {
-    return { success: false, error: `Couldn't publish: ${REDIS_HINT}` };
+  } catch (err) {
+    return failure("publish", err);
   }
 }

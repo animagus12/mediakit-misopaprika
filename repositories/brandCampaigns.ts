@@ -6,9 +6,9 @@ import type { Settlement } from "./payments";
 
 export type BrandCampaignPaymentStatus = CampaignPaymentStatus;
 
-// One campaign, projected for the brand CRM's Campaigns/Payments tabs: same
-// records repositories/collaborations.ts and repositories/earnings.ts read,
-// just carrying the invoice/payment fields neither of those projections needs.
+// One campaign, projected for the brand CRM's Campaigns/Payments tabs: the
+// same records repositories/earnings.ts reads, just carrying the
+// invoice/payment fields that projection doesn't need.
 export interface BrandCampaignRecord {
   campaignId: string;
   brand: string;
@@ -34,6 +34,8 @@ export interface BrandCampaignRecord {
   /** Whether the barter half was delivered; null on a deal with no barter half. */
   barterState: CampaignPaymentStatus | null;
   usage: CampaignUsageView; // the ad-usage licence with each renewal settled, for the brand's renewal history
+  /** What the brand still owes back for purchases made for the deal (see DealCosts). */
+  reimbursementOwed: number;
 }
 
 export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
@@ -59,6 +61,7 @@ export function toBrandCampaignRecord(campaign: Campaign): BrandCampaignRecord {
     settlement: campaign.settlement,
     barterState: campaign.barterState,
     usage: campaign.usage,
+    reimbursementOwed: campaign.costs?.reimbursementOwed ?? 0,
   };
 }
 

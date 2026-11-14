@@ -1,12 +1,11 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import brandNotesSeed from "@/data/brand-notes.json";
 import type { BrandNote, NewBrandNote } from "./brandNotes";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly.
 const BRAND_NOTES_KEY = "brand_notes";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = brandNotesSeed as BrandNote[];
 
 async function readBrandNotes(): Promise<BrandNote[]> {
@@ -24,8 +23,7 @@ export async function getBrandNotes(): Promise<BrandNote[]> {
 }
 
 export async function addBrandNote(input: NewBrandNote): Promise<BrandNote> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const notes = await readBrandNotes();
   const note: BrandNote = {
     id: crypto.randomUUID(),
@@ -38,8 +36,7 @@ export async function addBrandNote(input: NewBrandNote): Promise<BrandNote> {
 }
 
 export async function deleteBrandNote(id: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const notes = await readBrandNotes();
   await redis.set(
     BRAND_NOTES_KEY,
@@ -49,8 +46,7 @@ export async function deleteBrandNote(id: string): Promise<void> {
 
 export async function restoreBrandNotes(records: BrandNote[]): Promise<void> {
   if (records.length === 0) return;
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const notes = await readBrandNotes();
   const existing = new Set(notes.map((note) => note.id));
   const missing = records.filter((record) => !existing.has(record.id));
@@ -59,8 +55,7 @@ export async function restoreBrandNotes(records: BrandNote[]): Promise<void> {
 
 // Cascade for brand deletion.
 export async function deleteBrandNotesForBrand(brandId: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const notes = await readBrandNotes();
   await redis.set(
     BRAND_NOTES_KEY,

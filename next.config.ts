@@ -47,6 +47,12 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: resolveDeployedVersion(),
   },
+  // @sparticuz/chromium unpacks its compressed binary from bin/ at runtime,
+  // a read the file tracer may not follow from the import alone.
+  // Keyed by a route glob: every PDF route (invoice, media kit).
+  outputFileTracingIncludes: {
+    "/api/*/pdf": ["./node_modules/@sparticuz/chromium/bin/**"],
+  },
 };
 
 export default nextConfig;

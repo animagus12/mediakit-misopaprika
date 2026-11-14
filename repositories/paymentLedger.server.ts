@@ -63,7 +63,7 @@ export interface TargetContext {
   advanceInvoiceId: string | null;
 }
 
-export const LEGACY_DEMOTION_WARNING =
+const LEGACY_DEMOTION_WARNING =
   "Saved. The old payment status couldn't be cleared; it has no effect while this payment exists.";
 
 function missingContext(target: PaymentTarget, ledger: CampaignLedger): TargetContext {
@@ -134,10 +134,6 @@ export function targetContext(target: PaymentTarget, ledger: CampaignLedger): Ta
     parent,
     advanceInvoiceId: renewal.invoiceId || null,
   };
-}
-
-export async function loadTargetContext(target: PaymentTarget): Promise<TargetContext> {
-  return targetContext(target, await readCampaignLedger());
 }
 
 // A virtual entry's stored copy always gets the same id, derived from the

@@ -7,6 +7,9 @@ import {
   saveInvoiceDefaults,
   updateInvoice as updateInvoiceAction,
 } from "@/app/invoices/actions";
+import { UnsavedChangesGuard } from "@/components/common/UnsavedChangesGuard";
+import { deliverPdf } from "@/components/common/deliver-pdf";
+import { useSaveShortcut } from "@/hooks/use-save-shortcut";
 import {
   buildInvoiceNumber,
   formStateToInvoiceInput,
@@ -22,6 +25,7 @@ import {
   type InvoiceLineItem,
   type InvoiceLinkedCampaign,
 } from "@/lib/invoice";
+import { fetchInvoicePdf } from "@/lib/invoicePrint";
 import type { InvoiceData } from "@/repositories/invoice";
 import type { Invoice, NewInvoice } from "@/repositories/invoices";
 import { InvoiceControls } from "./InvoiceControls";
@@ -50,6 +54,13 @@ function buildInitialState(
     ...(initialCampaignName ? { campaignName: initialCampaignName } : {}),
     ...(brand ? { brandId: brand.id } : {}),
   };
+}
+
+// What Save would write, as one string, so "unsaved" is a plain comparison.
+// The projection drops line-item ids, so a line added and removed again reads
+// as no change.
+function formSnapshot(state: InvoiceFormState): string {
+  return JSON.stringify(formStateToInvoiceInput(state));
 }
 
 interface InvoiceGeneratorProps {
@@ -105,14 +116,20 @@ export function InvoiceGenerator({
   const [state, setState] = useState<InvoiceFormState>(() =>
     buildInitialState(data, invoice, prefill, brandOptions, initialBrandId, initialCampaignName)
   );
+  // The form as last loaded or saved, to tell whether leaving would lose work.
+  const [savedSnapshot, setSavedSnapshot] = useState(() => formSnapshot(state));
+  const currentSnapshot = useMemo(() => formSnapshot(state), [state]);
+  const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
+  const [isPreparingPdf, startPdfTransition] = useTransition();
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+  const amountReceived = invoice ? invoice.settlement.settled : 0;
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Only ever called from client-triggered handlers (add line, apply
-  // preset, reset)(never during the initial render) so a plain
+  // preset, reset), never during the initial render, so a plain
   // incrementing counter is safe and can't collide with the "initial-*"
   // ids used for the first render's items.
   const nextItemId = useRef(0);
@@ -229,6 +246,7 @@ export function InvoiceGenerator({
     startSaveTransition(async () => {
       if (invoice) {
         const result = await updateInvoiceAction({ id: invoice.id, ...input });
+        if (result.success) setSavedSnapshot(formSnapshot(state));
         showToast(result.success ? "Invoice saved" : result.error);
         return;
       }
@@ -237,18 +255,38 @@ export function InvoiceGenerator({
         showToast(result.error);
         return;
       }
+      // The record exists from here on: nothing is lost if the tab closes
+      // while the defaults save or the URL swaps.
+      setSavedSnapshot(formSnapshot(state));
       await saveInvoiceDefaults(toInvoiceDefaults(state, data));
       showToast("Invoice saved");
       router.replace(`/invoices/${result.id}`);
     });
   }, [state, data, invoice, campaignId, router, showToast]);
 
-  // Opens the browser's print/Save-as-PDF dialog for the live preview. The
-  // invoice.module.css @media print rules hide the controls panel, so only
-  // the A4 sheet prints. Independent of Save: the record isn't touched.
+  // Held back mid-save, as the Save button is: a second create while the
+  // first is in flight would make a duplicate invoice.
+  useSaveShortcut(() => {
+    if (!isSaving) save();
+  });
+
+  // Makes the invoice PDF as the server draws it (see lib/printPdf.ts), so
+  // the file is the same from a phone as from a computer, then downloads it
+  // or, on a phone, offers to share it (deliverPdf). Independent of Save: the
+  // record isn't touched. Should the server fail, the browser's print dialog
+  // still makes one (invoice.module.css prints only the A4 sheets), if with
+  // whatever margins the device adds.
   const download = useCallback(() => {
-    window.print();
-  }, []);
+    startPdfTransition(async () => {
+      try {
+        deliverPdf(await fetchInvoicePdf({ state, amountReceived }));
+      } catch (error) {
+        console.error("Invoice PDF failed", error);
+        showToast("Couldn't create the PDF, opening print instead");
+        window.print();
+      }
+    });
+  }, [state, amountReceived, showToast]);
 
   const setQrImage = useCallback((dataUrl: string | null) => {
     setState((prev) => ({ ...prev, qrImage: dataUrl }));
@@ -302,6 +340,7 @@ export function InvoiceGenerator({
         brandOptions={brandOptions}
         editorJobOptions={editorJobOptions}
         isSaving={isSaving}
+        isPreparingPdf={isPreparingPdf}
         hasAttemptedSave={hasAttemptedSave}
         isExisting={invoice != null}
         linkedCampaign={linkedCampaign}
@@ -313,11 +352,13 @@ export function InvoiceGenerator({
 
       <main className={styles.stage}>
         <div className={styles.stageInner}>
-          <InvoicePreview state={state} amountReceived={invoice ? invoice.settlement.settled : 0} />
+          <InvoicePreview state={state} amountReceived={amountReceived} />
         </div>
       </main>
 
       <div className={`${styles.toast} ${toastMsg ? styles.toastShow : ""}`}>{toastMsg}</div>
+
+      <UnsavedChangesGuard when={hasUnsavedChanges} />
     </div>
   );
 }

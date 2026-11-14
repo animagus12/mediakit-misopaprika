@@ -4,13 +4,13 @@ import { campaignRepository } from "@/repositories/campaignRepository";
 import {
   addContentItem,
   deleteContentItem as removeContentItem,
+  getContentItemRecord,
   setContentItemDate,
   setContentItemStatus,
   updateContentItem as writeContentItem,
 } from "@/repositories/contentPlan.writer.server";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
-import { getContentItemRecord } from "@/repositories/contentPlan.writer.server";
 import { revalidateStores } from "@/lib/revalidation";
 import { campaignLabel, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import {
@@ -19,10 +19,9 @@ import {
   isContentStatus,
   type ContentFormValues,
 } from "@/lib/contentPlan";
-import { describeChanges } from "@/lib/activityDiff";
+import { describeChanges, type RecordChange } from "@/lib/activityDiff";
 import { contentFields } from "@/lib/activityFields";
 import { formatDayLabel, isDayKey } from "@/lib/day";
-import type { RecordChange } from "@/lib/activityDiff";
 import type { ActivityAction } from "@/repositories/activity";
 import type { ContentItemRecord } from "@/repositories/contentPlan";
 import type { PostSource } from "@/lib/contentCalendar";

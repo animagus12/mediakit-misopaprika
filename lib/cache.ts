@@ -22,10 +22,18 @@ export function getRedis(): Redis | null {
   return new Redis({ url, token });
 }
 
-export async function setCachedYouTubeAnalytics(data: YouTubeAnalyticsCache): Promise<void> {
+/**
+ * The store, for a write: unlike a read, which falls back to the bundled
+ * seed, a write with nowhere to go has to fail rather than vanish.
+ */
+export function requireRedis(): Redis {
   const redis = getRedis();
   if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
-  await redis.set(YOUTUBE_KEY, data, { ex: TTL_SECONDS });
+  return redis;
+}
+
+export async function setCachedYouTubeAnalytics(data: YouTubeAnalyticsCache): Promise<void> {
+  await requireRedis().set(YOUTUBE_KEY, data, { ex: TTL_SECONDS });
 }
 
 // Best-effort: a public page shouldn't fail to render because KV is unset,
@@ -42,9 +50,7 @@ export async function getCachedYouTubeAnalytics(): Promise<YouTubeAnalyticsCache
 }
 
 export async function setCachedInstagramStats(data: InstagramStatsCache): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
-  await redis.set(INSTAGRAM_KEY, data, { ex: TTL_SECONDS });
+  await requireRedis().set(INSTAGRAM_KEY, data, { ex: TTL_SECONDS });
 }
 
 // Best-effort, for the same reason as the YouTube reader above.
@@ -62,15 +68,11 @@ export async function getCachedInstagramStats(): Promise<InstagramStatsCache | n
 // from "couldn't reach Redis". Swallowing the second would re-seed from the
 // env var and overwrite a good refreshed token with a stale one.
 export async function getInstagramToken(): Promise<InstagramTokenRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
-  return (await redis.get<InstagramTokenRecord>(INSTAGRAM_TOKEN_KEY)) ?? null;
+  return (await requireRedis().get<InstagramTokenRecord>(INSTAGRAM_TOKEN_KEY)) ?? null;
 }
 
 export async function setInstagramToken(record: InstagramTokenRecord): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
-  await redis.set(INSTAGRAM_TOKEN_KEY, record);
+  await requireRedis().set(INSTAGRAM_TOKEN_KEY, record);
 }
 
 // Best-effort: a page view shouldn't fail to render because KV is unset or unreachable.

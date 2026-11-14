@@ -1,21 +1,13 @@
 import "server-only";
 import type { RecordChange } from "@/lib/activityDiff";
-import { getRedis } from "@/lib/cache";
+import { requireRedis } from "@/lib/cache";
 import { EXPENSES_KEY, readExpenseRecords } from "./expenseRecords.server";
 import type { PartnerSettlement } from "@/lib/payers";
-import type { ExpenseInput, ExpenseRecord } from "./expenses";
+import type { ExpenseInput, ExpenseRecord, ExpenseReimbursement } from "./expenses";
 
 // server-only, and never imported from a client component: the server actions
 // import it directly. The list lives under one Redis key as a whole array,
 // like every other collection, and each write is read, modify, write.
-
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
-
-function requireRedis() {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
-  return redis;
-}
 
 function fromInput(input: ExpenseInput): Omit<ExpenseRecord, "createdAt" | "updatedAt"> {
   return {
@@ -28,6 +20,7 @@ function fromInput(input: ExpenseInput): Omit<ExpenseRecord, "createdAt" | "upda
     settlement: input.settlement,
     method: input.method,
     campaignId: input.campaignId,
+    reimbursement: input.campaignId ? input.reimbursement : null,
     receiptUrl: input.receiptUrl,
     note: input.note.trim(),
   };
@@ -73,6 +66,23 @@ export async function setExpenseSettlement(
   const before = records.find((record) => record.id === id);
   if (!before) return null;
   const after: ExpenseRecord = { ...before, settlement, updatedAt: new Date().toISOString() };
+  await redis.set(EXPENSES_KEY, records.map((record) => (record.id === id ? after : record)));
+  return { before, after };
+}
+
+/**
+ * When the brand paid an expense back, and nothing else: the quick "paid back"
+ * on a deal or the Payments page, which shouldn't resend the whole expense.
+ */
+export async function setExpenseReimbursement(
+  id: string,
+  reimbursement: ExpenseReimbursement
+): Promise<RecordChange<ExpenseRecord> | null> {
+  const redis = requireRedis();
+  const records = await readExpenseRecords();
+  const before = records.find((record) => record.id === id);
+  if (!before) return null;
+  const after: ExpenseRecord = { ...before, reimbursement, updatedAt: new Date().toISOString() };
   await redis.set(EXPENSES_KEY, records.map((record) => (record.id === id ? after : record)));
   return { before, after };
 }

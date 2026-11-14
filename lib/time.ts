@@ -21,20 +21,22 @@ export function formatTimestampIST(
   }).format(date);
 }
 
+const DATE_TIME_INPUT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: CALENDAR_TIME_ZONE,
+});
+
 export function toISTDateTimeInput(value: string | null): string {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
 
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-    timeZone: CALENDAR_TIME_ZONE,
-  }).formatToParts(date);
+  const parts = DATE_TIME_INPUT.formatToParts(date);
   const values = Object.fromEntries(parts.map(({ type, value: part }) => [type, part]));
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }

@@ -16,7 +16,8 @@ export type AttentionKind =
   | "untracked-payment"
   | "overdue-invoice"
   | "overpaid"
-  | "orphan-payment";
+  | "orphan-payment"
+  | "unreimbursed";
 
 export interface AttentionItem {
   kind: AttentionKind;
@@ -135,6 +136,24 @@ export function selectAttentionItems(
       amount: payment.gross,
       label: "Not linked to a deal",
       href: "/payments#unlinked",
+    });
+  }
+
+  // A purchase the brand was to pay back, once nothing is left to wait for:
+  // the deal's own money came in full without it (the brand paid the fee and
+  // not the refund), or, on a deal with no cash to pay it with, the post is up.
+  for (const record of records) {
+    if (record.reimbursementOwed <= 0) continue;
+    const feePaid = record.settlement?.status === "paid";
+    if (!feePaid && !(record.settlement === null && isDelivered(record, today))) continue;
+    items.push({
+      kind: "unreimbursed",
+      campaignId: record.campaignId,
+      brand: record.brand,
+      campaign: record.campaign,
+      amount: record.reimbursementOwed,
+      label: feePaid ? "Paid, purchase not paid back" : "Posted, purchase not paid back",
+      href: dealHref(record),
     });
   }
 

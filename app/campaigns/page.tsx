@@ -31,6 +31,17 @@ interface CampaignsPageProps {
 
 export default async function CampaignsPage({ searchParams }: CampaignsPageProps) {
   const params = await searchParams;
+  // The pickers inside the campaign form. A failure to read either store
+  // costs one <Select> and not the page, so both are caught rather than
+  // joining the two the page is actually about. Started before the campaigns
+  // are awaited, since they don't depend on them: both sets of reads then
+  // share one round trip instead of waiting in turn.
+  const pickers = Promise.all([
+    getBrands().catch(() => []),
+    getEditorTransactions().catch(() => []),
+    getContentItems().catch(() => []),
+    getInvoices().catch(() => []),
+  ]);
   let campaigns: Campaign[] = [];
   let earnings: EarningsSummary | null = null;
   let error: string | null = null;
@@ -42,15 +53,7 @@ export default async function CampaignsPage({ searchParams }: CampaignsPageProps
   } catch (err) {
     error = err instanceof Error ? err.message : "Something went wrong";
   }
-  // The pickers inside the campaign form. A failure to read either store
-  // costs one <Select> and not the page, so both are caught rather than
-  // joining the two the page is actually about.
-  const [brands, editorTransactions, contentItems, invoices] = await Promise.all([
-    getBrands().catch(() => []),
-    getEditorTransactions().catch(() => []),
-    getContentItems().catch(() => []),
-    getInvoices().catch(() => []),
-  ]);
+  const [brands, editorTransactions, contentItems, invoices] = await pickers;
   const brandOptions = buildCampaignBrandOptions(brands);
   // Both stores that can claim a cut are counted, so a job on the plan or
   // another deal is hidden from the choices for this one.

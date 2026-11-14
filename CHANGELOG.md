@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-14
+
+### Added
+
+- **Purchases a brand pays back are tracked until it does.** An expense recorded against a deal can now be ticked **The brand pays this back**, for something like a product bought from the brand's site that it refunds on the payment date. Until the money comes back, it is marked **Brand to pay back** in the deal's **Costs** and on **Payments**, the deal says how much is still owed back, and the amount counts in what is still owed to you. When the refund arrives, **Paid back today** in the expense's menu records it (edit the expense to pick another day), and it shows on **Payments** as a **Reimbursement** coming in. Neither the purchase nor the refund counts toward profit or toward what the deal cost, only toward cash flow, and **From cash to profit** shows the gap as **Spent for brands, less paid back**. Once a deal's own payment has arrived in full (or a barter deal is posted) and a purchase is still owed back, the Dashboard's **Needs attention** lists it. If a brand never pays, untick the box and it counts as an ordinary cost again.
+- **The invoice and links editors ask before throwing away unsaved changes.** Tapping a page in the sidebar, or any other link, while an edit is unsaved now asks **Discard unsaved changes?**, with **Keep editing** and **Discard and leave**. Closing or reloading the tab gets the browser's own warning instead (phones mostly don't show one, and no page can change that). An editor you haven't changed, or have saved, lets you leave without asking, and so does an edit you've typed and then undone. The browser's back button still leaves without asking.
+- **The sidebar marks the pages anyone can open.** **Media kit** and **Links** now show a small globe at the right of their row; hovering it reads **Public: anyone with the link can open it**. Every other page needs you to be signed in, so it has no mark. With the sidebar collapsed to icons, the globe is hidden and the tooltip reads **Media kit (public)** and **Links (public)** instead.
+- **Ctrl+S (Cmd+S on a Mac) saves.** On the invoice editor it does what **Save invoice** or **Save changes** does, and on the links editor what **Save draft** does, in place of the browser's "Save page as". It does nothing while a save is already under way, so holding it down or pressing it twice can't create a second copy of a new invoice, and it does nothing while a dialog or sheet is open over the editor.
+- **Share a PDF straight from your phone.** On a phone or tablet, **Download PDF** on an invoice and **Save as PDF** on the media kit no longer drop the file into Downloads. Once it is ready, a **PDF ready** message names the file and offers **Share**, which opens the phone's share sheet (WhatsApp, Gmail and the rest) with the PDF attached, or **Save**, which downloads it as before. It takes that second tap because phones only open the share sheet from a fresh tap, and the one on the PDF button is used up by the second or two it takes to make the file. The message stays for 20 seconds. If the share sheet can't open, the PDF is saved to your downloads instead. On a computer the PDF still downloads straight away.
+
+### Changed
+
+- **Shared code now lives in one place, with nothing looking or working differently.**
+  - Every repository writer (`repositories/*.writer.server.ts`) now gets the data store from one `requireRedis()` in `lib/cache.ts`, instead of repeating its own "not configured" check.
+  - The date converters `toIsoDate` and `toSheetDate` are shared from `lib/campaigns.ts`.
+  - The record-id check `UUID_V4` and the TDS estimate `estimatePaymentTds` are shared from `lib/payments.ts`.
+  - The number and date formatters in `lib/invoice.ts`, `lib/earnings.ts`, `lib/links.ts` and `lib/time.ts` are made once, instead of on every figure in every table.
+  - Exports nothing used any more are removed, and comments naming renamed functions are corrected.
+- **More pages read their data in one go.** **Brand** pages, **New invoice**, an invoice's edit page, the **Media kit** editor, **Affiliates**, **Editor workspace** and the **Dashboard**'s active campaigns each read their stores in two to four batches, one after the other; each now reads them all at once. An invoice's edit page also reads the payment ledger once instead of twice. On **/links** and **/mediakit**, the view and visitor counts are now recorded after the page is sent, so a visitor's page no longer waits on them.
+
+### Fixed
+
+- **Typing what you received now updates the TDS.** On a deal with a TDS rate, **TDS withheld** opens on the rate's estimate (10% of the amount, say). Typing **Net received** used to leave that estimate in place and push the difference into **Bank charges**, or refuse to save when the brand withheld less than expected. Now TDS becomes whatever the amount leaves after charges and net received, with a note under it such as **2% of the amount, from net received**. Net received then stays put: changing the amount or the charges adjusts TDS instead. Editing a payment that has TDS works the same way, so a payment saved at the old 10% estimate can be fixed by typing the real net received. A deal with no TDS rate is unchanged: net received sets the charges, as does a TDS you type yourself.
+- **The TDS & tax page shows the rate a brand actually withheld at.** The **Rate** column used to show the deal's expected rate on every row, so a payment where the brand withheld 2% still read 10%. Rows marked **Actual** now show the rate their TDS works out to; **Estimated** rows still show the deal's rate.
+- **Invoice PDFs from a phone no longer have a white border.** **Download PDF** used to open the device's print dialog, and phones add their own margins (and some default to Letter paper), so an invoice saved from a phone came out with a white frame around the cream page. The PDF is now made on the server and downloads as a file, so it is the same A4 page, edge to edge, from any phone or computer. The button reads **Preparing PDF…** for a second or two while it is made. If the server can't make it, the print dialog opens as before.
+- **Media kit PDFs from a phone no longer have a white border either.** **Save as PDF** on the media kit editor now makes the PDF on the server the same way, so it downloads as the same edge-to-edge A4 page from any device, with whatever is in the editor, saved or not. It is named after your handle, for example **misopaprika-media-kit.pdf**, and the links on the sheet still work in the PDF. The button reads **Preparing PDF…** while it is made, and the print dialog opens as before if the server can't make it.
+- **Tapping a page in the sidebar responds straight away.** A page used to stay on screen until every figure on the next one had loaded, so on a phone a tap could look like it hadn't registered. Now the menu closes, the new page is highlighted in the sidebar and named in the top bar, and an outline of the page shows until its data arrives. The **Dashboard** already filled in section by section and is unchanged.
+- **A page that fails to load now offers Try again.** When the data store has a brief hiccup, a page used to show a bare error screen. It now says the page couldn't load and offers **Try again**, which reads its data again without reloading the whole app; the button reads **Trying again…** while it does. The message carries an error reference that matches the server logs. On the **Dashboard** the sidebar stays in place, and visitors to **/links** and **/mediakit** see the same message.
+- **Pages show their content sooner.** Every page used to wait for the sidebar's profile photo before showing anything, and **Campaigns**, **Brands** and **Content calendar** each fetched their data in two batches, one after the other. It all happens at the same time now, so those three show their content after one trip to the database instead of three, and every other page after one fewer. The sidebar photo appears a moment after the page. If the photo can't be read, the page still opens, with a grey circle in its place.
+- **View, visitor and click counts use Indian digit grouping everywhere.** These counts now group digits the Indian way (1,00,000), as money figures already did:
+  - the **Audience** card on the **Dashboard**;
+  - the stat cards and each link's click count in the **Links** editor;
+  - the views and visitors badges on the **Media kit** editor.
+
+  They used to follow the language setting of the browser or server, so the same count could read 100,000 in one place and 1,00,000 in another.
+- **Affiliate payouts with no end date stay in one order.** Two such payouts each claimed to sort after the other, so their order on **Affiliates** and a brand's page could change from one visit to the next. They now keep their order, still after the dated ones.
+- **Upload and refresh failures are easier to trace.**
+  - An upload request whose body can't be read is now refused as a bad upload (`lib/blobUpload.ts`), instead of failing as a server error.
+  - When the daily YouTube refresh fails, the reason is written to the server logs, as the Instagram refresh already did (`app/api/cron/refresh-youtube/route.ts`). Vercel otherwise records only that it failed.
+- **An invoice turns overdue at midnight in India, everywhere.** An invoice used to count as overdue once its due date ended in the time zone of whatever was showing it: the server's (UTC) or your browser's. For five and a half hours after every due date, the **Invoices** badge in the sidebar and the **Overdue** marks on the invoices list could disagree. Both now go by the day in India, like the rest of the app.
+- **Duplicate invoice numbers are flagged however they were typed.** The **duplicate #** mark on **Invoices** compared numbers exactly as typed, so **0007** and **7** were not flagged, though saving already treats them as the same number. They are now flagged as one.
+- **Deleting an invoice unlinks every deal that pointed at it.** Only the first such deal was unlinked; a second one went on pointing at an invoice that no longer existed.
+- **The Dashboard stays up if the links page can't be read.** Every other card already hid itself when its data couldn't be read; the **Audience** card instead took the whole **Dashboard** down to the error message. It now hides like the rest.
+- **A renewal needs a real term and fee.** Recording a usage renewal now refuses a term that isn't a number and a fee below zero, instead of saving a 0-day renewal or a negative amount.
+- **Save errors say what actually went wrong.** Saving or publishing the **Links** and **Media kit** editors, and saving invoice defaults, always blamed a missing database setting, whatever the cause. The message now gives the real reason.
+- **Search names a contact with no brand.** A contact with no brand, agency or phone showed a blank second line in search results; it now reads **Contact**.
+
+### Security
+
+- **Next.js updated to 16.4.6 to close critical security holes.** Earlier 16.x versions had flaws that could let an outsider run code on the server through the share images for **/links** and **/mediakit**, or through the built-in image resizer. Nothing looks or works differently.
+- **Two more libraries patched.** `undici`, which Vercel Blob uploads use, and `baseline-browser-mapping` are updated to versions with no known flaws. One advisory remains in a library Vercel Blob depends on (`@vercel/oidc`), as no fixed version has been released yet.
+
 ## [1.26.1] - 2026-11-07
 
 ### Added

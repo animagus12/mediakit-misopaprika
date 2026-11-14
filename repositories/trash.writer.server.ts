@@ -1,10 +1,8 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
-import type { TrashEntry, TrashPayload } from "./trash";
-import type { LinkTrashTarget } from "./trash";
+import { getRedis, requireRedis } from "@/lib/cache";
+import type { LinkTrashTarget, TrashEntry, TrashPayload } from "./trash";
 
 const TRASH_KEY = "trash";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
 async function readTrash(): Promise<TrashEntry[]> {
   const redis = getRedis();
@@ -28,8 +26,7 @@ export async function getTrashedCampaignIds(): Promise<string[]> {
 }
 
 export async function addTrashEntry(payload: TrashPayload, label: string): Promise<string> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const entries = await readTrash();
   const entry: TrashEntry = {
     id: crypto.randomUUID(),
@@ -43,8 +40,7 @@ export async function addTrashEntry(payload: TrashPayload, label: string): Promi
 }
 
 export async function activateTrashEntry(id: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const entries = await readTrash();
   const found = entries.some((entry) => entry.id === id);
   if (!found) throw new Error("Trash snapshot no longer exists");
@@ -55,8 +51,7 @@ export async function activateTrashEntry(id: string): Promise<void> {
 }
 
 export async function setTrashEntryTargets(id: string, targets: LinkTrashTarget[]): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const entries = await readTrash();
   const found = entries.some((entry) => entry.id === id);
   if (!found) throw new Error("Trash snapshot no longer exists");
@@ -73,8 +68,7 @@ export async function setTrashEntryTargets(id: string, targets: LinkTrashTarget[
 }
 
 export async function removeTrashEntry(id: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const entries = await readTrash();
   await redis.set(
     TRASH_KEY,
@@ -83,7 +77,6 @@ export async function removeTrashEntry(id: string): Promise<void> {
 }
 
 export async function clearTrash(): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   await redis.set(TRASH_KEY, []);
 }

@@ -104,10 +104,10 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
             shows its figures without being opened. */}
         <span
           className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs tabular-nums"
-          title={`${linkStats.clicks.toLocaleString()} click${linkStats.clicks === 1 ? "" : "s"}, ${formatClickRate(linkStats.clickRate)} of the views /links has had`}
+          title={`${linkStats.clicks.toLocaleString("en-IN")} click${linkStats.clicks === 1 ? "" : "s"}, ${formatClickRate(linkStats.clickRate)} of the views /links has had`}
         >
           <MousePointerClick className="size-3.5" />
-          <span className="text-foreground font-medium">{linkStats.clicks.toLocaleString()}</span>
+          <span className="text-foreground font-medium">{linkStats.clicks.toLocaleString("en-IN")}</span>
           <span className="text-muted-foreground/50">·</span>
           {formatClickRate(linkStats.clickRate)}
         </span>

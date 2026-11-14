@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import editorTransactionsSeed from "@/data/editor-transactions.json";
 import { toEditorTransaction } from "./editorTransactions";
 import type {
@@ -24,7 +24,6 @@ import type { RecordChange } from "@/lib/activityDiff";
 // transactions goes through Redis (Vercel's serverless filesystem is
 // read-only), so that logic lives here rather than in ./editorTransactions.
 const EDITOR_TRANSACTIONS_KEY = "editor_transactions";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = editorTransactionsSeed as EditorTransactionRecord[];
 
 async function readRecords(): Promise<EditorTransactionRecord[]> {
@@ -48,8 +47,7 @@ export async function getEditorTransactionRecord(id: string): Promise<EditorTran
 
 // Answers the record it wrote, so the caller can log the new id.
 export async function addEditorTransaction(input: NewEditorTransaction): Promise<EditorTransactionRecord> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const record: EditorTransactionRecord = {
     id: crypto.randomUUID(),
@@ -83,8 +81,7 @@ export async function renameEditorOnTransactions(from: string, to: string): Prom
   const after = to.trim();
   if (!before || !after || before === after) return 0;
 
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   if (!records.some((record) => record.editor.trim() === before)) return 0;
 
@@ -128,8 +125,7 @@ async function replaceRecord(
   id: string,
   update: (before: EditorTransactionRecord) => EditorTransactionRecord
 ): Promise<RecordChange<EditorTransactionRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -212,10 +208,10 @@ export async function changeEditorTransactionRevisions(
 // Returns the transaction it removed, or null when the id matched nothing:
 // see deleteBrand in brands.writer.server.ts for why.
 export async function deleteEditorTransaction(id: string): Promise<EditorTransactionRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const removed = records.find((record) => record.id === id) ?? null;
+  if (!removed) return null;
   await redis.set(
     EDITOR_TRANSACTIONS_KEY,
     records.filter((record) => record.id !== id)
@@ -224,8 +220,7 @@ export async function deleteEditorTransaction(id: string): Promise<EditorTransac
 }
 
 export async function restoreEditorTransaction(record: EditorTransactionRecord): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   if (records.some((entry) => entry.id === record.id)) return;
   await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);

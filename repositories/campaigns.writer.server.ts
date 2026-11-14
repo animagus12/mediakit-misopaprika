@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
@@ -42,7 +42,6 @@ import type {
 // campaigns goes through Redis (Vercel's serverless filesystem is
 // read-only), so that logic lives here rather than in ./campaigns.
 const CAMPAIGNS_KEY = "campaigns";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = campaignsSeed as CampaignRecord[];
 
 // Every record is put through toInvoiceLink and toCampaignStatus on the way
@@ -52,6 +51,9 @@ const SEED = campaignsSeed as CampaignRecord[];
 // the next write, which writes the whole list back. Coercing here rather than
 // only in toCampaign also keeps an update's before and after in the same
 // vocabulary, so a legacy "Completed" never logs as a change to "Posted".
+//
+// Falls back to the bundled data/campaigns.json seed until the first write,
+// or whenever Redis isn't configured (e.g. local dev without KV env vars).
 async function readRecords(): Promise<CampaignRecord[]> {
   const redis = getRedis();
   const stored = redis ? await redis.get<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
@@ -96,8 +98,6 @@ export async function readCampaignLedger(): Promise<CampaignLedger> {
   return { campaigns, invoices, payments };
 }
 
-// Falls back to the bundled data/campaigns.json seed until the first write,
-// or whenever Redis isn't configured (e.g. local dev without KV env vars).
 /**
  * The deals as pages show them: settled against the ledger, and with what
  * each cost to make joined on (its editing job and its expenses), so a deal's
@@ -119,8 +119,7 @@ export async function getCampaignRecord(id: string): Promise<CampaignRecord | nu
 }
 
 export async function deleteCampaign(id: string): Promise<CampaignRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const removed = records.find((record) => record.id === id);
   if (!removed) return null;
@@ -129,8 +128,7 @@ export async function deleteCampaign(id: string): Promise<CampaignRecord | null>
 }
 
 export async function restoreCampaign(record: CampaignRecord): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const existing = records.find((item) => item.id === record.id);
   if (existing) {
@@ -265,8 +263,7 @@ function usageFee(input: NewCampaignInput, stored: number): number {
 // own. A deal gets its number when an invoice is linked to it
 // (setCampaignInvoice). A caller-supplied invoiceRef is still kept as given.
 export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const [records, trashedIds] = await Promise.all([readRecords(), getTrashedCampaignIds()]);
 
   const hasPaidComponent = campaignTypeHasCash(input.type);
@@ -294,8 +291,7 @@ export async function addCampaign(input: NewCampaignInput): Promise<CampaignReco
 export async function updateCampaign(
   input: CampaignUpdate
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === input.id);
   if (!before) return null;
@@ -310,7 +306,7 @@ export async function updateCampaign(
     ...before,
     ...normalize(input, before),
     invoiceRef: input.invoiceRef?.trim() ?? before.invoiceRef,
-    // Not form-settable: the foreign key is written by linkCampaignInvoice
+    // Not form-settable: the foreign key is written by setCampaignInvoice
     // once a saved invoice is matched to the deal, and an edit of the
     // reference must not silently drop it.
     invoiceId: before.invoiceId,
@@ -347,8 +343,7 @@ export async function updateCampaign(
  * is nothing to clear.
  */
 export async function demoteCampaignLegacyPayment(id: string, renewalId: string | null): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return;
@@ -385,8 +380,7 @@ export async function demoteCampaignLegacyPayment(id: string, renewalId: string 
  * so money is now owed. Writes nothing on a deal already tracked.
  */
 export async function markCampaignPaymentExpected(id: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before || before.paymentStatus !== "unknown" || !campaignTypeHasCash(before.type)) return;
@@ -410,8 +404,7 @@ export async function setCampaignStatus(
   id: string,
   status: CampaignStatus
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -435,8 +428,7 @@ export async function setCampaignUploadDate(
   id: string,
   uploadDate: string
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -465,9 +457,8 @@ export type UsageTransition = "pause" | "resume" | "end";
 /**
  * Freezes a licence's countdown, restarts it, or calls the licence off.
  *
- * `today` is DD/MM/YYYY, passed in rather than read off the clock for the same
- * reason setCampaignPaymentStatus takes its date: which day it is for the
- * reader is a policy decision, and it is made one layer up.
+ * `today` is DD/MM/YYYY, passed in rather than read off the clock: which day
+ * it is for the reader is a policy decision, and it is made one layer up.
  *
  * Resuming banks the days spent paused so the term picks up exactly where it
  * stopped. It also un-ends an ended licence, which is what makes ending
@@ -479,8 +470,7 @@ export async function transitionCampaignUsage(
   transition: UsageTransition,
   today: string
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -533,8 +523,7 @@ export async function addCampaignUsageRenewal(
   id: string,
   input: NewUsageRenewal
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -583,8 +572,7 @@ export async function setUsageRenewalTds(
   renewalId: string,
   tds: Pick<UsageRenewalRecord, "tdsRate">
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -613,8 +601,7 @@ export async function setUsageRenewalTds(
  * Answers how many deals it changed; writes nothing when none.
  */
 export async function syncCampaignsWithBrand(brandId: string, name: string | null): Promise<number> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   let changed = 0;
   const next = records.map((record): CampaignRecord => {
@@ -633,8 +620,7 @@ export async function syncCampaignsWithBrand(brandId: string, name: string | nul
 
 export async function restoreCampaignBrandLinks(brandId: string, campaignIds: string[]): Promise<void> {
   if (campaignIds.length === 0) return;
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const ids = new Set(campaignIds);
   const records = await readRecords();
   await redis.set(
@@ -654,8 +640,7 @@ export async function restoreCampaignInvoiceLinks(
   invoiceId: string
 ): Promise<void> {
   if (links.length === 0) return;
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const byCampaign = new Map(links.map((link) => [link.campaignId, link]));
   const records = await readRecords();
   await redis.set(
@@ -677,7 +662,7 @@ export async function restoreCampaignInvoiceLinks(
       const invoiceLink = link.invoiceLink;
       return {
         ...record,
-        invoiceId: record.invoiceId || (invoiceLink ? invoiceId : ""),
+        invoiceId: record.invoiceId || (invoiceLink ? invoiceId : null),
         invoiceRef: record.invoiceId || record.invoiceRef || !invoiceLink
           ? record.invoiceRef
           : invoiceLink.invoiceRef,
@@ -707,8 +692,7 @@ export async function setCampaignInvoice(
   invoiceId: string,
   invoiceRef?: string
 ): Promise<CampaignRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -736,8 +720,7 @@ export async function setUsageRenewalInvoice(
   renewalId: string,
   invoiceId: string
 ): Promise<CampaignRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;

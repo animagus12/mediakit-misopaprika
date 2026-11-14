@@ -36,6 +36,25 @@ interface BrandDetailPageProps {
 export default async function BrandDetailPage({ params }: BrandDetailPageProps) {
   const { id } = await params;
 
+  // None of the reads below needs the brand to start, so every one begins
+  // here and they all share one round trip instead of waiting in turn. The
+  // optional ones settle their own failure as they start, so none can go
+  // unhandled when the required batch throws or the brand 404s first.
+  const campaignRead = fetchBrandCampaignRecords().then(
+    (all) => ({ all, error: null }),
+    (err: unknown) => ({
+      all: [] as BrandCampaignRecord[],
+      error: err instanceof Error ? err.message : "Something went wrong",
+    })
+  );
+  // Best-effort: a Redis hiccup on invoices/editor jobs shouldn't take down
+  // the whole brand page; the Invoices tab just shows empty.
+  const invoiceRead = Promise.all([getInvoices(), getEditorTransactions()]).catch(() => null);
+  // Affiliate programs this brand runs, with their payouts. Best-effort for
+  // the same reason invoices are: a Redis hiccup here costs one block on the
+  // Payments tab rather than the brand page.
+  const affiliateRead = Promise.all([getAffiliatePartners(), getAffiliatePayouts()]).catch(() => null);
+
   const [brand, agencies, contacts, notes, campaignContacts] = await Promise.all([
     getBrand(id),
     getAgencies(),
@@ -46,51 +65,35 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
 
   if (!brand) notFound();
 
-  let records: BrandCampaignRecord[] = [];
-  let sheetError: string | null = null;
-  try {
-    // A cancelled deal never happened commercially: same convention as
-    // lib/brandCampaignStats.ts's computeBrandStats, but applied here too
-    // so cancelled rows don't show up in the Campaigns/Payments tabs either.
-    records = recordsForBrand(brand, await fetchBrandCampaignRecords()).filter(
-      (record) => !isCampaignCancelled(record.status)
-    );
-  } catch (err) {
-    sheetError = err instanceof Error ? err.message : "Something went wrong";
-  }
+  const [campaignResult, invoiceResult, affiliateResult] = await Promise.all([
+    campaignRead,
+    invoiceRead,
+    affiliateRead,
+  ]);
 
-  // Best-effort: a Redis hiccup on invoices/editor jobs shouldn't take down
-  // the whole brand page; the Invoices tab just shows empty.
-  let brandInvoices: Invoice[] = [];
-  let editorJobs: InvoiceEditorJobOption[] = [];
-  try {
-    const [allInvoices, editorTransactions] = await Promise.all([getInvoices(), getEditorTransactions()]);
-    brandInvoices = invoicesForBrand(brand, allInvoices);
-    editorJobs = buildInvoiceEditorJobOptions(editorTransactions);
-  } catch {
-    // keep the fallbacks
-  }
+  // A cancelled deal never happened commercially: same convention as
+  // lib/brandCampaignStats.ts's computeBrandStats, but applied here too
+  // so cancelled rows don't show up in the Campaigns/Payments tabs either.
+  const records = recordsForBrand(brand, campaignResult.all).filter(
+    (record) => !isCampaignCancelled(record.status)
+  );
+  const sheetError = campaignResult.error;
 
-  // Affiliate programs this brand runs, with their payouts. Best-effort for
-  // the same reason invoices are: a Redis hiccup here costs one block on the
-  // Payments tab rather than the brand page. Joined on brandId only, with no
-  // name fallback: a program is linked explicitly in the partner form, so an
-  // unlinked one is unlinked on purpose.
-  let affiliates: BrandAffiliateProgram[] = [];
-  try {
-    const [partners, payouts] = await Promise.all([
-      getAffiliatePartners(),
-      getAffiliatePayouts(),
-    ]);
-    affiliates = partners
-      .filter((partner) => partner.brandId === brand.id)
-      .map((partner) => ({
-        partner,
-        payouts: sortPayoutsByPeriod(payouts.filter((payout) => payout.partnerId === partner.id)),
-      }));
-  } catch {
-    // keep the fallback
-  }
+  const brandInvoices: Invoice[] = invoiceResult ? invoicesForBrand(brand, invoiceResult[0]) : [];
+  const editorJobs: InvoiceEditorJobOption[] = invoiceResult
+    ? buildInvoiceEditorJobOptions(invoiceResult[1])
+    : [];
+
+  // Joined on brandId only, with no name fallback: a program is linked
+  // explicitly in the partner form, so an unlinked one is unlinked on purpose.
+  const affiliates: BrandAffiliateProgram[] = affiliateResult
+    ? affiliateResult[0]
+        .filter((partner) => partner.brandId === brand.id)
+        .map((partner) => ({
+          partner,
+          payouts: sortPayoutsByPeriod(affiliateResult[1].filter((payout) => payout.partnerId === partner.id)),
+        }))
+    : [];
 
   const agency = brand.agencyId ? (agencies.find((a) => a.id === brand.agencyId) ?? null) : null;
   const brandContacts = contactsForBrand(brand, contacts);

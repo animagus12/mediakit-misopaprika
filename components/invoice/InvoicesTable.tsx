@@ -25,6 +25,7 @@ import {
   formatMoney,
   INVOICE_FILTER_TABS,
   invoiceDisplayStatus,
+  invoiceNoKey,
   invoiceStatusStyle,
   isInvoiceFilter,
   isInvoiceOverdue,
@@ -237,7 +238,7 @@ export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: Inv
                 {pageRows.map((invoice) => {
                   const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
                   const overdue = isInvoiceOverdue(invoice);
-                  const duplicate = duplicateNumbers.has(invoice.invoiceNo.trim());
+                  const duplicate = duplicateNumbers.has(invoiceNoKey(invoice.invoiceNo));
                   const label = buildInvoiceNumber(invoice.invoiceNo);
                   return (
                     <TableRow
@@ -331,7 +332,7 @@ export function InvoicesTable({ invoices, duplicateNumbers: duplicateList }: Inv
             {pageRows.map((invoice) => {
               const status = invoiceStatusStyle(invoiceDisplayStatus(invoice));
               const overdue = isInvoiceOverdue(invoice);
-              const duplicate = duplicateNumbers.has(invoice.invoiceNo.trim());
+              const duplicate = duplicateNumbers.has(invoiceNoKey(invoice.invoiceNo));
               const label = buildInvoiceNumber(invoice.invoiceNo);
               return (
                 <li key={invoice.id}>

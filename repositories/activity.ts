@@ -165,10 +165,6 @@ export interface ActivityPage {
   nextOffset: number | null;
 }
 
-export function isActivityEntityType(value: string): value is ActivityEntityType {
-  return ENTITY_TYPES.has(value);
-}
-
 /**
  * Whether a value read back out of storage is a usable event.
  *

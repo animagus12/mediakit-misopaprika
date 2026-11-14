@@ -19,6 +19,10 @@ export interface ExpenseFormState {
   settlement: PartnerSettlement | null;
   method: PaymentMethod | null;
   campaignId: string | null;
+  /** Whether the deal's brand pays it back; only read with a deal picked. */
+  reimbursable: boolean;
+  /** yyyy-mm-dd it was paid back, "" while it is owed. */
+  reimbursedOn: string;
   receiptUrl: string | null;
   note: string;
 }
@@ -43,6 +47,8 @@ export function expenseFormFrom(expense: ExpenseRecord | null, defaults: Expense
       settlement: expense.settlement,
       method: expense.method,
       campaignId: expense.campaignId,
+      reimbursable: expense.reimbursement !== null,
+      reimbursedOn: expense.reimbursement?.receivedOn ?? "",
       receiptUrl: expense.receiptUrl,
       note: expense.note,
     };
@@ -57,6 +63,8 @@ export function expenseFormFrom(expense: ExpenseRecord | null, defaults: Expense
     settlement: "business",
     method: defaults.method,
     campaignId: defaults.campaignId ?? null,
+    reimbursable: false,
+    reimbursedOn: "",
     receiptUrl: null,
     note: "",
   };
@@ -73,6 +81,8 @@ export function expenseInputFrom(form: ExpenseFormState, id: string): ExpenseInp
     settlement: isPartner(form.paidBy) ? form.settlement : null,
     method: form.method,
     campaignId: form.campaignId,
+    // Only a deal's brand can pay it back, so picking no deal drops the flag.
+    reimbursement: form.campaignId && form.reimbursable ? { receivedOn: form.reimbursedOn } : null,
     receiptUrl: form.receiptUrl,
     note: form.note.trim(),
   };

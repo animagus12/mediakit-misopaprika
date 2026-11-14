@@ -6,7 +6,7 @@ import type { PaymentTarget, Settlement } from "./payments";
 // A saved invoice is a self-contained document. Unlike the invoice *defaults*
 // (repositories/invoice.ts), which seed the next new invoice, each record
 // carries its own copy of the payee/bank/branding block: snapshotted from
-// the defaults when the invoice is first saved, then editable per invoice: 
+// the defaults when the invoice is first saved, then editable per invoice:
 // so changing the defaults later never rewrites past invoices.
 
 export type InvoiceStatus = "draft" | "sent" | "paid" | "void";

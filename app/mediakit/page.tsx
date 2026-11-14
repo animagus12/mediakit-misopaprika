@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { MediaKitPublicView } from "@/components/mediakit/MediaKitPublicView";
 import { incrementMediaKitViews, recordMediaKitVisitor } from "@/lib/cache";
 import { toFormState } from "@/lib/mediakit";
@@ -38,10 +39,10 @@ export default async function MediaKitPage() {
   // render exactly like a real visit, so without the gate the figure counted
   // dashboard navigation rather than an audience.
   if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value)) {
-    await Promise.all([
-      incrementMediaKitViews(),
-      recordMediaKitVisitor(cookieStore.get(VISITOR_COOKIE)?.value),
-    ]);
+    // After the response, as on /links: best-effort counters stay off the
+    // path to the first paint.
+    const visitorId = cookieStore.get(VISITOR_COOKIE)?.value;
+    after(() => Promise.all([incrementMediaKitViews(), recordMediaKitVisitor(visitorId)]));
   }
 
   return <MediaKitPublicView state={toFormState(data)} />;

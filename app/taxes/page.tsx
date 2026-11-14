@@ -131,7 +131,8 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
             <CardTitle className="text-base">Payment details</CardTitle>
             <CardDescription>
               Each payment with TDS recorded, filed by the date the money arrived. A deal paid in
-              instalments has a row for each. Estimates use the rate entered on that deal or renewal.
+              instalments has a row for each. Estimates use the rate entered on that deal or renewal; actual
+              amounts show the rate the brand withheld at.
             </CardDescription>
           </CardHeader>
           <CardContent>

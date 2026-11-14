@@ -1,6 +1,6 @@
 import "server-only";
 import { computeEditorPayouts } from "@/lib/editorTransactions";
-import { buildExpenseDealOptions, outflowRows, type ExpenseDealOption } from "@/lib/expenses";
+import { buildExpenseDealOptions, outflowRows, reimbursementRows, type ExpenseDealOption } from "@/lib/expenses";
 import { cashOwedToYou, commissionRows, moneyEntries, type MoneyEntry } from "@/lib/moneyBook";
 import { findOrphanPayments, ledgerRows, type LedgerRow } from "@/lib/payments";
 import { getAffiliatePartners } from "./affiliatePartners.writer.server";
@@ -56,7 +56,8 @@ export interface MoneyBook {
 /**
  * Every rupee in and out, each read from where it is recorded: payments from
  * the ledger, commission from the affiliate payouts, editor payments from the
- * workspace's transactions, and expenses. Nothing is copied, so a change in
+ * workspace's transactions, and expenses (with what brands paid back of
+ * them). Nothing is copied, so a change in
  * any of them shows here on the next read. Affiliate stores degrade to empty,
  * as they do for earnings: missing commission is a smaller failure than a
  * page with no money on it at all.
@@ -75,13 +76,14 @@ export async function getMoneyBook(): Promise<MoneyBook> {
     entries: moneyEntries(
       ledgerRows(ledger.campaigns, ledger.settledInvoices),
       commissionRows(payouts, partners, AFFILIATE_FALLBACK_NAME),
-      outflowRows(expenses, editorTransactions, ledger.campaigns, ledger.invoices)
+      outflowRows(expenses, editorTransactions, ledger.campaigns, ledger.invoices),
+      reimbursementRows(expenses, ledger.campaigns)
     ),
     barterByMonth: new Map(earnings.monthly.map((month) => [month.month, month.barter])),
     orphans: findOrphanPayments(ledger.payments, ledger.campaigns, ledger.invoices),
     expenses,
     dealOptions: buildExpenseDealOptions(ledger.campaigns),
-    owedToYou: cashOwedToYou(ledger.campaigns, ledger.settledInvoices, payouts),
+    owedToYou: cashOwedToYou(ledger.campaigns, ledger.settledInvoices, payouts, expenses),
     owedToEditors: computeEditorPayouts(editorTransactions).pending,
     settleUps,
   };

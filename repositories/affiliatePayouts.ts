@@ -10,8 +10,6 @@
 // rules it counts a deal, so the two have to agree on what "received" means.
 export type PayoutPaymentStatus = "pending" | "received";
 
-export const PAYOUT_PAYMENT_STATUSES: PayoutPaymentStatus[] = ["pending", "received"];
-
 export interface AffiliatePayout {
   id: string;
   partnerId: string; // → AffiliatePartner

@@ -13,27 +13,22 @@ export const metadata: Metadata = {
 };
 
 export default async function MediaKitGeneratorPage() {
-  const [data, viewCount, uniqueVisitors, brands] = await Promise.all([
+  const [data, viewCount, uniqueVisitors, brands, invoices] = await Promise.all([
     getMediaKitData(),
     getMediaKitViews(),
     getMediaKitUniqueVisitors(),
     getBrands(),
+    // A brand with a paid invoice counts as a real past collab even if its
+    // pipeline status wasn't updated by hand. Best-effort: no invoices just
+    // means eligibility falls back to status alone.
+    getInvoices().catch(() => []),
   ]);
 
-  // A brand with a paid invoice counts as a real past collab even if its
-  // pipeline status wasn't updated by hand. Best-effort: no invoices just
-  // means eligibility falls back to status alone.
-  let paidBrandIds = new Set<string>();
-  try {
-    const invoices = await getInvoices();
-    paidBrandIds = new Set(
-      invoices
-        .filter((invoice) => invoice.status === "paid" && invoice.brandId)
-        .map((invoice) => invoice.brandId as string)
-    );
-  } catch {
-    // keep the empty set
-  }
+  const paidBrandIds = new Set(
+    invoices
+      .filter((invoice) => invoice.status === "paid" && invoice.brandId)
+      .map((invoice) => invoice.brandId as string)
+  );
 
   return (
     <AppShell>

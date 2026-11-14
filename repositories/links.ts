@@ -130,7 +130,7 @@ interface StoredLinksData {
 }
 
 function normalizeItem(item: StoredLinkItem): LinkItem {
-  // Pre-migration records can have BOTH slots filled with different images: 
+  // Pre-migration records can have BOTH slots filled with different images:
   // that is what uploading under one layout and then re-uploading after
   // switching produced. Read the slot that item's own layout was rendering,
   // so migrating never silently swaps the picture someone is looking at; the

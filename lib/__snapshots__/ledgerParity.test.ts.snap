@@ -1314,7 +1314,7 @@ exports[`ledger parity: money reports > matches the golden figures on the fixtur
             "renewalId": null,
             "source": "deal",
             "tdsAmount": 2500,
-            "tdsRate": null,
+            "tdsRate": 10,
           },
           {
             "brand": "Acme",
@@ -1356,7 +1356,7 @@ exports[`ledger parity: money reports > matches the golden figures on the fixtur
             "renewalId": null,
             "source": "deal",
             "tdsAmount": 1500,
-            "tdsRate": null,
+            "tdsRate": 10,
           },
         ],
         "totalCash": 70000,

@@ -3,7 +3,9 @@
 import { upload } from "@vercel/blob/client";
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { publishMediaKit, saveMediaKit } from "@/app/mediakit-generator/actions";
+import { deliverPdf } from "@/components/common/deliver-pdf";
 import { BLANK_LOGO, toFormState, toMediaKitData } from "@/lib/mediakit";
+import { fetchMediaKitPdf } from "@/lib/mediakitPrint";
 import type { MediaKitData, MediaKitLogo, MediaKitTileStats } from "@/repositories/mediakit";
 import { MediaKitControls } from "./MediaKitControls";
 import { MediaKitPreview } from "./MediaKitPreview";
@@ -25,6 +27,7 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSaving, startSaveTransition] = useTransition();
   const [isPublishing, startPublishTransition] = useTransition();
+  const [isPreparingPdf, startPdfTransition] = useTransition();
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -191,9 +194,23 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
     showToast("Fields reset");
   }, [data, showToast]);
 
-  const print = useCallback(() => {
-    window.print();
-  }, []);
+  // Makes the media kit PDF as the server draws it (see lib/printPdf.ts), so
+  // the file is the same A4 sheet from a phone as from a computer, then
+  // downloads it or, on a phone, offers to share it (deliverPdf). Should the
+  // server fail, the browser's print dialog still makes one (the print rules
+  // in mediakit.module.css print only the sheet), if with whatever margins
+  // the device adds.
+  const downloadPdf = useCallback(() => {
+    startPdfTransition(async () => {
+      try {
+        deliverPdf(await fetchMediaKitPdf({ state }));
+      } catch (error) {
+        console.error("Media kit PDF failed", error);
+        showToast("Couldn't create the PDF, opening print instead");
+        window.print();
+      }
+    });
+  }, [state, showToast]);
 
   const save = useCallback(() => {
     const payload = toMediaKitData(state, data.brandHandle);
@@ -224,7 +241,8 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
       reorderLogos,
       setTileUrl,
       openPicker,
-      print,
+      downloadPdf,
+      isPreparingPdf,
       save,
       isSaving,
       publish,
@@ -243,7 +261,8 @@ export function MediaKitGenerator({ data, viewCount, uniqueVisitors, brandLogos 
       reorderLogos,
       setTileUrl,
       openPicker,
-      print,
+      downloadPdf,
+      isPreparingPdf,
       save,
       isSaving,
       publish,

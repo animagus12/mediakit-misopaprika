@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ledgerCampaigns,
+  makeBrandCampaignRecord,
   makeCampaignRecord,
   makeInvoiceRecord,
   makePaymentRecord,
@@ -80,6 +81,48 @@ describe("selectAttentionItems: payments", () => {
         label: "Not linked to a deal",
         href: "/payments#unlinked",
       },
+    ]);
+  });
+});
+
+describe("selectAttentionItems: purchases not paid back", () => {
+  const unreimbursed = (items: ReturnType<typeof selectAttentionItems>) =>
+    items.filter((item) => item.kind === "unreimbursed");
+
+  it("flags a deal paid in full whose brand still owes a purchase back, and leaves one still due alone", () => {
+    const items = selectAttentionItems(
+      [
+        makeBrandCampaignRecord({ campaignId: "paid", paymentStatus: "received", paidDate: "20/10/2026", reimbursementOwed: 1500 }),
+        makeBrandCampaignRecord({ campaignId: "due", paymentStatus: "pending", reimbursementOwed: 800 }),
+        makeBrandCampaignRecord({ campaignId: "square", paymentStatus: "received", paidDate: "20/10/2026" }),
+      ],
+      [],
+      NOW
+    );
+    expect(unreimbursed(items)).toEqual([
+      {
+        kind: "unreimbursed",
+        campaignId: "paid",
+        brand: "Acme",
+        campaign: "Launch",
+        amount: 1500,
+        label: "Paid, purchase not paid back",
+        href: "/campaigns?q=Launch",
+      },
+    ]);
+  });
+
+  it("flags a deal with no cash once its post is up", () => {
+    const items = selectAttentionItems(
+      [
+        makeBrandCampaignRecord({ campaignId: "posted", amount: 0, barterValue: 2000, status: "Posted", reimbursementOwed: 999 }),
+        makeBrandCampaignRecord({ campaignId: "filming", amount: 0, barterValue: 2000, status: "Filming", reimbursementOwed: 999 }),
+      ],
+      [],
+      NOW
+    );
+    expect(unreimbursed(items).map((item) => [item.campaignId, item.label])).toEqual([
+      ["posted", "Posted, purchase not paid back"],
     ]);
   });
 });

@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import contentPlanSeed from "@/data/content-plan.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { toContentItem, toContentStatus } from "./contentPlan";
@@ -16,7 +16,6 @@ import type {
 // as every other store here (the activity log is the one exception, and for a
 // reason that doesn't apply to a list this size).
 const CONTENT_PLAN_KEY = "content_plan";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = contentPlanSeed as ContentItemRecord[];
 
 // Statuses are coerced on the way out, the way the campaigns store coerces
@@ -54,8 +53,7 @@ function normalize(input: NewContentItem): Omit<ContentItemRecord, "id" | "creat
 }
 
 export async function addContentItem(input: NewContentItem): Promise<ContentItemRecord> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const record: ContentItemRecord = {
     id: crypto.randomUUID(),
@@ -73,8 +71,7 @@ export async function addContentItem(input: NewContentItem): Promise<ContentItem
 export async function updateContentItem(
   input: ContentItemUpdate
 ): Promise<RecordChange<ContentItemRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === input.id);
   if (!before) return null;
@@ -89,8 +86,7 @@ export async function updateContentItem(
 // Answers the record it removed, since a caller cannot read back a title once
 // the row is gone and the activity event has to name it.
 export async function deleteContentItem(id: string): Promise<ContentItemRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const removed = records.find((record) => record.id === id);
   if (!removed) return null;
@@ -99,8 +95,7 @@ export async function deleteContentItem(id: string): Promise<ContentItemRecord |
 }
 
 export async function restoreContentItem(record: ContentItemRecord): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   if (records.some((entry) => entry.id === record.id)) return;
   await redis.set(CONTENT_PLAN_KEY, [...records, record]);
@@ -113,8 +108,7 @@ export async function setContentItemDate(
   id: string,
   postDate: string
 ): Promise<RecordChange<ContentItemRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;
@@ -133,8 +127,7 @@ export async function setContentItemStatus(
   id: string,
   status: ContentStatus
 ): Promise<RecordChange<ContentItemRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return null;

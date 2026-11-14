@@ -8,7 +8,7 @@ import { todayKey } from "@/lib/day";
 import { formatMoney } from "@/lib/invoice";
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/lib/payers";
 import {
-  hasNegativeCharges,
+  negativeAmountProblem,
   parseFormAmount,
   withBankFee,
   withGross,
@@ -16,6 +16,7 @@ import {
   withTds,
   type PaymentFormState,
 } from "@/lib/paymentForm";
+import { tdsRateOf } from "@/lib/tds";
 import { cn } from "@/lib/utils";
 import { PAYMENT_NOTE_MAX, PAYMENT_REFERENCE_MAX } from "@/repositories/payments";
 
@@ -37,11 +38,13 @@ interface PaymentFieldsProps {
  * withheld and the bank took, and what landed in the business account.
  *
  * Controlled, with the arithmetic in lib/paymentForm.ts: TDS follows the
- * expected rate until it is typed over, and net and charges recompute each
- * other, so the four amounts always add up.
+ * expected rate until net received or TDS is typed, net received works out
+ * TDS (or the charges, on a payment without TDS), so the four amounts always
+ * add up.
  */
 export function PaymentFields({ idPrefix, form, onChange, expectedTdsRate, grossLocked = false }: PaymentFieldsProps) {
-  const negativeCharges = hasNegativeCharges(form);
+  const amountProblem = negativeAmountProblem(form);
+  const withheldRate = form.tdsMode === "net" ? tdsRateOf(parseFormAmount(form.gross), parseFormAmount(form.tds)) : null;
   const id = (field: string) => `${idPrefix}-${field}`;
 
   return (
@@ -80,8 +83,11 @@ export function PaymentFields({ idPrefix, form, onChange, expectedTdsRate, gross
             value={form.tds}
             onChange={(event) => onChange(withTds(form, event.target.value))}
           />
-          {!form.tdsTouched && expectedTdsRate !== null && expectedTdsRate > 0 && (
+          {form.tdsMode === "rate" && expectedTdsRate !== null && expectedTdsRate > 0 && (
             <p className="text-[11px] text-muted-foreground">Estimated at {expectedTdsRate}%.</p>
+          )}
+          {withheldRate !== null && withheldRate >= 0 && (
+            <p className="text-[11px] text-muted-foreground">{withheldRate}% of the amount, from net received.</p>
           )}
         </div>
         <div className="min-w-0 space-y-2">
@@ -100,16 +106,14 @@ export function PaymentFields({ idPrefix, form, onChange, expectedTdsRate, gross
             id={id("net")}
             inputMode="decimal"
             className="tabular-nums"
-            aria-invalid={negativeCharges}
+            aria-invalid={amountProblem !== null}
             value={form.net}
-            onChange={(event) => onChange(withNet(form, event.target.value))}
+            onChange={(event) => onChange(withNet(form, event.target.value, expectedTdsRate))}
           />
         </div>
       </div>
-      <p className={cn("text-[11px]", negativeCharges ? "text-destructive" : "text-muted-foreground")}>
-        {negativeCharges
-          ? "Net received can't be more than the amount less TDS."
-          : `${formatMoney(parseFormAmount(form.net) || 0)} landed in the account.`}
+      <p className={cn("text-[11px]", amountProblem ? "text-destructive" : "text-muted-foreground")}>
+        {amountProblem ?? `${formatMoney(parseFormAmount(form.net) || 0)} landed in the account.`}
       </p>
 
       {/* No "received into": money in always lands in the business account. */}

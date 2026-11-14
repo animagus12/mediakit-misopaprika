@@ -13,15 +13,18 @@ export const metadata: Metadata = {
 };
 
 export default async function WorkspacePage() {
+  // Started together so both reads share one round trip. The transactions'
+  // failure is settled here, so it can't go unhandled when the editors read
+  // throws first, and still shows inline rather than failing the page.
+  const transactionRead = getEditorTransactions().then(
+    (transactions) => ({ transactions, error: null }),
+    (err: unknown) => ({
+      transactions: [] as EditorTransaction[],
+      error: err instanceof Error ? err.message : "Something went wrong",
+    })
+  );
   const editors = await getEditors();
-
-  let transactions: EditorTransaction[] = [];
-  let error: string | null = null;
-  try {
-    transactions = await getEditorTransactions();
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Something went wrong";
-  }
+  const { transactions, error } = await transactionRead;
 
   return (
     <AppShell>

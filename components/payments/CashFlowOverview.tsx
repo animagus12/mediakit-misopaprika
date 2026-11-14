@@ -5,6 +5,7 @@ import { monthLabel } from "@/lib/earnings";
 import { outflowCategoryLabel, type OutflowTotals } from "@/lib/expenses";
 import { financialYearLabel } from "@/lib/financialYear";
 import { formatMoney } from "@/lib/invoice";
+import { roundMoney } from "@/lib/money";
 import type { FlowPeriod, FlowTotals } from "@/lib/moneyBook";
 import { payerLabel } from "@/lib/payers";
 import { cn } from "@/lib/utils";
@@ -91,7 +92,8 @@ interface CashFlowDetailsProps {
  * How the year's figures come about: cash in and out, and the profit behind
  * them. Cash flow is what moved through the business account; profit also
  * counts the TDS brands withheld (the creator's tax, already paid) and barter
- * received, so the two differ by exactly those and the card says so.
+ * received, and leaves out purchases brands pay back and their refunds, so
+ * the two differ by exactly those and the card says so.
  */
 export function CashFlowDetails({
   totals,
@@ -125,6 +127,14 @@ export function CashFlowDetails({
                 value={totals.tds}
               />
               <BridgeLine sign="+" label="Barter received" hint="Income in goods, not cash" value={totals.barter} />
+              {(totals.reimbursable > 0 || totals.reimbursed > 0) && (
+                <BridgeLine
+                  sign="+"
+                  label="Spent for brands, less paid back"
+                  hint="What a brand pays back isn't a cost, and the refund isn't income"
+                  value={roundMoney(totals.reimbursable - totals.reimbursed)}
+                />
+              )}
               <BridgeLine
                 sign="="
                 label="Profit"

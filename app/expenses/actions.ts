@@ -13,10 +13,16 @@ import type { ActivityEntity } from "@/repositories/activity";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import { getCampaignRecord } from "@/repositories/campaigns.writer.server";
 import { readExpenseRecords } from "@/repositories/expenseRecords.server";
-import { expenseCategoryLabel, type ExpenseInput, type ExpenseRecord } from "@/repositories/expenses";
+import {
+  expenseCategoryLabel,
+  isReimbursementOwed,
+  type ExpenseInput,
+  type ExpenseRecord,
+} from "@/repositories/expenses";
 import {
   addExpense,
   deleteExpense as deleteExpenseRecord,
+  setExpenseReimbursement,
   updateExpense as updateExpenseRecord,
 } from "@/repositories/expenses.writer.server";
 import { activateTrashEntry, addTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
@@ -58,6 +64,7 @@ function checked(input: ExpenseInput): ExpenseInput {
     campaignId: typeof input.campaignId === "string" && input.campaignId.trim() ? input.campaignId.trim() : null,
     // Only a cost a partner paid is settled between them and the business.
     settlement: isPartner(input.paidBy) ? (input.settlement ?? null) : null,
+    reimbursement: input.reimbursement ?? null,
   };
   const problem = validateExpense(normalized, todayKey());
   if (problem) throw new Error(problem);
@@ -100,6 +107,32 @@ export async function updateExpense(input: ExpenseInput): Promise<{ success: tru
     return { success: true };
   } catch (err) {
     return failure(err, "Couldn't save the expense");
+  }
+}
+
+/**
+ * Records that the brand paid an expense back today: the one-tap close of a
+ * reimbursement still owed. Another day is set by editing the expense.
+ */
+export async function markExpenseReimbursed(id: string): Promise<{ success: true } | Fail> {
+  const denied = await requireSession();
+  if (denied) return denied;
+  try {
+    const expense = (await readExpenseRecords()).find((entry) => entry.id === id);
+    if (!expense) return { success: false, error: "This expense no longer exists" };
+    if (!isReimbursementOwed(expense)) return { success: false, error: "Nothing is owed back on this expense" };
+    const change = await setExpenseReimbursement(id, { receivedOn: todayKey() });
+    if (!change) return { success: false, error: "This expense no longer exists" };
+    revalidateStores("expenses");
+    const deal = await dealOf(change.after.campaignId).catch(() => null);
+    await recordActivity({
+      action: "expense.updated",
+      ...expenseActivity(change.after, deal),
+      detail: "Paid back by the brand",
+    });
+    return { success: true };
+  } catch (err) {
+    return failure(err, "Couldn't mark it paid back");
   }
 }
 

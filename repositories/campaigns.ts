@@ -304,7 +304,7 @@ export function usageTermStart(record: Pick<CampaignRecord, "uploadDate" | "date
 //
 // `invoiceId` is the real foreign key into repositories/invoices.ts, written
 // by the app once a saved invoice is matched to the deal (see
-// syncLinkedCampaignPayment in app/invoices/actions.ts). Null until then.
+// linkInvoiceToCampaign in app/invoices/actions.ts). Null until then.
 //
 // Same split UsageRenewalRecord already made, and the same one
 // lib/brandCampaignStats.ts's BrandPaymentRow already renders: the reference
@@ -343,7 +343,7 @@ export function toInvoiceLink(raw: {
 }
 
 export interface CampaignRecord extends CampaignInvoiceLink {
-  id: string; // e.g. "MSP-BC0014" / "MSP-MC0010": see nextCampaignId()
+  id: string; // e.g. "MSP-BC0014" / "MSP-MC0010": see nextSequenceId()
   date: string; // DD/MM/YYYY, deal date
   uploadDate: string; // DD/MM/YYYY, actual delivery date, "" until posted
   brand: string; // display snapshot, kept even if the linked Brand is renamed/deleted later

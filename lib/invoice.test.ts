@@ -20,9 +20,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// isInvoiceOverdue reads the due date as 23:59:59 in the machine's local zone.
-// The two instants below sit clear of that moment in every zone from UTC-12
-// to UTC+14, so these pass whatever zone the test runner is in.
+// isInvoiceOverdue compares the due date with today in IST (lib/day.ts):
+// 15 May 05:30 IST is still the due day, 16 May 18:30 IST is the day after.
 const BEFORE_DUE = new Date("2026-05-15T00:00:00.000Z");
 const AFTER_DUE = new Date("2026-05-16T13:00:00.000Z");
 
