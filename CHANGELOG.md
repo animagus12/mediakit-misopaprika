@@ -50,6 +50,7 @@
 ### Security
 
 - **Next.js updated to 16.4.6 to close critical security holes.** Earlier 16.x versions had flaws that could let an outsider run code on the server through the share images for **/links** and **/mediakit**, or through the built-in image resizer. Nothing looks or works differently.
+- **Two more libraries patched.** `undici`, which Vercel Blob uploads use, and `baseline-browser-mapping` are updated to versions with no known flaws. One advisory remains in a library Vercel Blob depends on (`@vercel/oidc`), as no fixed version has been released yet.
 
 ## [1.26.1] - 2026-11-07
 
