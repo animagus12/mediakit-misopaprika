@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, lastUpdated: data.lastUpdated });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Vercel records only the cron's status: see refresh-instagram.
+    console.error("refresh-youtube failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
