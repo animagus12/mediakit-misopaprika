@@ -35,19 +35,28 @@ interface NewInvoicePageProps {
 
 export default async function NewInvoicePage({ searchParams }: NewInvoicePageProps) {
   const { brandId, campaign, client, campaignId } = await searchParams;
+  // All three reads start together and share one round trip. The optional
+  // two settle their own failure as they start, so neither can go unhandled
+  // while the defaults are awaited.
+  const handleRead = getMediaKitData().then(
+    (kit) => kit.header.handle,
+    () => ""
+  );
+  // Best-effort: the editor still works if any of these can't be loaded; it
+  // just can't warn about clashes or offer the brand / editor-job pickers.
+  const storesRead = Promise.all([
+    getInvoices(),
+    getBrands(),
+    getContacts(),
+    getEditorTransactions(),
+    campaignRepository.getAll(),
+  ]).catch(() => null);
   const data = await getInvoiceData();
 
   // The handle shown on the invoice header is the media kit's handle, so the
   // two never drift apart. Best-effort: falls back to the invoice default.
-  let brandHandle = data.brandHandle;
-  try {
-    brandHandle = (await getMediaKitData()).header.handle || brandHandle;
-  } catch {
-    // keep the default
-  }
+  const brandHandle = (await handleRead) || data.brandHandle;
 
-  // Best-effort: the editor still works if any of these can't be loaded; it
-  // just can't warn about clashes or offer the brand / editor-job pickers.
   let takenInvoiceNumbers: string[] = [];
   let brandOptions: ReturnType<typeof buildInvoiceBrandOptions> = [];
   let editorJobOptions: ReturnType<typeof buildInvoiceEditorJobOptions> = [];
@@ -59,14 +68,10 @@ export default async function NewInvoicePage({ searchParams }: NewInvoicePagePro
   let linkedCampaign: InvoiceLinkedCampaign | null = null;
   let existingInvoiceId: string | null = null;
   let invoiceNumberSeed = data.invoiceNumberSeed;
+  const stores = await storesRead;
   try {
-    const [invoices, brands, contacts, editorTransactions, campaigns] = await Promise.all([
-      getInvoices(),
-      getBrands(),
-      getContacts(),
-      getEditorTransactions(),
-      campaignRepository.getAll(),
-    ]);
+    if (!stores) throw new Error("The invoice pickers couldn't be loaded");
+    const [invoices, brands, contacts, editorTransactions, campaigns] = stores;
     takenInvoiceNumbers = invoices.map((invoice) => invoice.invoiceNo);
     brandOptions = buildInvoiceBrandOptions(brands, contacts);
     editorJobOptions = buildInvoiceEditorJobOptions(editorTransactions, { invoices });

@@ -53,12 +53,6 @@ export async function readSettledLedger(): Promise<CampaignLedger & { settledInv
   return { ...ledger, settledInvoices: joinInvoices(ledger.invoices, ledger) };
 }
 
-export async function getInvoice(id: string): Promise<Invoice | null> {
-  const ledger = await readCampaignLedger();
-  const record = ledger.invoices.find((r) => r.id === id);
-  return record ? (joinInvoices([record], ledger)[0] ?? null) : null;
-}
-
 // Trims free text and coerces numbers so a record is clean regardless of what
 // the form handed over: same defensive shape as brands.writer.server.ts.
 function normalize(input: NewInvoice): NewInvoice {

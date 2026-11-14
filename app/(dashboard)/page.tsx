@@ -330,6 +330,13 @@ async function AudienceSection() {
 }
 
 async function DashboardCampaignsContainer() {
+  // The pickers start before the deals are awaited, since they don't depend
+  // on them: both share one round trip.
+  const pickers = Promise.all([
+    getBrands().catch(() => []),
+    getEditorTransactions().catch(() => []),
+    getContentItems().catch(() => []),
+  ]);
   let active: ReturnType<typeof splitCampaigns>["active"] = [];
   let error: string | null = null;
   try {
@@ -337,11 +344,7 @@ async function DashboardCampaignsContainer() {
   } catch (err) {
     error = err instanceof Error ? err.message : "Something went wrong";
   }
-  const [brands, editorTransactions, contentItems] = await Promise.all([
-    getBrands().catch(() => []),
-    getEditorTransactions().catch(() => []),
-    getContentItems().catch(() => []),
-  ]);
+  const [brands, editorTransactions, contentItems] = await pickers;
   return (
     <DashboardCampaignsSection
       active={active}

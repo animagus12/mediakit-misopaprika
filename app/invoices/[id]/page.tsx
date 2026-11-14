@@ -11,7 +11,7 @@ import {
 } from "@/lib/invoice";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import { getInvoiceData } from "@/repositories/invoice.writer.server";
-import { getInvoice, getInvoices } from "@/repositories/invoices.writer.server";
+import { getInvoices } from "@/repositories/invoices.writer.server";
 import { getBrands } from "@/repositories/brands.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
@@ -29,17 +29,24 @@ interface EditInvoicePageProps {
 export default async function EditInvoicePage({ params }: EditInvoicePageProps) {
   const { id } = await params;
 
-  const [data, invoice, invoices, brands, contacts, editorTransactions, campaigns] = await Promise.all([
+  const [data, invoices, brands, contacts, editorTransactions, campaigns, mediaKitHandle] = await Promise.all([
     getInvoiceData(),
-    getInvoice(id),
     getInvoices(),
     getBrands(),
     getContacts(),
     getEditorTransactions(),
     // Best-effort: without it the editor just can't name the linked campaign.
     campaignRepository.getAll().catch(() => []),
+    // Best-effort: the header falls back to the invoice default's handle.
+    getMediaKitData().then(
+      (kit) => kit.header.handle,
+      () => ""
+    ),
   ]);
 
+  // Taken from the list rather than read again: every invoice comes out of
+  // the same join, and a second read would fetch the whole ledger twice.
+  const invoice = invoices.find((entry) => entry.id === id);
   if (!invoice) notFound();
   const owner = invoiceOwner(invoice.id, campaigns);
   const linkedCampaign = toInvoiceLinkedCampaign(owner);
@@ -54,13 +61,8 @@ export default async function EditInvoicePage({ params }: EditInvoicePageProps) 
     .filter((other) => other.id !== id)
     .map((other) => other.invoiceNo);
 
-  // Keep the invoice header handle in sync with the media kit's. Best-effort.
-  let brandHandle = data.brandHandle;
-  try {
-    brandHandle = (await getMediaKitData()).header.handle || brandHandle;
-  } catch {
-    // keep the default
-  }
+  // Keep the invoice header handle in sync with the media kit's.
+  const brandHandle = mediaKitHandle || data.brandHandle;
 
   return (
     <AppShell>

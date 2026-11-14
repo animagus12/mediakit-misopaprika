@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { LinksPublicView } from "@/components/links/LinksPublicView";
 import { incrementLinksViews, recordLinksVisitor } from "@/lib/cache";
 import { visiblePageNow } from "@/lib/links";
@@ -44,10 +45,10 @@ export default async function LinksPage() {
   // can fail the page: see lib/cache. The owner's own renders don't count;
   // see isCountableVisit().
   if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value)) {
-    await Promise.all([
-      incrementLinksViews(),
-      recordLinksVisitor(cookieStore.get(VISITOR_COOKIE)?.value),
-    ]);
+    // After the response: the counters are best-effort and must not cost a
+    // visitor on a phone a round trip to the store before the page paints.
+    const visitorId = cookieStore.get(VISITOR_COOKIE)?.value;
+    after(() => Promise.all([incrementLinksViews(), recordLinksVisitor(visitorId)]));
   }
 
   const { profile, followers, sections } = visiblePageNow(data, stats);

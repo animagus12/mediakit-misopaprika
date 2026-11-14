@@ -17,6 +17,7 @@
   - The record-id check `UUID_V4` and the TDS estimate `estimatePaymentTds` are shared from `lib/payments.ts`.
   - The number and date formatters in `lib/invoice.ts`, `lib/earnings.ts`, `lib/links.ts` and `lib/time.ts` are made once, instead of on every figure in every table.
   - Exports nothing used any more are removed, and comments naming renamed functions are corrected.
+- **More pages read their data in one go.** **Brand** pages, **New invoice**, an invoice's edit page, the **Media kit** editor, **Affiliates**, **Editor workspace** and the **Dashboard**'s active campaigns each read their stores in two to four batches, one after the other; each now reads them all at once. An invoice's edit page also reads the payment ledger once instead of twice. On **/links** and **/mediakit**, the view and visitor counts are now recorded after the page is sent, so a visitor's page no longer waits on them.
 
 ### Fixed
 
