@@ -97,7 +97,8 @@ describe("summarizeTds", () => {
         paidDate: "2026-05-10",
         gross: 20000,
         cashAmount: 20000,
-        tdsRate: 10,
+        // The rate the actual amount works out to, not the 10% the deal expected.
+        tdsRate: 9,
         tdsAmount: 1800,
         estimated: false,
       },
