@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  hasNegativeCharges,
+  negativeAmountProblem,
   paymentFormFrom,
   paymentInputFrom,
+  savedPaymentTdsMode,
   withBankFee,
   withGross,
   withNet,
@@ -19,7 +20,7 @@ const start = paymentFormFrom(
     reference: "",
     note: "",
   },
-  false
+  "rate"
 );
 
 describe("payment form", () => {
@@ -35,15 +36,34 @@ describe("payment form", () => {
     expect(typed).toMatchObject({ tds: "1500", net: "28500" });
   });
 
-  it("recomputes net when the charges change, and the charges when net is typed", () => {
-    expect(withBankFee(start, "118").net).toBe("17882");
-    const fromNet = withNet(start, "17882");
-    expect(fromNet.bankFee).toBe("118");
-    expect(hasNegativeCharges(fromNet)).toBe(false);
+  it("works TDS out from net received while TDS is the rate's estimate", () => {
+    const fromNet = withNet(start, "19600", 10);
+    expect(fromNet).toMatchObject({ tds: "400", bankFee: "0", net: "19600", tdsMode: "net" });
+    expect(negativeAmountProblem(fromNet)).toBeNull();
   });
 
-  it("flags a net typed above what the amount and TDS leave", () => {
-    expect(hasNegativeCharges(withNet(start, "18500"))).toBe(true);
+  it("keeps net received once typed, with TDS taking up later changes to the amount or charges", () => {
+    const fromNet = withNet(start, "19600", 10);
+    expect(withBankFee(fromNet, "100")).toMatchObject({ tds: "300", bankFee: "100", net: "19600" });
+    expect(withGross(fromNet, "25000", 10)).toMatchObject({ tds: "5400", net: "19600" });
+  });
+
+  it("works the charges out from net received when there is no TDS rate or TDS was typed", () => {
+    expect(withBankFee(start, "118").net).toBe("17882");
+    expect(withNet(start, "17882", null)).toMatchObject({ tds: "2000", bankFee: "118" });
+    expect(withNet(withTds(start, "2000"), "17882", 10)).toMatchObject({ tds: "2000", bankFee: "118" });
+  });
+
+  it("reopens a saved payment with TDS, or on a deal expecting some, to work TDS out from net", () => {
+    expect(savedPaymentTdsMode(2000, null)).toBe("net");
+    expect(savedPaymentTdsMode(0, 10)).toBe("net");
+    expect(savedPaymentTdsMode(0, null)).toBe("typed");
+    expect(savedPaymentTdsMode(0, 0)).toBe("typed");
+  });
+
+  it("flags a net typed above what the other amounts leave", () => {
+    expect(negativeAmountProblem(withNet(start, "18500", null))).toMatch(/less TDS/);
+    expect(negativeAmountProblem(withNet(start, "20500", 10))).toMatch(/less charges/);
   });
 
   it("rounds paise without float drift", () => {

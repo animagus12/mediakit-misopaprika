@@ -22,7 +22,7 @@ import { PaymentFields } from "@/components/payments/PaymentFields";
 import type { CampaignBrandOption } from "@/lib/campaigns";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import { todayKey } from "@/lib/day";
-import { hasNegativeCharges, paymentFormFrom, paymentValuesFrom, withGross, type PaymentFormState } from "@/lib/paymentForm";
+import { negativeAmountProblem, paymentFormFrom, paymentValuesFrom, withGross, type PaymentFormState } from "@/lib/paymentForm";
 import { campaignTypeHasBarter, campaignTypeHasCash } from "@/repositories/campaigns";
 import {
   CampaignFormFields,
@@ -35,7 +35,7 @@ import { notifyCreatedBrand } from "@/components/dashboard/createdBrandToast";
 function blankPayment(): PaymentFormState {
   return paymentFormFrom(
     { date: todayKey(), gross: 0, tds: 0, bankFee: 0, method: null, reference: "", note: "" },
-    false
+    "rate"
   );
 }
 
@@ -73,8 +73,9 @@ export function NewCampaignButton({
         setError("Enter the amount before recording it as received");
         return;
       }
-      if (hasNegativeCharges(settledPayment)) {
-        setError("Net received can't be more than the amount less TDS");
+      const amountProblem = negativeAmountProblem(settledPayment);
+      if (amountProblem) {
+        setError(amountProblem);
         return;
       }
     }

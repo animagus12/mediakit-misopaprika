@@ -18,7 +18,13 @@ import {
 import { todayKey } from "@/lib/day";
 import { formatMoney } from "@/lib/invoice";
 import { roundMoney } from "@/lib/money";
-import { hasNegativeCharges, paymentFormFrom, paymentInputFrom, type PaymentFormState } from "@/lib/paymentForm";
+import {
+  negativeAmountProblem,
+  paymentFormFrom,
+  paymentInputFrom,
+  savedPaymentTdsMode,
+  type PaymentFormState,
+} from "@/lib/paymentForm";
 import { suggestPayment, validatePayment } from "@/lib/payments";
 import type { LedgerEntry, Settlement } from "@/repositories/payments";
 import { PaymentFields } from "./PaymentFields";
@@ -51,11 +57,11 @@ function initialForm(props: RecordPaymentSheetProps): PaymentFormState {
         reference: entry.reference,
         note: entry.note,
       },
-      true
+      savedPaymentTdsMode(entry.tds, expectedTdsRate)
     );
   }
   const suggestion = suggestPayment(settlement, expectedTdsRate, null, todayKey());
-  return paymentFormFrom(suggestion, false);
+  return paymentFormFrom(suggestion, "rate");
 }
 
 /**
@@ -85,17 +91,17 @@ export function RecordPaymentSheet(props: RecordPaymentSheetProps) {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const input = paymentInputFrom(form, editing ? entry.id : paymentId, settlement.target);
-    const problem = hasNegativeCharges(form)
-      ? "Net received can't be more than the amount less TDS"
-      : validatePayment(input, {
-          mode: editing ? "update" : "create",
-          targetState: "ok",
-          owed: settlement.owed,
-          settledExcludingThis: settledElsewhere,
-          previousGross: entry?.gross ?? 0,
-          today: todayKey(),
-          existingTarget: entry?.target ?? null,
-        });
+    const problem =
+      negativeAmountProblem(form) ??
+      validatePayment(input, {
+        mode: editing ? "update" : "create",
+        targetState: "ok",
+        owed: settlement.owed,
+        settledExcludingThis: settledElsewhere,
+        previousGross: entry?.gross ?? 0,
+        today: todayKey(),
+        existingTarget: entry?.target ?? null,
+      });
     if (problem) {
       setError(problem);
       return;
