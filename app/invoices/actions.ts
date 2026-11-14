@@ -84,8 +84,8 @@ export async function saveInvoiceDefaults(data: InvoiceData): Promise<ActionResu
     await saveInvoiceData(data);
     revalidateStores("invoiceDefaults");
     return { success: true };
-  } catch {
-    return { success: false, error: "Couldn't save: check KV_REST_API_URL and KV_REST_API_TOKEN are set" };
+  } catch (err) {
+    return toActionError(err, "Couldn't save the invoice defaults");
   }
 }
 
