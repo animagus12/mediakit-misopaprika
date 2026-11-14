@@ -91,12 +91,14 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with
 
 ## Access
 
-`proxy.ts` sends every dashboard page to `/login` without a valid session
-cookie. `/mediakit` and `/links` stay public; the proxy only gives their
-visitors an anonymous id for unique-visitor counts. API routes check the
-session themselves, the `/api/cron/*` routes check `CRON_SECRET`, and
-`/api/links/click` is public but only counts ids on the published links page.
-Every server action starts with `requireSession()`.
+`proxy.ts` sends every page to `/login` without a valid session cookie,
+except the few it lists as public: `/login`, `/mediakit`, `/links` and their
+share images. A new page is therefore private until it is added to that list.
+For `/mediakit` and `/links` the proxy only gives visitors an anonymous id for
+unique-visitor counts. API routes check the session themselves, the
+`/api/cron/*` routes check `CRON_SECRET`, and `/api/links/click` is public but
+only counts ids on the published links page. Every server action starts with
+`requireSession()`. Changing `APP_PASSWORD` signs out every session.
 
 ## Architecture
 

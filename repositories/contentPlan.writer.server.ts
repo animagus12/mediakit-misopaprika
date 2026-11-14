@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import contentPlanSeed from "@/data/content-plan.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { toContentItem, toContentStatus } from "./contentPlan";
@@ -23,7 +23,7 @@ const SEED = contentPlanSeed as ContentItemRecord[];
 // reads as Cancelled everywhere and is healed on the next write.
 async function readRecords(): Promise<ContentItemRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<ContentItemRecord[]>(CONTENT_PLAN_KEY) : null;
+  const stored = redis ? await readStored<ContentItemRecord[]>(CONTENT_PLAN_KEY) : null;
   return (stored ?? SEED).map((record) => ({ ...record, status: toContentStatus(record.status) }));
 }
 

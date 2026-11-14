@@ -62,10 +62,10 @@ export async function deleteCampaign(id: string): Promise<DeleteCampaignResult> 
   } catch (error) {
     if (trashId) {
       if (removed) {
-        await activateTrashEntry(trashId);
+        await activateTrashEntry(trashId).catch(() => undefined);
         revalidateStores("campaigns", "campaignContacts");
       } else {
-        await removeTrashEntry(trashId);
+        await removeTrashEntry(trashId).catch(() => undefined);
       }
     }
     return {

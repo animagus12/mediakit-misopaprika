@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import campaignContactsSeed from "@/data/campaign-contacts.json";
 import type { CampaignContact } from "./campaignContacts";
 
@@ -11,7 +11,7 @@ const SEED = campaignContactsSeed as CampaignContact[];
 async function readCampaignContacts(): Promise<CampaignContact[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<CampaignContact[]>(CAMPAIGN_CONTACTS_KEY);
+  const stored = await readStored<CampaignContact[]>(CAMPAIGN_CONTACTS_KEY);
   return stored ?? SEED;
 }
 

@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
@@ -56,7 +56,7 @@ const SEED = campaignsSeed as CampaignRecord[];
 // or whenever Redis isn't configured (e.g. local dev without KV env vars).
 async function readRecords(): Promise<CampaignRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
+  const stored = redis ? await readStored<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
   return (stored ?? SEED).map((record) => ({
     ...record,
     ...toInvoiceLink(record),

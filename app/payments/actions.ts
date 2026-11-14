@@ -72,16 +72,26 @@ export async function deletePayment(
 ): Promise<{ success: true; trashId: string; warning?: string } | Fail> {
   const denied = await requireSession();
   if (denied) return denied;
-  let trashId: string | null = null;
+  // Trash holds a copy before the payment goes (see deleteExpense). An object
+  // rather than a `let`, as it is written from inside the callback below.
+  const trash: { id: string | null } = { id: null };
+  let removed = false;
   try {
-    const { result, ctx, warning } = await deleteTargetPayment(id);
-    trashId = await addTrashEntry({ type: "payment", record: result, targetLabel: ctx.label }, `Payment for ${ctx.label}`);
+    const { result, ctx, warning, kept: trashId } = await deleteTargetPayment(id, async (record, target) => {
+      trash.id = await addTrashEntry({ type: "payment", record, targetLabel: target.label }, `Payment for ${target.label}`);
+      return trash.id;
+    });
+    removed = true;
     await activateTrashEntry(trashId);
     revalidatePayments();
     await recordActivity({ action: "payment.deleted", ...activityFor(result, ctx) });
     return { success: true, trashId, warning };
   } catch (err) {
-    if (trashId) await removeTrashEntry(trashId).catch(() => undefined);
+    if (trash.id) {
+      // Once the payment is gone, the copy is all that is left of it: keep it.
+      if (removed) await activateTrashEntry(trash.id).catch(() => undefined);
+      else await removeTrashEntry(trash.id).catch(() => undefined);
+    }
     return failure(err, "Couldn't delete the payment");
   }
 }

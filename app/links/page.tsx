@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { after } from "next/server";
 import { LinksPublicView } from "@/components/links/LinksPublicView";
 import { incrementLinksViews, recordLinksVisitor } from "@/lib/cache";
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 // existed this was static with an hourly revalidate; the Redis read makes the
 // route dynamic anyway, which removes the reason for that.)
 export default async function LinksPage() {
-  const cookieStore = await cookies();
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const [data, stats, photo] = await Promise.all([
     getPublishedLinksData(),
     getSocialStats(),
@@ -42,9 +42,9 @@ export default async function LinksPage() {
 
   // Counted per render, alongside the per-link clicks the cards report, so
   // the editor can show a click rate. Both writes are best-effort and neither
-  // can fail the page: see lib/cache. The owner's own renders don't count;
-  // see isCountableVisit().
-  if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value)) {
+  // can fail the page: see lib/cache. The owner's own renders and bots don't
+  // count; see isCountableVisit().
+  if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value, headerStore.get("user-agent"))) {
     // After the response: the counters are best-effort and must not cost a
     // visitor on a phone a round trip to the store before the page paints.
     const visitorId = cookieStore.get(VISITOR_COOKIE)?.value;

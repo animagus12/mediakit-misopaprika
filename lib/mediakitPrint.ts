@@ -85,7 +85,8 @@ function isTile(value: unknown): value is MediaKitTile {
   );
 }
 
-function isMediaKitFormState(value: unknown): value is MediaKitFormState {
+/** Every field the editor holds, of the right type, with each fixed slot filled. */
+export function isMediaKitFormState(value: unknown): value is MediaKitFormState {
   return (
     isRecord(value) &&
     STRING_FIELDS.every((field) => typeof value[field] === "string") &&

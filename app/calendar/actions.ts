@@ -283,8 +283,8 @@ export async function deleteContentItem(id: string): Promise<CalendarResult> {
     return { success: true, trashId };
   } catch (err) {
     if (trashId) {
-      if (removed) await activateTrashEntry(trashId);
-      else await removeTrashEntry(trashId);
+      if (removed) await activateTrashEntry(trashId).catch(() => undefined);
+      else await removeTrashEntry(trashId).catch(() => undefined);
     }
     return failure(err, "Couldn't delete the entry");
   }

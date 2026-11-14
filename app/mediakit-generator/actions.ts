@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { publishMediaKitData, saveMediaKitData } from "@/repositories/mediakit.writer.server";
 import { recordActivity } from "@/repositories/activity.writer.server";
 import type { MediaKitData } from "@/repositories/mediakit";
+import { parseMediaKitData } from "@/lib/mediakit";
 import { requireSession } from "@/lib/session.server";
 
 // The store's own message: an unconfigured one already names the env vars
@@ -12,14 +13,22 @@ function failure(verb: string, err: unknown): { success: false; error: string } 
   return { success: false, error: `Couldn't ${verb}: ${err instanceof Error ? err.message : "try again"}` };
 }
 
+// What either action answers when the media kit it was sent isn't one it can keep.
+function invalidMediaKit(verb: string): { success: false; error: string } {
+  return { success: false, error: `Couldn't ${verb}: the editor sent a media kit it can't store. Reload and try again.` };
+}
+
 export async function saveMediaKit(
   data: MediaKitData
 ): Promise<{ success: true } | { success: false; error: string }> {
   const denied = await requireSession();
   if (denied) return denied;
 
+  const kit = parseMediaKitData(data);
+  if (!kit) return invalidMediaKit("save");
+
   try {
-    await saveMediaKitData(data);
+    await saveMediaKitData(kit);
     revalidatePath("/mediakit-generator");
     revalidatePath("/", "layout");
     return { success: true };
@@ -37,9 +46,12 @@ export async function publishMediaKit(
   const denied = await requireSession();
   if (denied) return denied;
 
+  const kit = parseMediaKitData(data);
+  if (!kit) return invalidMediaKit("publish");
+
   try {
-    await saveMediaKitData(data);
-    await publishMediaKitData(data);
+    await saveMediaKitData(kit);
+    await publishMediaKitData(kit);
     revalidatePath("/mediakit-generator");
     revalidatePath("/mediakit");
     revalidatePath("/", "layout");

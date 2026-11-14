@@ -29,7 +29,7 @@ import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
 import { buildInvoiceNumber, computeSubtotal, reservedInvoiceNumbers, todayISO } from "@/lib/invoice";
 import { campaignTypeHasCash, toCampaign } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
-import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { campaignFiguresProblem, campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { validateTdsValues } from "@/lib/tds";
 import { requireSession } from "@/lib/session.server";
 
@@ -257,6 +257,8 @@ export async function createCampaign(
   if (denied) return denied;
 
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const figuresProblem = campaignFiguresProblem(input);
+  if (figuresProblem) return { success: false, error: figuresProblem };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
   try {
@@ -289,6 +291,8 @@ export async function updateCampaign(
   if (denied) return denied;
 
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const figuresProblem = campaignFiguresProblem(input);
+  if (figuresProblem) return { success: false, error: figuresProblem };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
   // Checked against the upload and deal dates in this same submission, so a
@@ -454,6 +458,13 @@ export interface RenewResult {
   warning?: string;
 }
 
+interface RenewalBilling {
+  days: number;
+  amount: number;
+  startDate: string; // yyyy-mm-dd
+  paymentDue: string; // yyyy-mm-dd, "" when none was agreed
+}
+
 /**
  * Raises the invoice that bills for a renewal, and points the renewal at it.
  *
@@ -467,13 +478,6 @@ export interface RenewResult {
  * bill: a licence extended for free is not a sale, and an invoice for zero is
  * a document with nothing to collect on.
  */
-interface RenewalBilling {
-  days: number;
-  amount: number;
-  startDate: string; // yyyy-mm-dd
-  paymentDue: string; // yyyy-mm-dd, "" when none was agreed
-}
-
 async function raiseRenewalInvoice(
   campaign: CampaignRecord,
   renewalId: string,
@@ -664,19 +668,6 @@ export async function setUsageRenewalTds(
 }
 
 /**
- * Raises the invoice for a renewal that has none.
- *
- * Two renewals need this. One recorded before renewing raised an invoice at
- * all, and one whose invoice failed to save at the moment it was recorded:
- * that second case was already reported as a warning, and until now the only
- * way out of it was to retype the whole document into the editor. It is the
- * same write either way, replayed from what the renewal already stores.
- *
- * Refuses when one already exists rather than raising a second: a duplicate
- * invoice for money that was only owed once is worse than none at all, and
- * the link on the renewal is the record of which it was.
- */
-/**
  * Detaches a renewal from the invoice it points at, for a link that is wrong:
  * typically an auto-raised renewal invoice later edited into a different
  * deal's invoice, which leaves the renewal claiming a document that no longer
@@ -705,6 +696,19 @@ export async function unlinkRenewalInvoice(
   }
 }
 
+/**
+ * Raises the invoice for a renewal that has none.
+ *
+ * Two renewals need this. One recorded before renewing raised an invoice at
+ * all, and one whose invoice failed to save at the moment it was recorded:
+ * that second case was already reported as a warning, and until now the only
+ * way out of it was to retype the whole document into the editor. It is the
+ * same write either way, replayed from what the renewal already stores.
+ *
+ * Refuses when one already exists rather than raising a second: a duplicate
+ * invoice for money that was only owed once is worse than none at all, and
+ * the link on the renewal is the record of which it was.
+ */
 export async function raiseInvoiceForRenewal(
   campaignId: string,
   renewalId: string

@@ -172,8 +172,8 @@ export async function removeAffiliatePayout(id: string): Promise<ActionResult> {
     return { success: true, trashId };
   } catch (err) {
     if (trashId) {
-      if (removed) await activateTrashEntry(trashId);
-      else await removeTrashEntry(trashId);
+      if (removed) await activateTrashEntry(trashId).catch(() => undefined);
+      else await removeTrashEntry(trashId).catch(() => undefined);
     }
     return {
       success: false,

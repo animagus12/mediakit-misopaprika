@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import agenciesSeed from "@/data/agencies.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import type { Agency, AgencyUpdate, NewAgency } from "./agencies";
@@ -12,7 +12,7 @@ const SEED = agenciesSeed as Agency[];
 async function readAgencies(): Promise<Agency[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<Agency[]>(AGENCIES_KEY);
+  const stored = await readStored<Agency[]>(AGENCIES_KEY);
   return stored ?? SEED;
 }
 

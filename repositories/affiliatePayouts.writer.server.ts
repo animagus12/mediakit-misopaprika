@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import affiliatePayoutsSeed from "@/data/affiliate-payouts.json";
 import { toSheetDate } from "@/lib/editorTransactions";
 import type { RecordChange } from "@/lib/activityDiff";
@@ -18,7 +18,7 @@ const SEED = affiliatePayoutsSeed as AffiliatePayout[];
 async function readPayouts(): Promise<AffiliatePayout[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<AffiliatePayout[]>(AFFILIATE_PAYOUTS_KEY);
+  const stored = await readStored<AffiliatePayout[]>(AFFILIATE_PAYOUTS_KEY);
   return stored ?? SEED;
 }
 

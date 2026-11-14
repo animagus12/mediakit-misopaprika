@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import contactsSeed from "@/data/contacts.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import type { Contact, ContactUpdate, NewContact } from "./contacts";
@@ -12,7 +12,7 @@ const SEED = contactsSeed as Contact[];
 async function readContacts(): Promise<Contact[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<Contact[]>(CONTACTS_KEY);
+  const stored = await readStored<Contact[]>(CONTACTS_KEY);
   return stored ?? SEED;
 }
 

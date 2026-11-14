@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { MediaKitPublicView } from "@/components/mediakit/MediaKitPublicView";
@@ -32,13 +32,13 @@ export default async function MediaKitPage() {
   const data = await getPublishedMediaKitData();
   if (!data) notFound();
 
-  const cookieStore = await cookies();
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
 
-  // The owner is not counted: see isCountableVisit(). Every protected page
-  // renders a sidebar link to /mediakit, and next/link prefetching it runs this
-  // render exactly like a real visit, so without the gate the figure counted
-  // dashboard navigation rather than an audience.
-  if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value)) {
+  // The owner and bots are not counted: see isCountableVisit(). Every
+  // protected page renders a sidebar link to /mediakit, and next/link
+  // prefetching it runs this render exactly like a real visit, so without the
+  // gate the figure counted dashboard navigation rather than an audience.
+  if (await isCountableVisit(cookieStore.get(SESSION_COOKIE)?.value, headerStore.get("user-agent"))) {
     // After the response, as on /links: best-effort counters stay off the
     // path to the first paint.
     const visitorId = cookieStore.get(VISITOR_COOKIE)?.value;

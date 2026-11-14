@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { incrementLinkClick } from "@/lib/cache";
+import { SESSION_COOKIE, isCountableVisit } from "@/lib/visitor";
 import { getPublishedLinksData } from "@/repositories/links.writer.server";
 
 // Written to by a beacon fired from the public page as a click navigates away
@@ -33,6 +34,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unknown link" }, { status: 404 });
   }
 
+  // Same rule as the page views beside these clicks: the owner trying their
+  // own links, and bots, don't count, or the click rate measures the wrong
+  // people on one side of the division.
+  const countable = await isCountableVisit(
+    request.cookies.get(SESSION_COOKIE)?.value,
+    request.headers.get("user-agent")
+  );
+  if (!countable) return NextResponse.json({ ok: true, counted: false });
+
   await incrementLinkClick(itemId);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, counted: true });
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import editorsSeed from "@/data/editors.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { toNonNegativeInt } from "@/lib/editorTransactions";
@@ -15,7 +15,7 @@ const SEED = editorsSeed as StoredEditor[];
 
 async function readEditors(): Promise<Editor[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<StoredEditor[]>(EDITORS_KEY) : null;
+  const stored = redis ? await readStored<StoredEditor[]>(EDITORS_KEY) : null;
   return (stored ?? SEED).map((editor) => ({ ...editor, revisionRate: toNonNegativeInt(editor.revisionRate) }));
 }
 

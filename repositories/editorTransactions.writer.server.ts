@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import editorTransactionsSeed from "@/data/editor-transactions.json";
 import { toEditorTransaction } from "./editorTransactions";
 import type {
@@ -29,7 +29,7 @@ const SEED = editorTransactionsSeed as EditorTransactionRecord[];
 async function readRecords(): Promise<EditorTransactionRecord[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<EditorTransactionRecord[]>(EDITOR_TRANSACTIONS_KEY);
+  const stored = await readStored<EditorTransactionRecord[]>(EDITOR_TRANSACTIONS_KEY);
   return stored ?? SEED;
 }
 
