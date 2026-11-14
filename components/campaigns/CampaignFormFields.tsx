@@ -140,11 +140,6 @@ export function derivedPaymentStatus(form: CampaignFormState): CampaignPaymentSt
   return "unknown";
 }
 
-/** Whether a deal with cash has a payment status left from before payments were recorded. */
-export function hasLegacyReceived(form: CampaignFormState): boolean {
-  return campaignTypeHasCash(form.type) && form.paymentStatus === "received";
-}
-
 /** "13/03/2026" for a yyyy-mm-dd day key, the app's written date format. */
 function formatDayKey(dayKey: string): string {
   const [year, month, day] = dayKey.split("-");

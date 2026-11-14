@@ -180,15 +180,6 @@ export function invoiceOwners(campaigns: Campaign[]): Map<string, PaymentTarget>
   return owners;
 }
 
-/** How many deals point at each invoice id; more than one is reported by ledgerWarnings. */
-export function invoiceDealCounts(campaigns: Campaign[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const campaign of campaigns) {
-    if (campaign.invoiceId) counts.set(campaign.invoiceId, (counts.get(campaign.invoiceId) ?? 0) + 1);
-  }
-  return counts;
-}
-
 function linkedInvoice(
   invoiceId: string | null | undefined,
   target: PaymentTarget,

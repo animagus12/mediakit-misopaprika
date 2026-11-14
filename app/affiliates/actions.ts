@@ -6,6 +6,7 @@ import { describeChanges } from "@/lib/activityDiff";
 import { affiliatePartnerFields, affiliatePayoutFields } from "@/lib/activityFields";
 import {
   addAffiliatePartner,
+  getAffiliatePartners,
   updateAffiliatePartner as updateAffiliatePartnerRecord,
 } from "@/repositories/affiliatePartners.writer.server";
 import type {
@@ -15,11 +16,10 @@ import type {
 import {
   addAffiliatePayout,
   deleteAffiliatePayout,
+  getAffiliatePayouts,
   updateAffiliatePayout as updateAffiliatePayoutRecord,
 } from "@/repositories/affiliatePayouts.writer.server";
 import type { AffiliatePayoutUpdate, NewAffiliatePayout } from "@/repositories/affiliatePayouts";
-import { getAffiliatePartners } from "@/repositories/affiliatePartners.writer.server";
-import { getAffiliatePayouts } from "@/repositories/affiliatePayouts.writer.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import { requireSession } from "@/lib/session.server";
 
@@ -160,18 +160,16 @@ export async function removeAffiliatePayout(id: string): Promise<ActionResult> {
     }
     await activateTrashEntry(trashId);
     revalidateStores("affiliatePayouts", "affiliatePartners");
-    if (removed) {
-      await recordActivity({
-        action: "affiliatePayout.deleted",
-        entity: {
-          type: "affiliatePayout",
-          id: removed.id,
-          label: await partnerLabel(removed.partnerId, removed.periodEnd),
-        },
-        amount: removed.commissionAmount || undefined,
-      });
-    }
-    return { success: true, trashId: trashId ?? undefined };
+    await recordActivity({
+      action: "affiliatePayout.deleted",
+      entity: {
+        type: "affiliatePayout",
+        id: removed.id,
+        label: await partnerLabel(removed.partnerId, removed.periodEnd),
+      },
+      amount: removed.commissionAmount || undefined,
+    });
+    return { success: true, trashId };
   } catch (err) {
     if (trashId) {
       if (removed) await activateTrashEntry(trashId);

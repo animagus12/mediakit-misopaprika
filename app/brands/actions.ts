@@ -17,6 +17,7 @@ import type { BrandUpdate, NewBrand } from "@/repositories/brands";
 import { fetchBrandCampaignRecords } from "@/repositories/brandCampaigns";
 import {
   addContact,
+  getContacts,
   updateContact as updateContactRecord,
   deleteContact as deleteContactRecord,
   deleteContactsForBrand,
@@ -24,17 +25,18 @@ import {
 import type { ContactUpdate, NewContact } from "@/repositories/contacts";
 import {
   addBrandNote,
+  getBrandNotes,
   deleteBrandNote as deleteBrandNoteRecord,
   deleteBrandNotesForBrand,
 } from "@/repositories/brandNotes.writer.server";
 import type { NewBrandNote } from "@/repositories/brandNotes";
-import { setCampaignContact, deleteCampaignContactsForBrand } from "@/repositories/campaignContacts.writer.server";
-import { syncCampaignsWithBrand } from "@/repositories/campaigns.writer.server";
+import {
+  deleteCampaignContactsForBrand,
+  getCampaignContacts,
+  setCampaignContact,
+} from "@/repositories/campaignContacts.writer.server";
+import { getCampaigns, syncCampaignsWithBrand } from "@/repositories/campaigns.writer.server";
 import { detachInvoicesFromBrand } from "@/repositories/invoices.writer.server";
-import { getContacts } from "@/repositories/contacts.writer.server";
-import { getBrandNotes } from "@/repositories/brandNotes.writer.server";
-import { getCampaignContacts } from "@/repositories/campaignContacts.writer.server";
-import { getCampaigns } from "@/repositories/campaigns.writer.server";
 import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import type { TrashPayload } from "@/repositories/trash";
@@ -353,13 +355,11 @@ export async function removeContact(id: string): Promise<ActionResult> {
     }
     await activateTrashEntry(trashId);
     revalidateStores("contacts", "brands");
-    if (removed) {
-      await recordActivity({
-        action: "contact.deleted",
-        entity: { type: "contact", id: removed.id, label: removed.name },
-      });
-    }
-    return { success: true, trashId: trashId ?? undefined };
+    await recordActivity({
+      action: "contact.deleted",
+      entity: { type: "contact", id: removed.id, label: removed.name },
+    });
+    return { success: true, trashId };
   } catch (err) {
     if (trashId) {
       if (removed) await activateTrashEntry(trashId);

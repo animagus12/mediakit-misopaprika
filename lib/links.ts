@@ -13,7 +13,7 @@ import type { SocialStats } from "@/repositories/socialStats";
 function isVisible(item: LinkItem, now: number): boolean {
   if (!item.enabled) return false;
 
-  // An unparseable date is treated as no bound rather than hiding the item: 
+  // An unparseable date is treated as no bound rather than hiding the item:
   // a typo in one timestamp shouldn't silently drop a link from the page.
   const startsAt = item.startsAt ? Date.parse(item.startsAt) : NaN;
   if (!Number.isNaN(startsAt) && now < startsAt) return false;
@@ -135,7 +135,7 @@ export interface VisiblePage {
  * and live stat tokens resolved. Deliberately a single entry point rather than several: a surface
  * that renders the page shouldn't be able to apply half the rules by
  * forgetting a call, which is why `stats` is required even where the caller
- * has none to give (pass EMPTY_SOCIAL_STATS).
+ * has none to give (pass both figures as null).
  */
 function visiblePage(data: LinksData, now: number, stats: SocialStats): VisiblePage {
   return {

@@ -104,7 +104,7 @@ export function daysBetween(from: string, to: string): number {
  * length: a licence taken out on 31 January and granted one month runs to
  * 28 February, not to the 3rd of March.
  *
- * Distinct from addMonths above, which shifts a *month* key. Both are needed:
+ * Distinct from addMonths below, which shifts a *month* key. Both are needed:
  * a usage term is counted in months from a day, and the earnings breakdown is
  * bucketed by month.
  */

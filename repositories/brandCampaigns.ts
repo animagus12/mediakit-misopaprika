@@ -6,9 +6,9 @@ import type { Settlement } from "./payments";
 
 export type BrandCampaignPaymentStatus = CampaignPaymentStatus;
 
-// One campaign, projected for the brand CRM's Campaigns/Payments tabs: same
-// records repositories/collaborations.ts and repositories/earnings.ts read,
-// just carrying the invoice/payment fields neither of those projections needs.
+// One campaign, projected for the brand CRM's Campaigns/Payments tabs: the
+// same records repositories/earnings.ts reads, just carrying the
+// invoice/payment fields that projection doesn't need.
 export interface BrandCampaignRecord {
   campaignId: string;
   brand: string;

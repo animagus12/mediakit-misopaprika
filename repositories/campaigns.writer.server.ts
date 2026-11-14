@@ -51,6 +51,9 @@ const SEED = campaignsSeed as CampaignRecord[];
 // the next write, which writes the whole list back. Coercing here rather than
 // only in toCampaign also keeps an update's before and after in the same
 // vocabulary, so a legacy "Completed" never logs as a change to "Posted".
+//
+// Falls back to the bundled data/campaigns.json seed until the first write,
+// or whenever Redis isn't configured (e.g. local dev without KV env vars).
 async function readRecords(): Promise<CampaignRecord[]> {
   const redis = getRedis();
   const stored = redis ? await redis.get<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
@@ -95,8 +98,6 @@ export async function readCampaignLedger(): Promise<CampaignLedger> {
   return { campaigns, invoices, payments };
 }
 
-// Falls back to the bundled data/campaigns.json seed until the first write,
-// or whenever Redis isn't configured (e.g. local dev without KV env vars).
 /**
  * The deals as pages show them: settled against the ledger, and with what
  * each cost to make joined on (its editing job and its expenses), so a deal's
@@ -305,7 +306,7 @@ export async function updateCampaign(
     ...before,
     ...normalize(input, before),
     invoiceRef: input.invoiceRef?.trim() ?? before.invoiceRef,
-    // Not form-settable: the foreign key is written by linkCampaignInvoice
+    // Not form-settable: the foreign key is written by setCampaignInvoice
     // once a saved invoice is matched to the deal, and an edit of the
     // reference must not silently drop it.
     invoiceId: before.invoiceId,
@@ -456,9 +457,8 @@ export type UsageTransition = "pause" | "resume" | "end";
 /**
  * Freezes a licence's countdown, restarts it, or calls the licence off.
  *
- * `today` is DD/MM/YYYY, passed in rather than read off the clock for the same
- * reason setCampaignPaymentStatus takes its date: which day it is for the
- * reader is a policy decision, and it is made one layer up.
+ * `today` is DD/MM/YYYY, passed in rather than read off the clock: which day
+ * it is for the reader is a policy decision, and it is made one layer up.
  *
  * Resuming banks the days spent paused so the term picks up exactly where it
  * stopped. It also un-ends an ended licence, which is what makes ending

@@ -386,7 +386,7 @@ function nextInvoiceNumberSeed(invoiceNo: string, currentSeed: string): string {
   return String(numeric + 1).padStart(trimmed.length, "0");
 }
 
-// Builds the record to persist as the new defaults for the *next* invoice: 
+// Builds the record to persist as the new defaults for the *next* invoice:
 // spreads `current` and overrides only the fields the form actually edits.
 // qrImage/stampImage are safe to include here because InvoiceImageUploadField
 // uploads to Vercel Blob and stores the resulting URL, not an inlined base64

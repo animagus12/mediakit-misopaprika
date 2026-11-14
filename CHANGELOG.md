@@ -16,6 +16,7 @@
   - The date converters `toIsoDate` and `toSheetDate` are shared from `lib/campaigns.ts`.
   - The record-id check `UUID_V4` and the TDS estimate `estimatePaymentTds` are shared from `lib/payments.ts`.
   - The number and date formatters in `lib/invoice.ts`, `lib/earnings.ts`, `lib/links.ts` and `lib/time.ts` are made once, instead of on every figure in every table.
+  - Exports nothing used any more are removed, and comments naming renamed functions are corrected.
 
 ### Fixed
 

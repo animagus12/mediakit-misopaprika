@@ -129,7 +129,7 @@ export function InvoiceGenerator({
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Only ever called from client-triggered handlers (add line, apply
-  // preset, reset)(never during the initial render) so a plain
+  // preset, reset), never during the initial render, so a plain
   // incrementing counter is safe and can't collide with the "initial-*"
   // ids used for the first render's items.
   const nextItemId = useRef(0);

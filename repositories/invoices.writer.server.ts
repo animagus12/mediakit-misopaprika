@@ -117,7 +117,6 @@ function normalize(input: NewInvoice): NewInvoice {
       closingLine: input.payment.closingLine.trim(),
       qrImage: input.payment.qrImage,
       stampImage: input.payment.stampImage,
-      // New optional payment fields
       panNumber: payeePanNumber.toUpperCase(),
       address: input.payment.address?.trim() || "",
       instagram: input.payment.instagram?.trim() || "",

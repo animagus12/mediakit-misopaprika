@@ -51,8 +51,8 @@ interface LinksStatCardsProps {
 /**
  * What /links has done, above the editor that changes it. Read-only, and
  * deliberately the first thing on the page: every decision the editor invites
- *: what to feature, what to retire, whether a code still earns its slot: 
- * is one of these four figures' to inform.
+ * (what to feature, what to retire, whether a code still earns its slot) is
+ * one of these four figures' to inform.
  */
 export function LinksStatCards({ summary }: LinksStatCardsProps) {
   return (

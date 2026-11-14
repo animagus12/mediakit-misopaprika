@@ -11,7 +11,7 @@ import { primaryContactForBrand } from "./contacts";
 import { BLANK_LOGO } from "./mediakit";
 
 // Kept client-safe (no "server-only") since forms render these as <Select>
-// options: mirrors lib/collaborations.ts's STATUS_OPTIONS.
+// options: mirrors lib/campaigns.ts's STATUS_OPTIONS.
 export const BRAND_STATUS_OPTIONS: BrandStatus[] = [
   "Lead",
   "Contacted",
@@ -32,7 +32,7 @@ interface StatusStyle {
 
 // Centralized (unlike the Campaign/EditorTransaction statusStyle
 // helpers, each duplicated per-feature) since BrandStatus is one fixed
-// 7-value vocabulary reused verbatim across the list table, the detail
+// vocabulary reused verbatim across the list table, the detail
 // header, and the create/edit forms: not coincidentally similar strings
 // from two unrelated domains.
 export function brandStatusStyle(status: BrandStatus): StatusStyle {

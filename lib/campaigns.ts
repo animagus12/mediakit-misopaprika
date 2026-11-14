@@ -39,11 +39,6 @@ function deliverableLabel(count: number, singular: string, plural: string): stri
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-/** "1 Reel", "3 Reels", or "" when the deal includes none. */
-export function reelsLabel(count: number): string {
-  return deliverableLabel(count, "Reel", "Reels");
-}
-
 /** "1 Story", "3 Stories", or "" when the deal includes none. */
 export function storiesLabel(count: number): string {
   return deliverableLabel(count, "Story", "Stories");
@@ -247,7 +242,7 @@ export function computeCampaignStats(items: Campaign[]): CampaignStats {
 
 // --- Full-table view (/campaigns): filtering, sorting -----------------------
 // Kept here (not in the client table component) so the list's business rules
-// stay testable and out of the UI, per the project's architecture guide: 
+// stay testable and out of the UI, per the project's architecture guide:
 // same split as lib/invoice.ts's filterInvoices/sortInvoices.
 
 export type CampaignFilter = "all" | "active" | "on-hold" | "posted" | "pending-payment" | "cancelled";
