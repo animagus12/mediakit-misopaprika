@@ -42,6 +42,7 @@
 - **The Dashboard stays up if the links page can't be read.** Every other card already hid itself when its data couldn't be read; the **Audience** card instead took the whole **Dashboard** down to the error message. It now hides like the rest.
 - **A renewal needs a real term and fee.** Recording a usage renewal now refuses a term that isn't a number and a fee below zero, instead of saving a 0-day renewal or a negative amount.
 - **Save errors say what actually went wrong.** Saving or publishing the **Links** and **Media kit** editors, and saving invoice defaults, always blamed a missing database setting, whatever the cause. The message now gives the real reason.
+- **Search names a contact with no brand.** A contact with no brand, agency or phone showed a blank second line in search results; it now reads **Contact**.
 
 ### Security
 
