@@ -46,13 +46,15 @@ async function saveWithTrash(
     for (const id of trashIds) await activateTrashEntry(id);
     return { success: true, trashIds };
   } catch (err) {
+    // Best-effort, like every delete's rollback: a second store failure here
+    // must not hide that the draft did save behind a "Couldn't save".
     if (draftSaved) {
       for (const id of trashIds) {
         await setTrashEntryTargets(
           id,
           publish && published ? ["draft", "published"] : ["draft"]
-        );
-        await activateTrashEntry(id);
+        ).catch(() => undefined);
+        await activateTrashEntry(id).catch(() => undefined);
       }
       return {
         success: true,
@@ -63,7 +65,7 @@ async function saveWithTrash(
             : "Your changes were saved, but the Trash snapshot could not be finalized.",
       };
     } else {
-      for (const id of trashIds) await removeTrashEntry(id);
+      for (const id of trashIds) await removeTrashEntry(id).catch(() => undefined);
     }
     throw err;
   }

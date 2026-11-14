@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Signing in says what actually went wrong.** Every failed sign-in used to read **Incorrect password**, even when the real reason was too many attempts or a server problem. The sign-in page now shows the server's own reason, such as **Too many attempts. Try again later.**, and a general **Couldn't sign in. Try again.** when there is none. If the server can't be reached at all, it reads **Couldn't reach the server. Check your connection and try again.**, and **Continue** works again. Before, the button stayed stuck on **Checking...** until the page was reloaded.
+- **Deleting a payment can always be undone.** A payment was removed first and copied to **Trash** after, so if that copy failed to save, the payment was gone with nothing to restore. It is now copied to **Trash** before it is removed: if the copy can't be saved, the payment stays where it was. A copy saved for a payment that did go is kept even when a later step fails.
+- **Search no longer opens while you type capitals.** Pressing Shift twice opens search, but typing two capitals in a row with a separate Shift for each, such as **MS** in an invoice number, did the same and opened search over the field you were typing in. Only two Shift presses with nothing in between open it now. Closing search while it was still looking also left **Searching...** showing the next time it opened, over an empty box; it now opens clean.
+- **A second failure while undoing a delete is reported properly.** When deleting a brand, contact, note, campaign, invoice, calendar item, editor transaction or affiliate payout failed partway, the step that tidies up after it could itself fail and surface as an unexplained error instead of the usual message saying what went wrong. That step is now best-effort, as it already was for expenses and settle-ups. The same goes for the **Links** editor: when a save went through but its **Trash** copy couldn't be finished, a second failure no longer hides that the draft was saved.
+- **Image and receipt uploads no longer trigger a failing call back.** After every upload, Vercel Blob called the upload route back to report it finished, and the route refused it every time, as that call carries no sign-in (`lib/blobUpload.ts`). Nothing used the report, so it is no longer asked for. Uploads work exactly as before.
+
+### Changed
+
+- **Two comments in `app/(dashboard)/actions.ts` now sit on the code they describe.** The notes for `raiseRenewalInvoice` and `raiseInvoiceForRenewal` had drifted onto the code above them. Nothing looks or works differently.
+
+### Security
+
+- **Signing in only ever returns you to a page of this app.** After sign-in, the app goes back to the page you were sent away from, read from the sign-in link. That link could name any website, so a link to the real sign-in page could send you to someone else's site the moment you signed in. Only a page of this app is followed now (`lib/loginRedirect.ts`); anything else, the sign-in page itself included, goes to the **Dashboard**.
+
 ## [1.27.1] - 2026-11-14
 
 ### Fixed

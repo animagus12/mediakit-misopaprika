@@ -7,6 +7,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { loginRedirectPath } from "@/lib/loginRedirect";
+
+const NETWORK_ERROR = "Couldn't reach the server. Check your connection and try again.";
+const UNKNOWN_ERROR = "Couldn't sign in. Try again.";
+
+function errorMessage(body: unknown): string | null {
+  if (typeof body !== "object" || body === null || !("error" in body)) return null;
+  return typeof body.error === "string" ? body.error : null;
+}
+
+/**
+ * Null once signed in, else the sentence to show. The route words its own
+ * refusals ("Incorrect password", "Too many attempts. Try again later."), so
+ * those are shown as sent; a failure with no message, such as a server
+ * error, gets a generic line rather than blaming the password.
+ */
+async function signIn(password: string, rememberMe: boolean): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password, rememberMe }),
+    });
+  } catch {
+    return NETWORK_ERROR;
+  }
+  if (response.ok) return null;
+  return errorMessage(await response.json().catch(() => null)) ?? UNKNOWN_ERROR;
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -21,21 +51,16 @@ export function LoginForm() {
     setError(null);
     setIsSubmitting(true);
 
-    const response = await fetch("/api/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password, rememberMe }),
-    });
-
-    setIsSubmitting(false);
-
-    if (!response.ok) {
-      setError("Incorrect password");
+    const problem = await signIn(password, rememberMe);
+    if (problem) {
+      setError(problem);
+      setIsSubmitting(false);
       return;
     }
 
-    const from = searchParams.get("from") ?? "/";
-    router.replace(from);
+    // Left disabled on success: the page is about to change, and a second
+    // press in the meantime would only sign in again.
+    router.replace(loginRedirectPath(searchParams.get("from")));
     router.refresh();
   }
 

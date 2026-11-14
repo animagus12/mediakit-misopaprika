@@ -205,8 +205,8 @@ export async function removeBrand(id: string): Promise<ActionResult> {
     return { success: true, trashId };
   } catch (err) {
     if (trashId) {
-      if (deletionStarted) await activateTrashEntry(trashId);
-      else await removeTrashEntry(trashId);
+      if (deletionStarted) await activateTrashEntry(trashId).catch(() => undefined);
+      else await removeTrashEntry(trashId).catch(() => undefined);
     }
     return toActionError(err, "Couldn't remove the brand");
   }
@@ -362,8 +362,8 @@ export async function removeContact(id: string): Promise<ActionResult> {
     return { success: true, trashId };
   } catch (err) {
     if (trashId) {
-      if (removed) await activateTrashEntry(trashId);
-      else await removeTrashEntry(trashId);
+      if (removed) await activateTrashEntry(trashId).catch(() => undefined);
+      else await removeTrashEntry(trashId).catch(() => undefined);
     }
     return toActionError(err, "Couldn't remove the contact");
   }
@@ -399,8 +399,8 @@ export async function removeBrandNote(id: string): Promise<ActionResult> {
     return { success: true, trashId };
   } catch (err) {
     if (trashId) {
-      if (deleted) await activateTrashEntry(trashId);
-      else await removeTrashEntry(trashId);
+      if (deleted) await activateTrashEntry(trashId).catch(() => undefined);
+      else await removeTrashEntry(trashId).catch(() => undefined);
     }
     return toActionError(err, "Couldn't remove the note");
   }

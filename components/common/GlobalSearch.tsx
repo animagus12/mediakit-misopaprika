@@ -29,7 +29,15 @@ export default function GlobalSearch() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Shift" || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.repeat) return;
+      // Only two Shift presses with nothing in between count. Typing "MS"
+      // with a separate Shift for each capital also presses Shift twice
+      // within the window, and used to open search over the field being
+      // typed in.
+      if (event.key !== "Shift" || event.altKey || event.ctrlKey || event.metaKey) {
+        lastShiftAt.current = null;
+        return;
+      }
 
       const now = Date.now();
       if (lastShiftAt.current !== null && now - lastShiftAt.current <= 500) {
@@ -82,6 +90,10 @@ export default function GlobalSearch() {
       setQuery("");
       setResults([]);
       setError(null);
+      // A search still running is dropped on close (see the effect above), so
+      // nothing else would clear this, and the next open showed "Searching..."
+      // over an empty box.
+      setIsLoading(false);
     }
   }
 
