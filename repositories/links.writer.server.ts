@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import { linksRepository, normalizeLinksData, type LinksData } from "./links";
 import type {
   LinkTrashDeletion,
@@ -16,7 +16,7 @@ const LINKS_PUBLISHED_KEY = "links_published";
 export async function getLinksData(): Promise<LinksData> {
   const redis = getRedis();
   if (!redis) return linksRepository.get();
-  const draft = await redis.get<Parameters<typeof normalizeLinksData>[0]>(LINKS_DRAFT_KEY);
+  const draft = await readStored<Parameters<typeof normalizeLinksData>[0]>(LINKS_DRAFT_KEY);
   return draft ? normalizeLinksData(draft) : linksRepository.get();
 }
 
@@ -87,6 +87,6 @@ export async function restoreLinksDeletion(
 export async function getPublishedLinksData(): Promise<LinksData> {
   const redis = getRedis();
   if (!redis) return linksRepository.get();
-  const published = await redis.get<Parameters<typeof normalizeLinksData>[0]>(LINKS_PUBLISHED_KEY);
+  const published = await readStored<Parameters<typeof normalizeLinksData>[0]>(LINKS_PUBLISHED_KEY);
   return published ? normalizeLinksData(published) : linksRepository.get();
 }

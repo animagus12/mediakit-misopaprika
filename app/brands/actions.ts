@@ -41,6 +41,7 @@ import { readInvoiceRecords } from "@/repositories/invoiceRecords.server";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
 import type { TrashPayload } from "@/repositories/trash";
 import { requireSession } from "@/lib/session.server";
+import { normalizeBrandName } from "@/lib/brandCampaignStats";
 
 type ActionResult = { success: true; trashId?: string } | { success: false; error: string };
 
@@ -249,13 +250,13 @@ export async function importBrandsFromCampaigns(): Promise<
 
   try {
     const [records, existingBrands] = await Promise.all([fetchBrandCampaignRecords(), getBrands()]);
-    const existingNames = new Set(existingBrands.map((brand) => brand.name.trim().toLowerCase()));
+    const existingNames = new Set(existingBrands.map((brand) => normalizeBrandName(brand.name)));
 
-    const campaignBrands = new Map<string, string>(); // lowercase -> first-seen casing
+    const campaignBrands = new Map<string, string>(); // normalized -> first-seen casing
     for (const record of records) {
       const name = record.brand.trim();
       if (!name) continue;
-      const key = name.toLowerCase();
+      const key = normalizeBrandName(name);
       if (!campaignBrands.has(key)) campaignBrands.set(key, name);
     }
 

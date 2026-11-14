@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import affiliatePartnersSeed from "@/data/affiliate-partners.json";
 import { toSheetDate } from "@/lib/editorTransactions";
 import type { RecordChange } from "@/lib/activityDiff";
@@ -20,7 +20,7 @@ const SEED = affiliatePartnersSeed as AffiliatePartner[];
 async function readPartners(): Promise<AffiliatePartner[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<AffiliatePartner[]>(AFFILIATE_PARTNERS_KEY);
+  const stored = await readStored<AffiliatePartner[]>(AFFILIATE_PARTNERS_KEY);
   return stored ?? SEED;
 }
 

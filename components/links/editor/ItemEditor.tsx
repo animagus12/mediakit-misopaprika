@@ -27,7 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatClickRate, type LinkPerformance } from "@/lib/linkStats";
-import { LINK_ANIMATION_LABELS, LINK_KIND_LABELS, LINK_VARIANT_LABELS } from "@/lib/links";
+import {
+  LINK_ANIMATION_LABELS,
+  LINK_KIND_LABELS,
+  LINK_VARIANT_LABELS,
+  UNSAFE_URL_NOTE,
+  isSafeLinkUrl,
+} from "@/lib/links";
 import {
   LINK_ANIMATIONS,
   LINK_KINDS,
@@ -64,6 +70,7 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
   const KindIcon = KIND_ICONS[item.kind];
   const patch = (changes: Parameters<LinksEditorActions["updateItem"]>[2]) =>
     actions.updateItem(sectionId, item.id, changes);
+  const urlProblem = item.url.trim() !== "" && !isSafeLinkUrl(item.url);
 
 
   return (
@@ -228,8 +235,15 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
               id={`${item.id}-url`}
               placeholder="https://… or mailto:…"
               value={item.url}
+              aria-invalid={urlProblem || undefined}
+              aria-describedby={urlProblem ? `${item.id}-url-problem` : undefined}
               onChange={(event) => patch({ url: event.target.value })}
             />
+            {urlProblem ? (
+              <p id={`${item.id}-url-problem`} className="text-destructive text-xs">
+                {UNSAFE_URL_NOTE}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2">

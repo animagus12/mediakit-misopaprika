@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import paymentsSeed from "@/data/payments.json";
 import { toPaymentRecord, type PaymentRecord } from "./payments";
 
@@ -20,7 +20,7 @@ const SEED: unknown[] = paymentsSeed;
  */
 export async function readPaymentRecords(): Promise<PaymentRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<unknown[]>(PAYMENTS_KEY) : null;
+  const stored = redis ? await readStored<unknown[]>(PAYMENTS_KEY) : null;
   const raw = Array.isArray(stored) ? stored : SEED;
   const records: PaymentRecord[] = [];
   for (const value of raw) {

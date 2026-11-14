@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import { invoiceRepository, type InvoiceData } from "./invoice";
 
 // server-only, and never imported from a client component: the server
@@ -32,7 +32,7 @@ function withDefaults(draft: InvoiceData): InvoiceData {
 export async function getInvoiceData(): Promise<InvoiceData> {
   const redis = getRedis();
   if (!redis) return invoiceRepository.get();
-  const draft = await redis.get<InvoiceData>(INVOICE_DRAFT_KEY);
+  const draft = await readStored<InvoiceData>(INVOICE_DRAFT_KEY);
   return draft ? withDefaults(draft) : invoiceRepository.get();
 }
 

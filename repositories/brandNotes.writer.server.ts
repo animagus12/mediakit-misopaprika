@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import brandNotesSeed from "@/data/brand-notes.json";
 import type { BrandNote, NewBrandNote } from "./brandNotes";
 
@@ -11,7 +11,7 @@ const SEED = brandNotesSeed as BrandNote[];
 async function readBrandNotes(): Promise<BrandNote[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<BrandNote[]>(BRAND_NOTES_KEY);
+  const stored = await readStored<BrandNote[]>(BRAND_NOTES_KEY);
   return stored ?? SEED;
 }
 

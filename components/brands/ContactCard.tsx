@@ -2,6 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { Phone, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,9 +81,7 @@ export function ContactCard({ contact, brandId, agencyId, agencyName }: ContactC
     });
   }
 
-  function handleDelete(event: React.MouseEvent) {
-    event.stopPropagation();
-    if (!window.confirm(`Remove ${contact.name} from contacts?`)) return;
+  function handleDelete() {
     startTransition(async () => {
       const result = await removeContact(contact.id);
       showUndoToast(contact.name, result, restoreTrashItem);
@@ -84,11 +93,18 @@ export function ContactCard({ contact, brandId, agencyId, agencyName }: ContactC
       {/* A <div> here, not a <button>: the delete button below is a real
           nested <button>, and <button> can't contain <button> in valid HTML
           (React 19 warns and fails to hydrate it). */}
+      {/* Opens only for presses on the card itself. React passes events from
+          the delete prompt up to here as well, though it is drawn outside the
+          card, so without the checks a tap on Cancel opened the edit sheet,
+          and Enter on the delete button did too. */}
       <div
         role="button"
         tabIndex={0}
-        onClick={() => handleOpenChange(true)}
+        onClick={(event) => {
+          if (event.currentTarget.contains(event.target as Node)) handleOpenChange(true);
+        }}
         onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             handleOpenChange(true);
@@ -100,17 +116,35 @@ export function ContactCard({ contact, brandId, agencyId, agencyName }: ContactC
           <CardContent className="space-y-1.5">
             <div className="flex items-start justify-between gap-2">
               <span className="truncate font-heading text-sm font-medium">{contact.name}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:text-destructive"
-                disabled={isPending}
-                onClick={handleDelete}
-                aria-label={`Remove ${contact.name}`}
-              >
-                <Trash2 />
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    disabled={isPending}
+                    onClick={(event) => event.stopPropagation()}
+                    aria-label={`Remove ${contact.name}`}
+                  >
+                    <Trash2 />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove {contact.name} from contacts?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This moves the contact to Trash, where it can be restored.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" onClick={handleDelete}>
+                      Remove
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
 
             {contact.phone && (

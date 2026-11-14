@@ -29,7 +29,7 @@ import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
 import { buildInvoiceNumber, computeSubtotal, reservedInvoiceNumbers, todayISO } from "@/lib/invoice";
 import { campaignTypeHasCash, toCampaign } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
-import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { campaignFiguresProblem, campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { validateTdsValues } from "@/lib/tds";
 import { requireSession } from "@/lib/session.server";
 
@@ -257,6 +257,8 @@ export async function createCampaign(
   if (denied) return denied;
 
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const figuresProblem = campaignFiguresProblem(input);
+  if (figuresProblem) return { success: false, error: figuresProblem };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
   try {
@@ -289,6 +291,8 @@ export async function updateCampaign(
   if (denied) return denied;
 
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const figuresProblem = campaignFiguresProblem(input);
+  if (figuresProblem) return { success: false, error: figuresProblem };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
   // Checked against the upload and deal dates in this same submission, so a

@@ -1,7 +1,8 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import brandsSeed from "@/data/brands.json";
 import type { RecordChange } from "@/lib/activityDiff";
+import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import type { Brand, BrandUpdate, NewBrand } from "./brands";
 
 // server-only, and never imported from a client component: the server
@@ -12,7 +13,7 @@ const SEED = brandsSeed as Brand[];
 async function readBrands(): Promise<Brand[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<Brand[]>(BRANDS_KEY);
+  const stored = await readStored<Brand[]>(BRANDS_KEY);
   return stored ?? SEED;
 }
 
@@ -32,9 +33,8 @@ export async function getBrand(id: string): Promise<Brand | null> {
 // column (see lib/brandCampaignStats.ts), so two CRM entries with the same
 // name would silently split one brand's campaign history in two.
 function assertNameAvailable(brands: Brand[], name: string, excludeId?: string): void {
-  const clash = brands.some(
-    (brand) => brand.id !== excludeId && brand.name.trim().toLowerCase() === name.toLowerCase()
-  );
+  const key = normalizeBrandName(name);
+  const clash = brands.some((brand) => brand.id !== excludeId && normalizeBrandName(brand.name) === key);
   if (clash) throw new Error(`"${name}" is already in the brands list`);
 }
 

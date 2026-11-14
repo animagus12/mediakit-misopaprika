@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import type { LinkTrashTarget, TrashEntry, TrashPayload } from "./trash";
 
 const TRASH_KEY = "trash";
@@ -7,7 +7,7 @@ const TRASH_KEY = "trash";
 async function readTrash(): Promise<TrashEntry[]> {
   const redis = getRedis();
   if (!redis) return [];
-  return (await redis.get<TrashEntry[]>(TRASH_KEY)) ?? [];
+  return (await readStored<TrashEntry[]>(TRASH_KEY)) ?? [];
 }
 
 export async function listTrash(): Promise<TrashEntry[]> {

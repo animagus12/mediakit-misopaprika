@@ -28,9 +28,25 @@ function withVisitorCookie(request: NextRequest) {
   return response;
 }
 
+// Pages anyone may open without signing in, beside the two above. Every
+// other page needs a session, so a page added later is private until it is
+// listed here, rather than public until someone remembers to guard it.
+const PUBLIC_PATHS = new Set(["/login"]);
+
+// The share images crawlers fetch for /links and /mediakit previews.
+const PUBLIC_PREFIXES = ["/links/opengraph-image", "/mediakit/opengraph-image"];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
 export async function proxy(request: NextRequest) {
-  if (VISITOR_TRACKED_PATHS.has(request.nextUrl.pathname)) {
+  const { pathname } = request.nextUrl;
+  if (VISITOR_TRACKED_PATHS.has(pathname)) {
     return withVisitorCookie(request);
+  }
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
   }
 
   const token = request.cookies.get(COOKIE_NAME)?.value;
@@ -45,23 +61,15 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Every path except:
+//   api/       each route checks the session itself (cron jobs carry a bearer
+//              token, the click beacon is public), see app/api
+//   _next/     the framework's own scripts, styles and images
+//   _vercel/   Vercel Analytics and Speed Insights
+//   __nextjs   the dev server's error overlay
+//   files      anything ending in an extension: public/ (the invoice and
+//              media kit artwork the PDF renderer loads too), icon.png,
+//              robots.txt. No page path has a dot in it.
 export const config = {
-  matcher: [
-    "/",
-    "/campaigns/:path*",
-    "/calendar",
-    "/invoices/:path*",
-    "/mediakit-generator/:path*",
-    "/mediakit",
-    "/links",
-    "/links-editor/:path*",
-    "/workspace/:path*",
-    "/affiliates/:path*",
-    "/taxes/:path*",
-    "/payments/:path*",
-    "/brands/:path*",
-    "/activity",
-    "/trash",
-    "/backup",
-  ],
+  matcher: ["/((?!api/|_next/|_vercel/|__nextjs|.*\\.[^/]+$).*)"],
 };
