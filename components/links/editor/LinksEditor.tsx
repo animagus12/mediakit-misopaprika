@@ -7,9 +7,11 @@ import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { publishLinks, saveLinks } from "@/app/links-editor/actions";
 import { restoreTrashItem } from "@/app/trash/actions";
+import { UnsavedChangesGuard } from "@/components/common/UnsavedChangesGuard";
 import { showUndoToast } from "@/components/common/undo-toast";
 import { LinksPublicView } from "@/components/links/LinksPublicView";
 import { Button } from "@/components/ui/button";
+import { useSaveShortcut } from "@/hooks/use-save-shortcut";
 import { linksSummary } from "@/lib/linkStats";
 import { blankItem, blankSection, moveItem, visiblePageNow } from "@/lib/links";
 import type { LinksAnalytics } from "@/repositories/linkStats";
@@ -50,6 +52,11 @@ export function LinksEditor({
   analytics,
 }: LinksEditorProps) {
   const [state, setState] = useState<LinksData>(data);
+  // The draft as last loaded or saved, to tell whether leaving would lose work.
+  // A deletion changes `state` too, so pending deletes need no check of their own.
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(data));
+  const currentSnapshot = useMemo(() => JSON.stringify(state), [state]);
+  const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
   const [pendingLinkDeletes, setPendingLinkDeletes] = useState<LinkTrashDeletion[]>([]);
   const [isSaving, startSaveTransition] = useTransition();
   const [isPublishing, startPublishTransition] = useTransition();
@@ -296,6 +303,7 @@ export function LinksEditor({
     startSaveTransition(async () => {
       const result = await saveLinks(state, deletions);
       if (result.success) {
+        setSavedSnapshot(JSON.stringify(state));
         if (result.warning) toast.error(result.warning);
         else toast.success("Draft saved");
         showSavedDeletionToasts(deletions, result.trashIds);
@@ -311,6 +319,9 @@ export function LinksEditor({
     startPublishTransition(async () => {
       const result = await publishLinks(state, deletions);
       if (result.success) {
+        // Publishing saves the draft first, and a warning means only the
+        // publish step failed: either way the draft is stored.
+        setSavedSnapshot(JSON.stringify(state));
         if (result.warning) toast.error(result.warning);
         else toast.success("Published: live at /links");
         showSavedDeletionToasts(deletions, result.trashIds);
@@ -320,6 +331,10 @@ export function LinksEditor({
       }
     });
   }, [pendingDeletions, state]);
+
+  useSaveShortcut(() => {
+    if (!isSaving && !isPublishing) save();
+  });
 
   const actions = useMemo<LinksEditorActions>(
     () => ({
@@ -380,6 +395,7 @@ export function LinksEditor({
         className="hidden"
         onChange={handleFileChange}
       />
+      <UnsavedChangesGuard when={hasUnsavedChanges} />
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
@@ -398,7 +414,13 @@ export function LinksEditor({
           <Button type="button" variant="ghost" onClick={revert}>
             <RotateCcw /> Revert
           </Button>
-          <Button type="button" variant="outline" onClick={save} disabled={isSaving || isPublishing}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={save}
+            disabled={isSaving || isPublishing}
+            aria-keyshortcuts="Control+S Meta+S"
+          >
             {isSaving ? <Loader2 className="animate-spin" /> : null} Save draft
           </Button>
           <Button type="button" onClick={publish} disabled={isSaving || isPublishing}>

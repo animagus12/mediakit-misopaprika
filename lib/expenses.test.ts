@@ -9,6 +9,8 @@ import {
   expenseCostByMonth,
   lastExpenseDefaults,
   outflowRows,
+  reimbursementRows,
+  reimbursementsOwed,
   summarizeOutflows,
   validateExpense,
   validateNewExpenseId,
@@ -27,6 +29,7 @@ function expense(overrides: Partial<ExpenseRecord> = {}): ExpenseRecord {
     settlement: null,
     method: "UPI",
     campaignId: null,
+    reimbursement: null,
     receiptUrl: null,
     note: "",
     createdAt: "2026-10-05T10:00:00.000Z",
@@ -47,6 +50,7 @@ function input(overrides: Partial<ExpenseInput> = {}): ExpenseInput {
     settlement: record.settlement,
     method: record.method,
     campaignId: record.campaignId,
+    reimbursement: record.reimbursement,
     receiptUrl: record.receiptUrl,
     note: record.note,
     ...overrides,
@@ -135,7 +139,7 @@ describe("attachDealCosts", () => {
       total: 2000,
     });
     expect(deal.costs?.expenses.map((entry) => entry.id)).toEqual(["e2", expense().id]);
-    expect(other.costs).toEqual({ editing: null, expenses: [], total: 0 });
+    expect(other.costs).toEqual({ editing: null, expenses: [], total: 0, reimbursementOwed: 0 });
   });
 
   it("falls back to the job the deal's invoice bills against, and skips a cancelled one", () => {
@@ -237,9 +241,9 @@ describe("helpers", () => {
   it("adds expenses up by the month they were paid", () => {
     expect(
       expenseCostByMonth([
-        { date: "2026-10-05", amount: 0.1 },
-        { date: "2026-10-30", amount: 0.2 },
-        { date: "2026-09-01", amount: 5 },
+        { date: "2026-10-05", amount: 0.1, reimbursement: null },
+        { date: "2026-10-30", amount: 0.2, reimbursement: null },
+        { date: "2026-09-01", amount: 5, reimbursement: null },
       ])
     ).toEqual(new Map([["2026-10", 0.3], ["2026-09", 5]]));
   });
@@ -261,5 +265,89 @@ describe("helpers", () => {
         makeCampaign({ id: "new", date: "01/09/2026", campaign: "New", status: "Cancelled" }),
       ]).map((option) => option.id)
     ).toEqual(["new", "old"]);
+  });
+});
+
+describe("reimbursement", () => {
+  const owed = { receivedOn: "" };
+  const paidBack = { receivedOn: "2026-10-20" };
+
+  it("is only taken for a deal, and never paid back before the purchase or in the future", () => {
+    expect(validateExpense(input({ campaignId: "D1", reimbursement: owed }), TODAY)).toBeNull();
+    expect(validateExpense(input({ campaignId: "D1", reimbursement: paidBack }), TODAY)).toBeNull();
+    expect(validateExpense(input({ reimbursement: owed }), TODAY)).toBe("Pick the deal whose brand pays it back");
+    expect(validateExpense(input({ campaignId: "D1", reimbursement: { receivedOn: "20/10/2026" } }), TODAY)).toBe(
+      "Pick the day it was paid back, or leave it blank"
+    );
+    expect(validateExpense(input({ campaignId: "D1", reimbursement: { receivedOn: "2026-10-29" } }), TODAY)).toBe(
+      "It can't be paid back in the future"
+    );
+    expect(validateExpense(input({ campaignId: "D1", reimbursement: { receivedOn: "2026-10-04" } }), TODAY)).toBe(
+      "It can't be paid back before the day it was bought"
+    );
+    expect(validateExpense(input({ campaignId: "D1", reimbursement: "yes" as never }), TODAY)).toBe(
+      "Say whether the brand pays it back"
+    );
+  });
+
+  it("is read back only on an expense with a deal, an unreadable day reading as still owed", () => {
+    expect(toExpenseRecord({ ...expense(), campaignId: "D1", reimbursement: paidBack })?.reimbursement).toEqual(paidBack);
+    expect(toExpenseRecord({ ...expense(), campaignId: "D1", reimbursement: { receivedOn: 7 } })?.reimbursement).toEqual(owed);
+    expect(toExpenseRecord({ ...expense(), reimbursement: paidBack })?.reimbursement).toBeNull();
+    // A row saved before the flag existed.
+    const legacy: Record<string, unknown> = { ...expense({ campaignId: "D1" }) };
+    delete legacy.reimbursement;
+    expect(toExpenseRecord(legacy)?.reimbursement).toBeNull();
+  });
+
+  it("keeps what the brand pays back out of a deal's costs, and says what is still owed back", () => {
+    const [deal] = attachDealCosts(
+      [makeCampaign({ id: "D1", amount: 10000 })],
+      [],
+      [
+        expense({ campaignId: "D1", amount: 1500, reimbursement: owed }),
+        expense({ id: "e2", campaignId: "D1", amount: 700, reimbursement: paidBack }),
+        expense({ id: "e3", campaignId: "D1", amount: 200 }),
+      ],
+      []
+    );
+    expect(deal.costs).toMatchObject({ total: 200, reimbursementOwed: 1500 });
+    expect(deal.costs?.expenses).toHaveLength(3);
+    expect(dealCashAfterCosts(deal)).toEqual({ cash: 10000, costs: 200, kept: 9800 });
+  });
+
+  it("lists each one paid back as money in, by the day it was, naming a deal that is gone", () => {
+    const rows = reimbursementRows(
+      [
+        expense({ campaignId: "D1", amount: 1500, reimbursement: owed }),
+        expense({ id: "e2", campaignId: "D1", amount: 700, reimbursement: paidBack, description: "Serum" }),
+        expense({ id: "e3", campaignId: "gone", amount: 300, reimbursement: { receivedOn: "2026-03-30" } }),
+      ],
+      [makeCampaign({ id: "D1", brand: "Minimalist", campaign: "Serum launch" })]
+    );
+    expect(rows).toEqual([
+      { id: "e2", date: "2026-10-20", fy: 2026, amount: 700, description: "Serum", brand: "Minimalist", deal: "Serum launch" },
+      {
+        id: "e3",
+        date: "2026-03-30",
+        fy: 2025,
+        amount: 300,
+        description: "Spider-Man figure",
+        brand: DELETED_DEAL_LABEL,
+        deal: null,
+      },
+    ]);
+    expect(reimbursementsOwed([expense({ amount: 1500.5, reimbursement: owed }), expense({ amount: 99, reimbursement: paidBack })])).toBe(1500.5);
+  });
+
+  it("carries the flag onto money out, and leaves it out of the margin series", () => {
+    const [row] = outflowRows([expense({ campaignId: "D1", reimbursement: owed })], [], [], []);
+    expect(row.reimbursement).toEqual(owed);
+    expect(
+      expenseCostByMonth([
+        { date: "2026-10-05", amount: 1500, reimbursement: owed },
+        { date: "2026-10-06", amount: 200, reimbursement: null },
+      ])
+    ).toEqual(new Map([["2026-10", 200]]));
   });
 });

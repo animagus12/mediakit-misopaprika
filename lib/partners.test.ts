@@ -20,6 +20,7 @@ function outflow(overrides: Partial<OutflowRow> = {}): OutflowRow {
     dealLabel: null,
     paidBy: "subhrajit",
     settlement: null,
+    reimbursement: null,
     method: null,
     receiptUrl: null,
     note: "",

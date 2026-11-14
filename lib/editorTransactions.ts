@@ -1,3 +1,4 @@
+import { toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { isDayKey } from "@/lib/day";
 import { isPayer, isPaymentMethod } from "@/lib/payers";
 import type { NewEditorTransaction } from "@/repositories/editorTransactions";
@@ -117,30 +118,14 @@ export function toNonNegativeInt(value: unknown): number {
 }
 
 // Sheet-style dates are DD/MM/YYYY; <input type="date"> gives/needs yyyy-mm-dd.
-export function toSheetDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  if (!year || !month || !day) return isoDate;
-  return `${day}/${month}/${year}`;
-}
-
-// Inverse of toSheetDate, for prefilling an edit form's <input type="date">
-// from a value read back out of storage. Returns "" when unparsable so
-// callers can fall back to a sensible default instead of feeding the <input>
-// a value it will silently reject.
-export function toIsoDate(sheetDate: string): string {
-  const match = sheetDate.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return "";
-  const [, day, month, year] = match;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-}
+// The same converters every store uses, re-exported for this one's callers.
+export { toIsoDate, toSheetDate };
 
 // Timestamp for a DD/MM/YYYY sheet-style date, for sorting/diffing. NaN for
-// anything unparsable, which Array.prototype.sort treats as "always last".
+// anything unparsable: a sort comparator reads NaN as "equal", so a caller
+// that sorts on this tests for it with Number.isNaN first.
 export function parseSheetDate(date: string): number {
-  const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return Number.NaN;
-  const [, day, month, year] = match;
-  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const dayKey = toIsoDate(date);
   return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NaN;
 }
 

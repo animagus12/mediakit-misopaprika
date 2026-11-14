@@ -16,11 +16,6 @@ export interface SocialStats {
   instagramFollowers: number | null;
 }
 
-export const EMPTY_SOCIAL_STATS: SocialStats = {
-  youtubeSubscribers: null,
-  instagramFollowers: null,
-};
-
 /**
  * When a platform's cached figure was written, and how long ago that was.
  *

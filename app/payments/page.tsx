@@ -109,8 +109,13 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     partnerCosts(book.entries.flatMap((entry) => (entry.kind === "outflow" ? [entry.row] : []))),
     book.settleUps
   );
+  // A refund row is changed as the expense it pays back, so it needs that expense too.
   const shownExpenseIds = new Set(
-    shown.flatMap((entry) => (entry.kind === "outflow" && entry.row.source === "expense" ? [entry.row.id] : []))
+    shown.flatMap((entry) =>
+      (entry.kind === "outflow" && entry.row.source === "expense") || entry.kind === "reimbursement"
+        ? [entry.row.id]
+        : []
+    )
   );
   // An old payment with no date at all belongs to no year: it is listed, and
   // counted, under All only.
@@ -164,8 +169,9 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                   {listTitle} · {period}
                 </CardTitle>
                 <CardDescription>
-                  Expenses are added and edited here. Brand payments are recorded on their deal or invoice, commission
-                  on Affiliates and editor payments in the Editor workspace; each row links there.
+                  Expenses are added and edited here, and a purchase a brand pays back is marked paid back from its
+                  menu. Brand payments are recorded on their deal or invoice, commission on Affiliates and editor
+                  payments in the Editor workspace; each row links there.
                   {fy !== null &&
                     undated > 0 &&
                     ` ${undated} payment${undated === 1 ? "" : "s"} from earlier records with no date ${undated === 1 ? "shows" : "show"} under All only.`}

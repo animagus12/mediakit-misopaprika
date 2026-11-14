@@ -33,7 +33,7 @@ import type { WorkflowStatus } from "@/repositories/workflowStatus";
 // A campaign's posting day is its Upload date, the field the creator already
 // fills in for "when does this go live". An own reel's is its postDate. Which
 // of "planned" or "posted" a day means is answered by the status in both
-// cases, not by a second date field (see postState below). Both stores speak
+// cases, not by a second date field (see stateOf below). Both stores speak
 // the same status vocabulary (repositories/workflowStatus.ts), so every rule
 // below reads a deal's status and a reel's the same way.
 //
@@ -173,7 +173,7 @@ function stageOfPost(status: WorkflowStatus): PipelineStage | null {
   return status === "Posted" ? null : pipelineStageOf(status);
 }
 
-type PostTiming =Pick<ScheduledPost, "dayKey" | "daysAway" | "state" | "label" | "behind">;
+type PostTiming = Pick<ScheduledPost, "dayKey" | "daysAway" | "state" | "label" | "behind">;
 
 // Everything about a post that follows from its day. One function for both
 // stores and for a move, so a post dragged to another day is toned by exactly

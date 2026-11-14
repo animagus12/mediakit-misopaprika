@@ -1,4 +1,4 @@
-import { isCampaignCalledOff } from "@/lib/campaigns";
+import { isCampaignCalledOff, toIsoDate } from "@/lib/campaigns";
 import { roundMoney } from "@/lib/money";
 import { computePaymentReliability, type PaymentReliability } from "@/lib/paymentReliability";
 import type { BrandCampaignRecord } from "@/repositories/brandCampaigns";
@@ -32,10 +32,7 @@ export function recordsForBrand(
 // Exported because BrandRow.lastCollabDate is one of these strings verbatim,
 // so /brands has to order by the same rule the stats were built with.
 export function parseSheetDate(date: string | null): number {
-  const match = date?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return Number.NEGATIVE_INFINITY;
-  const [, day, month, year] = match;
-  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const dayKey = toIsoDate(date ?? "");
   return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
 }
 

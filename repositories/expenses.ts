@@ -34,6 +34,20 @@ export const EXPENSE_CATEGORY_OPTIONS = [
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORY_OPTIONS)[number]["value"];
 
+/**
+ * A purchase the deal's brand pays back: a product bought from its site for
+ * the shoot, refunded on the payment date.
+ *
+ * Money fronted for the brand, not a cost of the deal: the purchase is left
+ * out of costs and the refund out of income, so profit never moves either
+ * way, while cash flow shows both the day each happened. Should the brand
+ * never pay, taking the flag off makes it an ordinary cost again.
+ */
+export interface ExpenseReimbursement {
+  /** yyyy-mm-dd IST the brand paid it back, "" while it is still owed. */
+  receivedOn: string;
+}
+
 export const EXPENSES_SEED_KEY = "expenses";
 export const EXPENSE_DESCRIPTION_MAX = 120;
 export const EXPENSE_NOTE_MAX = 500;
@@ -63,6 +77,8 @@ export interface ExpenseRecord {
    * Trash picks its expenses back up when restored.
    */
   campaignId: string | null;
+  /** Whether the deal's brand pays it back, and when it did; null for a cost the business bears. Always null without a deal. */
+  reimbursement: ExpenseReimbursement | null;
   /** A photo or PDF of the receipt, as uploaded. */
   receiptUrl: string | null;
   note: string;
@@ -81,8 +97,24 @@ export interface ExpenseInput {
   settlement: PartnerSettlement | null;
   method: PaymentMethod | null;
   campaignId: string | null;
+  reimbursement: ExpenseReimbursement | null;
   receiptUrl: string | null;
   note: string;
+}
+
+/** Whether the brand still owes this expense back. */
+export function isReimbursementOwed(expense: Pick<ExpenseRecord, "reimbursement">): boolean {
+  return expense.reimbursement !== null && expense.reimbursement.receivedOn === "";
+}
+
+/**
+ * A stored reimbursement, or null when there is none. An unreadable day reads
+ * as still owed rather than dropping the flag, so the money stays chased.
+ */
+function toReimbursement(raw: unknown): ExpenseReimbursement | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const receivedOn = (raw as Record<string, unknown>).receivedOn;
+  return { receivedOn: typeof receivedOn === "string" ? (toFinancialDayKey(receivedOn) ?? "") : "" };
 }
 
 export function isExpenseCategory(value: unknown): value is ExpenseCategory {
@@ -130,6 +162,8 @@ export function toExpenseRecord(raw: unknown): ExpenseRecord | null {
     settlement: isPartner(paidBy) ? toPartnerSettlement(candidate.settlement) : null,
     method: toPaymentMethod(candidate.method) ?? null,
     campaignId: campaignId || null,
+    // Only a deal's brand can pay a cost back.
+    reimbursement: campaignId ? toReimbursement(candidate.reimbursement) : null,
     receiptUrl: toReceiptUrl(candidate.receiptUrl),
     note: text(candidate.note, EXPENSE_NOTE_MAX),
     createdAt: typeof candidate.createdAt === "string" ? candidate.createdAt : "",
@@ -154,8 +188,10 @@ export interface DealEditingCost {
  */
 export interface DealCosts {
   editing: DealEditingCost | null;
-  /** Expenses recorded against the deal, newest first. */
+  /** Expenses recorded against the deal, newest first, the ones the brand pays back among them. */
   expenses: ExpenseRecord[];
-  /** Editing plus expenses. */
+  /** Editing plus the expenses the business bears; what the brand pays back is not a cost. */
   total: number;
+  /** What the brand still owes back for expenses it reimburses. */
+  reimbursementOwed: number;
 }

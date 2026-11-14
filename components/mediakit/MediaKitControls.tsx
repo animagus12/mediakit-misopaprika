@@ -39,11 +39,11 @@ export function MediaKitControls({
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Badge variant="secondary" className="gap-1">
           <Eye className="size-3" />
-          {viewCount.toLocaleString()} views on /mediakit
+          {viewCount.toLocaleString("en-IN")} views on /mediakit
         </Badge>
         <Badge variant="secondary" className="gap-1">
           <Users className="size-3" />
-          {uniqueVisitors.toLocaleString()} unique visitors
+          {uniqueVisitors.toLocaleString("en-IN")} unique visitors
         </Badge>
       </div>
       <p className={styles.hint}>
@@ -302,8 +302,13 @@ export function MediaKitControls({
         ))}
       </fieldset>
 
-      <Button type="button" className="mt-2.5 w-full" onClick={actions.print}>
-        Save as PDF
+      <Button
+        type="button"
+        className="mt-2.5 w-full"
+        onClick={actions.downloadPdf}
+        disabled={actions.isPreparingPdf}
+      >
+        {actions.isPreparingPdf ? "Preparing PDF…" : "Save as PDF"}
       </Button>
       <Button
         type="button"

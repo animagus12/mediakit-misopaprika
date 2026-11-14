@@ -19,7 +19,8 @@ const MAX_ROWS = 6;
 
 // Operational open loops: delivered work with no invoice, posted deals
 // with untracked payment, money recorded beyond what a deal is worth or
-// against a deal that is gone: each with the one action that closes it. Sits
+// against a deal that is gone, a purchase the brand hasn't paid back once its
+// deal is otherwise settled: each with the one action that closes it. Sits
 // next to PaymentsDueCard (money owed on a schedule); nothing here carries a
 // due date, so the two lists don't overlap. Renders nothing when clear.
 export function NeedsAttentionCard({ items, className }: NeedsAttentionCardProps) {
@@ -96,6 +97,8 @@ function attentionLink(item: AttentionItem): { href: string; label: string; Icon
       return item.href ? { href: item.href, label: "Check the payments", Icon: IndianRupee } : null;
     case "orphan-payment":
       return item.href ? { href: item.href, label: "Review on Payments", Icon: IndianRupee } : null;
+    case "unreimbursed":
+      return item.href ? { href: item.href, label: "Open the deal", Icon: IndianRupee } : null;
     case "untracked-payment":
       return null;
   }

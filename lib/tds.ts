@@ -21,6 +21,10 @@ export interface TdsPayment {
   gross: number;
   /** Same as `gross`: kept so the page and the totals read one name. */
   cashAmount: number;
+  /**
+   * An estimate's rate is the one on the deal or renewal; an actual amount's is
+   * the rate it works out to on `gross`, whatever the deal expected.
+   */
   tdsRate: number | null;
   tdsAmount: number;
   estimated: boolean;
@@ -71,6 +75,15 @@ export function resolveTds(
   if (tdsAmount !== null) return { amount: tdsAmount, estimated: false };
   if (tdsRate === null) return null;
   return { amount: calculateTdsAmount(cashAmount, tdsRate), estimated: true };
+}
+
+/**
+ * The rate a payment actually withheld at: its TDS as a percent of the amount
+ * it settled, to two decimals. null when there is no amount to divide by.
+ */
+export function tdsRateOf(gross: number, tds: number): number | null {
+  if (!Number.isFinite(gross) || !Number.isFinite(tds) || gross <= 0) return null;
+  return Math.round((tds / gross) * 10000) / 100;
 }
 
 /**
@@ -158,7 +171,7 @@ export function summarizeTds(campaigns: Campaign[], year: number): TdsSummary {
       paidDate: entry.date,
       gross: entry.gross,
       cashAmount: entry.gross,
-      tdsRate,
+      tdsRate: entry.tdsEstimated ? tdsRate : tdsRateOf(entry.gross, entry.tds),
       tdsAmount: entry.tds,
       estimated: entry.tdsEstimated,
     });

@@ -180,15 +180,6 @@ export function invoiceOwners(campaigns: Campaign[]): Map<string, PaymentTarget>
   return owners;
 }
 
-/** How many deals point at each invoice id; more than one is reported by ledgerWarnings. */
-export function invoiceDealCounts(campaigns: Campaign[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const campaign of campaigns) {
-    if (campaign.invoiceId) counts.set(campaign.invoiceId, (counts.get(campaign.invoiceId) ?? 0) + 1);
-  }
-  return counts;
-}
-
 function linkedInvoice(
   invoiceId: string | null | undefined,
   target: PaymentTarget,
@@ -579,6 +570,18 @@ export function ledgerWarnings(args: {
 // --- Suggestions and validation ----------------------------------------------
 
 /**
+ * TDS at the expected rate on a payment being recorded, to the paisa like
+ * every recorded amount: 0 when there is no usable rate or amount. Shared by
+ * the suggestion below and the payment form, which re-estimates it as the
+ * amount is typed. (A legacy entry's estimate is whole rupees instead: see
+ * calculateTdsAmount in lib/tds.ts.)
+ */
+export function estimatePaymentTds(gross: number, rate: number | null): number {
+  if (rate === null || !Number.isFinite(rate) || rate <= 0 || !Number.isFinite(gross) || gross <= 0) return 0;
+  return roundMoney((gross * rate) / 100);
+}
+
+/**
  * What a one-click "received" or a fresh payment form starts from: today, the
  * whole remaining amount, TDS at the expected rate, and the method last used.
  * Money in always lands in the business account.
@@ -590,11 +593,10 @@ export function suggestPayment(
   today: string
 ): Omit<PaymentInput, "id" | "target"> {
   const gross = roundMoney(settlement.remaining);
-  const rate = expectedTdsRate !== null && Number.isFinite(expectedTdsRate) && expectedTdsRate > 0 ? expectedTdsRate : 0;
   return {
     date: today,
     gross,
-    tds: roundMoney((gross * rate) / 100),
+    tds: estimatePaymentTds(gross, expectedTdsRate),
     bankFee: 0,
     receivedInto: "business",
     method: last?.method ?? null,
@@ -691,7 +693,11 @@ export function validatePayment(input: PaymentInput, ctx: PaymentValidationConte
   return null;
 }
 
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/**
+ * A client-made record id: crypto.randomUUID(). Payments, expenses and
+ * settle-ups are all saved under one, so a double tap writes once.
+ */
+export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * Server only: a new payment's id must be the client's UUID v4, never a

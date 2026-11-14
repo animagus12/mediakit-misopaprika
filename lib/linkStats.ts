@@ -59,7 +59,7 @@ export function linksSummary(data: LinksData, analytics: LinksAnalytics): LinksP
 }
 
 /**
- * An unmeasurable rate reads as an em dash rather than "0%": with no views
+ * An unmeasurable rate reads as a dash rather than "0%": with no views
  * recorded, zero clicks says nothing about the link.
  */
 export function formatClickRate(clickRate: number | null): string {

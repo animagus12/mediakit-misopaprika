@@ -1,18 +1,10 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { requireRedis } from "@/lib/cache";
 import { PARTNER_TRANSFERS_KEY, readPartnerTransfers } from "./partnerTransferRecords.server";
 import type { PartnerTransferInput, PartnerTransferRecord } from "./partnerTransfers";
 
 // server-only, and never imported from a client component: the server actions
 // import it directly. One Redis key holding the whole list, read, modify, write.
-
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
-
-function requireRedis() {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
-  return redis;
-}
 
 /**
  * Saves a settle-up. Idempotent per id: the form makes one id per opening, so

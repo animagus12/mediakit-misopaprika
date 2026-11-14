@@ -57,6 +57,16 @@ function linkItemOptions(data: LinksData): LinkItemOption[] {
 }
 
 export default async function AffiliatesPage() {
+  // The pickers and the click counters. A failure to read any of them costs
+  // one <Select> or one figure rather than the page, so each is caught
+  // separately from the two stores the page is actually about. Started first,
+  // since they don't depend on those two: all five reads share one round trip.
+  const extras = Promise.all([
+    getBrands().catch(() => []),
+    getLinksAnalytics().catch(() => ({ views: 0, uniqueVisitors: 0, clicksByItem: {} })),
+    getLinksData().catch(() => ({ profile: { displayName: "", tagline: "", socials: [] }, sections: [] })),
+  ]);
+
   let partners: AffiliatePartner[] = [];
   let payouts: AffiliatePayout[] = [];
   let error: string | null = null;
@@ -66,14 +76,7 @@ export default async function AffiliatesPage() {
     error = err instanceof Error ? err.message : "Something went wrong";
   }
 
-  // The pickers and the click counters. A failure to read any of them costs
-  // one <Select> or one figure rather than the page, so each is caught
-  // separately from the two stores the page is actually about.
-  const [brands, analytics, links] = await Promise.all([
-    getBrands().catch(() => []),
-    getLinksAnalytics().catch(() => ({ views: 0, uniqueVisitors: 0, clicksByItem: {} })),
-    getLinksData().catch(() => ({ profile: { displayName: "", tagline: "", socials: [] }, sections: [] })),
-  ]);
+  const [brands, analytics, links] = await extras;
 
   const brandOptions: BrandOption[] = brands.map((brand) => ({ id: brand.id, name: brand.name }));
 

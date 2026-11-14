@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import brandsSeed from "@/data/brands.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import type { Brand, BrandUpdate, NewBrand } from "./brands";
@@ -7,7 +7,6 @@ import type { Brand, BrandUpdate, NewBrand } from "./brands";
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly.
 const BRANDS_KEY = "brands";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = brandsSeed as Brand[];
 
 async function readBrands(): Promise<Brand[]> {
@@ -40,8 +39,7 @@ function assertNameAvailable(brands: Brand[], name: string, excludeId?: string):
 }
 
 export async function addBrand(input: NewBrand): Promise<Brand> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const brands = await readBrands();
   const name = input.name.trim();
   assertNameAvailable(brands, name);
@@ -67,8 +65,7 @@ export async function addBrand(input: NewBrand): Promise<Brand> {
 // list this already holds. Comparing against the caller's input instead would
 // be wrong: the normalising below means a trailing space would read as an edit.
 export async function updateBrand(input: BrandUpdate): Promise<RecordChange<Brand> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const brands = await readBrands();
   const name = input.name.trim();
   assertNameAvailable(brands, name, input.id);
@@ -96,8 +93,7 @@ export async function updateBrand(input: BrandUpdate): Promise<RecordChange<Bran
 // Returns the brand it touched, or null when the id matched nothing, so the
 // caller can name it without a second read.
 export async function setBrandLogo(id: string, logoUrl: string): Promise<Brand | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const brands = await readBrands();
   const updated = brands.map((brand): Brand =>
     brand.id === id ? { ...brand, logoUrl, updatedAt: new Date().toISOString() } : brand
@@ -110,10 +106,10 @@ export async function setBrandLogo(id: string, logoUrl: string): Promise<Brand |
 // caller needs the name for the activity log, and reading it back after the
 // write is impossible by definition.
 export async function deleteBrand(id: string): Promise<Brand | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const brands = await readBrands();
   const removed = brands.find((brand) => brand.id === id) ?? null;
+  if (!removed) return null;
   await redis.set(
     BRANDS_KEY,
     brands.filter((brand) => brand.id !== id)
@@ -122,8 +118,7 @@ export async function deleteBrand(id: string): Promise<Brand | null> {
 }
 
 export async function restoreBrand(record: Brand): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const brands = await readBrands();
   if (brands.some((brand) => brand.id === record.id)) return;
   assertNameAvailable(brands, record.name);

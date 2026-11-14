@@ -10,6 +10,7 @@ import {
   addEditorTransaction,
   changeEditorTransactionRevisions,
   deleteEditorTransaction,
+  getEditorTransactionRecord,
   renameEditorOnTransactions,
   setEditorTransactionStatus as setEditorTransactionStatusRecord,
   updateEditorTransaction as updateEditorTransactionRecord,
@@ -18,7 +19,6 @@ import type { EditorTransactionUpdate, NewEditorTransaction } from "@/repositori
 import { addEditor, getEditors, updateEditor as updateEditorRecord } from "@/repositories/editors.writer.server";
 import type { EditorUpdate, NewEditor } from "@/repositories/editors";
 import { addTrashEntry, activateTrashEntry, removeTrashEntry } from "@/repositories/trash.writer.server";
-import { getEditorTransactionRecord } from "@/repositories/editorTransactions.writer.server";
 import { requireSession } from "@/lib/session.server";
 
 export async function createEditor(
@@ -236,15 +236,13 @@ export async function removeEditorTransaction(
     }
     await activateTrashEntry(trashId);
     revalidateStores("editorTransactions");
-    if (removed) {
-      await recordActivity({
-        action: "editorTransaction.deleted",
-        entity: { type: "editorTransaction", id: removed.id, label: removed.video },
-        detail: removed.editor.trim() || undefined,
-        amount: removed.amount ?? undefined,
-      });
-    }
-    return { success: true, trashId: trashId ?? undefined };
+    await recordActivity({
+      action: "editorTransaction.deleted",
+      entity: { type: "editorTransaction", id: removed.id, label: removed.video },
+      detail: removed.editor.trim() || undefined,
+      amount: removed.amount ?? undefined,
+    });
+    return { success: true, trashId };
   } catch (err) {
     if (trashId) {
       if (removed) await activateTrashEntry(trashId);

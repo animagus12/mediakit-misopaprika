@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import affiliatePartnersSeed from "@/data/affiliate-partners.json";
 import { toSheetDate } from "@/lib/editorTransactions";
 import type { RecordChange } from "@/lib/activityDiff";
@@ -15,7 +15,6 @@ import type {
 // than in ./affiliatePartners: Vercel's serverless filesystem is read-only,
 // so writes go to Redis.
 const AFFILIATE_PARTNERS_KEY = "affiliate_partners";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = affiliatePartnersSeed as AffiliatePartner[];
 
 async function readPartners(): Promise<AffiliatePartner[]> {
@@ -62,8 +61,7 @@ function shape(input: NewAffiliatePartner, id: string): AffiliatePartner {
 }
 
 export async function addAffiliatePartner(input: NewAffiliatePartner): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const partners = await readPartners();
   const code = input.code.trim();
   assertCodeAvailable(partners, code);
@@ -77,8 +75,7 @@ export async function addAffiliatePartner(input: NewAffiliatePartner): Promise<v
 export async function updateAffiliatePartner(
   input: AffiliatePartnerUpdate
 ): Promise<RecordChange<AffiliatePartner> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const partners = await readPartners();
   assertCodeAvailable(partners, input.code.trim(), input.id);
   const before = partners.find((partner) => partner.id === input.id);

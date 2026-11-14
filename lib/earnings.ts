@@ -1,14 +1,17 @@
-import { addMonths, monthKeyOf, todayKey } from "@/lib/day";
+import { addMonths, CALENDAR_TIME_ZONE, monthKeyOf, todayKey } from "@/lib/day";
 import { roundMoney, sumMoney } from "@/lib/money";
 import type { MonthlyEarnings } from "@/repositories/earnings";
 
+// Built once: a formatter is costly to construct, and this runs per month row.
+const MONTH_AND_YEAR = new Intl.DateTimeFormat("en-IN", {
+  month: "short",
+  year: "numeric",
+  timeZone: CALENDAR_TIME_ZONE,
+});
+
 export function monthLabel(month: string): string {
   const [year, monthNum] = month.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IN", {
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  }).format(new Date(Date.UTC(year, monthNum - 1, 1)));
+  return MONTH_AND_YEAR.format(new Date(Date.UTC(year, monthNum - 1, 1)));
 }
 
 // "YYYY-MM", in the reader's zone rather than the server's.
@@ -74,7 +77,7 @@ export interface MonthTrend {
 // in IST, independently of the server or browser timezone.
 const MONTH_ONLY = new Intl.DateTimeFormat("en-IN", {
   month: "short",
-  timeZone: "Asia/Kolkata",
+  timeZone: CALENDAR_TIME_ZONE,
 });
 
 function monthOnly(key: string): string {

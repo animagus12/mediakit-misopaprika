@@ -39,11 +39,6 @@ function deliverableLabel(count: number, singular: string, plural: string): stri
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-/** "1 Reel", "3 Reels", or "" when the deal includes none. */
-export function reelsLabel(count: number): string {
-  return deliverableLabel(count, "Reel", "Reels");
-}
-
 /** "1 Story", "3 Stories", or "" when the deal includes none. */
 export function storiesLabel(count: number): string {
   return deliverableLabel(count, "Story", "Stories");
@@ -168,10 +163,7 @@ export function paymentDisplayLabel(status: PaymentDisplayStatus): string {
 
 // Sheet dates are entered as "DD/MM/YYYY"; undated rows sort last.
 function parseSheetDate(date: string): number {
-  const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return Number.NEGATIVE_INFINITY;
-  const [, day, month, year] = match;
-  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const dayKey = toIsoDate(date);
   return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
 }
 
@@ -250,7 +242,7 @@ export function computeCampaignStats(items: Campaign[]): CampaignStats {
 
 // --- Full-table view (/campaigns): filtering, sorting -----------------------
 // Kept here (not in the client table component) so the list's business rules
-// stay testable and out of the UI, per the project's architecture guide: 
+// stay testable and out of the UI, per the project's architecture guide:
 // same split as lib/invoice.ts's filterInvoices/sortInvoices.
 
 export type CampaignFilter = "all" | "active" | "on-hold" | "posted" | "pending-payment" | "cancelled";

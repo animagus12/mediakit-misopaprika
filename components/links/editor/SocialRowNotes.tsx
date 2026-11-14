@@ -61,7 +61,7 @@ function LastUpdated({ noun, update }: { noun: string; update: SocialStatUpdate 
 
 /**
  * The small print under a social row: when the figure behind it was last
- * refreshed, and: for Instagram, whose figure rides on a 60-day credential: 
+ * refreshed, and: for Instagram, whose figure rides on a 60-day credential:
  * whether that credential is still renewing itself. Nothing here is
  * actionable while things are working; the states that need a person say so.
  */

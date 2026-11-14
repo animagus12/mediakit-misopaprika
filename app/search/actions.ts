@@ -119,7 +119,7 @@ function contactResults(
     (contact) => {
       const brand = brandsById.get(contact.brandId ?? "");
       const agency = agenciesById.get(contact.agencyId ?? "");
-      const detail = brand?.name ?? agency?.name ?? contact.phone ?? "Contact";
+      const detail = brand?.name ?? agency?.name ?? (contact.phone || "Contact");
       return {
         type: "contact",
         label: contact.name,

@@ -20,6 +20,7 @@ import {
   entryMethod,
   entryPaidBy,
   entryTitle,
+  OWED_BACK_FLAG,
   type MoneyEntry,
 } from "@/lib/moneyBook";
 import { isPartner, partnerSettlementLabel, payerLabel } from "@/lib/payers";
@@ -30,6 +31,8 @@ import type { ExpenseRecord } from "@/repositories/expenses";
 // app's usual weight; money out stays in the text colour, so the list reads as
 // a statement rather than as a list of alarms.
 const IN_TONE = "text-emerald-600 dark:text-emerald-400";
+// Something still waiting on a decision or on money reads amber.
+const AMBER_TONE = "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400";
 
 function signedAmount(entry: MoneyEntry): string {
   return `${entry.flow === "in" ? "+" : "−"} ${formatMoney(entryAmount(entry))}`;
@@ -41,8 +44,10 @@ function dateText(entry: MoneyEntry): string {
 }
 
 // Money in always lands in the business account, so it says only how it
-// came; a cost says who paid it.
+// came; a cost says who paid it. A refund records only its day, so says
+// nothing here rather than nagging for a method there is no field for.
 function accountText(entry: MoneyEntry): string {
+  if (entry.kind === "reimbursement") return "";
   if (entry.flow === "in") return entryMethod(entry) ?? "Method not recorded";
   const paidBy = entryPaidBy(entry);
   return [paidBy ? `Paid by ${payerLabel(paidBy)}` : "Payer not recorded", entryMethod(entry)].filter(Boolean).join(" · ");
@@ -73,19 +78,12 @@ function Badges({ entry }: { entry: MoneyEntry }) {
   return (
     <span className="mt-1 flex flex-wrap gap-1">
       {settlement !== undefined && (
-        <Badge
-          variant="outline"
-          className={cn(
-            "text-[10px]",
-            settlement === null &&
-              "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400"
-          )}
-        >
+        <Badge variant="outline" className={cn("text-[10px]", settlement === null && AMBER_TONE)}>
           {partnerSettlementLabel(settlement)}
         </Badge>
       )}
       {flags.map((flag) => (
-        <Badge key={flag} variant="outline" className="text-[10px]">
+        <Badge key={flag} variant="outline" className={cn("text-[10px]", flag === OWED_BACK_FLAG && AMBER_TONE)}>
           {flag}
         </Badge>
       ))}
@@ -130,6 +128,11 @@ export function MoneyList({ entries, expenses, dealOptions, defaults }: MoneyLis
   const expenseById = new Map(expenses.map((expense) => [expense.id, expense]));
 
   function menu(entry: MoneyEntry) {
+    // A refund is changed as the expense it pays back.
+    if (entry.kind === "reimbursement") {
+      const expense = expenseById.get(entry.row.id);
+      return expense ? <ExpenseRowMenu expense={expense} dealOptions={dealOptions} defaults={defaults} /> : null;
+    }
     if (entry.kind !== "outflow") return null;
     const expense = entry.row.source === "expense" ? expenseById.get(entry.row.id) : undefined;
     if (expense) return <ExpenseRowMenu expense={expense} dealOptions={dealOptions} defaults={defaults} />;
@@ -163,7 +166,7 @@ export function MoneyList({ entries, expenses, dealOptions, defaults }: MoneyLis
               </div>
               <Detail entry={entry} className="block truncate text-foreground/80" />
               <p className="truncate text-muted-foreground">
-                {dateText(entry)} · {accountText(entry)}
+                {[dateText(entry), accountText(entry)].filter(Boolean).join(" · ")}
               </p>
               <Deductions entry={entry} />
               <Badges entry={entry} />

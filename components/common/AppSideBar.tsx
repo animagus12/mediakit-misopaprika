@@ -3,8 +3,9 @@
 import { Suspense, use } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
+import { Globe, X } from "lucide-react";
 import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 import {
   Sidebar,
   SidebarContent,
@@ -54,9 +55,40 @@ function NavBadge({ badges, href }: { badges: Promise<NavBadgeMap>; href: string
   );
 }
 
+// Behind login is the default, so only the exceptions are marked: a lock on
+// every other row would say nothing the login screen hasn't. Public rows never
+// carry a count, so this shares the badge slot without colliding with one.
+function PublicMark() {
+  return (
+    <SidebarMenuBadge
+      title="Public: anyone with the link can open it"
+      className="pointer-events-auto text-sidebar-foreground/50"
+    >
+      <Globe aria-hidden className="size-3.5" />
+      <span className="sr-only">Public page</span>
+    </SidebarMenuBadge>
+  );
+}
+
+const photoSkeleton = <Skeleton className="size-8 shrink-0 rounded-full" />;
+
+// Streamed like the badges, so no page waits on the media kit store to show
+// its content. Null when that read failed.
+function SidebarPhoto({ photo }: { photo: Promise<string | null> }) {
+  const src = use(photo);
+  if (!src) return <div className="size-8 shrink-0 rounded-full bg-muted" />;
+  // Plain img, not next/image: the media kit photo can be a data: URL from
+  // the image picker, which next/image can't optimize.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className="size-8 shrink-0 rounded-full object-cover" />;
+}
+
+// Both are left out by the loading state (AppShellLoading), which draws the
+// nav before any store has been read: the photo is then a placeholder and the
+// badges are simply absent.
 interface AppSideBarProps {
-  photo: string;
-  badges: Promise<NavBadgeMap>;
+  photo?: Promise<string | null>;
+  badges?: Promise<NavBadgeMap>;
 }
 
 const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
@@ -67,12 +99,18 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
     if (isMobile) setOpenMobile(false);
   };
 
-  const renderItem = ({ href, title, Icon }: Pick<NavEntry, "href" | "title" | "Icon">) => (
+  const renderItem = ({
+    href,
+    title,
+    Icon,
+    access,
+  }: Pick<NavEntry, "href" | "title" | "Icon" | "access">) => (
     <SidebarMenuItem key={href}>
       <SidebarMenuButton
         asChild
         isActive={isNavHrefActive(pathname, href)}
-        tooltip={title}
+        // The badge slot is hidden when collapsed, so the tooltip carries it.
+        tooltip={access === "public" ? `${title} (public)` : title}
         className="h-9 gap-3 text-sm pointer-coarse:h-11"
       >
         <Link href={href} onClick={closeOnMobile}>
@@ -80,9 +118,12 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
           <span>{title}</span>
         </Link>
       </SidebarMenuButton>
-      <Suspense fallback={null}>
-        <NavBadge badges={badges} href={href} />
-      </Suspense>
+      {access === "public" && <PublicMark />}
+      {badges && (
+        <Suspense fallback={null}>
+          <NavBadge badges={badges} href={href} />
+        </Suspense>
+      )}
     </SidebarMenuItem>
   );
 
@@ -95,10 +136,13 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
             onClick={closeOnMobile}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 transition hover:bg-sidebar-accent group-data-[collapsible=icon]:p-0"
           >
-            {/* Plain img, not next/image: the media kit photo can be a data: URL
-                from the image picker, which next/image can't optimize. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} alt="" className="size-8 shrink-0 rounded-full object-cover" />
+            {photo ? (
+              <Suspense fallback={photoSkeleton}>
+                <SidebarPhoto photo={photo} />
+              </Suspense>
+            ) : (
+              photoSkeleton
+            )}
             <div className="min-w-0 group-data-[collapsible=icon]:hidden">
               <p className="truncate text-sm font-semibold">Misopaprika</p>
               <p className="truncate text-xs text-muted-foreground">Creator media kit</p>

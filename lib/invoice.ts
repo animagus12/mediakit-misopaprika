@@ -11,7 +11,7 @@ import { campaignLabel, isCampaignCalledOff, toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
-import { addDays, todayKey } from "./day";
+import { addDays, daysBetween, todayKey } from "./day";
 import { financialYearsPresent, isInFinancialYear } from "./financialYear";
 import { roundMoney } from "./money";
 
@@ -40,8 +40,12 @@ export function invoiceDisplayStatus(invoice: Pick<Invoice, "status" | "settleme
   return invoice.status;
 }
 
+// Built once: formatMoney runs for every figure in every table, and
+// toLocaleString would construct a formatter on each call.
+const RUPEES = new Intl.NumberFormat("en-IN");
+
 export function formatMoney(amount: number): string {
-  return `₹ ${Number(amount || 0).toLocaleString("en-IN")}`;
+  return `₹ ${RUPEES.format(Number(amount || 0))}`;
 }
 
 export function formatInvoiceDate(iso: string): string {
@@ -365,12 +369,6 @@ export function computeBalanceDue(subtotal: number, advance: number): number {
   return Math.max(subtotal - (Number(advance) || 0), 0);
 }
 
-function daysBetween(startISO: string, endISO: string): number {
-  const start = new Date(startISO).getTime();
-  const end = new Date(endISO).getTime();
-  return Math.round((end - start) / 86_400_000);
-}
-
 // The number just saved is already taken, so seeding the next invoice with
 // it verbatim would immediately collide: bump it by one instead, keeping
 // the zero-padded width (e.g. "0007" -> "0008"). Falls back to the literal
@@ -388,7 +386,7 @@ function nextInvoiceNumberSeed(invoiceNo: string, currentSeed: string): string {
   return String(numeric + 1).padStart(trimmed.length, "0");
 }
 
-// Builds the record to persist as the new defaults for the *next* invoice: 
+// Builds the record to persist as the new defaults for the *next* invoice:
 // spreads `current` and overrides only the fields the form actually edits.
 // qrImage/stampImage are safe to include here because InvoiceImageUploadField
 // uploads to Vercel Blob and stores the resulting URL, not an inlined base64
@@ -400,7 +398,8 @@ export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData)
     ...current,
     invoiceNumberSeed: nextInvoiceNumberSeed(state.invoiceNo, current.invoiceNumberSeed),
     campaignNameSeed: state.campaignName,
-    dueInDays: Math.max(daysBetween(state.date, state.due), 0),
+    // A blank date gives NaN, which would save as null: no terms is 0 days.
+    dueInDays: Math.max(daysBetween(state.date, state.due) || 0, 0),
     billedToPlaceholder: {
       name: state.clientName || current.billedToPlaceholder.name,
       email: state.clientEmail || current.billedToPlaceholder.email,
@@ -483,7 +482,10 @@ export function isInvoiceOverdue(
 ): boolean {
   if (invoice.status === "paid" || invoice.status === "void") return false;
   if (!invoice.dueDate) return false;
-  return new Date(`${invoice.dueDate}T23:59:59`).getTime() < now.getTime();
+  // Overdue once the due day has passed in IST (lib/day.ts), not in whatever
+  // zone this runs in: read off the machine clock, the server (UTC) and an
+  // Indian browser disagreed for five and a half hours after every due date.
+  return todayKey(now) > invoice.dueDate;
 }
 
 export interface InvoiceStats {
@@ -534,11 +536,13 @@ export function isInvoiceFilter(value: string | null | undefined): value is Invo
 }
 
 // Every invoice number typed on more than one record: flag every copy so a
-// clash is visible from the list without opening each one.
+// clash is visible from the list without opening each one. Keyed by
+// invoiceNoKey, the same reading the save check refuses a clash on, so "0007"
+// and "7" are flagged as one number. Look a row up with invoiceNoKey too.
 export function findDuplicateInvoiceNumbers(invoices: Pick<Invoice, "invoiceNo">[]): Set<string> {
   const counts = new Map<string, number>();
   for (const invoice of invoices) {
-    const key = invoice.invoiceNo.trim();
+    const key = invoiceNoKey(invoice.invoiceNo);
     if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key));

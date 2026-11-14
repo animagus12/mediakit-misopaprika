@@ -36,8 +36,9 @@ const INVOICE_REF = /^MSP-INV-(\d+)$/i;
 /**
  * The number the deal already quotes, when it can be used as is.
  *
- * A paid deal is given an invoice reference the moment it is added, and the
- * brand may already have been told it. Raising the invoice under that same
+ * Deals added before references were written only by linking an invoice were
+ * handed one up front, and the brand may already have been told it. Raising
+ * the invoice under that same
  * number keeps the two records agreeing without anyone reconciling them. It
  * falls back to the next free number when the deal quotes none, quotes
  * something else, or quotes one another invoice already took (a record from

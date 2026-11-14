@@ -99,7 +99,7 @@ export interface UsageRenewalTdsValues {
 export interface ICampaignRepository {
   getAll(): Promise<Campaign[]>;
   // Answers the record it wrote, whose id is generated during the write
-  // (see nextCampaignId): the caller has no other way to learn it.
+  // (see nextSequenceId): the caller has no other way to learn it.
   create(input: CampaignFormValues): Promise<CampaignRecord>;
   // Answers the record either side of the write (null when the id matched
   // nothing), so a caller can report what changed.

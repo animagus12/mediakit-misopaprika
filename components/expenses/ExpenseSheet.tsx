@@ -4,6 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createExpense, updateExpense } from "@/app/expenses/actions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -57,7 +58,8 @@ interface ExpenseSheetProps {
 
 /**
  * Records a purchase the business made, or edits one: what it was, what it
- * cost, whose money paid for it and the deal it was for.
+ * cost, whose money paid for it, the deal it was for and whether that deal's
+ * brand pays it back.
  *
  * Editor payments are not offered here: they are recorded in the Editor
  * workspace and already counted wherever money out is shown.
@@ -252,6 +254,36 @@ export function ExpenseSheet({ expense, dealOptions, defaults, onClose }: Expens
               Linked to a deal, it shows in that deal&apos;s costs and comes off what the deal kept.
             </p>
           </div>
+
+          {form.campaignId !== null && (
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id={id("reimbursable")}
+                  checked={form.reimbursable}
+                  onCheckedChange={(checked) => update("reimbursable", checked === true)}
+                />
+                <Label htmlFor={id("reimbursable")}>The brand pays this back</Label>
+              </div>
+              {form.reimbursable && (
+                <div className="space-y-2">
+                  <Label htmlFor={id("reimbursedOn")}>Paid back on</Label>
+                  <Input
+                    id={id("reimbursedOn")}
+                    type="date"
+                    min={form.date || undefined}
+                    max={todayKey()}
+                    value={form.reimbursedOn}
+                    onChange={(event) => update("reimbursedOn", event.target.value)}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Leave it blank while the brand still owes it. It isn&apos;t a cost of the deal and the refund
+                    isn&apos;t income, so profit doesn&apos;t move either way.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <ReceiptUploadField
             id={id("receipt")}

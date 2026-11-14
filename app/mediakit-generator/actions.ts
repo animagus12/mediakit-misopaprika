@@ -6,6 +6,12 @@ import { recordActivity } from "@/repositories/activity.writer.server";
 import type { MediaKitData } from "@/repositories/mediakit";
 import { requireSession } from "@/lib/session.server";
 
+// The store's own message: an unconfigured one already names the env vars
+// (see requireRedis), and any other failure is reported as what it was.
+function failure(verb: string, err: unknown): { success: false; error: string } {
+  return { success: false, error: `Couldn't ${verb}: ${err instanceof Error ? err.message : "try again"}` };
+}
+
 export async function saveMediaKit(
   data: MediaKitData
 ): Promise<{ success: true } | { success: false; error: string }> {
@@ -17,8 +23,8 @@ export async function saveMediaKit(
     revalidatePath("/mediakit-generator");
     revalidatePath("/", "layout");
     return { success: true };
-  } catch {
-    return { success: false, error: "Couldn't save: check KV_REST_API_URL and KV_REST_API_TOKEN are set" };
+  } catch (err) {
+    return failure("save", err);
   }
 }
 
@@ -43,10 +49,7 @@ export async function publishMediaKit(
       entity: { type: "mediakit", id: null, label: "" },
     });
     return { success: true };
-  } catch {
-    return {
-      success: false,
-      error: "Couldn't publish: check KV_REST_API_URL and KV_REST_API_TOKEN are set",
-    };
+  } catch (err) {
+    return failure("publish", err);
   }
 }

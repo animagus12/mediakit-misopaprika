@@ -225,6 +225,15 @@ export const expenseFields: readonly DiffField<ExpenseRecord>[] = [
   { label: "method", value: (expense) => expense.method ?? "" },
   // Which deal, by id: the diff says it moved, the deal's name is in the event label.
   { label: "deal", value: (expense) => expense.campaignId ?? "", redact: true },
+  {
+    label: "reimbursement",
+    value: (expense) =>
+      expense.reimbursement === null
+        ? ""
+        : expense.reimbursement.receivedOn
+          ? `paid back ${expense.reimbursement.receivedOn}`
+          : "owed",
+  },
   { label: "receipt", value: (expense) => expense.receiptUrl ?? "", redact: true },
   { label: "note", value: (expense) => expense.note, redact: true },
 ];

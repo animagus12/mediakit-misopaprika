@@ -176,8 +176,11 @@ export function sortPayoutsByPeriod(payouts: AffiliatePayout[]): AffiliatePayout
   return [...payouts].sort((a, b) => {
     const left = parseSheetDate(b.periodEnd);
     const right = parseSheetDate(a.periodEnd);
-    if (Number.isNaN(left)) return -1;
-    if (Number.isNaN(right)) return 1;
+    const leftUndated = Number.isNaN(left);
+    const rightUndated = Number.isNaN(right);
+    // Undated last; two undated keep their order rather than each claiming
+    // to sort after the other.
+    if (leftUndated || rightUndated) return leftUndated === rightUndated ? 0 : leftUndated ? -1 : 1;
     return left - right;
   });
 }

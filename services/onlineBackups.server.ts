@@ -164,7 +164,7 @@ export async function createOnlineBackup(): Promise<OnlineBackupSummary> {
     await pruneOnlineBackups();
   } catch (error) {
     throw new Error(
-      "The online backup was saved, but older snapshots couldn't be removed to enforce the 3-snapshot limit.",
+      `The online backup was saved, but older snapshots couldn't be removed to enforce the ${MAX_ONLINE_BACKUPS}-snapshot limit.`,
       { cause: error }
     );
   }

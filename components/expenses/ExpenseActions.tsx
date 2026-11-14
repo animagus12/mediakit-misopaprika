@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { MoreHorizontal, Plus } from "lucide-react";
-import { deleteExpense } from "@/app/expenses/actions";
+import { toast } from "sonner";
+import { deleteExpense, markExpenseReimbursed } from "@/app/expenses/actions";
 import { restoreTrashItem } from "@/app/trash/actions";
 import { showUndoToast } from "@/components/common/undo-toast";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,8 @@ import { useSettleCost } from "@/components/partners/useSettleCost";
 import { isPartner } from "@/lib/payers";
 import type { ExpenseFormDefaults } from "@/lib/expenseForm";
 import type { ExpenseDealOption } from "@/lib/expenses";
-import type { ExpenseRecord } from "@/repositories/expenses";
+import { formatMoney } from "@/lib/invoice";
+import { isReimbursementOwed, type ExpenseRecord } from "@/repositories/expenses";
 import { ExpenseSheet } from "./ExpenseSheet";
 
 interface AddExpenseButtonProps {
@@ -52,7 +54,8 @@ interface ExpenseRowMenuProps {
 
 /**
  * Edit and Delete for one expense; a deleted one goes to Trash, with Undo.
- * When a partner paid it, the menu also settles it between the partners.
+ * When the brand still owes it back, the menu marks it paid back today; when
+ * a partner paid it, the menu also settles it between the partners.
  */
 export function ExpenseRowMenu({ expense, dealOptions, defaults }: ExpenseRowMenuProps) {
   const [editing, setEditing] = useState(false);
@@ -67,6 +70,17 @@ export function ExpenseRowMenu({ expense, dealOptions, defaults }: ExpenseRowMen
     });
   }
 
+  function markPaidBack() {
+    startTransition(async () => {
+      const result = await markExpenseReimbursed(expense.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Marked paid back", { description: `${formatMoney(expense.amount)} for ${expense.description}` });
+    });
+  }
+
   return (
     <>
       <DropdownMenu>
@@ -76,6 +90,9 @@ export function ExpenseRowMenu({ expense, dealOptions, defaults }: ExpenseRowMen
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {isReimbursementOwed(expense) && (
+            <DropdownMenuItem onSelect={markPaidBack}>Paid back today</DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => setEditing(true)}>Edit</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={remove}>
             Delete

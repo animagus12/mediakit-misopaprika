@@ -20,7 +20,7 @@ import { renewCampaignUsage } from "@/app/(dashboard)/actions";
 import { PaymentFields } from "@/components/payments/PaymentFields";
 import { todayKey } from "@/lib/day";
 import { buildInvoiceNumber } from "@/lib/invoice";
-import { hasNegativeCharges, paymentFormFrom, paymentValuesFrom, withGross, type PaymentFormState } from "@/lib/paymentForm";
+import { negativeAmountProblem, paymentFormFrom, paymentValuesFrom, withGross, type PaymentFormState } from "@/lib/paymentForm";
 import { parseTdsInput } from "@/lib/tds";
 import { defaultRenewalStart, formatUsageDays, type UsageTerm } from "@/lib/usageRights";
 import { TdsFields } from "./TdsFields";
@@ -39,7 +39,7 @@ interface RenewFormState {
 function blankPayment(): PaymentFormState {
   return paymentFormFrom(
     { date: todayKey(), gross: 0, tds: 0, bankFee: 0, method: null, reference: "", note: "" },
-    false
+    "rate"
   );
 }
 
@@ -100,7 +100,7 @@ export function RenewUsageSheet({
   const expectedRate = parseTdsInput(form.tdsRate);
 
   // The payment settles the whole fee: its amount follows the fee as typed,
-  // and its TDS the expected rate, until the TDS is typed over.
+  // and its TDS the expected rate, until net received or the TDS is typed.
   function setAmount(value: string) {
     setForm((f) => ({ ...f, amount: value, payment: withGross(f.payment, String(Number(value) || 0), parseTdsInput(f.tdsRate)) }));
   }
@@ -121,8 +121,9 @@ export function RenewUsageSheet({
         setError("A free renewal has nothing to record as received");
         return;
       }
-      if (hasNegativeCharges(form.payment)) {
-        setError("Net received can't be more than the amount less TDS");
+      const amountProblem = negativeAmountProblem(form.payment);
+      if (amountProblem) {
+        setError(amountProblem);
         return;
       }
     }

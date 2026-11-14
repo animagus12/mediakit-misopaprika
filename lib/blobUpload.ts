@@ -46,9 +46,10 @@ async function issueUploadToken(request: Request, allowedContentTypes: string[])
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as HandleUploadBody;
-
   try {
+    // Inside the try: a malformed body is a 400 like any other bad upload,
+    // not an unhandled 500.
+    const body = (await request.json()) as HandleUploadBody;
     const jsonResponse = await handleUpload({
       body,
       request,

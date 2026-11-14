@@ -103,7 +103,6 @@ export interface Settlement {
   hasStored: boolean;
 }
 
-export const PAYMENTS_SEED_KEY = "payments";
 export const LEGACY_ID_PREFIX = "legacy:";
 
 export const PAYMENT_REFERENCE_MAX = 80;
@@ -382,19 +381,6 @@ export function settle(
     entries: sorted,
     hasStored: sorted.some((entry) => entry.source === "stored"),
   };
-}
-
-/**
- * The payment status a target reads as. While it has no stored entry this is
- * the stored value exactly (the identity that keeps a pre-ledger book
- * unchanged); once it has one, the ledger decides.
- */
-export function projectPaymentStatus(
-  settlement: Settlement,
-  stored: CampaignPaymentStatus
-): CampaignPaymentStatus {
-  if (!settlement.hasStored) return stored;
-  return settlement.status === "paid" ? "received" : "pending";
 }
 
 /**
