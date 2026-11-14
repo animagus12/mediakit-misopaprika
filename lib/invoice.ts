@@ -536,11 +536,13 @@ export function isInvoiceFilter(value: string | null | undefined): value is Invo
 }
 
 // Every invoice number typed on more than one record: flag every copy so a
-// clash is visible from the list without opening each one.
+// clash is visible from the list without opening each one. Keyed by
+// invoiceNoKey, the same reading the save check refuses a clash on, so "0007"
+// and "7" are flagged as one number. Look a row up with invoiceNoKey too.
 export function findDuplicateInvoiceNumbers(invoices: Pick<Invoice, "invoiceNo">[]): Set<string> {
   const counts = new Map<string, number>();
   for (const invoice of invoices) {
-    const key = invoice.invoiceNo.trim();
+    const key = invoiceNoKey(invoice.invoiceNo);
     if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key));
