@@ -662,7 +662,7 @@ export async function restoreCampaignInvoiceLinks(
       const invoiceLink = link.invoiceLink;
       return {
         ...record,
-        invoiceId: record.invoiceId || (invoiceLink ? invoiceId : ""),
+        invoiceId: record.invoiceId || (invoiceLink ? invoiceId : null),
         invoiceRef: record.invoiceId || record.invoiceRef || !invoiceLink
           ? record.invoiceRef
           : invoiceLink.invoiceRef,
