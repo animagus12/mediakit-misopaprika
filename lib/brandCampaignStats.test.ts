@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeBrandCampaignRecord, makeDuePayment, makeRenewal } from "@/lib/testing/fixtures";
 import { emptyUsage } from "@/repositories/campaigns";
-import { computeBrandStats, selectDuePayments, summarizeDuePayments } from "./brandCampaignStats";
+import { computeBrandStats, duePaymentOwed, selectDuePayments, summarizeDuePayments } from "./brandCampaignStats";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -102,6 +102,47 @@ describe("summarizeDuePayments", () => {
       overdueAmount: 3000,
       windowDays: 30,
       cashInWindow: 6000,
+      windowCount: 3,
+    });
+  });
+});
+
+describe("selectDuePayments: purchases owed back", () => {
+  it("lists what a brand still owes back as its own row against the deal's due date, fee paid or not", () => {
+    vi.useFakeTimers();
+    // 12:00 IST on 10 May 2026.
+    vi.setSystemTime(new Date("2026-05-10T06:30:00.000Z"));
+
+    const due = selectDuePayments([
+      makeBrandCampaignRecord({ campaignId: "paid", paymentDue: "01/05/2026", paymentStatus: "received", paidDate: "01/05/2026", reimbursementOwed: 182 }),
+      makeBrandCampaignRecord({ campaignId: "pending", paymentDue: "15/05/2026", amount: 3000, reimbursementOwed: 500 }),
+      makeBrandCampaignRecord({ campaignId: "off", paymentDue: "12/05/2026", status: "Cancelled", reimbursementOwed: 250 }),
+      makeBrandCampaignRecord({ campaignId: "undated", paymentDue: "", paymentStatus: "received", reimbursementOwed: 999 }),
+      makeBrandCampaignRecord({ campaignId: "square", paymentDue: "01/05/2026", paymentStatus: "received" }),
+    ]);
+
+    expect(due.map((entry) => [entry.kind, entry.record.campaignId, entry.daysUntilDue, duePaymentOwed(entry).total])).toEqual([
+      ["reimbursement", "paid", -9, 182],
+      ["reimbursement", "off", 2, 250],
+      ["deal", "pending", 5, 3000],
+      ["reimbursement", "pending", 5, 500],
+    ]);
+  });
+
+  it("counts a purchase owed back as cash, toward the window and once overdue", () => {
+    const summary = summarizeDuePayments([
+      makeDuePayment({ kind: "reimbursement", daysUntilDue: -9, record: { paymentStatus: "received", reimbursementOwed: 182 } }),
+      makeDuePayment({ daysUntilDue: 5, record: { amount: 3000, reimbursementOwed: 500 } }),
+      makeDuePayment({ kind: "reimbursement", daysUntilDue: 5, record: { amount: 3000, reimbursementOwed: 500 } }),
+    ]);
+
+    expect(summary).toEqual({
+      count: 3,
+      outstanding: 3682,
+      overdueCount: 1,
+      overdueAmount: 182,
+      windowDays: 30,
+      cashInWindow: 3682,
       windowCount: 3,
     });
   });

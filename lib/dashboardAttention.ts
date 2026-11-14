@@ -4,6 +4,7 @@ import type { PaymentRecord } from "@/repositories/payments";
 import { buildInvoiceNumber, isInvoiceOverdue } from "@/lib/invoice";
 import { campaignLabel, isCampaignCalledOff, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { todayKey } from "@/lib/day";
+import { hasDueDate } from "@/lib/brandCampaignStats";
 
 // Client-safe pass over BrandCampaignRecord[]/Invoice[] that surfaces deals
 // with an open loop the creator still has to close: the operational
@@ -31,7 +32,7 @@ export interface AttentionItem {
 }
 
 /** Where a deal is opened by name: the campaigns table, searched for it. */
-function dealHref(record: Pick<BrandCampaignRecord, "campaign" | "brand">): string {
+export function dealHref(record: Pick<BrandCampaignRecord, "campaign" | "brand">): string {
   return `/campaigns?q=${encodeURIComponent(campaignLabel(record.campaign, record.brand))}`;
 }
 
@@ -142,8 +143,10 @@ export function selectAttentionItems(
   // A purchase the brand was to pay back, once nothing is left to wait for:
   // the deal's own money came in full without it (the brand paid the fee and
   // not the refund), or, on a deal with no cash to pay it with, the post is up.
+  // A deal with a due date is left to Payments due, which lists the purchase
+  // against that date (selectDuePayments), so it isn't on the dashboard twice.
   for (const record of records) {
-    if (record.reimbursementOwed <= 0) continue;
+    if (record.reimbursementOwed <= 0 || hasDueDate(record)) continue;
     const feePaid = record.settlement?.status === "paid";
     if (!feePaid && !(record.settlement === null && isDelivered(record, today))) continue;
     items.push({
