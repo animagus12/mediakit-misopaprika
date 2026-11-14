@@ -1,21 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { ALREADY_PAID_IN_FULL } from "@/lib/payments";
+import { createMutate } from "@/lib/storeMutation";
 import { makePaymentRecord } from "@/lib/testing/fixtures";
+import { memoryStore as memoryCompareAndSetStore } from "@/lib/testing/memoryStore";
 import { createPaymentWriter, PAYMENT_CONFLICT, type PaymentStore } from "./paymentMutations";
 import { paymentTargetKey, type PaymentRecord, type PaymentTarget } from "./payments";
 
-// The ledger's write rules against an in-memory store: never Redis.
+const KEY = "payments";
+
+// The ledger's write rules against an in-memory compare-and-set store, run
+// through the same mutate the Redis binding uses: never Redis.
 function memoryStore(initial: PaymentRecord[] = []) {
-  let records = [...initial];
-  let writes = 0;
+  const memory = memoryCompareAndSetStore({ [KEY]: initial });
+  const mutate = createMutate(memory.store, { pause: async () => {} });
+  const toRecords = (stored: unknown) => (Array.isArray(stored) ? (stored as PaymentRecord[]) : []);
   const store: PaymentStore = {
-    read: async () => records,
-    write: async (next) => {
-      writes += 1;
-      records = next;
-    },
+    mutate: (change) => mutate(KEY, toRecords, change),
   };
-  return { store, records: () => records, writes: () => writes };
+  const records = (): PaymentRecord[] => toRecords(JSON.parse(memory.get(KEY) ?? "[]"));
+  return { store, records, writes: memory.writes, memory };
 }
 
 const NOW = "2026-10-27T06:00:00.000Z";
@@ -39,7 +42,7 @@ describe("insertPayments", () => {
     const existing = makePaymentRecord();
     const { writer, records, writes } = setup([existing]);
     const [saved] = await writer.insertPayments([{ ...existing, updatedAt: "later" }]);
-    expect(saved).toBe(existing);
+    expect(saved).toEqual(existing);
     expect(records()).toEqual([existing]);
     expect(writes()).toBe(0);
   });
@@ -49,6 +52,34 @@ describe("insertPayments", () => {
     const { writer, records } = setup([existing]);
     await expect(writer.insertPayments([{ ...existing, gross: 9999 }])).rejects.toThrow(PAYMENT_CONFLICT);
     expect(records()).toEqual([existing]);
+  });
+
+  it("re-checks what is owed against a payment another save wrote in between", async () => {
+    const { writer, records, memory } = setup();
+    const owed = new Map([[paymentTargetKey(DEAL), 8000]]);
+    const other = makePaymentRecord({ id: "other", gross: 5000 });
+    // The partner's payment for the same deal lands between this save's read
+    // and its write. Last-write-wins kept only one of the two; the rerun sees
+    // both and refuses the one that would overpay.
+    memory.beforeWrite(() => {
+      memory.beforeWrite(null);
+      memory.set(KEY, JSON.stringify([other]));
+    });
+    await expect(writer.insertPayments([makePaymentRecord({ id: "b", gross: 5000 })], { owed })).rejects.toThrow(
+      /more than the ₹ 3,000 still owed/
+    );
+    expect(records()).toEqual([other]);
+  });
+
+  it("keeps a payment another save wrote in between", async () => {
+    const { writer, records, memory } = setup();
+    const other = makePaymentRecord({ id: "other", target: OTHER });
+    memory.beforeWrite(() => {
+      memory.beforeWrite(null);
+      memory.set(KEY, JSON.stringify([other]));
+    });
+    await writer.insertPayments([makePaymentRecord({ id: "b" })]);
+    expect(records().map((record) => record.id)).toEqual(["other", "b"]);
   });
 
   it("re-checks what is owed against the list it is about to write", async () => {
@@ -76,7 +107,7 @@ describe("replacePayment, removePayment, removePaymentsWhere", () => {
     const existing = makePaymentRecord();
     const { writer, records } = setup([existing]);
     const change = await writer.replacePayment({ ...existing, note: "edited", createdAt: "x" });
-    expect(change?.before).toBe(existing);
+    expect(change?.before).toEqual(existing);
     expect(change?.after).toMatchObject({ note: "edited", createdAt: existing.createdAt, updatedAt: NOW });
     expect(records()).toEqual([change?.after]);
   });
@@ -94,7 +125,7 @@ describe("replacePayment, removePayment, removePaymentsWhere", () => {
     const b = makePaymentRecord({ id: "b", target: OTHER });
     const c = makePaymentRecord({ id: "c" });
     const { writer, records } = setup([a, b, c]);
-    expect(await writer.removePayment("a")).toBe(a);
+    expect(await writer.removePayment("a")).toEqual(a);
     expect(await writer.removePaymentsWhere((record) => record.target.kind === "deal" && record.target.campaignId === "MSP-MC0001")).toEqual([c]);
     expect(records()).toEqual([b]);
   });

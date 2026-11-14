@@ -1,31 +1,21 @@
 import "server-only";
 import type { RecordChange } from "@/lib/activityDiff";
-import { requireRedis } from "@/lib/cache";
-import { PAYMENTS_KEY, readPaymentRecords } from "./paymentRecords.server";
+import { mutateStored } from "@/lib/storeWrite.server";
+import { PAYMENTS_KEY, toPaymentRecords } from "./paymentRecords.server";
 import { createPaymentWriter, type InsertPaymentsOptions, type PaymentStore } from "./paymentMutations";
 import type { PaymentRecord, PaymentTarget } from "./payments";
 
 // server-only, and never imported from a client component. The ledger's
 // stored list lives under one Redis key as a whole array, like every other
 // collection; the rules for changing it live in ./paymentMutations, and this
-// binds them to Redis.
-//
-// Known limit: each write is read, modify, write. Two writes that truly
-// overlap are last-write-wins, as they are for every other collection. All of
-// them go through one mutate (see ./paymentMutations), which is where a
-// compare-and-set would drop in.
+// binds them to Redis. Every change is a compare-and-set (see
+// lib/storeWrite.server.ts), so two saves that overlap are both kept.
 //
 // Imports ./paymentRecords.server only, never another writer, so the
 // campaigns and invoices writers can read the ledger without a cycle.
 
 const redisStore: PaymentStore = {
-  async read() {
-    requireRedis();
-    return readPaymentRecords();
-  },
-  async write(records) {
-    await requireRedis().set(PAYMENTS_KEY, records);
-  },
+  mutate: (change) => mutateStored(PAYMENTS_KEY, toPaymentRecords, change),
 };
 
 const writer = createPaymentWriter(redisStore);

@@ -15,6 +15,10 @@ const SEED = invoicesSeed as InvoiceRecord[];
 export async function readInvoiceRecords(): Promise<InvoiceRecord[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await readStored<InvoiceRecord[]>(INVOICES_KEY);
-  return stored ?? SEED;
+  return toInvoiceRecords(await readStored<unknown>(INVOICES_KEY));
+}
+
+/** What is stored under INVOICES_KEY (null: not set) as the records the read answers; the writer decodes with it too. */
+export function toInvoiceRecords(stored: unknown): InvoiceRecord[] {
+  return Array.isArray(stored) ? (stored as InvoiceRecord[]) : SEED;
 }

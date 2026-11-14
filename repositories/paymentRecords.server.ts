@@ -20,7 +20,11 @@ const SEED: unknown[] = paymentsSeed;
  */
 export async function readPaymentRecords(): Promise<PaymentRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await readStored<unknown[]>(PAYMENTS_KEY) : null;
+  return toPaymentRecords(redis ? await readStored<unknown>(PAYMENTS_KEY) : null);
+}
+
+/** What is stored under PAYMENTS_KEY (null: not set) as the records the read answers; the writer decodes with it too. */
+export function toPaymentRecords(stored: unknown): PaymentRecord[] {
   const raw = Array.isArray(stored) ? stored : SEED;
   const records: PaymentRecord[] = [];
   for (const value of raw) {
