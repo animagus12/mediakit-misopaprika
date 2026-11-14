@@ -11,7 +11,7 @@ import { campaignLabel, isCampaignCalledOff, toSheetDate } from "./campaigns";
 import { contactsForBrand } from "./contacts";
 import { parseSheetDate } from "./editorTransactions";
 import { normalizeBrandName } from "./brandCampaignStats";
-import { addDays, todayKey } from "./day";
+import { addDays, daysBetween, todayKey } from "./day";
 import { financialYearsPresent, isInFinancialYear } from "./financialYear";
 import { roundMoney } from "./money";
 
@@ -40,8 +40,12 @@ export function invoiceDisplayStatus(invoice: Pick<Invoice, "status" | "settleme
   return invoice.status;
 }
 
+// Built once: formatMoney runs for every figure in every table, and
+// toLocaleString would construct a formatter on each call.
+const RUPEES = new Intl.NumberFormat("en-IN");
+
 export function formatMoney(amount: number): string {
-  return `₹ ${Number(amount || 0).toLocaleString("en-IN")}`;
+  return `₹ ${RUPEES.format(Number(amount || 0))}`;
 }
 
 export function formatInvoiceDate(iso: string): string {
@@ -365,12 +369,6 @@ export function computeBalanceDue(subtotal: number, advance: number): number {
   return Math.max(subtotal - (Number(advance) || 0), 0);
 }
 
-function daysBetween(startISO: string, endISO: string): number {
-  const start = new Date(startISO).getTime();
-  const end = new Date(endISO).getTime();
-  return Math.round((end - start) / 86_400_000);
-}
-
 // The number just saved is already taken, so seeding the next invoice with
 // it verbatim would immediately collide: bump it by one instead, keeping
 // the zero-padded width (e.g. "0007" -> "0008"). Falls back to the literal
@@ -400,7 +398,8 @@ export function toInvoiceDefaults(state: InvoiceFormState, current: InvoiceData)
     ...current,
     invoiceNumberSeed: nextInvoiceNumberSeed(state.invoiceNo, current.invoiceNumberSeed),
     campaignNameSeed: state.campaignName,
-    dueInDays: Math.max(daysBetween(state.date, state.due), 0),
+    // A blank date gives NaN, which would save as null: no terms is 0 days.
+    dueInDays: Math.max(daysBetween(state.date, state.due) || 0, 0),
     billedToPlaceholder: {
       name: state.clientName || current.billedToPlaceholder.name,
       email: state.clientEmail || current.billedToPlaceholder.email,

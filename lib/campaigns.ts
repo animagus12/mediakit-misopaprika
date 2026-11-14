@@ -168,10 +168,7 @@ export function paymentDisplayLabel(status: PaymentDisplayStatus): string {
 
 // Sheet dates are entered as "DD/MM/YYYY"; undated rows sort last.
 function parseSheetDate(date: string): number {
-  const match = date.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!match) return Number.NEGATIVE_INFINITY;
-  const [, day, month, year] = match;
-  const dayKey = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const dayKey = toIsoDate(date);
   return isDayKey(dayKey) ? Date.parse(`${dayKey}T00:00:00.000Z`) : Number.NEGATIVE_INFINITY;
 }
 

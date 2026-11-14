@@ -13,6 +13,9 @@
 
 - **Shared code now lives in one place, with nothing looking or working differently.**
   - Every repository writer (`repositories/*.writer.server.ts`) now gets the data store from one `requireRedis()` in `lib/cache.ts`, instead of repeating its own "not configured" check.
+  - The date converters `toIsoDate` and `toSheetDate` are shared from `lib/campaigns.ts`.
+  - The record-id check `UUID_V4` and the TDS estimate `estimatePaymentTds` are shared from `lib/payments.ts`.
+  - The number and date formatters in `lib/invoice.ts`, `lib/earnings.ts`, `lib/links.ts` and `lib/time.ts` are made once, instead of on every figure in every table.
 
 ### Fixed
 

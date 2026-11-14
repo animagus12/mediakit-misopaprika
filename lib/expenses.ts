@@ -15,7 +15,7 @@ import { isPaidEditorStatus } from "@/lib/editorTransactions";
 import { financialYearStart } from "@/lib/financialYear";
 import { holdsEditorJob } from "@/lib/invoice";
 import { roundMoney, sumMoney } from "@/lib/money";
-import { EARLIEST_PAYMENT_DAY, MAX_PAYMENT_GROSS } from "@/lib/payments";
+import { EARLIEST_PAYMENT_DAY, MAX_PAYMENT_GROSS, UUID_V4 } from "@/lib/payments";
 import {
   PAYERS,
   isPartner,
@@ -46,8 +46,6 @@ import {
 import type { InvoiceRecord } from "@/repositories/invoices";
 
 // --- Validation -------------------------------------------------------------------
-
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** Server only: a new expense's id must be the form's UUID, which is what makes a double tap save once. */
 export function validateNewExpenseId(id: string): string | null {

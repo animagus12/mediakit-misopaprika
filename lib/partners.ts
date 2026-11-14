@@ -17,7 +17,7 @@
 import { isDayKey } from "@/lib/day";
 import type { OutflowRow } from "@/lib/expenses";
 import { roundMoney, sumMoney } from "@/lib/money";
-import { EARLIEST_PAYMENT_DAY, MAX_PAYMENT_GROSS } from "@/lib/payments";
+import { EARLIEST_PAYMENT_DAY, MAX_PAYMENT_GROSS, UUID_V4 } from "@/lib/payments";
 import {
   PARTNERS,
   isPartner,
@@ -134,8 +134,6 @@ export function debtLabel(debt: Pick<Debt, "from" | "to">): string {
 export function settleUpLabel(transfer: Pick<PartnerTransferRecord, "from" | "to">): string {
   return `${payerLabel(transfer.from)} paid ${payerLabel(transfer.to)}`;
 }
-
-const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /** The first thing wrong with a settle-up, or null when it can be saved. Shared by the form and the server. */
 export function validateSettleUp(input: PartnerTransferInput, today: string): string | null {

@@ -56,11 +56,13 @@ export function visibleSections(data: LinksData, now: number): LinkSection[] {
 // than "MisoPaprika · subscribers".
 // ---------------------------------------------------------------------------
 
+const COMPACT_COUNT = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
 function formatCount(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
+  return COMPACT_COUNT.format(value);
 }
 
 /** Adding a platform is one entry here plus one field on SocialStats. */
