@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlarmClock, Check, ChevronDown, FileText } from "lucide-react";
+import { AlarmClock, Check, ChevronDown, FileText, IndianRupee } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -11,6 +11,8 @@ import { formatMoney, newInvoiceHref } from "@/lib/invoice";
 import { cn } from "@/lib/utils";
 import { duePaymentOwed, summarizeDuePayments, type DuePayment } from "@/lib/brandCampaignStats";
 import type { CollectionLag } from "@/lib/cashTiming";
+import { dealHref } from "@/lib/dashboardAttention";
+import { OWED_BACK_FLAG } from "@/lib/moneyBook";
 import { useMarkReceived } from "./useMarkReceived";
 
 // Enough to see what is overdue and what lands next; the rest fold away
@@ -41,8 +43,10 @@ interface PaymentsDueCardProps {
 // Action queue of brand-campaign payments still marked pending that carry a
 // due date, each shown as a reverse timer ("Due in 3 days" / "Overdue by 2
 // days"), most-overdue first, with per-row shortcuts to mark the payment
-// received (optimistic, with Undo) or raise the missing invoice. Renders
-// nothing when there's nothing owed on a schedule.
+// received (optimistic, with Undo) or raise the missing invoice. Purchases a
+// brand still has to pay back get a row of their own against the deal's due
+// date, linking to the deal, where each is marked paid back. Renders nothing
+// when there's nothing owed on a schedule.
 //
 // Deals only. Licence renewal fees are a separate debt with their own row
 // shape and their own collect action, and they are chased in the ad-usage card
@@ -52,7 +56,10 @@ export function PaymentsDueCard({ due, lag, className }: PaymentsDueCardProps) {
 
   const [expanded, setExpanded] = useState(false);
 
-  const visible = due.filter(({ record }) => !isHidden({ kind: "deal", campaignId: record.campaignId }));
+  // Mark received settles the deal's own money, so it hides only the deal's row.
+  const visible = due.filter(
+    ({ kind, record }) => kind !== "deal" || !isHidden({ kind: "deal", campaignId: record.campaignId })
+  );
   if (visible.length === 0) return null;
 
   // Most overdue first, so the rows folded away are the ones due furthest out.
@@ -132,8 +139,8 @@ export function PaymentsDueCard({ due, lag, className }: PaymentsDueCardProps) {
   );
 }
 
-function rowKey({ record, dueDate }: DuePayment): string {
-  return record.campaignId || `${record.brand}-${dueDate}-${record.campaign}`;
+function rowKey({ kind, record, dueDate }: DuePayment): string {
+  return `${kind}:${record.campaignId || `${record.brand}-${dueDate}-${record.campaign}`}`;
 }
 
 interface DuePaymentRowProps {
@@ -147,7 +154,8 @@ interface DuePaymentRowProps {
 // One line of the queue. The actions are icon buttons at the row's end rather
 // than a row of their own, which is what made four payments take a screen.
 function DuePaymentRow({ payment, striped, isPending, onMarkReceived }: DuePaymentRowProps) {
-  const { record, dueDate, daysUntilDue, overdue, label } = payment;
+  const { kind, record, dueDate, daysUntilDue, overdue, label } = payment;
+  const isDeal = kind === "deal";
   const tone = overdue
     ? "text-destructive"
     : daysUntilDue <= 3
@@ -164,9 +172,10 @@ function DuePaymentRow({ payment, striped, isPending, onMarkReceived }: DuePayme
             the half of this line worth reading. */}
         <p className="flex min-w-0 gap-1 text-xs text-muted-foreground">
           <span className="truncate">{record.campaign || "-"}</span>
-          <span className="shrink-0 tabular-nums">· {formatMoney(duePaymentOwed(record).total)}</span>
+          <span className="shrink-0 tabular-nums">· {formatMoney(duePaymentOwed(payment).total)}</span>
         </p>
-        {record.settlement?.status === "partial" && (
+        {!isDeal && <p className="text-xs text-muted-foreground">{OWED_BACK_FLAG}</p>}
+        {isDeal && record.settlement?.status === "partial" && (
           <p className="text-xs text-muted-foreground tabular-nums">left of {formatMoney(record.total)}</p>
         )}
         <p className="text-xs tabular-nums @sm:hidden">
@@ -187,7 +196,22 @@ function DuePaymentRow({ payment, striped, isPending, onMarkReceived }: DuePayme
           render ("Primitive.button failed to slot onto its children"), which
           throws the whole payments boundary over to client rendering. */}
       <div className="flex min-w-13 shrink-0 items-center justify-end gap-1 pointer-coarse:min-w-23">
-        {needsInvoice(record.invoiceRef) && (
+        {/* A refund is marked on the purchase itself, from the deal's Costs. */}
+        {!isDeal && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={dealHref(record)}
+                aria-label="Open the deal"
+                className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              >
+                <IndianRupee />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="left">Open the deal</TooltipContent>
+          </Tooltip>
+        )}
+        {isDeal && needsInvoice(record.invoiceRef) && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
@@ -201,7 +225,7 @@ function DuePaymentRow({ payment, striped, isPending, onMarkReceived }: DuePayme
             <TooltipContent side="left">Create invoice</TooltipContent>
           </Tooltip>
         )}
-        {record.campaignId && (
+        {isDeal && record.campaignId && (
           <Tooltip>
             <TooltipTrigger
               type="button"
