@@ -40,6 +40,7 @@
 - **Duplicate invoice numbers are flagged however they were typed.** The **duplicate #** mark on **Invoices** compared numbers exactly as typed, so **0007** and **7** were not flagged, though saving already treats them as the same number. They are now flagged as one.
 - **Deleting an invoice unlinks every deal that pointed at it.** Only the first such deal was unlinked; a second one went on pointing at an invoice that no longer existed.
 - **The Dashboard stays up if the links page can't be read.** Every other card already hid itself when its data couldn't be read; the **Audience** card instead took the whole **Dashboard** down to the error message. It now hides like the rest.
+- **A renewal needs a real term and fee.** Recording a usage renewal now refuses a term that isn't a number and a fee below zero, instead of saving a 0-day renewal or a negative amount.
 
 ### Security
 
