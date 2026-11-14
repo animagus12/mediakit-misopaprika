@@ -317,9 +317,13 @@ async function AudienceSection() {
   const [mediaKitViews, mediaKitVisitors, linksData, linksAnalytics] = await Promise.all([
     getMediaKitViews(),
     getMediaKitUniqueVisitors(),
-    getLinksData(),
+    // The one read here that can throw (the counters answer 0 instead). Caught
+    // like every other section's, so a store hiccup costs this card rather
+    // than the whole dashboard; skipped rather than shown with 0 clicks.
+    getLinksData().catch(() => null),
     getLinksAnalytics(),
   ]);
+  if (!linksData) return null;
   return (
     <AudienceCard
       mediaKit={{ views: mediaKitViews, uniqueVisitors: mediaKitVisitors }}
