@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-14
+
 ### Added
 
 - **Purchases a brand pays back are tracked until it does.** An expense recorded against a deal can now be ticked **The brand pays this back**, for something like a product bought from the brand's site that it refunds on the payment date. Until the money comes back, it is marked **Brand to pay back** in the deal's **Costs** and on **Payments**, the deal says how much is still owed back, and the amount counts in what is still owed to you. When the refund arrives, **Paid back today** in the expense's menu records it (edit the expense to pick another day), and it shows on **Payments** as a **Reimbursement** coming in. Neither the purchase nor the refund counts toward profit or toward what the deal cost, only toward cash flow, and **From cash to profit** shows the gap as **Spent for brands, less paid back**. Once a deal's own payment has arrived in full (or a barter deal is posted) and a purchase is still owed back, the Dashboard's **Needs attention** lists it. If a brand never pays, untick the box and it counts as an ordinary cost again.
