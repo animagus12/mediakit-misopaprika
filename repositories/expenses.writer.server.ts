@@ -1,6 +1,6 @@
 import "server-only";
 import type { RecordChange } from "@/lib/activityDiff";
-import { getRedis } from "@/lib/cache";
+import { requireRedis } from "@/lib/cache";
 import { EXPENSES_KEY, readExpenseRecords } from "./expenseRecords.server";
 import type { PartnerSettlement } from "@/lib/payers";
 import type { ExpenseInput, ExpenseRecord } from "./expenses";
@@ -8,14 +8,6 @@ import type { ExpenseInput, ExpenseRecord } from "./expenses";
 // server-only, and never imported from a client component: the server actions
 // import it directly. The list lives under one Redis key as a whole array,
 // like every other collection, and each write is read, modify, write.
-
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
-
-function requireRedis() {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
-  return redis;
-}
 
 function fromInput(input: ExpenseInput): Omit<ExpenseRecord, "createdAt" | "updatedAt"> {
   return {

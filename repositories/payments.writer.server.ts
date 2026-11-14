@@ -1,6 +1,6 @@
 import "server-only";
 import type { RecordChange } from "@/lib/activityDiff";
-import { getRedis } from "@/lib/cache";
+import { requireRedis } from "@/lib/cache";
 import { PAYMENTS_KEY, readPaymentRecords } from "./paymentRecords.server";
 import { createPaymentWriter, type InsertPaymentsOptions, type PaymentStore } from "./paymentMutations";
 import type { PaymentRecord, PaymentTarget } from "./payments";
@@ -17,14 +17,6 @@ import type { PaymentRecord, PaymentTarget } from "./payments";
 //
 // Imports ./paymentRecords.server only, never another writer, so the
 // campaigns and invoices writers can read the ledger without a cycle.
-
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
-
-function requireRedis() {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
-  return redis;
-}
 
 const redisStore: PaymentStore = {
   async read() {

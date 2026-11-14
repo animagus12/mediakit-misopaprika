@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { requireRedis } from "@/lib/cache";
 import type { RecordChange } from "@/lib/activityDiff";
 import {
   buildInvoiceNumber,
@@ -22,7 +22,6 @@ import type { Invoice, InvoiceRecord, InvoiceUpdate, NewInvoice } from "./invoic
 // actions and pages that need it import it directly. Reading/writing
 // invoices goes through Redis (Vercel's serverless filesystem is read-only),
 // so that logic lives here rather than in ./invoices.
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
 // Every invoice read carries the brand of the deal it bills (withLinkedBrand),
 // so the brand page, the invoices list and the media kit agree on it without
@@ -155,8 +154,7 @@ function assertEditorJobFree(
 }
 
 export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   assertInvoiceNoFree(input.invoiceNo, records);
   const now = new Date().toISOString();
@@ -186,8 +184,7 @@ export async function addInvoice(input: NewInvoice): Promise<InvoiceRecord> {
  * normalize() trims and coerces, so a trailing space would read as an edit.
  */
 export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<InvoiceRecord> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === input.id);
   if (!before) return null;
@@ -226,8 +223,7 @@ export async function updateInvoice(input: InvoiceUpdate): Promise<RecordChange<
 // goes. Mirrors syncCampaignsWithBrand in campaigns.writer.server.ts. Writes
 // nothing when no invoice named the brand.
 export async function detachInvoicesFromBrand(brandId: string): Promise<number> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const changed = records.filter((record) => record.brandId === brandId).length;
   if (changed === 0) return 0;
@@ -240,8 +236,7 @@ export async function detachInvoicesFromBrand(brandId: string): Promise<number> 
 
 export async function restoreInvoicesForBrand(invoiceIds: string[], brandId: string): Promise<void> {
   if (invoiceIds.length === 0) return;
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const ids = new Set(invoiceIds);
   const records = await readRecords();
   await redis.set(
@@ -263,8 +258,7 @@ export async function clearInvoiceLegacyPayment(
   id: string,
   clear: { advance: boolean; paid: boolean }
 ): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const before = records.find((record) => record.id === id);
   if (!before) return;
@@ -283,10 +277,10 @@ export async function clearInvoiceLegacyPayment(
 // Returns the invoice it removed, or null when the id matched nothing: see
 // deleteBrand in brands.writer.server.ts for why.
 export async function deleteInvoice(id: string): Promise<InvoiceRecord | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   const removed = records.find((record) => record.id === id) ?? null;
+  if (!removed) return null;
   await redis.set(
     INVOICES_KEY,
     records.filter((record) => record.id !== id)
@@ -295,8 +289,7 @@ export async function deleteInvoice(id: string): Promise<InvoiceRecord | null> {
 }
 
 export async function restoreInvoice(record: InvoiceRecord): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readRecords();
   if (records.some((entry) => entry.id === record.id)) return;
   assertInvoiceNoFree(record.invoiceNo, records);

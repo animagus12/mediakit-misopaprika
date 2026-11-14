@@ -1,12 +1,11 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import campaignContactsSeed from "@/data/campaign-contacts.json";
 import type { CampaignContact } from "./campaignContacts";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly.
 const CAMPAIGN_CONTACTS_KEY = "campaign_contacts";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = campaignContactsSeed as CampaignContact[];
 
 async function readCampaignContacts(): Promise<CampaignContact[]> {
@@ -27,8 +26,7 @@ export async function setCampaignContact(
   brandId: string,
   contactId: string | null
 ): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readCampaignContacts();
   const filtered = records.filter((record) => record.campaignId !== campaignId);
   if (contactId) {
@@ -39,8 +37,7 @@ export async function setCampaignContact(
 
 // Cascade for brand deletion.
 export async function deleteCampaignContactsForBrand(brandId: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readCampaignContacts();
   await redis.set(
     CAMPAIGN_CONTACTS_KEY,
@@ -49,8 +46,7 @@ export async function deleteCampaignContactsForBrand(brandId: string): Promise<v
 }
 
 export async function deleteCampaignContactsForCampaign(campaignId: string): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const records = await readCampaignContacts();
   await redis.set(
     CAMPAIGN_CONTACTS_KEY,
@@ -60,8 +56,7 @@ export async function deleteCampaignContactsForCampaign(campaignId: string): Pro
 
 export async function restoreCampaignContacts(records: CampaignContact[]): Promise<void> {
   if (records.length === 0) return;
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const current = await readCampaignContacts();
   const assignments = new Set(current.map((record) => record.campaignId));
   await redis.set(

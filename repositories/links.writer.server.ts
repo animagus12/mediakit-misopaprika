@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import { linksRepository, normalizeLinksData, type LinksData } from "./links";
 import type {
   LinkTrashDeletion,
@@ -10,7 +10,6 @@ import type {
 // reason: this module must never be reachable from a client component.
 const LINKS_DRAFT_KEY = "links_draft";
 const LINKS_PUBLISHED_KEY = "links_published";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 
 // Falls back to the bundled data/links.json seed until the first Save, or
 // whenever Redis isn't configured (e.g. local dev without KV env vars).
@@ -22,14 +21,12 @@ export async function getLinksData(): Promise<LinksData> {
 }
 
 export async function saveLinksData(data: LinksData): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   await redis.set(LINKS_DRAFT_KEY, data);
 }
 
 export async function publishLinksData(data: LinksData): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   await redis.set(LINKS_PUBLISHED_KEY, data);
 }
 

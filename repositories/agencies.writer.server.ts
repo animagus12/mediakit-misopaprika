@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import agenciesSeed from "@/data/agencies.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import type { Agency, AgencyUpdate, NewAgency } from "./agencies";
@@ -7,7 +7,6 @@ import type { Agency, AgencyUpdate, NewAgency } from "./agencies";
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly.
 const AGENCIES_KEY = "agencies";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = agenciesSeed as Agency[];
 
 async function readAgencies(): Promise<Agency[]> {
@@ -32,8 +31,7 @@ function assertNameAvailable(agencies: Agency[], name: string, excludeId?: strin
 }
 
 export async function addAgency(input: NewAgency): Promise<Agency> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const agencies = await readAgencies();
   const name = input.name.trim();
   assertNameAvailable(agencies, name);
@@ -53,8 +51,7 @@ export async function addAgency(input: NewAgency): Promise<Agency> {
 // list this already holds. Comparing against the caller's input instead would
 // be wrong: the normalising below means a trailing space would read as an edit.
 export async function updateAgency(input: AgencyUpdate): Promise<RecordChange<Agency> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const agencies = await readAgencies();
   const name = input.name.trim();
   assertNameAvailable(agencies, name, input.id);

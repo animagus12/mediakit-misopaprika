@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, requireRedis } from "@/lib/cache";
 import affiliatePayoutsSeed from "@/data/affiliate-payouts.json";
 import { toSheetDate } from "@/lib/editorTransactions";
 import type { RecordChange } from "@/lib/activityDiff";
@@ -13,7 +13,6 @@ import type {
 // and pages that need it import it directly. See
 // editorTransactions.writer.server.ts for why storage lives here.
 const AFFILIATE_PAYOUTS_KEY = "affiliate_payouts";
-const REDIS_NOT_CONFIGURED = "Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN";
 const SEED = affiliatePayoutsSeed as AffiliatePayout[];
 
 async function readPayouts(): Promise<AffiliatePayout[]> {
@@ -50,8 +49,7 @@ function shape(input: NewAffiliatePayout, id: string): AffiliatePayout {
 }
 
 export async function addAffiliatePayout(input: NewAffiliatePayout): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const payouts = await readPayouts();
   await redis.set(AFFILIATE_PAYOUTS_KEY, [...payouts, shape(input, crypto.randomUUID())]);
 }
@@ -62,8 +60,7 @@ export async function addAffiliatePayout(input: NewAffiliatePayout): Promise<voi
 export async function updateAffiliatePayout(
   input: AffiliatePayoutUpdate
 ): Promise<RecordChange<AffiliatePayout> | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const payouts = await readPayouts();
   const before = payouts.find((payout) => payout.id === input.id);
   if (!before) return null;
@@ -78,10 +75,10 @@ export async function updateAffiliatePayout(
 // Returns the payout it removed, or null when the id matched nothing: see
 // deleteBrand in brands.writer.server.ts for why.
 export async function deleteAffiliatePayout(id: string): Promise<AffiliatePayout | null> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const payouts = await readPayouts();
   const removed = payouts.find((payout) => payout.id === id) ?? null;
+  if (!removed) return null;
   await redis.set(
     AFFILIATE_PAYOUTS_KEY,
     payouts.filter((payout) => payout.id !== id)
@@ -90,8 +87,7 @@ export async function deleteAffiliatePayout(id: string): Promise<AffiliatePayout
 }
 
 export async function restoreAffiliatePayout(record: AffiliatePayout): Promise<void> {
-  const redis = getRedis();
-  if (!redis) throw new Error(REDIS_NOT_CONFIGURED);
+  const redis = requireRedis();
   const payouts = await readPayouts();
   if (payouts.some((payout) => payout.id === record.id)) return;
   await redis.set(AFFILIATE_PAYOUTS_KEY, [...payouts, record]);
