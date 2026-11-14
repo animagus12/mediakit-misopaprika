@@ -112,6 +112,23 @@ describe("selectAttentionItems: purchases not paid back", () => {
     ]);
   });
 
+  it("leaves a purchase on a deal with a due date to Payments due", () => {
+    const items = selectAttentionItems(
+      [
+        makeBrandCampaignRecord({
+          campaignId: "paid",
+          paymentStatus: "received",
+          paidDate: "20/10/2026",
+          paymentDue: "26/09/2026",
+          reimbursementOwed: 182,
+        }),
+      ],
+      [],
+      NOW
+    );
+    expect(unreimbursed(items)).toEqual([]);
+  });
+
   it("flags a deal with no cash once its post is up", () => {
     const items = selectAttentionItems(
       [

@@ -156,6 +156,12 @@ export function computeStatsByBrand(
 const DAY_MS = 86_400_000;
 
 export interface DuePayment {
+  /**
+   * What the row chases: the deal's own money ("deal"), or the purchases its
+   * brand still has to pay back ("reimbursement"). A deal can owe both, as two
+   * rows, because they are settled in different places.
+   */
+  kind: "deal" | "reimbursement";
   record: BrandCampaignRecord;
   dueDate: string; // DD/MM/YYYY, as carried on the sheet row
   daysUntilDue: number; // whole days from today; negative once overdue, 0 = today
@@ -173,11 +179,19 @@ function dueLabel(days: number): string {
   return `Due in ${days} days`;
 }
 
-// The dashboard's payment-reminder feed: brand-campaign rows still marked
-// pending on the Payment column that also carry a Payment Due date, as
-// reverse timers, most-overdue first. Called-off deals and rows with no
-// parseable due date are dropped. `now` is injectable so server render and
-// tests aren't at the mercy of the wall clock.
+/** Whether a deal carries a Payment Due date the payments-due list can time it against. */
+export function hasDueDate(record: Pick<BrandCampaignRecord, "paymentDue">): boolean {
+  return Number.isFinite(parseSheetDate(record.paymentDue));
+}
+
+// The dashboard's payment-reminder feed, as reverse timers, most-overdue
+// first: brand-campaign rows still marked pending on the Payment column, and
+// purchases a deal's brand still has to pay back, each against the deal's
+// Payment Due date (a brand refunds a purchase with the fee). Called-off deals
+// owe nothing of their own, but a purchase made for one is owed back until its
+// flag is taken off, as cashOwedToYou counts it. Rows with no parseable due
+// date are dropped. `now` is injectable so server render and tests aren't at
+// the mercy of the wall clock.
 //
 // Deals only. A licence renewal is a separate debt against the same post and
 // is chased in its own card (see selectOwedRenewals in lib/usageRights.ts):
@@ -185,36 +199,43 @@ function dueLabel(days: number): string {
 // numbers for a renewal.
 export function selectDuePayments(records: BrandCampaignRecord[], now: Date = new Date()): DuePayment[] {
   const today = Date.parse(`${todayKey(now)}T00:00:00.000Z`);
+  const due: DuePayment[] = [];
 
-  return records
-    .filter(
-      (record) =>
-        record.paymentStatus === "pending" && !isCampaignCalledOff(record.status)
-    )
-    .map((record) => ({ record, dueTime: parseSheetDate(record.paymentDue) }))
-    .filter((entry) => Number.isFinite(entry.dueTime))
-    .map(({ record, dueTime }) => {
-      const daysUntilDue = Math.round((dueTime - today) / DAY_MS);
-      return {
-        record,
-        dueDate: record.paymentDue,
-        daysUntilDue,
-        overdue: daysUntilDue < 0,
-        label: dueLabel(daysUntilDue),
-      };
-    })
-    .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+  for (const record of records) {
+    if (!hasDueDate(record)) continue;
+    const daysUntilDue = Math.round((parseSheetDate(record.paymentDue) - today) / DAY_MS);
+    const timing = {
+      record,
+      dueDate: record.paymentDue,
+      daysUntilDue,
+      overdue: daysUntilDue < 0,
+      label: dueLabel(daysUntilDue),
+    };
+    if (record.paymentStatus === "pending" && !isCampaignCalledOff(record.status)) {
+      due.push({ kind: "deal", ...timing });
+    }
+    if (record.reimbursementOwed > 0) due.push({ kind: "reimbursement", ...timing });
+  }
+
+  // Stable, so a deal's own row stays above the purchases it owes back.
+  return due.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 }
 
 /**
- * What a pending deal still owes: the cash not yet settled (a deal paid in
- * part owes only the rest) and the barter parcel, until it is delivered.
+ * What one row of the payments-due list still owes. A deal row: the cash not
+ * yet settled (a deal paid in part owes only the rest) and the barter parcel,
+ * until it is delivered. A reimbursement row: the purchases still to be paid
+ * back, which are cash.
  */
-export function duePaymentOwed(record: Pick<BrandCampaignRecord, "settlement" | "barterState" | "barterValue">): {
+export function duePaymentOwed(payment: Pick<DuePayment, "kind" | "record">): {
   cash: number;
   barter: number;
   total: number;
 } {
+  const { record } = payment;
+  if (payment.kind === "reimbursement") {
+    return { cash: record.reimbursementOwed, barter: 0, total: roundMoney(record.reimbursementOwed) };
+  }
   const cash = record.settlement?.remaining ?? 0;
   const barter = record.barterState === "pending" ? record.barterValue : 0;
   return { cash, barter, total: roundMoney(cash + barter) };
@@ -274,7 +295,7 @@ export function summarizeDuePayments(
   };
 
   for (const entry of due) {
-    const owed = duePaymentOwed(entry.record);
+    const owed = duePaymentOwed(entry);
     summary.outstanding += owed.total;
     if (entry.overdue) {
       summary.overdueCount += 1;

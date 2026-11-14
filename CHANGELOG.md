@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.27.1] - 2026-11-14
+
+### Fixed
+
+- **Closing a list inside a panel no longer closes the panel.** With a list such as **Paid by** open on **Add expense**, or a row's **⋯** menu open in a deal's edit panel, a tap or click anywhere outside the list used to close the whole panel as well, losing anything typed into it. Now that press only closes the list; a press outside the panel with nothing open still closes it. A panel opened from another (**Add expense** from **Edit campaign**) works the same way. On a phone, **Keep editing** in the **Discard unsaved changes?** prompt no longer closes the menu behind it either.
+- **Tapping outside an open list no longer presses what was under it.** On a phone or tablet, the tap that closed a list or a **⋯** menu also landed on whatever was under your finger once the list had gone: tapping outside **Paid by** onto **Add expense** saved the expense, and tapping onto another deal opened it. Now that tap only closes the list. With a mouse it already worked this way.
+- **Purchases a brand still owes back show under Payments due.** The Dashboard's **Payments due** listed only deals whose fee was still to come, so once a brand paid the fee and not the refund, the purchase dropped out of it, and on a deal still due it was left out of the amount. Each deal's purchases still owed back now get a row of their own, marked **Brand to pay back** and timed against the deal's payment due date, and count toward the card's total and the cash landing within 30 days. The row's ₹ button opens the deal, where **Paid back today** clears it. **Needs attention** now lists a purchase not paid back only on a deal with no payment due date, so the same money isn't on the Dashboard twice.
+
 ## [1.27.0] - 2026-11-14
 
 ### Added

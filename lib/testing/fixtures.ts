@@ -271,6 +271,7 @@ export function makeDuePayment(
   const { record, ...rest } = overrides;
   const daysUntilDue = rest.daysUntilDue ?? 5;
   return {
+    kind: "deal",
     record: makeBrandCampaignRecord(record),
     dueDate: "15/05/2026",
     daysUntilDue,
