@@ -482,7 +482,10 @@ export function isInvoiceOverdue(
 ): boolean {
   if (invoice.status === "paid" || invoice.status === "void") return false;
   if (!invoice.dueDate) return false;
-  return new Date(`${invoice.dueDate}T23:59:59`).getTime() < now.getTime();
+  // Overdue once the due day has passed in IST (lib/day.ts), not in whatever
+  // zone this runs in: read off the machine clock, the server (UTC) and an
+  // Indian browser disagreed for five and a half hours after every due date.
+  return todayKey(now) > invoice.dueDate;
 }
 
 export interface InvoiceStats {
