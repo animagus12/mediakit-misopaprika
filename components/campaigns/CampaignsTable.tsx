@@ -45,9 +45,9 @@ import type { EditorVideoOption } from "@/lib/contentPlan";
 import { formatMoney, type CampaignInvoiceOption } from "@/lib/invoice";
 import { paymentTiming, type PaymentPunctuality } from "@/lib/paymentReliability";
 import { settlementSummary } from "@/lib/payments";
-import { formatUsageDays, renewalTotal, usageTerm, type UsageState } from "@/lib/usageRights";
+import { formatUsageDays, renewalTotal, usageTerm, type UsageState, type UsageTerm } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
-import type { Campaign } from "@/repositories/campaigns";
+import type { Campaign, CampaignUsage } from "@/repositories/campaigns";
 import { CAMPAIGN_STATUS_STYLES, type StatusStyle } from "./campaignStatusStyle";
 import { EditCampaignSheet } from "./EditCampaignSheet";
 
@@ -94,16 +94,69 @@ const TIMING_TONES: Record<PaymentPunctuality, string> = {
   untimed: "text-muted-foreground",
 };
 
-const USAGE_TONES: Record<UsageState, string> = {
-  untracked: "text-muted-foreground",
-  unstarted: "text-muted-foreground",
-  active: "text-muted-foreground",
-  indefinite: "text-muted-foreground",
-  expiring: "text-amber-600 dark:text-amber-400",
-  expired: "text-destructive",
-  paused: "text-muted-foreground",
-  ended: "text-muted-foreground",
+// The licence's state in a word, as a pill coloured like the Status and
+// Payment pills beside it, so a column of licences separates by eye: waiting
+// to be used, running, running out, run out, or set aside. The specifics go
+// on the line under it (see usageDetail).
+const USAGE_BADGES: Record<Exclude<UsageState, "untracked">, { label: string; style: StatusStyle }> = {
+  unstarted: {
+    label: "Not started",
+    style: {
+      variant: "outline",
+      className: "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:bg-sky-500/15 dark:text-sky-400",
+    },
+  },
+  active: {
+    label: "Running",
+    style: {
+      variant: "outline",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+    },
+  },
+  indefinite: {
+    label: "Indefinite",
+    style: {
+      variant: "outline",
+      className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400",
+    },
+  },
+  expiring: {
+    label: "Expiring",
+    style: {
+      variant: "outline",
+      className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
+    },
+  },
+  expired: { label: "Expired", style: { variant: "destructive" } },
+  paused: { label: "Paused", style: { variant: "secondary" } },
+  // Dashed and muted, as a cancelled payment is: an ended licence is settled,
+  // not a problem.
+  ended: { label: "Ended", style: { variant: "outline", className: "border-dashed text-muted-foreground" } },
 };
+
+// The line under the pill: how much is left, or when it ran out or ended.
+function usageDetail(term: UsageTerm, usage: Pick<CampaignUsage, "indefinite" | "endedOn">): string {
+  const terms = term.termCount > 1 ? ` · ${term.termCount} terms` : "";
+  const left = `${formatUsageDays(term.daysRemaining)} left${terms}`;
+  switch (term.state) {
+    case "unstarted":
+      return usage.indefinite ? "No end date" : left;
+    case "indefinite":
+      return "No end date";
+    case "expiring":
+      if (term.daysRemaining === 0) return `Ends today${terms}`;
+      if (term.daysRemaining === 1) return `Ends tomorrow${terms}`;
+      return left;
+    case "expired":
+      return `${formatUsageDays(Math.abs(term.daysRemaining))} ago${terms}`;
+    case "paused":
+      return term.daysRemaining < 0 ? "Past its term" : left;
+    case "ended":
+      return usage.endedOn || (usage.indefinite ? "Indefinite" : formatUsageDays(term.totalDays));
+    default:
+      return left;
+  }
+}
 
 // The quiet second line every merged cell carries. Its own component because
 // eight columns use it and the size/colour of a caption is exactly the sort of
@@ -566,16 +619,16 @@ export function CampaignsTable({
                           </TableCell>
 
                           {anyUsage && (
-                            <TableCell className="px-3 py-2.5 align-top whitespace-nowrap text-muted-foreground">
+                            <TableCell className="px-3 py-2.5 align-top whitespace-nowrap">
                               {term.state !== "untracked" && (
                                 <>
-                                  <span className={cn("block", USAGE_TONES[term.state])}>{term.label}</span>
-                                  <Sub>
-                                    {term.state === "indefinite" || (term.state === "ended" && campaign.usage.indefinite)
-                                      ? "Indefinite"
-                                      : formatUsageDays(term.totalDays)}
-                                    {term.termCount > 1 ? ` · ${term.termCount} terms` : ""}
-                                  </Sub>
+                                  <Badge
+                                    variant={USAGE_BADGES[term.state].style.variant}
+                                    className={USAGE_BADGES[term.state].style.className}
+                                  >
+                                    {USAGE_BADGES[term.state].label}
+                                  </Badge>
+                                  <Sub>{usageDetail(term, campaign.usage)}</Sub>
                                 </>
                               )}
                             </TableCell>

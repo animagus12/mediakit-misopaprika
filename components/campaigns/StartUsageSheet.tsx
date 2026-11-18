@@ -19,6 +19,7 @@ import { clearCampaignUsageStart, startCampaignUsage } from "@/app/(dashboard)/a
 import { toSheetDate } from "@/lib/campaigns";
 import { addDays, isDayKey, todayKey } from "@/lib/day";
 import { formatUsageDays } from "@/lib/usageRights";
+import type { UsageStatus } from "@/repositories/campaigns";
 
 interface StartUsageSheetProps {
   campaignId: string;
@@ -30,11 +31,22 @@ interface StartUsageSheetProps {
   startedOn: string;
   /** yyyy-mm-dd the deal was struck: the earliest day the picker offers. */
   earliest: string;
+  status: UsageStatus;
+  /**
+   * yyyy-mm-dd a paused or ended licence stopped on, the latest day its start
+   * can move to (see latestUsageStart); "" on a running one.
+   */
+  latest: string;
   trigger: ReactNode;
 }
 
-// "30 days, ending 18/12/2026": what the picked day means for the term.
-function termHint(day: string, days: number, indefinite: boolean): string {
+// What the picked day means for the term: "30 days, ending 18/12/2026" on a
+// running licence. A paused one's end keeps moving and an ended one's no
+// longer applies, so those say what bounds the day instead.
+function termHint(day: string, days: number, indefinite: boolean, status: UsageStatus, latest: string): string {
+  if (status !== "active" && latest) {
+    return `It was ${status} on ${toSheetDate(latest)}, so it can't have started after that.`;
+  }
   if (indefinite) return "No end date. This records when the brand started running it.";
   if (!isDayKey(day) || days <= 0) return "";
   return `${formatUsageDays(days)}, ending ${toSheetDate(addDays(day, days))}.`;
@@ -57,6 +69,8 @@ export function StartUsageSheet({
   indefinite,
   startedOn,
   earliest,
+  status,
+  latest,
   trigger,
 }: StartUsageSheetProps) {
   const starting = startedOn === "";
@@ -66,7 +80,9 @@ export function StartUsageSheet({
   const [isPending, startTransition] = useTransition();
 
   const formId = `start-usage-${campaignId}`;
-  const hint = termHint(day, days, indefinite);
+  const hint = termHint(day, days, indefinite, status, latest);
+  const today = todayKey();
+  const max = latest && latest < today ? latest : today;
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -79,7 +95,7 @@ export function StartUsageSheet({
       }
       setOpen(false);
       toast.success(starting ? `${brand}: ad usage started` : `${brand}: start date moved`, {
-        description: hint || `Counts from ${toSheetDate(day)}.`,
+        description: status === "active" && hint ? hint : `Counts from ${toSheetDate(day)}.`,
       });
     });
   }
@@ -131,7 +147,7 @@ export function StartUsageSheet({
               type="date"
               required
               min={earliest || undefined}
-              max={todayKey()}
+              max={max}
               value={day}
               onChange={(event) => setDay(event.target.value)}
             />
@@ -143,7 +159,7 @@ export function StartUsageSheet({
                 Clear start date
               </Button>
               <p className="text-[11px] text-muted-foreground">
-                Puts the licence back to not started, with its whole term unused.
+                Puts the licence back to not started, with its whole term unused and any pause or end cleared.
               </p>
             </div>
           )}

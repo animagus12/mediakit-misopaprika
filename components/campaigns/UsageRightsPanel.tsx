@@ -23,7 +23,7 @@ import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
 import { paymentStatusLabel, toIsoDate } from "@/lib/campaigns";
 import { resolveTds } from "@/lib/tds";
-import { formatUsageDays, usageTerm, type UsageState } from "@/lib/usageRights";
+import { formatUsageDays, latestUsageStart, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign, UsageRenewal, UsageRenewalRecord } from "@/repositories/campaigns";
 import { RenewUsageSheet } from "./RenewUsageSheet";
@@ -34,7 +34,7 @@ import { StartUsageSheet } from "./StartUsageSheet";
 // licence looks the same wherever it is read.
 const STATE_TONES: Record<UsageState, string> = {
   untracked: "text-muted-foreground",
-  unstarted: "text-muted-foreground",
+  unstarted: "text-sky-600 dark:text-sky-400",
   active: "text-emerald-600 dark:text-emerald-400",
   indefinite: "text-emerald-600 dark:text-emerald-400",
   expiring: "text-amber-600 dark:text-amber-400",
@@ -90,10 +90,10 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
   const term = usageTerm(campaign);
   const { renewals, status, indefinite, startedOn } = campaign.usage;
   const unstarted = term.state === "unstarted";
-  // Only while the base term is the one counting and running: once renewed,
-  // a renewal's own start decides the countdown, and moving the start under
-  // a pause or an end would misplace the days they account for.
-  const canMoveStart = startedOn !== "" && renewals.length === 0 && status === "active";
+  // Only while the base term is the one counting: once renewed, a renewal's
+  // own start decides the countdown. Paused and ended licences can move it
+  // too, up to the day they stopped (see latestUsageStart), or clear it.
+  const canMoveStart = startedOn !== "" && renewals.length === 0;
 
   function move(transition: "pause" | "resume" | "end", message: string) {
     startTransition(async () => {
@@ -169,6 +169,8 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             indefinite={indefinite}
             startedOn=""
             earliest={toIsoDate(campaign.date)}
+            status={status}
+            latest=""
             trigger={
               <Button type="button" size="sm" variant="outline" disabled={isPending}>
                 <PlayCircle />
@@ -238,6 +240,8 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             indefinite={indefinite}
             startedOn={toIsoDate(startedOn)}
             earliest={toIsoDate(campaign.date)}
+            status={status}
+            latest={latestUsageStart(campaign.usage)}
             trigger={
               <Button type="button" size="sm" variant="ghost" disabled={isPending}>
                 <CalendarClock />

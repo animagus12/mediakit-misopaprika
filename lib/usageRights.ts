@@ -305,6 +305,21 @@ export function usageStartDateProblem(isoDate: string, now: Date = new Date()): 
 }
 
 /**
+ * The latest day a paused or ended licence's start can be moved to
+ * (yyyy-mm-dd): the day it was paused or ended, since it cannot have stopped
+ * before it started. "" on a running licence, which only today bounds.
+ *
+ * Keeping the start before the stop is also what keeps the pause accounting
+ * true: a pause counted from before the term began would add days back onto
+ * a term that never spent them.
+ */
+export function latestUsageStart(usage: Pick<CampaignUsage, "status" | "pausedOn" | "endedOn">): string {
+  if (usage.status === "paused") return toIsoDate(usage.pausedOn);
+  if (usage.status === "ended") return toIsoDate(usage.endedOn);
+  return "";
+}
+
+/**
  * Why a licence cannot be recorded as ended on `isoDate`, or null when it can.
  *
  * Not before the licence started, since it cannot have been called off before
