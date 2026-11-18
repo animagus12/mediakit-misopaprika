@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-11-18
+
 ### Fixed
 
 - **Two saves at the same moment no longer lose one of them.** Deals, payments, expenses, settle-ups, invoices, **Trash**, brands, contacts, agencies, brand notes, deal contacts, editors, editing jobs, affiliate partners and payouts, and the content plan each live as one saved list, and every save read the list, changed it and wrote it back whole. Two saves that overlapped (two tabs, a double tap, or both partners at once) both started from the same list, so the second quietly wrote over the first. Each save now writes only if the list is still exactly what it read (`lib/storeWrite.server.ts`); otherwise it starts again from the newer list, so both changes are kept. The checks run again too: a payment that would overpay once the other one landed is refused, an invoice number, brand name or affiliate code taken a moment earlier is refused instead of used twice, and two quick taps on an editing job's revision count add two revisions rather than one. If saves keep colliding, it gives up with **This was changed somewhere else while it saved, so nothing was saved. Try again.** rather than dropping either one.
