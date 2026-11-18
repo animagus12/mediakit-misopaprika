@@ -99,9 +99,9 @@ export type CampaignStage = "active" | "past" | "on-hold";
 // --- Usage rights --------------------------------------------------------
 // How long a brand may keep running the content as an ad, and what happened
 // when that ran out. Modelled on the deal rather than in a store of its own:
-// a licence has no existence apart from the post it licenses, it starts from
-// that post's upload date, and every renewal of it is money against the same
-// brand. A second store would have bought nothing but a join.
+// a licence has no existence apart from the post it licenses, and every
+// renewal of it is money against the same brand. A second store would have
+// bought nothing but a join.
 
 export type UsageStatus = "active" | "paused" | "ended";
 
@@ -159,7 +159,7 @@ export interface UsageRenewal extends UsageRenewalRecord {
 
 export interface CampaignUsage {
   /**
-   * The base term in days, counted from uploadDate. 0 = not tracked.
+   * The base term in days, counted from startedOn. 0 = not tracked.
    *
    * Days rather than months because licences are sold for any length, a
    * one-day boost as readily as a quarter, and a month is not a fixed number
@@ -187,6 +187,15 @@ export interface CampaignUsage {
    * and counted as income like the rest of the deal.
    */
   fee: number;
+  /**
+   * DD/MM/YYYY the base term counts from, "" until the licence is started.
+   *
+   * Set by hand rather than taken from the upload date: a licence is sold
+   * with the post, but the brand starts running the ad when it starts, often
+   * weeks later, and a term counted from the upload would be half spent
+   * before the ad ever ran.
+   */
+  startedOn: string;
   status: UsageStatus;
   /**
    * DD/MM/YYYY the countdown was frozen on, "" while it is running.
@@ -208,7 +217,17 @@ export interface CampaignUsage {
 export type CampaignUsageView = Omit<CampaignUsage, "renewals"> & { renewals: UsageRenewal[] };
 
 export function emptyUsage(): CampaignUsage {
-  return { days: 0, indefinite: false, fee: 0, status: "active", pausedOn: "", pausedDays: 0, endedOn: "", renewals: [] };
+  return {
+    days: 0,
+    indefinite: false,
+    fee: 0,
+    startedOn: "",
+    status: "active",
+    pausedOn: "",
+    pausedDays: 0,
+    endedOn: "",
+    renewals: [],
+  };
 }
 
 /**
@@ -222,12 +241,16 @@ export type StoredUsageRenewal = Omit<UsageRenewalRecord, "days" | "tdsRate" | "
   tdsAmount?: number | null;
 };
 
-/** A licence as stored, in either the days shape or the months one before it. */
-export type StoredUsage = Omit<CampaignUsage, "days" | "indefinite" | "fee" | "renewals"> & {
+/**
+ * A licence as stored, in either the days shape or the months one before it.
+ * One written before licences were started by hand carries no `startedOn`.
+ */
+export type StoredUsage = Omit<CampaignUsage, "days" | "indefinite" | "fee" | "startedOn" | "renewals"> & {
   days?: number;
   indefinite?: boolean;
   months?: number;
   fee?: number;
+  startedOn?: string;
   renewals?: StoredUsageRenewal[];
 };
 
@@ -256,24 +279,49 @@ function termDays(raw: { days?: number; months?: number }, startDate: string): n
   return endKey ? daysBetween(startKey, endKey) : months * 30;
 }
 
+/**
+ * The day a licence stored before `startedOn` existed counts from.
+ *
+ * Those licences all counted from the upload date, so one already carrying a
+ * term keeps it and goes on running exactly as before. One with no term yet,
+ * or on a post not up yet, had nothing counting, and waits to be started like
+ * any new licence.
+ */
+function legacyStartedOn(raw: StoredUsage, indefinite: boolean, uploadDate: string): string {
+  const hasTerm =
+    indefinite ||
+    (Number(raw.days) || 0) > 0 ||
+    (Number(raw.months) || 0) > 0 ||
+    (Array.isArray(raw.renewals) && raw.renewals.length > 0);
+  return hasTerm ? uploadDate.trim() : "";
+}
+
 // Legacy rows predate the field entirely, and a hand-edited one can carry
 // anything: every campaign read through toCampaign gets a whole, coerced
 // object, so nothing downstream has to test for its absence. Records are
 // healed on their next write (see normalize in ./campaigns.writer.server).
 //
-// `termStart` is the DD/MM/YYYY the base term counts from (the upload date,
-// falling back to the deal date), used only to convert a term stored in months.
-export function toUsage(raw: StoredUsage | undefined, termStart: string): CampaignUsage {
+// `record` supplies the dates a legacy licence counted from: the term start
+// (see usageTermStart) to convert a term stored in months, and the upload
+// date for one stored before licences were started by hand.
+export function toUsage(
+  raw: StoredUsage | undefined,
+  record: Pick<CampaignRecord, "uploadDate" | "date">
+): CampaignUsage {
   if (!raw) return emptyUsage();
   // Absent on every licence written before the option existed, all of which
   // had an end date.
   const indefinite = raw.indefinite === true;
   return {
-    days: indefinite ? 0 : termDays(raw, termStart),
+    days: indefinite ? 0 : termDays(raw, usageTermStart(record)),
     indefinite,
     // Absent on every licence written before the split: 0 reads as "not priced
     // separately", which is exactly what those records are.
     fee: Math.max(0, Number(raw.fee) || 0),
+    startedOn:
+      typeof raw.startedOn === "string"
+        ? raw.startedOn.trim()
+        : legacyStartedOn(raw, indefinite, record.uploadDate ?? ""),
     status: raw.status === "paused" || raw.status === "ended" ? raw.status : "active",
     pausedOn: raw.pausedOn?.trim() ?? "",
     pausedDays: Math.max(0, Math.round(Number(raw.pausedDays) || 0)),
@@ -289,8 +337,8 @@ export function toUsage(raw: StoredUsage | undefined, termStart: string): Campai
   };
 }
 
-/** The day a deal's base licence counts from, as toUsage needs it. */
-export function usageTermStart(record: Pick<CampaignRecord, "uploadDate" | "date">): string {
+/** The day a legacy licence's term stored in months converts from, as toUsage needs it. */
+function usageTermStart(record: Pick<CampaignRecord, "uploadDate" | "date">): string {
   return record.uploadDate?.trim() || record.date;
 }
 
@@ -509,7 +557,7 @@ export function toUsageRenewal(campaignId: string, renewal: UsageRenewalRecord):
 
 export function toCampaign(record: CampaignRecord): Campaign {
   const status = toCampaignStatus(record.status);
-  const storedUsage = toUsage(record.usage, usageTermStart(record));
+  const storedUsage = toUsage(record.usage, record);
   const usage: CampaignUsageView = {
     ...storedUsage,
     renewals: storedUsage.renewals.map((renewal) => toUsageRenewal(record.id, renewal)),

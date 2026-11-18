@@ -6,11 +6,12 @@ import type { Campaign, CampaignUsage, CampaignUsageView } from "@/repositories/
 // When a brand's right to keep running the content as an ad runs out, and
 // what is owed if it wants longer.
 //
-// The clock starts at the deal's upload date, because that is the day the ad
-// exists: a licence agreed in March on a reel posted in May has not been
-// running since March. Nothing here is stored as a date. An end date written
-// down at agreement time goes stale the moment the post slips a week, and
-// then quietly lies; deriving it from the upload date cannot.
+// The clock starts on the day the licence is started (CampaignUsage.startedOn),
+// set by hand when the brand starts running the ad, not on the upload date: a
+// licence sold with a reel posted in May has not been spent while the brand
+// sat on it until June. The end is never stored. An end date written down up
+// front goes stale the moment the start slips a week, and then quietly lies;
+// deriving it from the start cannot.
 //
 // Client-safe: the dashboard card that renews a licence is a client
 // component, and the pages that list them are not, and both read this.
@@ -54,7 +55,7 @@ function alertWindow(termDays: number): number {
 export type UsageState =
   /** No term was ever recorded on this deal. */
   | "untracked"
-  /** A term is recorded, but the post it counts from has not gone up yet. */
+  /** A term is recorded, but nobody has started it counting yet. */
   | "unstarted"
   | "active"
   /** Granted with no end date: never expires, so never owes a decision. */
@@ -75,7 +76,10 @@ export interface UsageTerm {
   endDayKey: string;
   /** DD/MM/YYYY, the same day in the app's stored format. */
   endDate: string;
-  /** Whole days until it runs out; negative once past, frozen while paused. */
+  /**
+   * Whole days until it runs out; negative once past, frozen while paused,
+   * and the whole base term while not started.
+   */
   daysRemaining: number;
   /** Every day ever granted on this deal: the base term plus each renewal. */
   totalDays: number;
@@ -132,7 +136,7 @@ function termLabel(state: UsageState, daysRemaining: number, endedOn: string): s
     case "untracked":
       return "Not tracked";
     case "unstarted":
-      return "Starts when this posts";
+      return daysRemaining > 0 ? `Not started, ${formatUsageDays(daysRemaining)} left` : "Not started";
     case "indefinite":
       return "No end date";
     case "ended":
@@ -179,9 +183,20 @@ export function usageTerm(campaign: Campaign, now: Date = new Date()): UsageTerm
     renewalPending: money.pending,
   };
 
-  const uploadKey = toIsoDate(campaign.uploadDate);
-  if (uploadKey === "") {
-    return { ...base, state: "unstarted", label: termLabel("unstarted", 0, "") };
+  // A renewal carries its own start, so once there is one the base term's
+  // start no longer decides anything. An indefinite licence ignores renewals.
+  const startedKey = toIsoDate(usage.startedOn);
+  const latest = usage.indefinite ? undefined : usage.renewals[usage.renewals.length - 1];
+  const startDayKey = latest ? toIsoDate(latest.startDate) || startedKey : startedKey;
+
+  // Nothing counting yet, so the whole base term is still to come: the
+  // campaign says how much ad time is waiting to be used. Never on the
+  // dashboard, which only lists licences running out (selectExpiringUsage).
+  // Ending one that never started is still an answer, and reads as one.
+  if (startDayKey === "") {
+    const state: UsageState = usage.status === "ended" ? "ended" : "unstarted";
+    const unspent = state === "unstarted" && !usage.indefinite ? usage.days : 0;
+    return { ...base, state, daysRemaining: unspent, label: termLabel(state, unspent, usage.endedOn) };
   }
 
   // No end to count down to, so none of the arithmetic below applies: it
@@ -192,13 +207,11 @@ export function usageTerm(campaign: Campaign, now: Date = new Date()): UsageTerm
     return {
       ...base,
       state,
-      startDayKey: uploadKey,
+      startDayKey,
       label: termLabel(state, 0, usage.endedOn),
     };
   }
 
-  const latest = usage.renewals[usage.renewals.length - 1];
-  const startDayKey = latest ? toIsoDate(latest.startDate) || uploadKey : uploadKey;
   const days = latest ? latest.days : usage.days;
 
   const today = todayKey(now);
@@ -275,6 +288,20 @@ export function selectExpiringUsage(campaigns: Campaign[], now: Date = new Date(
     .sort(
       (a, b) => a.term.daysRemaining - b.term.daysRemaining || b.amount - a.amount
     );
+}
+
+/**
+ * Why a licence cannot be recorded as started on `isoDate`, or null when it
+ * can.
+ *
+ * Not after today, for the same reason as the end date below: this records
+ * when the brand started running the ad, and a licence started from next
+ * week would read as running before it is. It is started on the day instead.
+ */
+export function usageStartDateProblem(isoDate: string, now: Date = new Date()): string | null {
+  if (!isDayKey(isoDate)) return "Pick the day it started";
+  if (isoDate > todayKey(now)) return "The start date can't be in the future";
+  return null;
 }
 
 /**

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.28.1] - 2026-11-18
+
+### Changed
+
+- **Ad usage counts from the day you start it, not the upload date.** A licence sold with a post used to start counting the day the post went up, so a brand that waited three weeks to run the ad had already spent most of its term. A licence now waits, reading **Not started, 30 days left** in the campaigns table and the deal's **Ad usage rights**, until you press **Start**. **Start** opens on today, so it starts now, or you can pick the earlier day the brand actually began; a day in the future is refused. Once started, the panel shows **started** with the date, and **Change start** moves that date or, with **Clear start date**, puts the licence back to not started with its whole term unused. **Pause**, **End** and **Renew** work as before once it is running, and when the days run out it still reads **Expired** and comes up on the **Dashboard** to renew or end. A licence that hasn't started never appears on the **Dashboard**. Licences already running keep counting from their upload date, so nothing live resets; ones on a post not up yet now wait to be started. Starting and clearing are recorded in **Activity**. (`lib/usageRights.ts`, `repositories/campaigns.ts`, `repositories/campaigns.writer.server.ts`, `repositories/campaignRepository.ts`, `app/(dashboard)/actions.ts`, `components/campaigns/StartUsageSheet.tsx`, `components/campaigns/UsageRightsPanel.tsx`)
+
 ## [1.28.0] - 2026-11-18
 
 ### Fixed

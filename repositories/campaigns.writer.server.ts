@@ -26,7 +26,6 @@ import {
   toDeliverableCount,
   toInvoiceLink,
   toUsage,
-  usageTermStart,
 } from "./campaigns";
 import type {
   Campaign,
@@ -319,7 +318,7 @@ export function updateCampaign(
         throw new Error("Delete this deal's recorded payments before making it barter only");
       }
     }
-    const usage = toUsage(before.usage, usageTermStart(before));
+    const usage = toUsage(before.usage, before);
     const after: CampaignRecord = {
       ...before,
       ...normalize(input, before),
@@ -377,7 +376,7 @@ export function demoteCampaignLegacyPayment(id: string, renewalId: string | null
         tdsAmount: null,
       };
     } else {
-      const usage = toUsage(before.usage, usageTermStart(before));
+      const usage = toUsage(before.usage, before);
       const renewal = usage.renewals.find((entry) => entry.id === renewalId);
       if (!renewal || renewal.paymentStatus !== "received") return { next: null, result: undefined };
       after = writeUsage(records, before, {
@@ -489,7 +488,7 @@ export function transitionCampaignUsage(
     const before = records.find((record) => record.id === id);
     if (!before) return { next: null, result: null };
 
-    const usage = toUsage(before.usage, usageTermStart(before));
+    const usage = toUsage(before.usage, before);
     let next: CampaignUsage;
     if (transition === "pause") {
       next = { ...usage, status: "paused", pausedOn: today, endedOn: "" };
@@ -510,6 +509,35 @@ export function transitionCampaignUsage(
         endedOn: "",
       };
     }
+
+    const written = writeUsage(records, before, next);
+    return { next: written.records, result: { before, after: written.after } };
+  });
+}
+
+/**
+ * Starts a licence's base term counting from `startedOn` (DD/MM/YYYY), moves
+ * the day an already started one counts from, or with "" puts it back to not
+ * started.
+ *
+ * Starting and clearing both reset the pause and end accounting: a licence
+ * that was waiting had no countdown for either to act on, and one put back to
+ * waiting has its whole term unspent again. Moving the start of a running
+ * licence changes the date and nothing else.
+ */
+export function setCampaignUsageStart(
+  id: string,
+  startedOn: string
+): Promise<RecordChange<CampaignRecord> | null> {
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
+
+    const usage = toUsage(before.usage, before);
+    const next: CampaignUsage =
+      usage.startedOn === "" || startedOn === ""
+        ? { ...usage, startedOn, status: "active", pausedOn: "", pausedDays: 0, endedOn: "" }
+        : { ...usage, startedOn };
 
     const written = writeUsage(records, before, next);
     return { next: written.records, result: { before, after: written.after } };
@@ -541,7 +569,7 @@ export function addCampaignUsageRenewal(
     const before = records.find((record) => record.id === id);
     if (!before) return { next: null, result: null };
 
-    const usage = toUsage(before.usage, usageTermStart(before));
+    const usage = toUsage(before.usage, before);
     const amount = Number(input.amount) || 0;
     const renewal: UsageRenewalRecord = {
       id: nextSequenceId(usage.renewals.map((entry) => entry.id), "R"),
@@ -589,7 +617,7 @@ export function setUsageRenewalTds(
     const before = records.find((record) => record.id === id);
     if (!before) return { next: null, result: null };
 
-    const usage = toUsage(before.usage, usageTermStart(before));
+    const usage = toUsage(before.usage, before);
     if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return { next: null, result: null };
 
     const written = writeUsage(records, before, {
@@ -656,7 +684,7 @@ export async function restoreCampaignInvoiceLinks(
       const link = byCampaign.get(record.id);
       if (!link) return record;
       const renewalIds = new Map(link.renewalLinks.map((renewal) => [renewal.renewalId, renewal.invoiceId]));
-      const currentUsage = toUsage(record.usage, usageTermStart(record));
+      const currentUsage = toUsage(record.usage, record);
       const usage = {
         ...currentUsage,
         renewals: currentUsage.renewals.map((renewal) => {
@@ -731,7 +759,7 @@ export function setUsageRenewalInvoice(
     const before = records.find((record) => record.id === id);
     if (!before) return { next: null, result: null };
 
-    const usage = toUsage(before.usage, usageTermStart(before));
+    const usage = toUsage(before.usage, before);
     if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return { next: null, result: null };
 
     const written = writeUsage(records, before, {

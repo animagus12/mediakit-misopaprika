@@ -63,6 +63,8 @@ const ACTION_FLAGS = {
   "campaign.payment_reverted": true,
   "campaign.scheduled": true,
   "campaign.unscheduled": true,
+  "campaign.usage_started": true,
+  "campaign.usage_start_cleared": true,
   "campaign.usage_paused": true,
   "campaign.usage_resumed": true,
   "campaign.usage_ended": true,

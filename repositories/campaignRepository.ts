@@ -6,6 +6,7 @@ import {
   setCampaignInvoice,
   setCampaignStatus,
   setCampaignUploadDate,
+  setCampaignUsageStart,
   setUsageRenewalInvoice,
   setUsageRenewalTds,
   transitionCampaignUsage,
@@ -120,6 +121,11 @@ export interface ICampaignRepository {
     campaignId: string,
     transition: UsageTransition
   ): Promise<RecordChange<CampaignRecord> | null>;
+  // Starts the licence counting from a yyyy-mm-dd day ("" for today), or
+  // moves the day a started one counts from. Writes only the licence.
+  startUsage(campaignId: string, isoDate: string): Promise<RecordChange<CampaignRecord> | null>;
+  // Puts a started licence back to not started, its whole term unspent.
+  clearUsageStart(campaignId: string): Promise<RecordChange<CampaignRecord> | null>;
   // The fourth answer, and the only one that involves money: another term,
   // priced on its own.
   renewUsage(
@@ -228,6 +234,14 @@ class CampaignRepositoryImpl implements ICampaignRepository {
     transition: UsageTransition
   ): Promise<RecordChange<CampaignRecord> | null> {
     return transitionCampaignUsage(campaignId, transition, today());
+  }
+
+  async startUsage(campaignId: string, isoDate: string): Promise<RecordChange<CampaignRecord> | null> {
+    return setCampaignUsageStart(campaignId, isoDate ? toSheetDate(isoDate) : today());
+  }
+
+  async clearUsageStart(campaignId: string): Promise<RecordChange<CampaignRecord> | null> {
+    return setCampaignUsageStart(campaignId, "");
   }
 
   async renewUsage(
