@@ -30,6 +30,11 @@ const buttonVariants = cva(
         "icon-xs": "size-5 rounded-sm pointer-coarse:size-8 [&_svg:not([class*='size-'])]:size-2.5",
         "icon-sm": "size-6 pointer-coarse:size-11 [&_svg:not([class*='size-'])]:size-3",
         "icon-lg": "size-8 pointer-coarse:size-12 [&_svg:not([class*='size-'])]:size-4",
+        // No box of its own, for a Button that is a layout surface (a calendar
+        // cell, a card, a sortable table header) sized entirely by its own
+        // classes. Every other size sets a height, and a larger one on touch
+        // screens, which such a surface must not pick up.
+        none: "",
       },
     },
     defaultVariants: {

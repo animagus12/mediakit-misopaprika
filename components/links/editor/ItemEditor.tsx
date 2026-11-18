@@ -88,22 +88,20 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
           <GripVertical size={16} />
         </span>
 
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            aria-label={`Edit ${item.label}`}
-          >
-            <ChevronDown size={14} className="shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
-            <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md">
-              <KindIcon size={13} />
-            </span>
-            <span className="truncate font-medium">{item.label || "Untitled"}</span>
-            <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
-              {LINK_KIND_LABELS[item.kind]} · {LINK_VARIANT_LABELS[item.variant]}
-            </span>
-            {!item.enabled ? <Badge variant="outline">Hidden</Badge> : null}
-          </button>
+        <CollapsibleTrigger
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-label={`Edit ${item.label}`}
+        >
+          <ChevronDown size={14} className="shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
+          <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md">
+            <KindIcon size={13} />
+          </span>
+          <span className="truncate font-medium">{item.label || "Untitled"}</span>
+          <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
+            {LINK_KIND_LABELS[item.kind]} · {LINK_VARIANT_LABELS[item.variant]}
+          </span>
+          {!item.enabled ? <Badge variant="outline">Hidden</Badge> : null}
         </CollapsibleTrigger>
 
         {/* Sits outside the trigger so it stays readable while collapsed: 
