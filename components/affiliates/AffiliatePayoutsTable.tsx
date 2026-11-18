@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -110,12 +111,14 @@ export function AffiliatePayoutsTable({ payouts, partners }: AffiliatePayoutsTab
                 <TableCell>
                   <div className="flex items-center justify-end gap-0.5">
                     <EditPayoutSheet payout={payout} partners={partners}>
-                      <button
+                      <Button
                         type="button"
-                        className="rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                        variant="ghost"
+                        size="none"
+                        className="rounded-md border-0 px-2 py-1 text-xs font-normal text-muted-foreground transition hover:bg-muted hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground dark:hover:bg-muted focus-visible:ring-0 focus-visible:[outline-style:auto]"
                       >
                         Edit
-                      </button>
+                      </Button>
                     </EditPayoutSheet>
                     <DeletePayoutButton id={payout.id} label={label} />
                   </div>

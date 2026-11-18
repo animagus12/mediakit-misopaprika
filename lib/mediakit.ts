@@ -1,5 +1,6 @@
 import type { MediaKitFormState } from "@/components/mediakit/types";
 import type { MediaKitData, MediaKitServiceInput, MediaKitTileInput } from "@/repositories/mediakit";
+import { isMediaKitFormState } from "./mediakitPrint";
 
 export type MediaKitLogoRowsMode = "auto" | "1" | "2";
 
@@ -167,4 +168,25 @@ export function toFormState(data: MediaKitData): MediaKitFormState {
     logoRowsMode: "auto",
     tiles: data.tiles.map((tile) => ({ ...tile, stats: { ...tile.stats } })),
   };
+}
+
+/**
+ * A media kit as a Save or Publish sent it, rebuilt field by field, or null
+ * when it isn't a complete one. The editor sends a MediaKitData, but a server
+ * action receives whatever JSON arrives, and what Publish stores is served to
+ * every visitor of /mediakit. Going through the form state checks it with the
+ * same rules the PDF route uses (isMediaKitFormState), and rebuilding from it
+ * keeps only the fields a media kit has.
+ */
+export function parseMediaKitData(value: unknown): MediaKitData | null {
+  try {
+    const data = value as MediaKitData;
+    if (typeof data.brandHandle !== "string") return null;
+    const state = toFormState(data);
+    return isMediaKitFormState(state) ? toMediaKitData(state, data.brandHandle) : null;
+  } catch {
+    // A missing section (no header, services that aren't a list) throws
+    // inside toFormState: not a media kit either.
+    return null;
+  }
 }

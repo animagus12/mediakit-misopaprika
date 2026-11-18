@@ -1,8 +1,10 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import editorsSeed from "@/data/editors.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { toNonNegativeInt } from "@/lib/editorTransactions";
+import type { Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 import type { Editor, EditorUpdate, NewEditor } from "./editors";
 
 // server-only, and never imported from a client component: the server
@@ -13,10 +15,23 @@ type StoredEditor = Omit<Editor, "revisionRate"> & { revisionRate?: number };
 
 const SEED = editorsSeed as StoredEditor[];
 
+function toEditors(stored: unknown): Editor[] {
+  return (Array.isArray(stored) ? (stored as StoredEditor[]) : SEED).map((editor) => ({
+    ...editor,
+    revisionRate: toNonNegativeInt(editor.revisionRate),
+  }));
+}
+
 async function readEditors(): Promise<Editor[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<StoredEditor[]>(EDITORS_KEY) : null;
-  return (stored ?? SEED).map((editor) => ({ ...editor, revisionRate: toNonNegativeInt(editor.revisionRate) }));
+  return toEditors(redis ? await readStored<unknown>(EDITORS_KEY) : null);
+}
+
+// Each write is a compare-and-set over the whole list (see
+// lib/storeWrite.server.ts), so two saves that overlap are both kept and the
+// name check below sees an editor saved a moment earlier.
+function mutateEditors<R>(change: Mutation<Editor[], R>): Promise<R> {
+  return mutateStored(EDITORS_KEY, toEditors, change);
 }
 
 // Falls back to the bundled data/editors.json seed until the first editor
@@ -33,11 +48,8 @@ function assertNameAvailable(editors: Editor[], name: string, excludeId?: string
   if (clash) throw new Error(`"${name}" is already in the editors list`);
 }
 
-export async function addEditor(input: NewEditor): Promise<void> {
-  const redis = requireRedis();
-  const editors = await readEditors();
+export function addEditor(input: NewEditor): Promise<void> {
   const name = input.name.trim();
-  assertNameAvailable(editors, name);
   const editor: Editor = {
     id: crypto.randomUUID(),
     name,
@@ -47,29 +59,34 @@ export async function addEditor(input: NewEditor): Promise<void> {
     qrImage: input.qrImage,
     revisionRate: toNonNegativeInt(input.revisionRate),
   };
-  await redis.set(EDITORS_KEY, [...editors, editor]);
+  return mutateEditors((editors) => {
+    assertNameAvailable(editors, name);
+    return { next: [...editors, editor], result: undefined };
+  });
 }
 
 // Answers the record either side of the write, or null when the id matched
 // nothing, so the caller can say what actually changed without re-reading the
 // list this already holds. Comparing against the caller's input instead would
 // be wrong: the normalising below means a trailing space would read as an edit.
-export async function updateEditor(input: EditorUpdate): Promise<RecordChange<Editor> | null> {
-  const redis = requireRedis();
-  const editors = await readEditors();
+export function updateEditor(input: EditorUpdate): Promise<RecordChange<Editor> | null> {
   const name = input.name.trim();
-  assertNameAvailable(editors, name, input.id);
-  const before = editors.find((editor) => editor.id === input.id);
-  if (!before) return null;
-  const after: Editor = {
-    id: before.id,
-    name,
-    phone: input.phone.trim(),
-    email: input.email.trim(),
-    upi: input.upi.trim(),
-    qrImage: input.qrImage,
-    revisionRate: toNonNegativeInt(input.revisionRate),
-  };
-  await redis.set(EDITORS_KEY, editors.map((editor) => (editor.id === input.id ? after : editor)));
-  return { before, after };
+  return mutateEditors((editors) => {
+    assertNameAvailable(editors, name, input.id);
+    const before = editors.find((editor) => editor.id === input.id);
+    if (!before) return { next: null, result: null };
+    const after: Editor = {
+      id: before.id,
+      name,
+      phone: input.phone.trim(),
+      email: input.email.trim(),
+      upi: input.upi.trim(),
+      qrImage: input.qrImage,
+      revisionRate: toNonNegativeInt(input.revisionRate),
+    };
+    return {
+      next: editors.map((editor) => (editor.id === input.id ? after : editor)),
+      result: { before, after },
+    };
+  });
 }

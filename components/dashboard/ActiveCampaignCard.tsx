@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EditCampaignSheet } from "@/components/campaigns/EditCampaignSheet";
 import { CampaignStatusSelect } from "@/components/campaigns/CampaignStatusSelect";
@@ -11,9 +12,9 @@ import type { Campaign } from "@/repositories/campaigns";
 // the full edit sheet (the `absolute inset-0` button), with the status
 // <Select> lifted above it (`z-10`) as the one carve-out so the pipeline
 // stage can be advanced in place. Keeping the two as DOM siblings: not the
-// old badge-inside-a-<button>: avoids the nested-interactive hydration bug.
+// old badge-inside-a-button: avoids the nested-interactive hydration bug.
 //
-// A client component so the trigger <button> is created in the browser. Built
+// A client component so the trigger Button is created in the browser. Built
 // in a server component, it can reach EditCampaignSheet as a lazy element, and
 // Radix's Slot (1.3.0) never unwraps one: its check calls a `use` it doesn't
 // import. SheetTrigger then threw "Primitive.button failed to slot onto its
@@ -52,10 +53,12 @@ export function ActiveCampaignCard({
         brandOptions={brandOptions}
         videoOptions={videoOptions}
         trigger={
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="none"
             aria-label={`Edit ${campaign.brand} campaign`}
-            className="absolute inset-0 rounded-lg transition hover:ring-2 hover:ring-primary/20 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none"
+            className="absolute inset-0 rounded-lg border-0 transition hover:ring-2 hover:ring-primary/20 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none"
           />
         }
       />

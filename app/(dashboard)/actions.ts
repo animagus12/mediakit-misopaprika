@@ -17,8 +17,8 @@ import type {
 import type { ActivityAction } from "@/repositories/activity";
 import { getBrands, addBrand } from "@/repositories/brands.writer.server";
 import { markCampaignPaymentExpected, readCampaignLedger } from "@/repositories/campaigns.writer.server";
-import { addInvoice, clearInvoiceLegacyPayment, getInvoices } from "@/repositories/invoices.writer.server";
-import { getInvoiceData, saveInvoiceData } from "@/repositories/invoice.writer.server";
+import { addNextNumberedInvoice, clearInvoiceLegacyPayment, getInvoices } from "@/repositories/invoices.writer.server";
+import { advanceInvoiceNumberSeed, getInvoiceData } from "@/repositories/invoice.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { newPaymentId, paymentActivity, recordTargetPayment } from "@/repositories/paymentLedger.server";
 import { samePaymentTarget, type PaymentInput, type PaymentTarget } from "@/repositories/payments";
@@ -29,7 +29,7 @@ import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
 import { buildInvoiceNumber, computeSubtotal, reservedInvoiceNumbers, todayISO } from "@/lib/invoice";
 import { campaignTypeHasCash, toCampaign } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
-import { campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
+import { campaignFiguresProblem, campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { validateTdsValues } from "@/lib/tds";
 import { requireSession } from "@/lib/session.server";
 
@@ -257,6 +257,8 @@ export async function createCampaign(
   if (denied) return denied;
 
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const figuresProblem = campaignFiguresProblem(input);
+  if (figuresProblem) return { success: false, error: figuresProblem };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
   try {
@@ -289,6 +291,8 @@ export async function updateCampaign(
   if (denied) return denied;
 
   if (!isCampaignStatus(input.status)) return { success: false, error: "Pick a status" };
+  const figuresProblem = campaignFiguresProblem(input);
+  if (figuresProblem) return { success: false, error: figuresProblem };
   const tdsProblem = validateTdsValues(input.tdsRate, input.tdsAmount);
   if (tdsProblem) return { success: false, error: tdsProblem };
   // Checked against the upload and deal dates in this same submission, so a
@@ -454,6 +458,13 @@ export interface RenewResult {
   warning?: string;
 }
 
+interface RenewalBilling {
+  days: number;
+  amount: number;
+  startDate: string; // yyyy-mm-dd
+  paymentDue: string; // yyyy-mm-dd, "" when none was agreed
+}
+
 /**
  * Raises the invoice that bills for a renewal, and points the renewal at it.
  *
@@ -467,13 +478,6 @@ export interface RenewResult {
  * bill: a licence extended for free is not a sale, and an invoice for zero is
  * a document with nothing to collect on.
  */
-interface RenewalBilling {
-  days: number;
-  amount: number;
-  startDate: string; // yyyy-mm-dd
-  paymentDue: string; // yyyy-mm-dd, "" when none was agreed
-}
-
 async function raiseRenewalInvoice(
   campaign: CampaignRecord,
   renewalId: string,
@@ -481,23 +485,25 @@ async function raiseRenewalInvoice(
 ): Promise<string | null> {
   if (billing.amount <= 0) return null;
 
-  const [defaults, invoices, campaigns, brands, contacts] = await Promise.all([
+  const [defaults, campaigns, brands, contacts] = await Promise.all([
     getInvoiceData(),
-    getInvoices(),
     campaignRepository.getAll(),
     getBrands(),
     getContacts(),
   ]);
   // Numbers deals quote count as used: this is how a renewal was once raised
-  // as 0012 while another deal already quoted MSP-INV-0012.
-  const existing = reservedInvoiceNumbers(invoices, campaigns);
+  // as 0012 while another deal already quoted MSP-INV-0012. Picked inside the
+  // write from the invoices it is written into, so two renewals raised at
+  // once cannot both take the same number.
+  let existing: { invoiceNo: string }[] = [];
 
   const brand = campaign.brandId
     ? (brands.find((entry) => entry.id === campaign.brandId) ?? null)
     : null;
 
-  const record = await addInvoice(
-    buildRenewalInvoice({
+  const record = await addNextNumberedInvoice((invoices) => {
+    existing = reservedInvoiceNumbers(invoices, campaigns);
+    return buildRenewalInvoice({
       defaults,
       existing,
       brandName: campaign.brand,
@@ -509,8 +515,8 @@ async function raiseRenewalInvoice(
       startDate: billing.startDate,
       dueDate: billing.paymentDue,
       today: todayISO(),
-    })
-  );
+    });
+  });
 
   await campaignRepository.linkRenewalInvoice(campaign.id, renewalId, record.id);
 
@@ -533,13 +539,7 @@ async function raiseRenewalInvoice(
   // and a stale seed shows a duplicate number in a form the creator can still
   // correct, which is not worth reporting a failed renewal over.
   try {
-    await saveInvoiceData({
-      ...defaults,
-      invoiceNumberSeed: nextInvoiceNo(
-        [...existing, { invoiceNo: record.invoiceNo }],
-        defaults.invoiceNumberSeed
-      ),
-    });
+    await advanceInvoiceNumberSeed((seed) => nextInvoiceNo([...existing, { invoiceNo: record.invoiceNo }], seed));
   } catch {
     // keep the invoice; the seed catches up on the next editor save
   }
@@ -664,19 +664,6 @@ export async function setUsageRenewalTds(
 }
 
 /**
- * Raises the invoice for a renewal that has none.
- *
- * Two renewals need this. One recorded before renewing raised an invoice at
- * all, and one whose invoice failed to save at the moment it was recorded:
- * that second case was already reported as a warning, and until now the only
- * way out of it was to retype the whole document into the editor. It is the
- * same write either way, replayed from what the renewal already stores.
- *
- * Refuses when one already exists rather than raising a second: a duplicate
- * invoice for money that was only owed once is worse than none at all, and
- * the link on the renewal is the record of which it was.
- */
-/**
  * Detaches a renewal from the invoice it points at, for a link that is wrong:
  * typically an auto-raised renewal invoice later edited into a different
  * deal's invoice, which leaves the renewal claiming a document that no longer
@@ -705,6 +692,19 @@ export async function unlinkRenewalInvoice(
   }
 }
 
+/**
+ * Raises the invoice for a renewal that has none.
+ *
+ * Two renewals need this. One recorded before renewing raised an invoice at
+ * all, and one whose invoice failed to save at the moment it was recorded:
+ * that second case was already reported as a warning, and until now the only
+ * way out of it was to retype the whole document into the editor. It is the
+ * same write either way, replayed from what the renewal already stores.
+ *
+ * Refuses when one already exists rather than raising a second: a duplicate
+ * invoice for money that was only owed once is worse than none at all, and
+ * the link on the renewal is the record of which it was.
+ */
 export async function raiseInvoiceForRenewal(
   campaignId: string,
   renewalId: string

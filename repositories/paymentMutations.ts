@@ -7,18 +7,25 @@
 // live one. No "server-only" for the same reason; nothing on the client
 // imports it.
 //
-// Every change goes through one `mutate`: read, apply, write. That is the
-// single place a compare-and-set would go if two writes ever truly overlap;
-// until then the last write wins, as it does for every other collection.
+// Every change goes through the store's one `mutate`, which the Redis binding
+// runs as a compare-and-set (see lib/storeMutation.ts): a change computed
+// from a list that another save has since changed is run again against the
+// newer list, so an overlapping save is never dropped and the overpay
+// re-check always sees every payment already written.
 
 import type { RecordChange } from "@/lib/activityDiff";
+import type { MutationStep } from "@/lib/storeMutation";
 import { roundMoney, sumMoney } from "@/lib/money";
 import { ALREADY_PAID_IN_FULL, overpayMessage } from "@/lib/payments";
 import { paymentTargetKey, samePaymentTarget, type PaymentRecord, type PaymentTarget } from "./payments";
 
 export interface PaymentStore {
-  read(): Promise<PaymentRecord[]>;
-  write(records: PaymentRecord[]): Promise<void>;
+  /**
+   * Runs `change` against the stored list and writes its `next`, if any. May
+   * run `change` more than once, each time against a fresher list, so a
+   * change must be pure.
+   */
+  mutate<R>(change: (records: PaymentRecord[]) => MutationStep<PaymentRecord[], R>): Promise<R>;
 }
 
 export interface InsertPaymentsOptions {
@@ -85,17 +92,10 @@ export function createPaymentWriter(
   store: PaymentStore,
   now: () => string = () => new Date().toISOString()
 ): PaymentWriter {
-  async function mutate<R>(fn: (records: PaymentRecord[]) => { next: PaymentRecord[] | null; result: R }): Promise<R> {
-    const records = await store.read();
-    const { next, result } = fn(records);
-    if (next) await store.write(next);
-    return result;
-  }
-
   return {
     insertPayments(incoming, options = {}) {
       if (incoming.length === 0) return Promise.resolve([]);
-      return mutate((records) => {
+      return store.mutate((records) => {
         const byId = new Map(records.map((record) => [record.id, record]));
         const stamp = now();
         const added: PaymentRecord[] = [];
@@ -118,7 +118,7 @@ export function createPaymentWriter(
     },
 
     replacePayment(record) {
-      return mutate((records) => {
+      return store.mutate((records) => {
         const before = records.find((entry) => entry.id === record.id);
         if (!before) return { next: null, result: null };
         const after: PaymentRecord = { ...record, createdAt: before.createdAt, updatedAt: now() };
@@ -130,7 +130,7 @@ export function createPaymentWriter(
     },
 
     removePayment(id) {
-      return mutate((records) => {
+      return store.mutate((records) => {
         const removed = records.find((entry) => entry.id === id) ?? null;
         if (!removed) return { next: null, result: null };
         return { next: records.filter((entry) => entry.id !== id), result: removed };
@@ -138,7 +138,7 @@ export function createPaymentWriter(
     },
 
     removePaymentsWhere(match) {
-      return mutate((records) => {
+      return store.mutate((records) => {
         const removed = records.filter(match);
         if (removed.length === 0) return { next: null, result: [] };
         const ids = new Set(removed.map((record) => record.id));
@@ -148,7 +148,7 @@ export function createPaymentWriter(
 
     restorePayments(incoming) {
       if (incoming.length === 0) return Promise.resolve([]);
-      return mutate((records) => {
+      return store.mutate((records) => {
         const ids = new Set(records.map((record) => record.id));
         const added: PaymentRecord[] = [];
         for (const record of incoming) {
@@ -161,7 +161,7 @@ export function createPaymentWriter(
     },
 
     retargetPayments(from, to) {
-      return mutate((records) => {
+      return store.mutate((records) => {
         const stamp = now();
         const moved: PaymentRecord[] = [];
         const next = records.map((record) => {

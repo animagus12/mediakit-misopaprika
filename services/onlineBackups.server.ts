@@ -172,9 +172,11 @@ export async function createOnlineBackup(): Promise<OnlineBackupSummary> {
   return { id, createdAt: snapshot.exportedAt, size };
 }
 
+// Read-only: pruning happens after each snapshot is saved (createOnlineBackup),
+// so opening the Backup page never deletes anything. A prune that failed is
+// retried by the next save, daily at the latest via /api/cron/backup.
 export async function listOnlineBackups(cursor?: string): Promise<OnlineBackupPage> {
   requireBlobStore();
-  await pruneOnlineBackups();
   const page = await list({
     prefix: BACKUP_PREFIX,
     limit: SNAPSHOTS_PER_PAGE,

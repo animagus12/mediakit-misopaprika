@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import styles from "./links.module.css";
 
 interface CopyCodeButtonProps {
@@ -34,8 +36,23 @@ export function CopyCodeButton({ code }: CopyCodeButtonProps) {
   // The whole ticket is the button, not just the chip on its end: a code is
   // read and tapped as one object, and the strip is a far easier target than
   // a 60px chip. The chip is the affordance, so it carries the state.
+  //
+  // The .code rule draws it; the classes only undo what of the Button that
+  // rule doesn't set itself: its centring, type, nowrap (a long code wraps),
+  // text selection, press nudge and focus ring: focus keeps the browser's
+  // outline, which shows on the dark card where the Button's ring would not.
   return (
-    <button type="button" className={styles.code} onClick={handleCopy} aria-label={`Copy code ${code}`}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="none"
+      className={cn(
+        styles.code,
+        "justify-normal text-[length:inherit] font-[number:inherit] whitespace-normal select-auto active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]"
+      )}
+      onClick={handleCopy}
+      aria-label={`Copy code ${code}`}
+    >
       <span className={styles.codeTag} aria-hidden>
         CODE
       </span>
@@ -43,11 +60,11 @@ export function CopyCodeButton({ code }: CopyCodeButtonProps) {
         {code}
       </span>
       <span className={styles.codeAction} aria-hidden>
-        {copied ? <Check size={13} /> : <Copy size={13} />}
+        {copied ? <Check className="size-[13px]" /> : <Copy className="size-[13px]" />}
         {/* Its own element so a tile, where there is no room for it, can drop
             the word and keep the glyph. */}
         <span className={styles.codeActionLabel}>{copied ? "Copied" : "Copy"}</span>
       </span>
-    </button>
+    </Button>
   );
 }

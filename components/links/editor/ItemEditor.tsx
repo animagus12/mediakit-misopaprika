@@ -27,7 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatClickRate, type LinkPerformance } from "@/lib/linkStats";
-import { LINK_ANIMATION_LABELS, LINK_KIND_LABELS, LINK_VARIANT_LABELS } from "@/lib/links";
+import {
+  LINK_ANIMATION_LABELS,
+  LINK_KIND_LABELS,
+  LINK_VARIANT_LABELS,
+  UNSAFE_URL_NOTE,
+  isSafeLinkUrl,
+} from "@/lib/links";
 import {
   LINK_ANIMATIONS,
   LINK_KINDS,
@@ -64,6 +70,7 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
   const KindIcon = KIND_ICONS[item.kind];
   const patch = (changes: Parameters<LinksEditorActions["updateItem"]>[2]) =>
     actions.updateItem(sectionId, item.id, changes);
+  const urlProblem = item.url.trim() !== "" && !isSafeLinkUrl(item.url);
 
 
   return (
@@ -81,22 +88,20 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
           <GripVertical size={16} />
         </span>
 
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            aria-label={`Edit ${item.label}`}
-          >
-            <ChevronDown size={14} className="shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
-            <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md">
-              <KindIcon size={13} />
-            </span>
-            <span className="truncate font-medium">{item.label || "Untitled"}</span>
-            <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
-              {LINK_KIND_LABELS[item.kind]} · {LINK_VARIANT_LABELS[item.variant]}
-            </span>
-            {!item.enabled ? <Badge variant="outline">Hidden</Badge> : null}
-          </button>
+        <CollapsibleTrigger
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-label={`Edit ${item.label}`}
+        >
+          <ChevronDown size={14} className="shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
+          <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded-md">
+            <KindIcon size={13} />
+          </span>
+          <span className="truncate font-medium">{item.label || "Untitled"}</span>
+          <span className="text-muted-foreground hidden shrink-0 text-xs sm:inline">
+            {LINK_KIND_LABELS[item.kind]} · {LINK_VARIANT_LABELS[item.variant]}
+          </span>
+          {!item.enabled ? <Badge variant="outline">Hidden</Badge> : null}
         </CollapsibleTrigger>
 
         {/* Sits outside the trigger so it stays readable while collapsed: 
@@ -228,8 +233,15 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
               id={`${item.id}-url`}
               placeholder="https://… or mailto:…"
               value={item.url}
+              aria-invalid={urlProblem || undefined}
+              aria-describedby={urlProblem ? `${item.id}-url-problem` : undefined}
               onChange={(event) => patch({ url: event.target.value })}
             />
+            {urlProblem ? (
+              <p id={`${item.id}-url-problem`} className="text-destructive text-xs">
+                {UNSAFE_URL_NOTE}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2">

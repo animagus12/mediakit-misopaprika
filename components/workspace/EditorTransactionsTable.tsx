@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { parseSheetDate } from "@/lib/editorTransactions";
 import { cn } from "@/lib/utils";
@@ -111,14 +112,18 @@ function SortableHead({ column, sort, onSort, children }: SortableHeadProps) {
       className="h-9"
       aria-sort={active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"}
     >
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="none"
         onClick={() => onSort(column)}
-        className="-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        // Drawn as the header text it sits in: no hover fill or colour, no
+        // press nudge, and the table's own type size rather than the Button's.
+        className="-mx-1 inline-flex items-center gap-1 rounded-sm border-0 px-1 py-0.5 text-xs outline-none transition-none hover:bg-transparent hover:text-inherit focus-visible:ring-2 focus-visible:ring-ring/50 dark:hover:bg-transparent active:not-aria-[haspopup]:translate-y-0"
       >
         {children}
         <Icon className={cn("size-3", active ? "text-foreground" : "text-muted-foreground")} />
-      </button>
+      </Button>
     </TableHead>
   );
 }

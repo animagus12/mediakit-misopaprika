@@ -55,6 +55,9 @@ export function UnsavedChangesGuard({ when }: UnsavedChangesGuardProps) {
 
   useEffect(() => {
     if (!when) return;
+    // Fresh unsaved work is guarded again even if an earlier "Discard and
+    // leave" set the flag on a page that then stayed mounted.
+    leavingRef.current = false;
 
     function handleBeforeUnload(event: BeforeUnloadEvent) {
       if (leavingRef.current) return;

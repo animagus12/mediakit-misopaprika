@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { publishLinksData, saveLinksData } from "@/repositories/links.writer.server";
 import { recordActivity } from "@/repositories/activity.writer.server";
-import type { LinksData } from "@/repositories/links";
+import { parseLinksData, type LinksData } from "@/repositories/links";
 import type { LinkTrashDeletion, LinkTrashTarget, TrashPayload } from "@/repositories/trash";
 import {
   activateTrashEntry,
@@ -46,13 +46,15 @@ async function saveWithTrash(
     for (const id of trashIds) await activateTrashEntry(id);
     return { success: true, trashIds };
   } catch (err) {
+    // Best-effort, like every delete's rollback: a second store failure here
+    // must not hide that the draft did save behind a "Couldn't save".
     if (draftSaved) {
       for (const id of trashIds) {
         await setTrashEntryTargets(
           id,
           publish && published ? ["draft", "published"] : ["draft"]
-        );
-        await activateTrashEntry(id);
+        ).catch(() => undefined);
+        await activateTrashEntry(id).catch(() => undefined);
       }
       return {
         success: true,
@@ -63,18 +65,26 @@ async function saveWithTrash(
             : "Your changes were saved, but the Trash snapshot could not be finalized.",
       };
     } else {
-      for (const id of trashIds) await removeTrashEntry(id);
+      for (const id of trashIds) await removeTrashEntry(id).catch(() => undefined);
     }
     throw err;
   }
+}
+
+// What either action answers when the page it was sent isn't one it can keep.
+function invalidPage(verb: string): ActionResult {
+  return { success: false, error: `Couldn't ${verb}: the editor sent a page it can't store. Reload and try again.` };
 }
 
 export async function saveLinks(data: LinksData, deletions: LinkTrashDeletion[] = []): Promise<ActionResult> {
   const denied = await requireSession();
   if (denied) return denied;
 
+  const page = parseLinksData(data);
+  if (!page || !Array.isArray(deletions)) return invalidPage("save");
+
   try {
-    const result = await saveWithTrash(data, deletions, ["draft"], false);
+    const result = await saveWithTrash(page, deletions, ["draft"], false);
     revalidatePath("/links-editor");
     return result;
   } catch (err) {
@@ -89,8 +99,11 @@ export async function publishLinks(data: LinksData, deletions: LinkTrashDeletion
   const denied = await requireSession();
   if (denied) return denied;
 
+  const page = parseLinksData(data);
+  if (!page || !Array.isArray(deletions)) return invalidPage("publish");
+
   try {
-    const result = await saveWithTrash(data, deletions, ["draft", "published"], true);
+    const result = await saveWithTrash(page, deletions, ["draft", "published"], true);
     if (!result.success) return result;
     revalidatePath("/links-editor");
     revalidatePath("/links");
@@ -99,11 +112,11 @@ export async function publishLinks(data: LinksData, deletions: LinkTrashDeletion
     // editing and would bury everything else in the feed, while publish is
     // the moment the public page changed, which is the thing worth being
     // able to date afterwards.
-    const items = data.sections.reduce((count, section) => count + section.items.length, 0);
+    const items = page.sections.reduce((count, section) => count + section.items.length, 0);
     await recordActivity({
       action: "links.published",
       entity: { type: "links", id: null, label: "" },
-      detail: `${data.sections.length} section${data.sections.length === 1 ? "" : "s"}, ${items} link${items === 1 ? "" : "s"}`,
+      detail: `${page.sections.length} section${page.sections.length === 1 ? "" : "s"}, ${items} link${items === 1 ? "" : "s"}`,
     });
     return result;
   } catch (err) {

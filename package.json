@@ -1,5 +1,5 @@
 {
-  "name": "mediakit-misoparika",
+  "name": "mediakit-misopaprika",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -49,5 +49,10 @@
   },
   "allowScripts": {
     "unrs-resolver@1.12.2": true
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.6"
+    }
   }
 }

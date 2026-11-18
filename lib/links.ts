@@ -141,7 +141,9 @@ function visiblePage(data: LinksData, now: number, stats: SocialStats): VisibleP
   return {
     profile: {
       ...data.profile,
-      socials: data.profile.socials.filter((social) => social.enabled),
+      // An icon whose address isn't safe to follow would go nowhere, so it
+      // is left off, like a hidden one (see isSafeLinkUrl).
+      socials: data.profile.socials.filter((social) => social.enabled && isSafeLinkUrl(social.url)),
     },
     followers: totalFollowers(stats),
     sections: visibleSections(data, now).map((section) => ({
@@ -163,9 +165,35 @@ export function visiblePageNow(data: LinksData, stats: SocialStats): VisiblePage
   return visiblePage(data, Date.now(), stats);
 }
 
-/** Cards only link out when they have somewhere to go: see LinkItem.url. */
+const SAFE_LINK_SCHEMES = new Set(["http:", "https:", "mailto:", "tel:"]);
+
+/** What the editor says under an address isSafeLinkUrl refuses. */
+export const UNSAFE_URL_NOTE =
+  "This won't open on the page. Start it with https://, mailto: or tel:, or with / for a page on this site.";
+
+/**
+ * Whether `url` may go in a public page's href: a web address, an email or a
+ * phone link, or a path on this site ("/mediakit"). Anything else, such as a
+ * "javascript:" address or a half-typed "www.example.com" (which a browser
+ * reads as a path on this site), is not a link at all.
+ */
+export function isSafeLinkUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (trimmed.startsWith("/")) return !trimmed.startsWith("//") && !trimmed.startsWith("/\\");
+  try {
+    return SAFE_LINK_SCHEMES.has(new URL(trimmed).protocol);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Cards only link out when they have somewhere to go: see LinkItem.url. One
+ * with an address that isn't safe to follow renders as a plain card, like a
+ * creator code with no destination.
+ */
 export function isNavigable(item: LinkItem): boolean {
-  return item.url.trim().length > 0;
+  return item.url.trim().length > 0 && isSafeLinkUrl(item.url);
 }
 
 export function isExternal(url: string): boolean {

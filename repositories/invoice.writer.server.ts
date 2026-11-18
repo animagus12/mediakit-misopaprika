@@ -1,5 +1,6 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
+import { mutateStored } from "@/lib/storeWrite.server";
 import { invoiceRepository, type InvoiceData } from "./invoice";
 
 // server-only, and never imported from a client component: the server
@@ -32,11 +33,32 @@ function withDefaults(draft: InvoiceData): InvoiceData {
 export async function getInvoiceData(): Promise<InvoiceData> {
   const redis = getRedis();
   if (!redis) return invoiceRepository.get();
-  const draft = await redis.get<InvoiceData>(INVOICE_DRAFT_KEY);
-  return draft ? withDefaults(draft) : invoiceRepository.get();
+  return toInvoiceData(await readStored<InvoiceData>(INVOICE_DRAFT_KEY));
 }
 
+function toInvoiceData(stored: unknown): InvoiceData {
+  return stored ? withDefaults(stored as InvoiceData) : invoiceRepository.get();
+}
+
+// The defaults editor's save: the whole document as the editor holds it, so
+// the last save wins, as it does for any form saved whole.
 export async function saveInvoiceData(data: InvoiceData): Promise<void> {
   const redis = requireRedis();
   await redis.set(INVOICE_DRAFT_KEY, data);
+}
+
+/**
+ * Moves the invoice number seed to `next(seed)` and changes nothing else, by
+ * compare-and-set (see lib/storeWrite.server.ts). For a write that raises an
+ * invoice without the editor: resaving the whole defaults it read earlier
+ * would undo an edit to them saved in the meantime.
+ */
+export function advanceInvoiceNumberSeed(next: (seed: string) => string): Promise<void> {
+  return mutateStored(INVOICE_DRAFT_KEY, toInvoiceData, (data) => {
+    const seed = next(data.invoiceNumberSeed);
+    return {
+      next: seed === data.invoiceNumberSeed ? null : { ...data, invoiceNumberSeed: seed },
+      result: undefined,
+    };
+  });
 }

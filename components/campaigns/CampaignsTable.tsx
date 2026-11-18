@@ -163,14 +163,21 @@ function SortHeader({
 
   if (options.length === 1) {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="none"
         onClick={() => onPick(options[0].column)}
-        className={triggerClassName}
+        // Drawn as the header text it sits in: no fill, no press nudge, and
+        // the table's own type size rather than the Button's.
+        className={cn(
+          "rounded-none border-0 text-xs transition-none hover:bg-transparent dark:hover:bg-transparent active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]",
+          triggerClassName
+        )}
         aria-label={`Sort by ${label}`}
       >
         {trigger}
-      </button>
+      </Button>
     );
   }
 

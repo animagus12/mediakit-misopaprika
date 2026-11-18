@@ -1,19 +1,28 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import agenciesSeed from "@/data/agencies.json";
 import type { RecordChange } from "@/lib/activityDiff";
+import { listOrSeed, type Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 import type { Agency, AgencyUpdate, NewAgency } from "./agencies";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly.
 const AGENCIES_KEY = "agencies";
 const SEED = agenciesSeed as Agency[];
+const toAgencies = listOrSeed(SEED);
 
 async function readAgencies(): Promise<Agency[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<Agency[]>(AGENCIES_KEY);
-  return stored ?? SEED;
+  return toAgencies(await readStored<unknown>(AGENCIES_KEY));
+}
+
+// Each write is a compare-and-set over the whole list (see
+// lib/storeWrite.server.ts), so two saves that overlap are both kept and the
+// name check below sees an agency saved a moment earlier.
+function mutateAgencies<R>(change: Mutation<Agency[], R>): Promise<R> {
+  return mutateStored(AGENCIES_KEY, toAgencies, change);
 }
 
 // Falls back to the bundled data/agencies.json seed until the first agency
@@ -30,11 +39,8 @@ function assertNameAvailable(agencies: Agency[], name: string, excludeId?: strin
   if (clash) throw new Error(`"${name}" is already in the agencies list`);
 }
 
-export async function addAgency(input: NewAgency): Promise<Agency> {
-  const redis = requireRedis();
-  const agencies = await readAgencies();
+export function addAgency(input: NewAgency): Promise<Agency> {
   const name = input.name.trim();
-  assertNameAvailable(agencies, name);
   const now = new Date().toISOString();
   const agency: Agency = {
     id: crypto.randomUUID(),
@@ -42,22 +48,26 @@ export async function addAgency(input: NewAgency): Promise<Agency> {
     createdAt: now,
     updatedAt: now,
   };
-  await redis.set(AGENCIES_KEY, [...agencies, agency]);
-  return agency;
+  return mutateAgencies((agencies) => {
+    assertNameAvailable(agencies, name);
+    return { next: [...agencies, agency], result: agency };
+  });
 }
 
 // Answers the record either side of the write, or null when the id matched
 // nothing, so the caller can say what actually changed without re-reading the
 // list this already holds. Comparing against the caller's input instead would
 // be wrong: the normalising below means a trailing space would read as an edit.
-export async function updateAgency(input: AgencyUpdate): Promise<RecordChange<Agency> | null> {
-  const redis = requireRedis();
-  const agencies = await readAgencies();
+export function updateAgency(input: AgencyUpdate): Promise<RecordChange<Agency> | null> {
   const name = input.name.trim();
-  assertNameAvailable(agencies, name, input.id);
-  const before = agencies.find((agency) => agency.id === input.id);
-  if (!before) return null;
-  const after: Agency = { ...before, name, updatedAt: new Date().toISOString() };
-  await redis.set(AGENCIES_KEY, agencies.map((agency) => (agency.id === input.id ? after : agency)));
-  return { before, after };
+  return mutateAgencies((agencies) => {
+    assertNameAvailable(agencies, name, input.id);
+    const before = agencies.find((agency) => agency.id === input.id);
+    if (!before) return { next: null, result: null };
+    const after: Agency = { ...before, name, updatedAt: new Date().toISOString() };
+    return {
+      next: agencies.map((agency) => (agency.id === input.id ? after : agency)),
+      result: { before, after },
+    };
+  });
 }
