@@ -1,13 +1,27 @@
 import "server-only";
-import { getRedis, requireRedis, readStored } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
+import type { Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 import type { LinkTrashTarget, TrashEntry, TrashPayload } from "./trash";
 
 const TRASH_KEY = "trash";
 
+function toTrash(stored: unknown): TrashEntry[] {
+  return Array.isArray(stored) ? (stored as TrashEntry[]) : [];
+}
+
 async function readTrash(): Promise<TrashEntry[]> {
   const redis = getRedis();
   if (!redis) return [];
-  return (await readStored<TrashEntry[]>(TRASH_KEY)) ?? [];
+  return toTrash(await readStored<unknown>(TRASH_KEY));
+}
+
+// Every write is a compare-and-set over the whole list (see
+// lib/storeWrite.server.ts): a delete's snapshot landing while another is
+// activated or removed is kept rather than dropped, which would take that
+// delete's undo with it.
+function mutateTrash<R>(change: Mutation<TrashEntry[], R>): Promise<R> {
+  return mutateStored(TRASH_KEY, toTrash, change);
 }
 
 export async function listTrash(): Promise<TrashEntry[]> {
@@ -25,9 +39,7 @@ export async function getTrashedCampaignIds(): Promise<string[]> {
     .flatMap((entry) => entry.payload.type === "campaign" ? [entry.payload.record.id] : []);
 }
 
-export async function addTrashEntry(payload: TrashPayload, label: string): Promise<string> {
-  const redis = requireRedis();
-  const entries = await readTrash();
+export function addTrashEntry(payload: TrashPayload, label: string): Promise<string> {
   const entry: TrashEntry = {
     id: crypto.randomUUID(),
     label,
@@ -35,48 +47,44 @@ export async function addTrashEntry(payload: TrashPayload, label: string): Promi
     status: "pending",
     payload,
   };
-  await redis.set(TRASH_KEY, [...entries, entry]);
-  return entry.id;
+  return mutateTrash((entries) => ({ next: [...entries, entry], result: entry.id }));
 }
 
-export async function activateTrashEntry(id: string): Promise<void> {
-  const redis = requireRedis();
-  const entries = await readTrash();
-  const found = entries.some((entry) => entry.id === id);
-  if (!found) throw new Error("Trash snapshot no longer exists");
-  await redis.set(
-    TRASH_KEY,
-    entries.map((entry) => (entry.id === id ? { ...entry, status: "ready" } : entry))
-  );
+export function activateTrashEntry(id: string): Promise<void> {
+  return mutateTrash((entries) => {
+    const found = entries.some((entry) => entry.id === id);
+    if (!found) throw new Error("Trash snapshot no longer exists");
+    return {
+      next: entries.map((entry): TrashEntry => (entry.id === id ? { ...entry, status: "ready" } : entry)),
+      result: undefined,
+    };
+  });
 }
 
-export async function setTrashEntryTargets(id: string, targets: LinkTrashTarget[]): Promise<void> {
-  const redis = requireRedis();
-  const entries = await readTrash();
-  const found = entries.some((entry) => entry.id === id);
-  if (!found) throw new Error("Trash snapshot no longer exists");
-  await redis.set(
-    TRASH_KEY,
-    entries.map((entry) =>
-      entry.id === id && (entry.payload.type === "linksSection" ||
-        entry.payload.type === "linksItem" ||
-        entry.payload.type === "linksSocial")
-        ? { ...entry, payload: { ...entry.payload, targets } }
-        : entry
-    )
-  );
+export function setTrashEntryTargets(id: string, targets: LinkTrashTarget[]): Promise<void> {
+  return mutateTrash((entries) => {
+    const found = entries.some((entry) => entry.id === id);
+    if (!found) throw new Error("Trash snapshot no longer exists");
+    return {
+      next: entries.map((entry) =>
+        entry.id === id && (entry.payload.type === "linksSection" ||
+          entry.payload.type === "linksItem" ||
+          entry.payload.type === "linksSocial")
+          ? { ...entry, payload: { ...entry.payload, targets } }
+          : entry
+      ),
+      result: undefined,
+    };
+  });
 }
 
-export async function removeTrashEntry(id: string): Promise<void> {
-  const redis = requireRedis();
-  const entries = await readTrash();
-  await redis.set(
-    TRASH_KEY,
-    entries.filter((entry) => entry.id !== id)
-  );
+export function removeTrashEntry(id: string): Promise<void> {
+  return mutateTrash((entries) => ({
+    next: entries.some((entry) => entry.id === id) ? entries.filter((entry) => entry.id !== id) : null,
+    result: undefined,
+  }));
 }
 
-export async function clearTrash(): Promise<void> {
-  const redis = requireRedis();
-  await redis.set(TRASH_KEY, []);
+export function clearTrash(): Promise<void> {
+  return mutateTrash((entries) => ({ next: entries.length > 0 ? [] : null, result: undefined }));
 }

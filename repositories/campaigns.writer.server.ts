@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis, readStored } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
@@ -7,6 +7,8 @@ import { toIsoDate } from "@/lib/campaigns";
 import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
 import { attachDealCosts } from "@/lib/expenses";
 import { attachSettlements } from "@/lib/payments";
+import type { Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 import { getEditorTransactions } from "./editorTransactions.writer.server";
 import { readExpenseRecords } from "./expenseRecords.server";
 import { getTrashedCampaignIds } from "./trash.writer.server";
@@ -56,13 +58,28 @@ const SEED = campaignsSeed as CampaignRecord[];
 // or whenever Redis isn't configured (e.g. local dev without KV env vars).
 async function readRecords(): Promise<CampaignRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await readStored<CampaignRecord[]>(CAMPAIGNS_KEY) : null;
-  return (stored ?? SEED).map((record) => ({
+  return toCampaignRecords(redis ? await readStored<unknown>(CAMPAIGNS_KEY) : null);
+}
+
+function toCampaignRecords(stored: unknown): CampaignRecord[] {
+  return (Array.isArray(stored) ? (stored as CampaignRecord[]) : SEED).map((record) => ({
     ...record,
     ...toInvoiceLink(record),
     reelTypes: toCampaignReelTypes(record.reelTypes, record.reels),
     status: toCampaignStatus(record.status),
   }));
+}
+
+// Every write is a compare-and-set over the whole list (see
+// lib/storeWrite.server.ts): a change computed from a list that another save
+// has since changed runs again against the newer one, so two saves that
+// overlap (two tabs, a double tap, both partners at once) are both kept.
+function mutateCampaigns<R>(change: Mutation<CampaignRecord[], R>): Promise<R> {
+  return mutateStored(CAMPAIGNS_KEY, toCampaignRecords, change);
+}
+
+function replaced(records: CampaignRecord[], after: CampaignRecord): CampaignRecord[] {
+  return records.map((record) => (record.id === after.id ? after : record));
 }
 
 export interface CampaignLedger {
@@ -118,24 +135,23 @@ export async function getCampaignRecord(id: string): Promise<CampaignRecord | nu
   return records.find((record) => record.id === id) ?? null;
 }
 
-export async function deleteCampaign(id: string): Promise<CampaignRecord | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const removed = records.find((record) => record.id === id);
-  if (!removed) return null;
-  await redis.set(CAMPAIGNS_KEY, records.filter((record) => record.id !== id));
-  return removed;
+export function deleteCampaign(id: string): Promise<CampaignRecord | null> {
+  return mutateCampaigns((records) => {
+    const removed = records.find((record) => record.id === id);
+    if (!removed) return { next: null, result: null };
+    return { next: records.filter((record) => record.id !== id), result: removed };
+  });
 }
 
-export async function restoreCampaign(record: CampaignRecord): Promise<void> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const existing = records.find((item) => item.id === record.id);
-  if (existing) {
-    if (JSON.stringify(existing) === JSON.stringify(record)) return;
-    throw new Error("A campaign with this ID already exists");
-  }
-  await redis.set(CAMPAIGNS_KEY, [...records, record]);
+export function restoreCampaign(record: CampaignRecord): Promise<void> {
+  return mutateCampaigns((records) => {
+    const existing = records.find((item) => item.id === record.id);
+    if (existing) {
+      if (JSON.stringify(existing) === JSON.stringify(record)) return { next: null, result: undefined };
+      throw new Error("A campaign with this ID already exists");
+    }
+    return { next: [...records, record], result: undefined };
+  });
 }
 
 // Trims free text and coerces numbers so a record is clean regardless of
@@ -262,73 +278,75 @@ function usageFee(input: NewCampaignInput, stored: number): number {
 // made the deal read as invoiced, and collided with invoices numbered on their
 // own. A deal gets its number when an invoice is linked to it
 // (setCampaignInvoice). A caller-supplied invoiceRef is still kept as given.
-export async function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
-  const redis = requireRedis();
-  const [records, trashedIds] = await Promise.all([readRecords(), getTrashedCampaignIds()]);
+//
+// Trash is read after the deals, not beside them: a delete puts the deal in
+// Trash before taking it off the list, so a deal gone from the list read here
+// is always in the Trash read after it, and its id is never handed out again.
+export function addCampaign(input: NewCampaignInput): Promise<CampaignRecord> {
+  return mutateCampaigns(async (records) => {
+    const trashedIds = await getTrashedCampaignIds();
+    const hasPaidComponent = campaignTypeHasCash(input.type);
+    const id = nextSequenceId(
+      [...records.map((record) => record.id), ...trashedIds],
+      hasPaidComponent ? "MSP-MC" : "MSP-BC"
+    );
+    const invoiceRef = input.invoiceRef?.trim() ?? "";
 
-  const hasPaidComponent = campaignTypeHasCash(input.type);
-  const id = nextSequenceId(
-    [...records.map((record) => record.id), ...trashedIds],
-    hasPaidComponent ? "MSP-MC" : "MSP-BC"
-  );
-  const invoiceRef = input.invoiceRef?.trim() ?? "";
-
-  const record: CampaignRecord = {
-    id,
-    invoiceRef,
-    invoiceId: null,
-    ...normalize(input),
-    usage: { ...emptyUsage(), ...usageTermOf(input, false), fee: usageFee(input, 0) },
-  };
-  await redis.set(CAMPAIGNS_KEY, [...records, record]);
-  return record;
+    const record: CampaignRecord = {
+      id,
+      invoiceRef,
+      invoiceId: null,
+      ...normalize(input),
+      usage: { ...emptyUsage(), ...usageTermOf(input, false), fee: usageFee(input, 0) },
+    };
+    return { next: [...records, record], result: record };
+  });
 }
 
 // Answers the record either side of the write, or null when the id matched
 // nothing, so the caller can say what actually changed without re-reading the
 // list this already holds. Comparing against the caller's input instead would
 // be wrong: the normalising below means a trailing space would read as an edit.
-export async function updateCampaign(
+export function updateCampaign(
   input: CampaignUpdate
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === input.id);
-  if (!before) return null;
-  if (campaignTypeHasCash(before.type) && !campaignTypeHasCash(input.type)) {
-    const payments = await readPaymentRecords();
-    if (payments.some((payment) => payment.target.kind === "deal" && payment.target.campaignId === input.id)) {
-      throw new Error("Delete this deal's recorded payments before making it barter only");
+  return mutateCampaigns(async (records) => {
+    const before = records.find((record) => record.id === input.id);
+    if (!before) return { next: null, result: null };
+    if (campaignTypeHasCash(before.type) && !campaignTypeHasCash(input.type)) {
+      const payments = await readPaymentRecords();
+      if (payments.some((payment) => payment.target.kind === "deal" && payment.target.campaignId === input.id)) {
+        throw new Error("Delete this deal's recorded payments before making it barter only");
+      }
     }
-  }
-  const usage = toUsage(before.usage, usageTermStart(before));
-  const after: CampaignRecord = {
-    ...before,
-    ...normalize(input, before),
-    invoiceRef: input.invoiceRef?.trim() ?? before.invoiceRef,
-    // Not form-settable: the foreign key is written by setCampaignInvoice
-    // once a saved invoice is matched to the deal, and an edit of the
-    // reference must not silently drop it.
-    invoiceId: before.invoiceId,
-    // The form sets the term's length (the latest renewal's too, once there
-    // is one), the fee, and an ended licence's end date. The licence's status,
-    // its pause accounting and adding renewals are moved by their own actions
-    // and are carried through untouched.
-    usage: {
-      ...usage,
-      ...usageTermOf(input, usage.indefinite),
-      fee: usageFee(input, usage.fee),
-      renewals: resizeLatestRenewal(usage.renewals, input.usageRenewalDays),
-      // Only an ended licence has a day it ended on; on a live one the field
-      // would be a date that means nothing, so it is left as stored.
-      endedOn:
-        usage.status === "ended" && input.usageEndedOn !== undefined
-          ? input.usageEndedOn.trim()
-          : usage.endedOn,
-    },
-  };
-  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === input.id ? after : record)));
-  return { before, after };
+    const usage = toUsage(before.usage, usageTermStart(before));
+    const after: CampaignRecord = {
+      ...before,
+      ...normalize(input, before),
+      invoiceRef: input.invoiceRef?.trim() ?? before.invoiceRef,
+      // Not form-settable: the foreign key is written by setCampaignInvoice
+      // once a saved invoice is matched to the deal, and an edit of the
+      // reference must not silently drop it.
+      invoiceId: before.invoiceId,
+      // The form sets the term's length (the latest renewal's too, once there
+      // is one), the fee, and an ended licence's end date. The licence's status,
+      // its pause accounting and adding renewals are moved by their own actions
+      // and are carried through untouched.
+      usage: {
+        ...usage,
+        ...usageTermOf(input, usage.indefinite),
+        fee: usageFee(input, usage.fee),
+        renewals: resizeLatestRenewal(usage.renewals, input.usageRenewalDays),
+        // Only an ended licence has a day it ended on; on a live one the field
+        // would be a date that means nothing, so it is left as stored.
+        endedOn:
+          usage.status === "ended" && input.usageEndedOn !== undefined
+            ? input.usageEndedOn.trim()
+            : usage.endedOn,
+      },
+    };
+    return { next: replaced(records, after), result: { before, after } };
+  });
 }
 
 /**
@@ -342,52 +360,51 @@ export async function updateCampaign(
  * The only write to these fields outside the forms. Writes nothing when there
  * is nothing to clear.
  */
-export async function demoteCampaignLegacyPayment(id: string, renewalId: string | null): Promise<void> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return;
+export function demoteCampaignLegacyPayment(id: string, renewalId: string | null): Promise<void> {
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: undefined };
 
-  let after: CampaignRecord = before;
-  if (renewalId === null) {
-    if (before.paymentStatus !== "received") return;
-    after = {
-      ...before,
-      ...(before.type === "Barter+Paid" && before.barterStatus === undefined ? { barterStatus: "received" as const } : {}),
-      paymentStatus: "pending",
-      paidDate: "",
-      paymentMethod: "",
-      tdsAmount: null,
-    };
-  } else {
-    const usage = toUsage(before.usage, usageTermStart(before));
-    const renewal = usage.renewals.find((entry) => entry.id === renewalId);
-    if (!renewal || renewal.paymentStatus !== "received") return;
-    after = writeUsage(records, before, {
-      ...usage,
-      renewals: usage.renewals.map((entry) =>
-        entry.id === renewalId
-          ? { ...entry, paymentStatus: "pending", paidDate: "", paymentMethod: "", tdsAmount: null }
-          : entry
-      ),
-    }).after;
-  }
-  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
+    let after: CampaignRecord = before;
+    if (renewalId === null) {
+      if (before.paymentStatus !== "received") return { next: null, result: undefined };
+      after = {
+        ...before,
+        ...(before.type === "Barter+Paid" && before.barterStatus === undefined ? { barterStatus: "received" as const } : {}),
+        paymentStatus: "pending",
+        paidDate: "",
+        paymentMethod: "",
+        tdsAmount: null,
+      };
+    } else {
+      const usage = toUsage(before.usage, usageTermStart(before));
+      const renewal = usage.renewals.find((entry) => entry.id === renewalId);
+      if (!renewal || renewal.paymentStatus !== "received") return { next: null, result: undefined };
+      after = writeUsage(records, before, {
+        ...usage,
+        renewals: usage.renewals.map((entry) =>
+          entry.id === renewalId
+            ? { ...entry, paymentStatus: "pending", paidDate: "", paymentMethod: "", tdsAmount: null }
+            : entry
+        ),
+      }).after;
+    }
+    return { next: replaced(records, after), result: undefined };
+  });
 }
 
 /**
  * Sets a deal with no payment tracked to expected: an invoice was sent for it,
  * so money is now owed. Writes nothing on a deal already tracked.
  */
-export async function markCampaignPaymentExpected(id: string): Promise<void> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before || before.paymentStatus !== "unknown" || !campaignTypeHasCash(before.type)) return;
-  await redis.set(
-    CAMPAIGNS_KEY,
-    records.map((record): CampaignRecord => (record.id === id ? { ...before, paymentStatus: "pending" } : record))
-  );
+export function markCampaignPaymentExpected(id: string): Promise<void> {
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before || before.paymentStatus !== "unknown" || !campaignTypeHasCash(before.type)) {
+      return { next: null, result: undefined };
+    }
+    return { next: replaced(records, { ...before, paymentStatus: "pending" }), result: undefined };
+  });
 }
 
 /**
@@ -400,18 +417,17 @@ export async function markCampaignPaymentExpected(id: string): Promise<void> {
  * Answers the record either side of the write, or null when the id matched
  * nothing.
  */
-export async function setCampaignStatus(
+export function setCampaignStatus(
   id: string,
   status: CampaignStatus
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
-  if (before.status === status) return { before, after: before };
-  const after: CampaignRecord = { ...before, status };
-  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
-  return { before, after };
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
+    if (before.status === status) return { next: null, result: { before, after: before } };
+    const after: CampaignRecord = { ...before, status };
+    return { next: replaced(records, after), result: { before, after } };
+  });
 }
 
 // Writes just the uploadDate, leaving every other field untouched: the
@@ -424,17 +440,16 @@ export async function setCampaignStatus(
 // caller can say what the date moved *from* without re-reading the list this
 // already holds. Null when the id matched nothing, rather than writing the
 // list back unchanged.
-export async function setCampaignUploadDate(
+export function setCampaignUploadDate(
   id: string,
   uploadDate: string
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
-  const after: CampaignRecord = { ...before, uploadDate: uploadDate.trim() };
-  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
-  return { before, after };
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
+    const after: CampaignRecord = { ...before, uploadDate: uploadDate.trim() };
+    return { next: replaced(records, after), result: { before, after } };
+  });
 }
 
 // --- Usage rights ---------------------------------------------------------
@@ -465,41 +480,40 @@ export type UsageTransition = "pause" | "resume" | "end";
  * undoable; the pause that may have preceded the end is not restored, since a
  * licence that was called off was not counting down either way.
  */
-export async function transitionCampaignUsage(
+export function transitionCampaignUsage(
   id: string,
   transition: UsageTransition,
   today: string
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
 
-  const usage = toUsage(before.usage, usageTermStart(before));
-  let next: CampaignUsage;
-  if (transition === "pause") {
-    next = { ...usage, status: "paused", pausedOn: today, endedOn: "" };
-  } else if (transition === "end") {
-    next = { ...usage, status: "ended", endedOn: today, pausedOn: "" };
-  } else {
-    const pausedFrom = toIsoDate(usage.pausedOn);
-    const pausedUntil = toIsoDate(today);
-    const banked =
-      pausedFrom !== "" && pausedUntil !== ""
-        ? Math.max(0, daysBetween(pausedFrom, pausedUntil))
-        : 0;
-    next = {
-      ...usage,
-      status: "active",
-      pausedOn: "",
-      pausedDays: usage.pausedDays + banked,
-      endedOn: "",
-    };
-  }
+    const usage = toUsage(before.usage, usageTermStart(before));
+    let next: CampaignUsage;
+    if (transition === "pause") {
+      next = { ...usage, status: "paused", pausedOn: today, endedOn: "" };
+    } else if (transition === "end") {
+      next = { ...usage, status: "ended", endedOn: today, pausedOn: "" };
+    } else {
+      const pausedFrom = toIsoDate(usage.pausedOn);
+      const pausedUntil = toIsoDate(today);
+      const banked =
+        pausedFrom !== "" && pausedUntil !== ""
+          ? Math.max(0, daysBetween(pausedFrom, pausedUntil))
+          : 0;
+      next = {
+        ...usage,
+        status: "active",
+        pausedOn: "",
+        pausedDays: usage.pausedDays + banked,
+        endedOn: "",
+      };
+    }
 
-  const written = writeUsage(records, before, next);
-  await redis.set(CAMPAIGNS_KEY, written.records);
-  return { before, after: written.after };
+    const written = writeUsage(records, before, next);
+    return { next: written.records, result: { before, after: written.after } };
+  });
 }
 
 /**
@@ -519,44 +533,43 @@ export type NewUsageRenewal = Pick<UsageRenewalRecord, "startDate" | "days" | "a
  * Renewing revives a paused or ended licence and clears the pause accounting,
  * because the new term starts from its own date rather than resuming the old.
  */
-export async function addCampaignUsageRenewal(
+export function addCampaignUsageRenewal(
   id: string,
   input: NewUsageRenewal
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
 
-  const usage = toUsage(before.usage, usageTermStart(before));
-  const amount = Number(input.amount) || 0;
-  const renewal: UsageRenewalRecord = {
-    id: nextSequenceId(usage.renewals.map((entry) => entry.id), "R"),
-    startDate: input.startDate.trim(),
-    days: Math.max(0, Math.round(Number(input.days) || 0)),
-    amount,
-    paymentStatus: amount > 0 ? "pending" : "unknown",
-    paymentDue: input.paymentDue.trim(),
-    paidDate: "",
-    paymentMethod: "",
-    // Attached by setUsageRenewalInvoice once the invoice exists: the renewal
-    // is the contract of the write and must not wait on a second store.
-    invoiceId: "",
-    recordedAt: new Date().toISOString(),
-    tdsRate: input.tdsRate,
-    tdsAmount: null,
-  };
+    const usage = toUsage(before.usage, usageTermStart(before));
+    const amount = Number(input.amount) || 0;
+    const renewal: UsageRenewalRecord = {
+      id: nextSequenceId(usage.renewals.map((entry) => entry.id), "R"),
+      startDate: input.startDate.trim(),
+      days: Math.max(0, Math.round(Number(input.days) || 0)),
+      amount,
+      paymentStatus: amount > 0 ? "pending" : "unknown",
+      paymentDue: input.paymentDue.trim(),
+      paidDate: "",
+      paymentMethod: "",
+      // Attached by setUsageRenewalInvoice once the invoice exists: the renewal
+      // is the contract of the write and must not wait on a second store.
+      invoiceId: "",
+      recordedAt: new Date().toISOString(),
+      tdsRate: input.tdsRate,
+      tdsAmount: null,
+    };
 
-  const written = writeUsage(records, before, {
-    ...usage,
-    status: "active",
-    pausedOn: "",
-    pausedDays: 0,
-    endedOn: "",
-    renewals: [...usage.renewals, renewal],
+    const written = writeUsage(records, before, {
+      ...usage,
+      status: "active",
+      pausedOn: "",
+      pausedDays: 0,
+      endedOn: "",
+      renewals: [...usage.renewals, renewal],
+    });
+    return { next: written.records, result: { before, after: written.after } };
   });
-  await redis.set(CAMPAIGNS_KEY, written.records);
-  return { before, after: written.after };
 }
 
 /**
@@ -567,27 +580,26 @@ export async function addCampaignUsageRenewal(
  * paymentLedger.server.ts). An actual amount stored before the ledger is kept
  * as it was.
  */
-export async function setUsageRenewalTds(
+export function setUsageRenewalTds(
   id: string,
   renewalId: string,
   tds: Pick<UsageRenewalRecord, "tdsRate">
 ): Promise<RecordChange<CampaignRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
 
-  const usage = toUsage(before.usage, usageTermStart(before));
-  if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return null;
+    const usage = toUsage(before.usage, usageTermStart(before));
+    if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return { next: null, result: null };
 
-  const written = writeUsage(records, before, {
-    ...usage,
-    renewals: usage.renewals.map((renewal) =>
-      renewal.id === renewalId ? { ...renewal, tdsRate: tds.tdsRate } : renewal
-    ),
+    const written = writeUsage(records, before, {
+      ...usage,
+      renewals: usage.renewals.map((renewal) =>
+        renewal.id === renewalId ? { ...renewal, tdsRate: tds.tdsRate } : renewal
+      ),
+    });
+    return { next: written.records, result: { before, after: written.after } };
   });
-  await redis.set(CAMPAIGNS_KEY, written.records);
-  return { before, after: written.after };
 }
 
 /**
@@ -600,35 +612,33 @@ export async function setUsageRenewalTds(
  * brandId over the name, so recreating the brand never picked them back up.
  * Answers how many deals it changed; writes nothing when none.
  */
-export async function syncCampaignsWithBrand(brandId: string, name: string | null): Promise<number> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  let changed = 0;
-  const next = records.map((record): CampaignRecord => {
-    if (record.brandId !== brandId) return record;
-    if (name === null) {
+export function syncCampaignsWithBrand(brandId: string, name: string | null): Promise<number> {
+  return mutateCampaigns((records) => {
+    let changed = 0;
+    const next = records.map((record): CampaignRecord => {
+      if (record.brandId !== brandId) return record;
+      if (name === null) {
+        changed += 1;
+        return { ...record, brandId: null };
+      }
+      if (record.brand === name) return record;
       changed += 1;
-      return { ...record, brandId: null };
-    }
-    if (record.brand === name) return record;
-    changed += 1;
-    return { ...record, brand: name };
+      return { ...record, brand: name };
+    });
+    return { next: changed > 0 ? next : null, result: changed };
   });
-  if (changed > 0) await redis.set(CAMPAIGNS_KEY, next);
-  return changed;
 }
 
 export async function restoreCampaignBrandLinks(brandId: string, campaignIds: string[]): Promise<void> {
   if (campaignIds.length === 0) return;
-  const redis = requireRedis();
   const ids = new Set(campaignIds);
-  const records = await readRecords();
-  await redis.set(
-    CAMPAIGNS_KEY,
-    records.map((record) =>
-      ids.has(record.id) && record.brandId === null ? { ...record, brandId } : record
-    )
-  );
+  const relinks = (record: CampaignRecord) => ids.has(record.id) && record.brandId === null;
+  await mutateCampaigns((records) => ({
+    next: records.some(relinks)
+      ? records.map((record) => (relinks(record) ? { ...record, brandId } : record))
+      : null,
+    result: undefined,
+  }));
 }
 
 export async function restoreCampaignInvoiceLinks(
@@ -640,12 +650,9 @@ export async function restoreCampaignInvoiceLinks(
   invoiceId: string
 ): Promise<void> {
   if (links.length === 0) return;
-  const redis = requireRedis();
   const byCampaign = new Map(links.map((link) => [link.campaignId, link]));
-  const records = await readRecords();
-  await redis.set(
-    CAMPAIGNS_KEY,
-    records.map((record): CampaignRecord => {
+  await mutateCampaigns((records) => ({
+    next: records.map((record): CampaignRecord => {
       const link = byCampaign.get(record.id);
       if (!link) return record;
       const renewalIds = new Map(link.renewalLinks.map((renewal) => [renewal.renewalId, renewal.invoiceId]));
@@ -668,8 +675,9 @@ export async function restoreCampaignInvoiceLinks(
           : invoiceLink.invoiceRef,
         usage,
       };
-    })
-  );
+    }),
+    result: undefined,
+  }));
 }
 
 /**
@@ -687,23 +695,22 @@ export async function restoreCampaignInvoiceLinks(
  * that number (a renewal renamed to 0007 resolved as ThisFanon's invoice).
  * Answers the record it wrote, or null when the id matched nothing.
  */
-export async function setCampaignInvoice(
+export function setCampaignInvoice(
   id: string,
   invoiceId: string,
   invoiceRef?: string
 ): Promise<CampaignRecord | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
 
-  const linked = invoiceId.trim() || null;
-  const ref = !linked ? "" : invoiceRef === undefined ? before.invoiceRef : invoiceRef.trim();
-  if (before.invoiceId === linked && before.invoiceRef === ref) return before;
+    const linked = invoiceId.trim() || null;
+    const ref = !linked ? "" : invoiceRef === undefined ? before.invoiceRef : invoiceRef.trim();
+    if (before.invoiceId === linked && before.invoiceRef === ref) return { next: null, result: before };
 
-  const after: CampaignRecord = { ...before, invoiceId: linked, invoiceRef: ref };
-  await redis.set(CAMPAIGNS_KEY, records.map((record) => (record.id === id ? after : record)));
-  return after;
+    const after: CampaignRecord = { ...before, invoiceId: linked, invoiceRef: ref };
+    return { next: replaced(records, after), result: after };
+  });
 }
 
 /**
@@ -715,25 +722,24 @@ export async function setCampaignInvoice(
  * its own, and a renewal that exists without its invoice is recoverable in a
  * way that an invoice for a renewal that was never saved is not.
  */
-export async function setUsageRenewalInvoice(
+export function setUsageRenewalInvoice(
   id: string,
   renewalId: string,
   invoiceId: string
 ): Promise<CampaignRecord | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
+  return mutateCampaigns((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
 
-  const usage = toUsage(before.usage, usageTermStart(before));
-  if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return null;
+    const usage = toUsage(before.usage, usageTermStart(before));
+    if (!usage.renewals.some((renewal) => renewal.id === renewalId)) return { next: null, result: null };
 
-  const written = writeUsage(records, before, {
-    ...usage,
-    renewals: usage.renewals.map((renewal) =>
-      renewal.id === renewalId ? { ...renewal, invoiceId: invoiceId.trim() } : renewal
-    ),
+    const written = writeUsage(records, before, {
+      ...usage,
+      renewals: usage.renewals.map((renewal) =>
+        renewal.id === renewalId ? { ...renewal, invoiceId: invoiceId.trim() } : renewal
+      ),
+    });
+    return { next: written.records, result: written.after };
   });
-  await redis.set(CAMPAIGNS_KEY, written.records);
-  return written.after;
 }

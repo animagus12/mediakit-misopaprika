@@ -1,7 +1,9 @@
 import "server-only";
-import { getRedis, requireRedis, readStored } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import contentPlanSeed from "@/data/content-plan.json";
 import type { RecordChange } from "@/lib/activityDiff";
+import type { Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 import { toContentItem, toContentStatus } from "./contentPlan";
 import type {
   ContentItem,
@@ -12,19 +14,30 @@ import type {
 } from "./contentPlan";
 
 // server-only, and never imported from a client component: the server actions
-// and pages that need it import it directly. Same whole-array read-modify-write
-// as every other store here (the activity log is the one exception, and for a
-// reason that doesn't apply to a list this size).
+// and pages that need it import it directly. Same whole-array store as every
+// other one here (the activity log is the one exception, and for a reason
+// that doesn't apply to a list this size), and the same compare-and-set on
+// every write (see lib/storeWrite.server.ts).
 const CONTENT_PLAN_KEY = "content_plan";
 const SEED = contentPlanSeed as ContentItemRecord[];
 
 // Statuses are coerced on the way out, the way the campaigns store coerces
 // its own, so an entry saved as "Dropped" before the vocabularies were merged
 // reads as Cancelled everywhere and is healed on the next write.
+function toRecords(stored: unknown): ContentItemRecord[] {
+  return (Array.isArray(stored) ? (stored as ContentItemRecord[]) : SEED).map((record) => ({
+    ...record,
+    status: toContentStatus(record.status),
+  }));
+}
+
 async function readRecords(): Promise<ContentItemRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await readStored<ContentItemRecord[]>(CONTENT_PLAN_KEY) : null;
-  return (stored ?? SEED).map((record) => ({ ...record, status: toContentStatus(record.status) }));
+  return toRecords(redis ? await readStored<unknown>(CONTENT_PLAN_KEY) : null);
+}
+
+function mutateRecords<R>(change: Mutation<ContentItemRecord[], R>): Promise<R> {
+  return mutateStored(CONTENT_PLAN_KEY, toRecords, change);
 }
 
 // Falls back to the bundled data/content-plan.json seed (an empty list: unlike
@@ -52,89 +65,71 @@ function normalize(input: NewContentItem): Omit<ContentItemRecord, "id" | "creat
   };
 }
 
-export async function addContentItem(input: NewContentItem): Promise<ContentItemRecord> {
-  const redis = requireRedis();
-  const records = await readRecords();
+export function addContentItem(input: NewContentItem): Promise<ContentItemRecord> {
   const record: ContentItemRecord = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     ...normalize(input),
   };
-  await redis.set(CONTENT_PLAN_KEY, [...records, record]);
-  return record;
+  return mutateRecords((records) => ({ next: [...records, record], result: record }));
 }
 
-// Answers the record either side of the write, or null when the id matched
-// nothing, so the caller can say what actually changed without re-reading the
-// list this already holds. createdAt is carried through untouched: it is what
-// ages an idea in the backlog, and an edit is not a re-creation.
-export async function updateContentItem(
+// Rewrites one item through `update`. Answers the record either side of the
+// write, or null when the id matched nothing, so the caller can say what
+// actually changed without re-reading the list this already holds.
+function replaceRecord(
+  id: string,
+  update: (before: ContentItemRecord) => ContentItemRecord
+): Promise<RecordChange<ContentItemRecord> | null> {
+  return mutateRecords((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
+    const after = update(before);
+    return { next: records.map((record) => (record.id === id ? after : record)), result: { before, after } };
+  });
+}
+
+// createdAt is carried through untouched: it is what ages an idea in the
+// backlog, and an edit is not a re-creation.
+export function updateContentItem(
   input: ContentItemUpdate
 ): Promise<RecordChange<ContentItemRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === input.id);
-  if (!before) return null;
-  const after: ContentItemRecord = { ...before, ...normalize(input) };
-  await redis.set(
-    CONTENT_PLAN_KEY,
-    records.map((record) => (record.id === input.id ? after : record))
-  );
-  return { before, after };
+  return replaceRecord(input.id, (before) => ({ ...before, ...normalize(input) }));
 }
 
 // Answers the record it removed, since a caller cannot read back a title once
 // the row is gone and the activity event has to name it.
-export async function deleteContentItem(id: string): Promise<ContentItemRecord | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const removed = records.find((record) => record.id === id);
-  if (!removed) return null;
-  await redis.set(CONTENT_PLAN_KEY, records.filter((record) => record.id !== id));
-  return removed;
+export function deleteContentItem(id: string): Promise<ContentItemRecord | null> {
+  return mutateRecords((records) => {
+    const removed = records.find((record) => record.id === id);
+    if (!removed) return { next: null, result: null };
+    return { next: records.filter((record) => record.id !== id), result: removed };
+  });
 }
 
-export async function restoreContentItem(record: ContentItemRecord): Promise<void> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  if (records.some((entry) => entry.id === record.id)) return;
-  await redis.set(CONTENT_PLAN_KEY, [...records, record]);
+export function restoreContentItem(record: ContentItemRecord): Promise<void> {
+  return mutateRecords((records) => ({
+    next: records.some((entry) => entry.id === record.id) ? null : [...records, record],
+    result: undefined,
+  }));
 }
 
 // Writes just the posting day, leaving every other field untouched: the
 // calendar's inline scheduler, and the counterpart of setCampaignUploadDate
 // for this store. "" puts the item back in the ideas backlog.
-export async function setContentItemDate(
+export function setContentItemDate(
   id: string,
   postDate: string
 ): Promise<RecordChange<ContentItemRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
-  const after: ContentItemRecord = { ...before, postDate: postDate.trim() };
-  await redis.set(
-    CONTENT_PLAN_KEY,
-    records.map((record) => (record.id === id ? after : record))
-  );
-  return { before, after };
+  return replaceRecord(id, (before) => ({ ...before, postDate: postDate.trim() }));
 }
 
 // Writes just the production status: the board's drag between stages. The
 // counterpart of setContentItemDate, and for the same reason: a card moved
 // from a list must not be able to overwrite the fields the list doesn't show.
-export async function setContentItemStatus(
+export function setContentItemStatus(
   id: string,
   status: ContentStatus
 ): Promise<RecordChange<ContentItemRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
-  const after: ContentItemRecord = { ...before, status };
-  await redis.set(
-    CONTENT_PLAN_KEY,
-    records.map((record) => (record.id === id ? after : record))
-  );
-  return { before, after };
+  return replaceRecord(id, (before) => ({ ...before, status }));
 }

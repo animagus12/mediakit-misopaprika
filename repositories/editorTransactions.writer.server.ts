@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis, readStored } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import editorTransactionsSeed from "@/data/editor-transactions.json";
 import { toEditorTransaction } from "./editorTransactions";
 import type {
@@ -18,6 +18,8 @@ import {
 import { todayKey } from "@/lib/day";
 import { isPartner, toPayer, toPaymentMethod, type PartnerSettlement } from "@/lib/payers";
 import type { RecordChange } from "@/lib/activityDiff";
+import { listOrSeed, type Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 
 // server-only, and never imported from a client component: the server
 // actions and pages that need it import it directly. Reading/writing
@@ -25,12 +27,19 @@ import type { RecordChange } from "@/lib/activityDiff";
 // read-only), so that logic lives here rather than in ./editorTransactions.
 const EDITOR_TRANSACTIONS_KEY = "editor_transactions";
 const SEED = editorTransactionsSeed as EditorTransactionRecord[];
+const toRecords = listOrSeed(SEED);
 
 async function readRecords(): Promise<EditorTransactionRecord[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await readStored<EditorTransactionRecord[]>(EDITOR_TRANSACTIONS_KEY);
-  return stored ?? SEED;
+  return toRecords(await readStored<unknown>(EDITOR_TRANSACTIONS_KEY));
+}
+
+// Each write is a compare-and-set over the whole list (see
+// lib/storeWrite.server.ts), so two saves that overlap are both kept: two
+// quick taps on a revision stepper add two revisions, not one.
+function mutateRecords<R>(change: Mutation<EditorTransactionRecord[], R>): Promise<R> {
+  return mutateStored(EDITOR_TRANSACTIONS_KEY, toRecords, change);
 }
 
 // Falls back to the bundled data/editor-transactions.json seed until the
@@ -46,9 +55,7 @@ export async function getEditorTransactionRecord(id: string): Promise<EditorTran
 }
 
 // Answers the record it wrote, so the caller can log the new id.
-export async function addEditorTransaction(input: NewEditorTransaction): Promise<EditorTransactionRecord> {
-  const redis = requireRedis();
-  const records = await readRecords();
+export function addEditorTransaction(input: NewEditorTransaction): Promise<EditorTransactionRecord> {
   const record: EditorTransactionRecord = {
     id: crypto.randomUUID(),
     video: input.video.trim(),
@@ -60,8 +67,7 @@ export async function addEditorTransaction(input: NewEditorTransaction): Promise
     ...revisionFields(input),
     ...paymentFields(input),
   };
-  await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
-  return record;
+  return mutateRecords((records) => ({ next: [...records, record], result: record }));
 }
 
 /**
@@ -81,18 +87,15 @@ export async function renameEditorOnTransactions(from: string, to: string): Prom
   const after = to.trim();
   if (!before || !after || before === after) return 0;
 
-  const redis = requireRedis();
-  const records = await readRecords();
-  if (!records.some((record) => record.editor.trim() === before)) return 0;
-
-  let moved = 0;
-  const updated = records.map((record): EditorTransactionRecord => {
-    if (record.editor.trim() !== before) return record;
-    moved += 1;
-    return { ...record, editor: after };
+  return mutateRecords((records) => {
+    let moved = 0;
+    const updated = records.map((record): EditorTransactionRecord => {
+      if (record.editor.trim() !== before) return record;
+      moved += 1;
+      return { ...record, editor: after };
+    });
+    return { next: moved > 0 ? updated : null, result: moved };
   });
-  await redis.set(EDITOR_TRANSACTIONS_KEY, updated);
-  return moved;
 }
 
 // The form sends the count and the rate its stepper charged at; a rate is
@@ -121,20 +124,16 @@ function paymentFields(input: { status: string; paidDate: string; paidBy?: unkno
 // actually changed without re-reading the list this already holds. Comparing
 // against the caller's input instead would be wrong: the normalising in each
 // update means a trailing space would read as an edit.
-async function replaceRecord(
+function replaceRecord(
   id: string,
   update: (before: EditorTransactionRecord) => EditorTransactionRecord
 ): Promise<RecordChange<EditorTransactionRecord> | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const before = records.find((record) => record.id === id);
-  if (!before) return null;
-  const after = update(before);
-  await redis.set(
-    EDITOR_TRANSACTIONS_KEY,
-    records.map((record) => (record.id === id ? after : record))
-  );
-  return { before, after };
+  return mutateRecords((records) => {
+    const before = records.find((record) => record.id === id);
+    if (!before) return { next: null, result: null };
+    const after = update(before);
+    return { next: records.map((record) => (record.id === id ? after : record)), result: { before, after } };
+  });
 }
 
 export async function updateEditorTransaction(
@@ -207,21 +206,17 @@ export async function changeEditorTransactionRevisions(
 
 // Returns the transaction it removed, or null when the id matched nothing:
 // see deleteBrand in brands.writer.server.ts for why.
-export async function deleteEditorTransaction(id: string): Promise<EditorTransactionRecord | null> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  const removed = records.find((record) => record.id === id) ?? null;
-  if (!removed) return null;
-  await redis.set(
-    EDITOR_TRANSACTIONS_KEY,
-    records.filter((record) => record.id !== id)
-  );
-  return removed;
+export function deleteEditorTransaction(id: string): Promise<EditorTransactionRecord | null> {
+  return mutateRecords((records) => {
+    const removed = records.find((record) => record.id === id) ?? null;
+    if (!removed) return { next: null, result: null };
+    return { next: records.filter((record) => record.id !== id), result: removed };
+  });
 }
 
-export async function restoreEditorTransaction(record: EditorTransactionRecord): Promise<void> {
-  const redis = requireRedis();
-  const records = await readRecords();
-  if (records.some((entry) => entry.id === record.id)) return;
-  await redis.set(EDITOR_TRANSACTIONS_KEY, [...records, record]);
+export function restoreEditorTransaction(record: EditorTransactionRecord): Promise<void> {
+  return mutateRecords((records) => ({
+    next: records.some((entry) => entry.id === record.id) ? null : [...records, record],
+    result: undefined,
+  }));
 }

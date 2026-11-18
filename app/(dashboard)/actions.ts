@@ -17,8 +17,8 @@ import type {
 import type { ActivityAction } from "@/repositories/activity";
 import { getBrands, addBrand } from "@/repositories/brands.writer.server";
 import { markCampaignPaymentExpected, readCampaignLedger } from "@/repositories/campaigns.writer.server";
-import { addInvoice, clearInvoiceLegacyPayment, getInvoices } from "@/repositories/invoices.writer.server";
-import { getInvoiceData, saveInvoiceData } from "@/repositories/invoice.writer.server";
+import { addNextNumberedInvoice, clearInvoiceLegacyPayment, getInvoices } from "@/repositories/invoices.writer.server";
+import { advanceInvoiceNumberSeed, getInvoiceData } from "@/repositories/invoice.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { newPaymentId, paymentActivity, recordTargetPayment } from "@/repositories/paymentLedger.server";
 import { samePaymentTarget, type PaymentInput, type PaymentTarget } from "@/repositories/payments";
@@ -485,23 +485,25 @@ async function raiseRenewalInvoice(
 ): Promise<string | null> {
   if (billing.amount <= 0) return null;
 
-  const [defaults, invoices, campaigns, brands, contacts] = await Promise.all([
+  const [defaults, campaigns, brands, contacts] = await Promise.all([
     getInvoiceData(),
-    getInvoices(),
     campaignRepository.getAll(),
     getBrands(),
     getContacts(),
   ]);
   // Numbers deals quote count as used: this is how a renewal was once raised
-  // as 0012 while another deal already quoted MSP-INV-0012.
-  const existing = reservedInvoiceNumbers(invoices, campaigns);
+  // as 0012 while another deal already quoted MSP-INV-0012. Picked inside the
+  // write from the invoices it is written into, so two renewals raised at
+  // once cannot both take the same number.
+  let existing: { invoiceNo: string }[] = [];
 
   const brand = campaign.brandId
     ? (brands.find((entry) => entry.id === campaign.brandId) ?? null)
     : null;
 
-  const record = await addInvoice(
-    buildRenewalInvoice({
+  const record = await addNextNumberedInvoice((invoices) => {
+    existing = reservedInvoiceNumbers(invoices, campaigns);
+    return buildRenewalInvoice({
       defaults,
       existing,
       brandName: campaign.brand,
@@ -513,8 +515,8 @@ async function raiseRenewalInvoice(
       startDate: billing.startDate,
       dueDate: billing.paymentDue,
       today: todayISO(),
-    })
-  );
+    });
+  });
 
   await campaignRepository.linkRenewalInvoice(campaign.id, renewalId, record.id);
 
@@ -537,13 +539,7 @@ async function raiseRenewalInvoice(
   // and a stale seed shows a duplicate number in a form the creator can still
   // correct, which is not worth reporting a failed renewal over.
   try {
-    await saveInvoiceData({
-      ...defaults,
-      invoiceNumberSeed: nextInvoiceNo(
-        [...existing, { invoiceNo: record.invoiceNo }],
-        defaults.invoiceNumberSeed
-      ),
-    });
+    await advanceInvoiceNumberSeed((seed) => nextInvoiceNo([...existing, { invoiceNo: record.invoiceNo }], seed));
   } catch {
     // keep the invoice; the seed catches up on the next editor save
   }
