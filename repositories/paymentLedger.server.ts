@@ -299,11 +299,19 @@ export async function editTargetPayment(input: PaymentInput): Promise<PaymentWri
 }
 
 /**
- * Deletes a payment and answers the record removed, for Trash. Deleting a
- * virtual entry writes the target's other old payments into the ledger first,
- * so only the one deleted goes.
+ * Deletes a payment and answers the record removed. Deleting a virtual entry
+ * writes the target's other old payments into the ledger first, so only the
+ * one deleted goes.
+ *
+ * `keep` is handed the stored record just before it is removed, and its
+ * answer comes back as `kept`: the caller copies the payment to Trash there.
+ * Copying first means a Trash write that fails leaves the payment where it
+ * was, rather than deleted with no way to undo it.
  */
-export async function deleteTargetPayment(id: string): Promise<PaymentWrite<PaymentRecord>> {
+export async function deleteTargetPayment<K>(
+  id: string,
+  keep: (record: PaymentRecord, ctx: TargetContext) => Promise<K>
+): Promise<PaymentWrite<PaymentRecord> & { kept: K }> {
   const ledger = await readCampaignLedger();
   const stored = ledger.payments.find((record) => record.id === id);
   const target = stored?.target ?? parseVirtualEntryId(id)?.target;
@@ -311,20 +319,26 @@ export async function deleteTargetPayment(id: string): Promise<PaymentWrite<Paym
   const ctx = targetContext(target, ledger);
 
   if (stored) {
+    const kept = await keep(stored, ctx);
     const removed = await removePayment(id);
     if (!removed) throw new Error("This payment no longer exists");
-    return { result: removed, ctx };
+    return { result: removed, ctx, kept };
   }
 
   if (!ctx.settlement.entries.some((entry) => entry.id === id && entry.source === "virtual")) {
     throw new Error("This payment no longer exists");
   }
   const legacy = materialise(ctx);
-  await insertPayments(legacy.records);
-  const removed = await removePayment(legacy.ids.get(id) ?? "");
+  const storedId = legacy.ids.get(id) ?? "";
+  // The copy kept is the one the ledger now holds, timestamps included, so a
+  // restore from Trash puts back exactly what was removed.
+  const copy = (await insertPayments(legacy.records)).find((record) => record.id === storedId);
+  if (!copy) throw new Error("This payment no longer exists");
+  const kept = await keep(copy, ctx);
+  const removed = await removePayment(storedId);
   if (!removed) throw new Error("This payment no longer exists");
   const warning = await demoteLegacySources(ctx, legacy.kinds);
-  return { result: removed, ctx, warning };
+  return { result: removed, ctx, warning, kept };
 }
 
 /**

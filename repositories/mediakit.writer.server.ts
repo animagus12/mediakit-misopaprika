@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis, requireRedis } from "@/lib/cache";
+import { getRedis, requireRedis, readStored } from "@/lib/cache";
 import { mediakitRepository, type MediaKitData } from "./mediakit";
 
 // server-only, and never imported from a client component: any module a
@@ -16,7 +16,7 @@ const MEDIAKIT_PUBLISHED_KEY = "mediakit_published";
 export async function getMediaKitData(): Promise<MediaKitData> {
   const redis = getRedis();
   if (!redis) return mediakitRepository.get();
-  const draft = await redis.get<MediaKitData>(MEDIAKIT_DRAFT_KEY);
+  const draft = await readStored<MediaKitData>(MEDIAKIT_DRAFT_KEY);
   return draft ?? mediakitRepository.get();
 }
 
@@ -35,7 +35,7 @@ export async function publishMediaKitData(data: MediaKitData): Promise<void> {
 export async function getPublishedMediaKitData(): Promise<MediaKitData | null> {
   const redis = getRedis();
   if (!redis) return null;
-  return (await redis.get<MediaKitData>(MEDIAKIT_PUBLISHED_KEY)) ?? null;
+  return (await readStored<MediaKitData>(MEDIAKIT_PUBLISHED_KEY)) ?? null;
 }
 
 /**

@@ -67,15 +67,22 @@ function SortHeader({
   const Icon =
     sort.column !== column ? ArrowUpDown : sort.direction === "asc" ? ArrowUp : ArrowDown;
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="none"
       onClick={() => onToggle(column)}
-      className={cn("inline-flex items-center gap-1 hover:text-foreground", className)}
+      // Drawn as the header text it sits in: no fill, no press nudge, and the
+      // table's own type size rather than the Button's.
+      className={cn(
+        "inline-flex items-center gap-1 rounded-none border-0 text-xs transition-none hover:bg-transparent hover:text-foreground dark:hover:bg-transparent active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]",
+        className
+      )}
       aria-label={`Sort by ${label}`}
     >
       {label}
       <Icon className="size-3" />
-    </button>
+    </Button>
   );
 }
 

@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { monthLabel } from "@/lib/earnings";
 import { outflowCategoryLabel, type OutflowTotals } from "@/lib/expenses";
 import { financialYearLabel } from "@/lib/financialYear";
@@ -13,6 +14,11 @@ import { cn } from "@/lib/utils";
 function tone(value: number): string {
   return value < 0 ? "text-destructive" : "";
 }
+
+// The period table keeps its compact spacing: the shadcn defaults are sized
+// for the full-page tables elsewhere.
+const HEAD = "h-auto py-1 pl-0 font-medium text-muted-foreground";
+const CELL = "py-1.5 pl-0";
 
 function BridgeLine({
   label,
@@ -167,31 +173,33 @@ export function CashFlowDetails({
 
         {periods.length > 0 && (
           <Section title={periodKind === "month" ? "Month by month" : "Year by year"}>
-            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <table className="w-full min-w-[26rem] text-xs tabular-nums">
-                <thead>
-                  <tr className="text-[0.7rem] text-muted-foreground uppercase">
-                    <th className="py-1 pr-3 text-left font-medium">{periodKind === "month" ? "Month" : "Year"}</th>
-                    <th className="py-1 pr-3 text-right font-medium">In</th>
-                    <th className="py-1 pr-3 text-right font-medium">Out</th>
-                    <th className="py-1 pr-3 text-right font-medium">Net cash</th>
-                    <th className="py-1 text-right font-medium">Profit</th>
-                  </tr>
-                </thead>
-                <tbody>
+            {/* The table's own scroll container bleeds to the card's edges on a
+                phone, so a row scrolled sideways runs to the screen edge. */}
+            <div className="-mx-4 sm:mx-0 [&>[data-slot=table-container]]:px-4 sm:[&>[data-slot=table-container]]:px-0">
+              <Table className="min-w-[26rem] tabular-nums">
+                <TableHeader>
+                  <TableRow className="border-border/60 text-[0.7rem] text-muted-foreground uppercase hover:bg-transparent">
+                    <TableHead className={cn(HEAD, "pr-3 text-left")}>{periodKind === "month" ? "Month" : "Year"}</TableHead>
+                    <TableHead className={cn(HEAD, "pr-3 text-right")}>In</TableHead>
+                    <TableHead className={cn(HEAD, "pr-3 text-right")}>Out</TableHead>
+                    <TableHead className={cn(HEAD, "pr-3 text-right")}>Net cash</TableHead>
+                    <TableHead className={cn(HEAD, "text-right")}>Profit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {periods.map((row) => (
-                    <tr key={row.period} className="border-t border-border/60">
-                      <td className="py-1.5 pr-3 text-left whitespace-nowrap">
+                    <TableRow key={row.period} className="border-border/60 hover:bg-transparent">
+                      <TableCell className={cn(CELL, "pr-3 text-left")}>
                         {periodKind === "month" ? monthLabel(row.period) : financialYearLabel(Number(row.period))}
-                      </td>
-                      <td className="py-1.5 pr-3 text-right">{formatMoney(row.cashIn)}</td>
-                      <td className="py-1.5 pr-3 text-right">{formatMoney(row.cashOut)}</td>
-                      <td className={cn("py-1.5 pr-3 text-right", tone(row.netCash))}>{formatMoney(row.netCash)}</td>
-                      <td className={cn("py-1.5 text-right", tone(row.profit))}>{formatMoney(row.profit)}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className={cn(CELL, "pr-3 text-right")}>{formatMoney(row.cashIn)}</TableCell>
+                      <TableCell className={cn(CELL, "pr-3 text-right")}>{formatMoney(row.cashOut)}</TableCell>
+                      <TableCell className={cn(CELL, "pr-3 text-right", tone(row.netCash))}>{formatMoney(row.netCash)}</TableCell>
+                      <TableCell className={cn(CELL, "text-right", tone(row.profit))}>{formatMoney(row.profit)}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </Section>
         )}

@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import partnerTransfersSeed from "@/data/partner-transfers.json";
 import { PARTNER_TRANSFERS_SEED_KEY, toPartnerTransferRecord, type PartnerTransferRecord } from "./partnerTransfers";
 
@@ -17,7 +17,11 @@ const SEED: unknown[] = partnerTransfersSeed;
  */
 export async function readPartnerTransfers(): Promise<PartnerTransferRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<unknown[]>(PARTNER_TRANSFERS_KEY) : null;
+  return toPartnerTransfers(redis ? await readStored<unknown>(PARTNER_TRANSFERS_KEY) : null);
+}
+
+/** What is stored under PARTNER_TRANSFERS_KEY (null: not set) as the records the read answers; the writer decodes with it too. */
+export function toPartnerTransfers(stored: unknown): PartnerTransferRecord[] {
   const raw = Array.isArray(stored) ? stored : SEED;
   const records: PartnerTransferRecord[] = [];
   for (const value of raw) {

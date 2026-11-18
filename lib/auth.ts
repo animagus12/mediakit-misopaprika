@@ -47,10 +47,25 @@ async function sign(data: string): Promise<string> {
   return toBase64Url(signature);
 }
 
+/**
+ * What a session's signature covers: its expiry and the current password.
+ *
+ * Folding the password in means changing APP_PASSWORD signs out every
+ * session at once, a stolen 30-day cookie included. Before, the only way to
+ * do that was rotating SESSION_SECRET, which also locks every online backup
+ * (they are encrypted with a key derived from it). Null when no password is
+ * set: no session can be valid then, as no one can sign in.
+ */
+function sessionPayload(expiry: string): string | null {
+  const password = process.env.APP_PASSWORD;
+  return password ? `session.${expiry}.${password}` : null;
+}
+
 export async function createSessionToken(durationMs: number = DEFAULT_SESSION_DURATION_MS): Promise<string> {
-  const expiry = Date.now() + durationMs;
-  const signature = await sign(String(expiry));
-  return `${expiry}.${signature}`;
+  const expiry = String(Date.now() + durationMs);
+  const payload = sessionPayload(expiry);
+  if (!payload) throw new Error("APP_PASSWORD environment variable is not set");
+  return `${expiry}.${await sign(payload)}`;
 }
 
 export async function verifySessionToken(token: string | undefined): Promise<boolean> {
@@ -62,14 +77,21 @@ export async function verifySessionToken(token: string | undefined): Promise<boo
   const expiry = Number(expiryStr);
   if (!Number.isFinite(expiry) || Date.now() > expiry) return false;
 
-  const expected = await sign(expiryStr);
-  return timingSafeEqual(expected, signature);
+  const payload = sessionPayload(expiryStr);
+  if (!payload) return false;
+  return timingSafeEqual(await sign(payload), signature);
 }
 
-export function verifyPassword(password: string): boolean {
+/**
+ * Compares signatures of the two rather than the strings themselves:
+ * signatures are always the same length, so the time taken says nothing
+ * about the password's length, which a direct comparison gave away.
+ */
+export async function verifyPassword(password: string): Promise<boolean> {
   const expected = process.env.APP_PASSWORD;
   if (!expected) return false;
-  return timingSafeEqual(password, expected);
+  const [given, wanted] = await Promise.all([sign(`password.${password}`), sign(`password.${expected}`)]);
+  return timingSafeEqual(given, wanted);
 }
 
 export { COOKIE_NAME, DEFAULT_SESSION_DURATION_MS, REMEMBER_ME_DURATION_MS };

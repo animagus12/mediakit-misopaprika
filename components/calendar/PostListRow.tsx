@@ -124,6 +124,10 @@ export function PostListRow({
     });
   }
 
+  // A plain button rather than the shadcn Button, on purpose: the Button's
+  // focus style recolours its border, which would repaint this row's
+  // border and accent edge on keyboard focus, and a class can replace that
+  // rule but not remove it.
   const trigger = (
     <button
       type="button"

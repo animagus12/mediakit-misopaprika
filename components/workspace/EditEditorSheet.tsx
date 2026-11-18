@@ -93,18 +93,16 @@ export function EditEditorSheet({ editor, transactions, colorIndex = 0 }: EditEd
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => handleOpenChange(true)}
-            className={cn(
-              badgeVariants({ variant: "secondary" }),
-              "h-6 cursor-pointer px-2.5 text-xs transition hover:bg-secondary/70"
-            )}
-          >
-            <span className={cn("size-1.5 shrink-0 rounded-full", EDITOR_DOT_COLORS[colorIndex % EDITOR_DOT_COLORS.length])} />
-            {editor.name}
-          </button>
+        <TooltipTrigger
+          type="button"
+          onClick={() => handleOpenChange(true)}
+          className={cn(
+            badgeVariants({ variant: "secondary" }),
+            "h-6 cursor-pointer px-2.5 text-xs transition hover:bg-secondary/70"
+          )}
+        >
+          <span className={cn("size-1.5 shrink-0 rounded-full", EDITOR_DOT_COLORS[colorIndex % EDITOR_DOT_COLORS.length])} />
+          {editor.name}
         </TooltipTrigger>
         <TooltipContent className="flex-col items-start gap-1 p-3">
           <p className="font-medium">{formatMoney(payout.paid)} paid</p>

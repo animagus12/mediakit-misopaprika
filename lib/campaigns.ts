@@ -82,6 +82,43 @@ export function isCampaignStatus(value: string): value is CampaignStatus {
   return (STATUS_OPTIONS as string[]).includes(value);
 }
 
+/** The figures a deal's form sends, checked at the same boundary as its status. */
+export interface CampaignFigures {
+  amount: number;
+  barterValue: number;
+  reels: number;
+  story: number;
+  usageFee?: number;
+  usageDays?: number;
+}
+
+function isAmount(value: unknown): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isCount(value: unknown): boolean {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * Why the deal's figures can't be saved, or null when they can. The form
+ * only ever sends numbers, but an action takes whatever JSON arrives, and a
+ * string here would be added to every money total as text ("500" + 300 is
+ * "500300").
+ */
+export function campaignFiguresProblem(figures: CampaignFigures): string | null {
+  if (!isAmount(figures.amount)) return "Enter the amount as zero or more";
+  if (!isAmount(figures.barterValue)) return "Enter the barter value as zero or more";
+  if (!isCount(figures.reels) || !isCount(figures.story)) {
+    return "Enter the number of reels and stories as whole numbers";
+  }
+  if (figures.usageFee !== undefined && !isAmount(figures.usageFee)) return "Enter the usage fee as zero or more";
+  if (figures.usageDays !== undefined && !isAmount(figures.usageDays)) {
+    return "Enter the usage term as zero or more days";
+  }
+  return null;
+}
+
 // Manually settable from the campaign form (unlike the dashboard's
 // "Mark received" quick actions, this covers barter-only deals too, which
 // PaymentsDueCard/NeedsAttentionCard deliberately skip: see

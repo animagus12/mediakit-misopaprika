@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UNSAFE_URL_NOTE, isSafeLinkUrl } from "@/lib/links";
 import type { LinkProfile } from "@/repositories/links";
 import type { InstagramTokenStatus, SocialStatsFreshness } from "@/repositories/socialStats";
 import { SocialIcon } from "../SocialIcon";
@@ -104,6 +105,9 @@ export function ProfileFields({
                     <Trash2 />
                   </Button>
                 </div>
+                {social.url.trim() !== "" && !isSafeLinkUrl(social.url) ? (
+                  <p className="text-destructive mt-1 text-xs">{UNSAFE_URL_NOTE}</p>
+                ) : null}
                 <SocialRowNotes
                   platform={social.platform}
                   freshness={freshness}

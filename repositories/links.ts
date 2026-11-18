@@ -192,6 +192,80 @@ export function normalizeLinksData(data: StoredLinksData): LinksData {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isOptional(value: unknown, type: "string" | "boolean"): boolean {
+  return value === undefined || typeof value === type;
+}
+
+function isOptionalTimestamp(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): boolean {
+  return value === undefined || allowed.includes(value as T);
+}
+
+const ITEM_TEXT_FIELDS = ["label", "sublabel", "url", "image", "badge", "code", "animation"] as const;
+
+function isStoredItem(value: unknown): value is StoredLinkItem {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id !== "" &&
+    ITEM_TEXT_FIELDS.every((field) => isOptional(value[field], "string")) &&
+    isOneOf(value.kind, LINK_KINDS) &&
+    isOneOf(value.variant, LINK_VARIANTS) &&
+    isOptional(value.enabled, "boolean") &&
+    isOptionalTimestamp(value.startsAt) &&
+    isOptionalTimestamp(value.endsAt)
+  );
+}
+
+function isStoredSection(value: unknown): value is StoredLinkSection {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id !== "" &&
+    isOptional(value.title, "string") &&
+    isOptional(value.layout, "string") &&
+    isOptional(value.enabled, "boolean") &&
+    (value.items === undefined || (Array.isArray(value.items) && value.items.every(isStoredItem)))
+  );
+}
+
+function isStoredSocial(value: unknown): value is StoredSocialHandle {
+  return (
+    isRecord(value) &&
+    typeof value.platform === "string" &&
+    typeof value.url === "string" &&
+    isOptional(value.enabled, "boolean")
+  );
+}
+
+/**
+ * A links page as a Save or Publish sent it, in the current shape, or null
+ * when it isn't one. The editor sends a LinksData, but a server action is an
+ * endpoint like any other and receives whatever JSON arrives: a stale tab
+ * from an older build, say. What is stored here is served to every visitor
+ * of /links, so it is checked before it is kept rather than after.
+ */
+export function parseLinksData(value: unknown): LinksData | null {
+  if (!isRecord(value)) return null;
+  const { profile, sections } = value;
+  if (profile !== undefined) {
+    if (!isRecord(profile)) return null;
+    if (!isOptional(profile.displayName, "string") || !isOptional(profile.tagline, "string")) return null;
+    if (profile.socials !== undefined && !(Array.isArray(profile.socials) && profile.socials.every(isStoredSocial))) {
+      return null;
+    }
+  }
+  if (sections !== undefined && !(Array.isArray(sections) && sections.every(isStoredSection))) return null;
+  return normalizeLinksData(value as StoredLinksData);
+}
+
 export interface ILinksRepository {
   get(): LinksData;
 }

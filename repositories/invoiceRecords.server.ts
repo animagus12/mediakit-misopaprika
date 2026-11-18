@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import invoicesSeed from "@/data/invoices.json";
 import type { InvoiceRecord } from "./invoices";
 
@@ -15,6 +15,10 @@ const SEED = invoicesSeed as InvoiceRecord[];
 export async function readInvoiceRecords(): Promise<InvoiceRecord[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await redis.get<InvoiceRecord[]>(INVOICES_KEY);
-  return stored ?? SEED;
+  return toInvoiceRecords(await readStored<unknown>(INVOICES_KEY));
+}
+
+/** What is stored under INVOICES_KEY (null: not set) as the records the read answers; the writer decodes with it too. */
+export function toInvoiceRecords(stored: unknown): InvoiceRecord[] {
+  return Array.isArray(stored) ? (stored as InvoiceRecord[]) : SEED;
 }

@@ -50,6 +50,10 @@ async function issueUploadToken(request: Request, allowedContentTypes: string[])
     // Inside the try: a malformed body is a 400 like any other bad upload,
     // not an unhandled 500.
     const body = (await request.json()) as HandleUploadBody;
+    // No onUploadCompleted: passing one, even one that does nothing, makes
+    // Blob call this route back after every upload, and that call carries no
+    // session cookie, so it was refused above every time. The browser already
+    // has the URL once its upload finishes, which is all the pickers need.
     const jsonResponse = await handleUpload({
       body,
       request,
@@ -57,7 +61,6 @@ async function issueUploadToken(request: Request, allowedContentTypes: string[])
         allowedContentTypes,
         addRandomSuffix: true,
       }),
-      onUploadCompleted: async () => {},
     });
     return NextResponse.json(jsonResponse);
   } catch (error) {

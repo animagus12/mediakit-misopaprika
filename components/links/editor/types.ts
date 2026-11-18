@@ -1,4 +1,4 @@
-import type { LinkItem, LinkKind, LinkProfile, LinkSection, LinksData } from "@/repositories/links";
+import type { LinkItem, LinkKind, LinkProfile, LinkSection } from "@/repositories/links";
 
 // Which item's image a file picker click is filling: addressed by id rather
 // than index so a concurrent reorder can't land an upload on the wrong card.
@@ -31,9 +31,4 @@ export interface LinksEditorActions {
   openPicker: (target: LinksPickerTarget) => void;
   /** Id of the item currently uploading, else null. */
   uploadingSlot: string | null;
-}
-
-export interface LinksEditorState {
-  data: LinksData;
-  actions: LinksEditorActions;
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { getRedis } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import expensesSeed from "@/data/expenses.json";
 import { EXPENSES_SEED_KEY, toExpenseRecord, type ExpenseRecord } from "./expenses";
 
@@ -19,7 +19,11 @@ const SEED: unknown[] = expensesSeed;
  */
 export async function readExpenseRecords(): Promise<ExpenseRecord[]> {
   const redis = getRedis();
-  const stored = redis ? await redis.get<unknown[]>(EXPENSES_KEY) : null;
+  return toExpenseRecords(redis ? await readStored<unknown>(EXPENSES_KEY) : null);
+}
+
+/** What is stored under EXPENSES_KEY (null: not set) as the records the read answers; the writer decodes with it too. */
+export function toExpenseRecords(stored: unknown): ExpenseRecord[] {
   const raw = Array.isArray(stored) ? stored : SEED;
   const records: ExpenseRecord[] = [];
   for (const value of raw) {

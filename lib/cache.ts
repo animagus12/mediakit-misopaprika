@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { Redis } from "@upstash/redis";
 import type { InstagramStatsCache, InstagramTokenRecord } from "@/services/instagram";
 import type { YouTubeAnalyticsCache } from "@/services/youtube";
@@ -15,11 +16,17 @@ const INSTAGRAM_TOKEN_KEY = "instagram_token";
 const MEDIAKIT_VIEWS_KEY = "mediakit_views";
 const MEDIAKIT_UNIQUE_VISITORS_KEY = "mediakit_unique_visitors";
 
+// One client per process rather than one per call. Keyed by the settings it
+// was made from, so a change to them (a test pointing at a stub store) gets a
+// new client instead of the old one.
+let client: { url: string; token: string; redis: Redis } | null = null;
+
 export function getRedis(): Redis | null {
   const url = process.env.KV_REST_API_URL;
   const token = process.env.KV_REST_API_TOKEN;
   if (!url || !token) return null;
-  return new Redis({ url, token });
+  if (client?.url !== url || client.token !== token) client = { url, token, redis: new Redis({ url, token }) };
+  return client.redis;
 }
 
 /**
@@ -30,6 +37,31 @@ export function requireRedis(): Redis {
   const redis = getRedis();
   if (!redis) throw new Error("Upstash Redis not configured: set KV_REST_API_URL and KV_REST_API_TOKEN");
   return redis;
+}
+
+const readStoredValue = cache(
+  async (key: string): Promise<unknown> => (await requireRedis().get<unknown>(key)) ?? null
+);
+
+/**
+ * One stored value, fetched from the store at most once per page render.
+ *
+ * A page is drawn from many sections that each read what they need, and
+ * most of them need the same few keys: the Dashboard alone asked for the
+ * campaign, invoice and payment lists around ten times on every load, each a
+ * separate round trip. Within a render React's cache() hands every caller the
+ * first read's answer.
+ *
+ * Outside a render (a server action, a route handler) cache() has no request
+ * to hold the answer in and reads the store on every call. So a write's
+ * read-modify-write always starts from what is stored now, never from a copy
+ * taken earlier in the same request.
+ *
+ * Callers share the value they are given, so it must never be changed in
+ * place: map or copy it instead, as every reader here already does.
+ */
+export function readStored<T>(key: string): Promise<T | null> {
+  return readStoredValue(key) as Promise<T | null>;
 }
 
 export async function setCachedYouTubeAnalytics(data: YouTubeAnalyticsCache): Promise<void> {

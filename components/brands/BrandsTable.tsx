@@ -43,6 +43,11 @@ function campaignsLabel(count: number): string {
   return count === 1 ? "1 campaign" : `${count} campaigns`;
 }
 
+// A header label that sorts, drawn as the header text it sits in: no fill,
+// no press nudge, and the table's own type size rather than the Button's.
+const SORT_BUTTON_CLASS =
+  "inline-flex items-center gap-1 rounded-none border-0 text-xs transition-none hover:bg-transparent hover:text-foreground dark:hover:bg-transparent active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]";
+
 function SortIcon({ active, direction }: { active: boolean; direction: BrandSort["direction"] }) {
   const Icon = !active ? ArrowUpDown : direction === "asc" ? ArrowUp : ArrowDown;
   return <Icon className="size-3" />;
@@ -201,36 +206,42 @@ export function BrandsTable({ rows }: BrandsTableProps) {
               <TableHeader>
                 <TableRow className="border-b border-border bg-muted/40 hover:bg-muted/40 [&>th]:text-muted-foreground">
                   <TableHead>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="none"
                       onClick={() => toggleSort("name")}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
+                      className={SORT_BUTTON_CLASS}
                     >
                       Brand
                       <SortIcon active={sort.column === "name"} direction={sort.direction} />
-                    </button>
+                    </Button>
                   </TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="none"
                       onClick={() => toggleSort("revenue")}
-                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
+                      className={cn(SORT_BUTTON_CLASS, "ml-auto")}
                     >
                       Revenue
                       <SortIcon active={sort.column === "revenue"} direction={sort.direction} />
-                    </button>
+                    </Button>
                   </TableHead>
                   <TableHead className="text-right">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="none"
                       onClick={() => toggleSort("lastCollabDate")}
-                      className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
+                      className={cn(SORT_BUTTON_CLASS, "ml-auto")}
                     >
                       Last collab
                       <SortIcon active={sort.column === "lastCollabDate"} direction={sort.direction} />
-                    </button>
+                    </Button>
                   </TableHead>
                 </TableRow>
               </TableHeader>
