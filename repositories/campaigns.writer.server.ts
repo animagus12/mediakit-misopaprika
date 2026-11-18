@@ -4,6 +4,7 @@ import campaignsSeed from "@/data/campaigns.json";
 import type { RecordChange } from "@/lib/activityDiff";
 import { daysBetween } from "@/lib/day";
 import { toIsoDate } from "@/lib/campaigns";
+import { latestUsageStart } from "@/lib/usageRights";
 import { invoiceDueDates, withInvoiceDueDate } from "@/lib/invoice";
 import { attachDealCosts } from "@/lib/expenses";
 import { attachSettlements } from "@/lib/payments";
@@ -522,8 +523,9 @@ export function transitionCampaignUsage(
  *
  * Starting and clearing both reset the pause and end accounting: a licence
  * that was waiting had no countdown for either to act on, and one put back to
- * waiting has its whole term unspent again. Moving the start of a running
- * licence changes the date and nothing else.
+ * waiting has its whole term unspent again. Moving the start changes the date
+ * and nothing else, so on a paused or ended licence it is refused past the day
+ * it stopped (see latestUsageStart).
  */
 export function setCampaignUsageStart(
   id: string,
@@ -534,6 +536,11 @@ export function setCampaignUsageStart(
     if (!before) return { next: null, result: null };
 
     const usage = toUsage(before.usage, before);
+    const latest = latestUsageStart(usage);
+    if (usage.startedOn !== "" && startedOn !== "" && latest !== "" && toIsoDate(startedOn) > latest) {
+      const stopped = usage.status === "paused" ? `paused on ${usage.pausedOn}` : `ended on ${usage.endedOn}`;
+      throw new Error(`It was ${stopped}, so it can't have started after that. Clear the start date to start it afresh.`);
+    }
     const next: CampaignUsage =
       usage.startedOn === "" || startedOn === ""
         ? { ...usage, startedOn, status: "active", pausedOn: "", pausedDays: 0, endedOn: "" }

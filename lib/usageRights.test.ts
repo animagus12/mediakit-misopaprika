@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeCampaign, makeRenewal, makeUsage } from "@/lib/testing/fixtures";
 import { toUsage, type StoredUsage } from "@/repositories/campaigns";
-import { selectExpiringUsage, usageStartDateProblem, usageTerm } from "@/lib/usageRights";
+import { latestUsageStart, selectExpiringUsage, usageStartDateProblem, usageTerm } from "@/lib/usageRights";
 
 // Noon IST on 18/11/2026, so the day is the same in every time zone the
 // suite might run in.
@@ -97,6 +97,17 @@ describe("toUsage startedOn", () => {
   it("keeps a stored empty start empty, whatever the upload date", () => {
     const usage = toUsage(makeUsage({ days: 30, startedOn: "" }), { uploadDate: "01/10/2026", date: "01/09/2026" });
     expect(usage.startedOn).toBe("");
+  });
+});
+
+describe("latestUsageStart", () => {
+  it("bounds a paused or ended licence's start by the day it stopped", () => {
+    expect(latestUsageStart({ status: "paused", pausedOn: "12/11/2026", endedOn: "" })).toBe("2026-11-12");
+    expect(latestUsageStart({ status: "ended", pausedOn: "", endedOn: "15/11/2026" })).toBe("2026-11-15");
+  });
+
+  it("leaves a running licence bounded by today alone", () => {
+    expect(latestUsageStart({ status: "active", pausedOn: "", endedOn: "" })).toBe("");
   });
 });
 
