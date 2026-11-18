@@ -262,10 +262,10 @@ export function CampaignFormFields({
   const amounts = campaignAmounts(form);
 
   // A licence is edited as a length in days, never as an end date: the end is
-  // the upload date plus that length (see usageTerm), so a second field for it
-  // was the same fact written twice and something for a save to disagree with.
-  // A renewed licence's editable length is the renewal's, which runs from its
-  // own start rather than from the upload date.
+  // the day it was started plus that length (see usageTerm), so a second field
+  // for it was the same fact written twice and something for a save to
+  // disagree with. A renewed licence's editable length is the renewal's, which
+  // runs from its own start rather than the licence's.
   const status = licence?.status ?? "active";
   const renewed = licence?.renewalStart != null;
   const termStart = renewed ? licence?.renewalStart || form.uploadDate : form.uploadDate;
@@ -552,7 +552,9 @@ export function CampaignFormFields({
           ) : null}
           {form.usageIndefinite
             ? "The brand may run this as an ad for as long as it likes."
-            : "Ad usage runs from the upload date. 0 when there is no licence."}
+            : mode === "create"
+              ? "Ad usage counts from the day you start it, once the deal is saved. 0 when there is no licence."
+              : "Ad usage counts from the day you start it, under Ad usage rights below. 0 when there is no licence."}
         </p>
       </FieldGroup>
 
@@ -733,10 +735,8 @@ export function CampaignFormFields({
             </>
           )}
 
-          {/* The day the licence counts from, since it starts when the post
-              goes up rather than when the deal was struck. Beside it: the
-              renewal's length on a renewed licence, or the day an ended one
-              was called off. */}
+          {/* The day the post went up. Beside it: the renewal's length on a
+              renewed licence, or the day an ended one was called off. */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-uploadDate`}>Upload date</Label>

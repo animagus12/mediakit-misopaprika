@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import {
+  CalendarClock,
   ChevronDown,
   CircleSlash,
   FileText,
@@ -20,13 +21,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { raiseInvoiceForRenewal, setCampaignUsageState, unlinkRenewalInvoice } from "@/app/(dashboard)/actions";
 import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import { buildInvoiceNumber, formatMoney } from "@/lib/invoice";
-import { paymentStatusLabel } from "@/lib/campaigns";
+import { paymentStatusLabel, toIsoDate } from "@/lib/campaigns";
 import { resolveTds } from "@/lib/tds";
 import { formatUsageDays, usageTerm, type UsageState } from "@/lib/usageRights";
 import { cn } from "@/lib/utils";
 import type { Campaign, UsageRenewal, UsageRenewalRecord } from "@/repositories/campaigns";
 import { RenewUsageSheet } from "./RenewUsageSheet";
 import { RenewalTdsSheet } from "./RenewalTdsSheet";
+import { StartUsageSheet } from "./StartUsageSheet";
 
 // Same vocabulary the campaigns table and the dashboard card use, so a
 // licence looks the same wherever it is read.
@@ -86,7 +88,12 @@ function renewalTdsLabel(renewal: UsageRenewal): string {
 export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
   const [isPending, startTransition] = useTransition();
   const term = usageTerm(campaign);
-  const { renewals, status, indefinite } = campaign.usage;
+  const { renewals, status, indefinite, startedOn } = campaign.usage;
+  const unstarted = term.state === "unstarted";
+  // Only while the base term is the one counting and running: once renewed,
+  // a renewal's own start decides the countdown, and moving the start under
+  // a pause or an end would misplace the days they account for.
+  const canMoveStart = startedOn !== "" && renewals.length === 0 && status === "active";
 
   function move(transition: "pause" | "resume" | "end", message: string) {
     startTransition(async () => {
@@ -145,6 +152,7 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
         <span className="text-[11px] text-muted-foreground tabular-nums">
           {indefinite ? "Granted indefinitely" : `${formatUsageDays(term.totalDays)} granted`}
           {term.termCount > 1 ? ` over ${term.termCount} terms` : ""}
+          {startedOn ? ` · started ${startedOn}` : ""}
           {/* An ended licence already says when it ended; its term's nominal
               end beside that read as a second, contradicting end date. */}
           {term.endDate && status !== "ended" ? ` · ends ${term.endDate}` : ""}
@@ -153,10 +161,27 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
 
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {/* Nothing to extend on a licence with no end, and no countdown for a
-            pause to freeze. A pause recorded before it was made indefinite
-            can still be resumed, so the licence isn't stuck reading paused. */}
-        {!indefinite && (
+        {unstarted && (
+          <StartUsageSheet
+            campaignId={campaign.id}
+            brand={campaign.brand}
+            days={campaign.usage.days}
+            indefinite={indefinite}
+            startedOn=""
+            earliest={toIsoDate(campaign.date)}
+            trigger={
+              <Button type="button" size="sm" variant="outline" disabled={isPending}>
+                <PlayCircle />
+                Start
+              </Button>
+            }
+          />
+        )}
+        {/* Nothing to extend on a licence with no end, or on one not started,
+            and no countdown for a pause to freeze on either. A pause recorded
+            before it was made indefinite can still be resumed, so the licence
+            isn't stuck reading paused. */}
+        {!indefinite && !unstarted && (
           <RenewUsageSheet
             campaignId={campaign.id}
             brand={campaign.brand}
@@ -170,7 +195,7 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             }
           />
         )}
-        {indefinite && status !== "paused" ? null : status === "active" ? (
+        {unstarted || (indefinite && status !== "paused") ? null : status === "active" ? (
           <Button
             type="button"
             size="sm"
@@ -204,6 +229,22 @@ export function UsageRightsPanel({ campaign }: { campaign: Campaign }) {
             <CircleSlash />
             End
           </Button>
+        )}
+        {canMoveStart && (
+          <StartUsageSheet
+            campaignId={campaign.id}
+            brand={campaign.brand}
+            days={campaign.usage.days}
+            indefinite={indefinite}
+            startedOn={toIsoDate(startedOn)}
+            earliest={toIsoDate(campaign.date)}
+            trigger={
+              <Button type="button" size="sm" variant="ghost" disabled={isPending}>
+                <CalendarClock />
+                Change start
+              </Button>
+            }
+          />
         )}
       </div>
 

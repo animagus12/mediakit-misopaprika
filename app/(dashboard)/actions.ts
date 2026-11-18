@@ -25,9 +25,9 @@ import { samePaymentTarget, type PaymentInput, type PaymentTarget } from "@/repo
 import { insertPayments, retargetPayments } from "@/repositories/payments.writer.server";
 import { primaryContactForBrand } from "@/lib/contacts";
 import { buildRenewalInvoice, nextInvoiceNo } from "@/lib/usageInvoice";
-import { formatUsageDays, usageEndDateProblem } from "@/lib/usageRights";
+import { formatUsageDays, usageEndDateProblem, usageStartDateProblem } from "@/lib/usageRights";
 import { buildInvoiceNumber, computeSubtotal, reservedInvoiceNumbers, todayISO } from "@/lib/invoice";
-import { campaignTypeHasCash, toCampaign } from "@/repositories/campaigns";
+import { campaignTypeHasCash, toCampaign, toUsage } from "@/repositories/campaigns";
 import { normalizeBrandName } from "@/lib/brandCampaignStats";
 import { campaignFiguresProblem, campaignLabel, isCampaignStatus, toIsoDate, toSheetDate } from "@/lib/campaigns";
 import { validateTdsValues } from "@/lib/tds";
@@ -447,6 +447,59 @@ export async function setCampaignUsageState(
     return { success: true };
   } catch (err) {
     return usageFailure(err, "Couldn't update the usage rights");
+  }
+}
+
+/**
+ * Starts a licence's term counting, or moves the day a started one counts
+ * from. `isoDate` is yyyy-mm-dd, or "" to start it today.
+ */
+export async function startCampaignUsage(campaignId: string, isoDate: string): Promise<UsageResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  if (!campaignId.trim()) {
+    return { success: false, error: "This deal has no campaign ID to update" };
+  }
+  const day = isoDate.trim();
+  if (day) {
+    const problem = usageStartDateProblem(day);
+    if (problem) return { success: false, error: problem };
+  }
+  try {
+    const change = await campaignRepository.startUsage(campaignId, day);
+    if (!change) return { success: false, error: "That campaign no longer exists" };
+    revalidateUsagePaths();
+    const from = toUsage(change.before.usage, change.before).startedOn;
+    const to = change.after.usage?.startedOn ?? "";
+    await recordUsageEvent(
+      "campaign.usage_started",
+      change.after,
+      from ? `start moved from ${from} to ${to}` : `from ${to}`
+    );
+    return { success: true };
+  } catch (err) {
+    return usageFailure(err, "Couldn't start the usage rights");
+  }
+}
+
+/** Puts a started licence back to not started, its whole term unspent. */
+export async function clearCampaignUsageStart(campaignId: string): Promise<UsageResult> {
+  const denied = await requireSession();
+  if (denied) return denied;
+
+  if (!campaignId.trim()) {
+    return { success: false, error: "This deal has no campaign ID to update" };
+  }
+  try {
+    const change = await campaignRepository.clearUsageStart(campaignId);
+    if (!change) return { success: false, error: "That campaign no longer exists" };
+    revalidateUsagePaths();
+    const from = toUsage(change.before.usage, change.before).startedOn;
+    await recordUsageEvent("campaign.usage_start_cleared", change.after, from ? `was ${from}` : undefined);
+    return { success: true };
+  } catch (err) {
+    return usageFailure(err, "Couldn't clear the start date");
   }
 }
 

@@ -10,7 +10,6 @@ import type { Brand } from "@/repositories/brands";
 import {
   toDeliverableCount,
   toUsage,
-  usageTermStart,
   type CampaignRecord,
 } from "@/repositories/campaigns";
 import type { Contact } from "@/repositories/contacts";
@@ -84,12 +83,12 @@ export const campaignFields: readonly DiffField<CampaignRecord>[] = [
   // licence reads as "", so describeChanges says "added" rather than "0 to 30".
   {
     label: "usage term",
-    value: (campaign) => formatUsageGrant(toUsage(campaign.usage, usageTermStart(campaign))),
+    value: (campaign) => formatUsageGrant(toUsage(campaign.usage, campaign)),
   },
   {
     label: "latest renewal term",
     value: (campaign) => {
-      const { renewals } = toUsage(campaign.usage, usageTermStart(campaign));
+      const { renewals } = toUsage(campaign.usage, campaign);
       const last = renewals[renewals.length - 1];
       return last ? formatUsageDays(last.days) : "";
     },
