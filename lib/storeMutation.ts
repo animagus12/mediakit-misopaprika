@@ -44,7 +44,15 @@ export type Mutation<T, R> = (current: T) => MutationStep<T, R> | Promise<Mutati
  */
 export type Decode<T> = (stored: unknown) => T;
 
-export type Mutate = <T, R>(key: string, decode: Decode<T>, change: Mutation<T, R>) => Promise<R>;
+/**
+ * Decodes a key holding one JSON array: the stored list, or `seed` until the
+ * first write (or when the key holds something that is not a list).
+ */
+export function listOrSeed<T>(seed: T[]): Decode<T[]> {
+  return (stored) => (Array.isArray(stored) ? (stored as T[]) : seed);
+}
+
+export type Mutate =<T, R>(key: string, decode: Decode<T>, change: Mutation<T, R>) => Promise<R>;
 
 export const STORE_CONFLICT = "This was changed somewhere else while it saved, so nothing was saved. Try again.";
 

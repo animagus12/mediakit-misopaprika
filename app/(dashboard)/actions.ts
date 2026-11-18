@@ -18,7 +18,7 @@ import type { ActivityAction } from "@/repositories/activity";
 import { getBrands, addBrand } from "@/repositories/brands.writer.server";
 import { markCampaignPaymentExpected, readCampaignLedger } from "@/repositories/campaigns.writer.server";
 import { addNextNumberedInvoice, clearInvoiceLegacyPayment, getInvoices } from "@/repositories/invoices.writer.server";
-import { getInvoiceData, saveInvoiceData } from "@/repositories/invoice.writer.server";
+import { advanceInvoiceNumberSeed, getInvoiceData } from "@/repositories/invoice.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
 import { newPaymentId, paymentActivity, recordTargetPayment } from "@/repositories/paymentLedger.server";
 import { samePaymentTarget, type PaymentInput, type PaymentTarget } from "@/repositories/payments";
@@ -539,13 +539,7 @@ async function raiseRenewalInvoice(
   // and a stale seed shows a duplicate number in a form the creator can still
   // correct, which is not worth reporting a failed renewal over.
   try {
-    await saveInvoiceData({
-      ...defaults,
-      invoiceNumberSeed: nextInvoiceNo(
-        [...existing, { invoiceNo: record.invoiceNo }],
-        defaults.invoiceNumberSeed
-      ),
-    });
+    await advanceInvoiceNumberSeed((seed) => nextInvoiceNo([...existing, { invoiceNo: record.invoiceNo }], seed));
   } catch {
     // keep the invoice; the seed catches up on the next editor save
   }

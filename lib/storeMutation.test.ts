@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { memoryStore } from "@/lib/testing/memoryStore";
-import { createMutate, parseStored, STORE_CONFLICT, type MutationStep } from "./storeMutation";
+import { createMutate, listOrSeed, parseStored, STORE_CONFLICT, type MutationStep } from "./storeMutation";
 
 const KEY = "items";
 
@@ -190,6 +190,17 @@ describe("createMutate", () => {
       })
     ).rejects.toThrow("no longer allowed");
     expect(stored(memory)).toEqual([{ id: "other" }]);
+  });
+});
+
+describe("listOrSeed", () => {
+  it("answers the stored list, or the seed when the key is not set or holds something else", () => {
+    const seed = [{ id: "seed" }];
+    const decode = listOrSeed(seed);
+    expect(decode([{ id: "a" }])).toEqual([{ id: "a" }]);
+    expect(decode([])).toEqual([]);
+    expect(decode(null)).toBe(seed);
+    expect(decode("text")).toBe(seed);
   });
 });
 

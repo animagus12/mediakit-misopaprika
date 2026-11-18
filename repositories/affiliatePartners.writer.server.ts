@@ -1,8 +1,10 @@
 import "server-only";
-import { getRedis, requireRedis, readStored } from "@/lib/cache";
+import { getRedis, readStored } from "@/lib/cache";
 import affiliatePartnersSeed from "@/data/affiliate-partners.json";
 import { toSheetDate } from "@/lib/editorTransactions";
 import type { RecordChange } from "@/lib/activityDiff";
+import { listOrSeed, type Mutation } from "@/lib/storeMutation";
+import { mutateStored } from "@/lib/storeWrite.server";
 import type {
   AffiliatePartner,
   AffiliatePartnerUpdate,
@@ -16,12 +18,19 @@ import type {
 // so writes go to Redis.
 const AFFILIATE_PARTNERS_KEY = "affiliate_partners";
 const SEED = affiliatePartnersSeed as AffiliatePartner[];
+const toPartners = listOrSeed(SEED);
 
 async function readPartners(): Promise<AffiliatePartner[]> {
   const redis = getRedis();
   if (!redis) return SEED;
-  const stored = await readStored<AffiliatePartner[]>(AFFILIATE_PARTNERS_KEY);
-  return stored ?? SEED;
+  return toPartners(await readStored<unknown>(AFFILIATE_PARTNERS_KEY));
+}
+
+// Each write is a compare-and-set over the whole list (see
+// lib/storeWrite.server.ts), so two saves that overlap are both kept and the
+// code check below sees a partner saved a moment earlier.
+function mutatePartners<R>(change: Mutation<AffiliatePartner[], R>): Promise<R> {
+  return mutateStored(AFFILIATE_PARTNERS_KEY, toPartners, change);
 }
 
 // Falls back to the bundled data/affiliate-partners.json seed until the first
@@ -60,30 +69,29 @@ function shape(input: NewAffiliatePartner, id: string): AffiliatePartner {
   };
 }
 
-export async function addAffiliatePartner(input: NewAffiliatePartner): Promise<void> {
-  const redis = requireRedis();
-  const partners = await readPartners();
-  const code = input.code.trim();
-  assertCodeAvailable(partners, code);
-  await redis.set(AFFILIATE_PARTNERS_KEY, [...partners, shape(input, crypto.randomUUID())]);
+export function addAffiliatePartner(input: NewAffiliatePartner): Promise<void> {
+  const partner = shape(input, crypto.randomUUID());
+  return mutatePartners((partners) => {
+    assertCodeAvailable(partners, partner.code);
+    return { next: [...partners, partner], result: undefined };
+  });
 }
 
 // Answers the record either side of the write, or null when the id matched
 // nothing, so the caller can say what actually changed without re-reading the
 // list this already holds. Comparing against the caller's input instead would
 // be wrong: the normalising above means a trailing space would read as an edit.
-export async function updateAffiliatePartner(
+export function updateAffiliatePartner(
   input: AffiliatePartnerUpdate
 ): Promise<RecordChange<AffiliatePartner> | null> {
-  const redis = requireRedis();
-  const partners = await readPartners();
-  assertCodeAvailable(partners, input.code.trim(), input.id);
-  const before = partners.find((partner) => partner.id === input.id);
-  if (!before) return null;
-  const after = shape(input, before.id);
-  await redis.set(
-    AFFILIATE_PARTNERS_KEY,
-    partners.map((partner) => (partner.id === input.id ? after : partner))
-  );
-  return { before, after };
+  return mutatePartners((partners) => {
+    assertCodeAvailable(partners, input.code.trim(), input.id);
+    const before = partners.find((partner) => partner.id === input.id);
+    if (!before) return { next: null, result: null };
+    const after = shape(input, before.id);
+    return {
+      next: partners.map((partner) => (partner.id === input.id ? after : partner)),
+      result: { before, after },
+    };
+  });
 }
