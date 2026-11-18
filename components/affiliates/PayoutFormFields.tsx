@@ -1,6 +1,7 @@
 "use client";
 
 import { FieldGroup } from "@/components/common/FieldGroup";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -189,15 +190,17 @@ export function PayoutFormFields({ idPrefix, form, setForm, partners }: PayoutFo
               filled in: brands net off returns before they pay, so the portal's
               figure is the true one and a mismatch is a question to ask them. */}
           {expected !== null && (
-            <button
+            <Button
               type="button"
-              className="text-[0.7rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              variant="link"
+              size="none"
+              className="inline-block rounded-none border-0 text-[0.7rem] font-normal whitespace-normal text-muted-foreground underline-offset-2 transition-none hover:text-foreground hover:underline active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]"
               onClick={() =>
                 setForm((f) => ({ ...f, commissionAmount: String(Math.round(expected * 100) / 100) }))
               }
             >
               Terms imply {formatMoney(expected)} · use this
-            </button>
+            </Button>
           )}
         </div>
       </FieldGroup>

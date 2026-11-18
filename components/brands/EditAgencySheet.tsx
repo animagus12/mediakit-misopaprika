@@ -65,21 +65,19 @@ export function EditAgencySheet({ agency, brandCount, contacts }: EditAgencyShee
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => handleOpenChange(true)}
-            className={cn(
-              badgeVariants({ variant: "secondary" }),
-              "h-6 cursor-pointer gap-1.5 px-2.5 text-xs transition hover:bg-secondary/70"
-            )}
-          >
-            {agency.name}
-            {/* On the pill rather than only in the tooltip: how many brands an
-                agency reps is the one number you scan the roster for, and a
-                fact behind a hover is a fact a phone never shows. */}
-            <span className="tabular-nums text-muted-foreground">{brandCount}</span>
-          </button>
+        <TooltipTrigger
+          type="button"
+          onClick={() => handleOpenChange(true)}
+          className={cn(
+            badgeVariants({ variant: "secondary" }),
+            "h-6 cursor-pointer gap-1.5 px-2.5 text-xs transition hover:bg-secondary/70"
+          )}
+        >
+          {agency.name}
+          {/* On the pill rather than only in the tooltip: how many brands an
+              agency reps is the one number you scan the roster for, and a
+              fact behind a hover is a fact a phone never shows. */}
+          <span className="tabular-nums text-muted-foreground">{brandCount}</span>
         </TooltipTrigger>
         <TooltipContent className="flex-col items-start gap-1 p-3">
           <p className="font-medium">{brandCount} {brandCount === 1 ? "brand" : "brands"}</p>

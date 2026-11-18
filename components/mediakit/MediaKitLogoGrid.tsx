@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { computeMediaKitLayout, type MediaKitLogoRowsMode } from "@/lib/mediakit";
+import { cn } from "@/lib/utils";
 import type { MediaKitLogo } from "@/repositories/mediakit";
 import type { MediaKitFormActions, MediaKitFormState } from "./types";
 import styles from "./mediakit.module.css";
@@ -65,23 +66,32 @@ function SortableLogoItem({ id, index, logo, actions }: SortableLogoItemProps) {
   return (
     <div ref={setNodeRef} style={style} className={styles.logoItem}>
       <div className={styles.logoImageWrap}>
-        <button
+        {/* The stylesheet's .logoGrid button rules draw both of these; the
+            classes only undo what of the Button they don't set themselves:
+            its flex display, transition, press nudge and focus ring, so focus
+            keeps the browser's outline as before. */}
+        <Button
           type="button"
+          variant="ghost"
+          size="none"
+          className="inline-block transition-none active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]"
           title={`Replace logo ${index + 1}`}
           onClick={() => actions.openPicker({ kind: "logo", index })}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logo.src} alt="" />
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className={styles.logoRemove}
+          variant="ghost"
+          size="none"
+          className={cn(styles.logoRemove, "transition-none active:not-aria-[haspopup]:translate-y-0 focus-visible:ring-0 focus-visible:[outline-style:auto]")}
           title={`Remove logo ${index + 1}`}
           aria-label={`Remove logo ${index + 1}`}
           onClick={() => actions.removeLogo(index)}
         >
-          <X size={12} />
-        </button>
+          <X className="size-3" />
+        </Button>
         <span
           className={styles.logoDragHandle}
           title="Drag to reorder"

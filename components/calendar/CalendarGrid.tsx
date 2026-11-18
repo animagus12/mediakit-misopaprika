@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { WEEKDAY_LABELS, formatDayLabel } from "@/lib/day";
 import { cn } from "@/lib/utils";
 import { countStages } from "@/lib/contentCalendar";
@@ -91,8 +92,10 @@ function DayCell({ day, onSelect, highlight }: DayCellProps) {
         isOver && "ring-2 ring-ring ring-inset"
       )}
     >
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="none"
         onClick={() => onSelect(day.key)}
         // The label carries the whole meaning of the control, because visually
         // the cell is just a date: a screen reader would otherwise announce
@@ -104,7 +107,9 @@ function DayCell({ day, onSelect, highlight }: DayCellProps) {
         // makes a month grid a month grid, and 7 x 44 does not fit a 320px
         // phone once the page and card have their padding. Same exception the
         // table-cell links took, and WCAG 2.5.8 (24px) still passes with room.
-        className="absolute inset-0 cursor-pointer hover:bg-muted focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        // Square, borderless and instant, the same full-strength wash in both
+        // themes, and no press nudge: a cell, not a button.
+        className="absolute inset-0 cursor-pointer rounded-none border-0 transition-none hover:bg-muted focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dark:hover:bg-muted active:not-aria-[haspopup]:translate-y-0"
       />
 
       <div
@@ -222,15 +227,19 @@ function DraggablePill({
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: post.key, data });
 
   return (
-    <button
+    <Button
       ref={setNodeRef}
       type="button"
+      variant="link"
+      size="none"
       title={postTitle(post)}
       aria-label={`${postTitle(post)}. Drag to another day to move it.`}
       onClick={onSelect}
       {...listeners}
       className={cn(
-        "pointer-events-auto block w-full cursor-grab touch-none rounded transition-opacity focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing",
+        // The pill draws itself: the Button's type, border, underline and
+        // press nudge are undone so nothing of it shows around the pill.
+        "pointer-events-auto block w-full cursor-grab touch-none rounded border-0 text-[length:inherit] font-normal whitespace-normal transition-opacity hover:no-underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing active:not-aria-[haspopup]:translate-y-0",
         dimmed && "opacity-25 hover:opacity-60",
         // The original stays in place, faded, while the overlay follows the
         // pointer: the gap it would leave makes the cell jump under the drag.
@@ -238,7 +247,7 @@ function DraggablePill({
       )}
     >
       <Pill post={post} />
-    </button>
+    </Button>
   );
 }
 

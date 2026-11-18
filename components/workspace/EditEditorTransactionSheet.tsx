@@ -90,18 +90,22 @@ export function EditEditorTransactionSheet({ transaction, editors }: EditEditorT
           real button, so the row is reachable and announced from a keyboard. */}
       <TableRow className="cursor-pointer" onClick={() => handleOpenChange(true)}>
         <TableCell className="max-w-48">
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="none"
             onClick={(event) => {
               event.stopPropagation();
               handleOpenChange(true);
             }}
             aria-haspopup="dialog"
             title={transaction.video}
-            className="block max-w-full truncate rounded-sm text-left font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
+            // Reads as the cell's text: its colour, type size and underline
+            // position rather than the Button link's.
+            className="block max-w-full truncate rounded-sm border-0 text-left text-xs font-medium text-inherit underline-offset-auto outline-none transition-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {transaction.video}
-          </button>
+          </Button>
         </TableCell>
         <TableCell className="hidden tabular-nums text-muted-foreground md:table-cell">
           {transaction.videoDate}
