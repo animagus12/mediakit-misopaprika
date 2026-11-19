@@ -387,7 +387,7 @@ export function LinksEditor({
   const summary = linksSummary(state, analytics);
 
   return (
-    <div className="mx-auto max-w-screen-xl 2xl:max-w-[1600px] space-y-6 px-4 py-10">
+    <div className="mx-auto max-w-screen-xl 2xl:max-w-[1600px] space-y-6 px-4 py-6 md:py-10">
       <input
         ref={fileInputRef}
         type="file"

@@ -41,6 +41,7 @@ export function CountStepper({
   return (
     <div
       role="group"
+      data-slot="count-stepper"
       aria-labelledby={labelledBy}
       className={cn("inline-flex items-center rounded-md border border-input", className)}
     >

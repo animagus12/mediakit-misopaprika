@@ -32,6 +32,36 @@ interface NewEditorTransactionButtonProps {
 
 export function NewEditorTransactionButton({ editors, variant = "default" }: NewEditorTransactionButtonProps) {
   const [open, setOpen] = useState(false);
+  return (
+    <NewEditorTransactionSheet
+      open={open}
+      onOpenChange={setOpen}
+      editors={editors}
+      trigger={
+        <Button size="sm" variant={variant}>
+          <Plus className="size-3.5" />
+          New transaction
+        </Button>
+      }
+    />
+  );
+}
+
+interface NewEditorTransactionSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The button that opens it, when it has one. The shell's New menu opens it without. */
+  trigger?: React.ReactElement;
+  editors: Editor[];
+}
+
+// Controlled, so the page's own button and the shell's New menu open the one form.
+export function NewEditorTransactionSheet({
+  open,
+  onOpenChange,
+  trigger,
+  editors,
+}: NewEditorTransactionSheetProps) {
   const [form, setForm] = useState(() => editorTransactionInitialForm(editors));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -46,24 +76,19 @@ export function NewEditorTransactionButton({ editors, variant = "default" }: New
         return;
       }
       setForm(editorTransactionInitialForm(editors));
-      setOpen(false);
+      handleOpenChange(false);
     });
   }
 
+  // Cleared on the way out: an opening from the New menu never passes through here.
+  function handleOpenChange(next: boolean) {
+    if (!next) setError(null);
+    onOpenChange(next);
+  }
+
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setError(null);
-      }}
-    >
-      <SheetTrigger asChild>
-        <Button size="sm" variant={variant}>
-          <Plus className="size-3.5" />
-          New transaction
-        </Button>
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
       <SheetContent className="flex flex-col gap-0">
         <SheetHeader>
           <SheetTitle>New transaction</SheetTitle>

@@ -168,7 +168,7 @@ export function ContentFormFields({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-postDate`}>Posting date</Label>
           <Input

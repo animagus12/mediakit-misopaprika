@@ -77,7 +77,7 @@ export function SectionEditor({
             inputs gave the eye nothing to structure it by. */}
         <Input
           aria-label="Section title"
-          className="hover:border-input focus-visible:border-ring font-heading h-8 max-w-64 flex-1 border-transparent bg-transparent px-2 text-sm font-semibold dark:bg-transparent"
+          className="hover:border-input focus-visible:border-ring font-heading h-8 max-w-64 min-w-0 flex-1 basis-40 border-transparent bg-transparent px-2 text-sm font-semibold dark:bg-transparent"
           value={section.title}
           placeholder="Section title"
           onChange={(event) => actions.updateSection(section.id, { title: event.target.value })}

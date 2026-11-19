@@ -68,20 +68,24 @@ export function ProfileFields({
             const name = social.platform || `social ${index + 1}`;
             return (
               <div key={index} className={social.enabled ? "" : "opacity-60"}>
-                <div className="flex items-center gap-2">
+                {/* Wraps rather than squeezing: on a phone both fields on one
+                    line showed about nine characters each, so the address
+                    drops to a line of its own with the buttons. */}
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-muted-foreground flex size-9 shrink-0 items-center justify-center">
                     <SocialIcon platform={social.platform} size={20} />
                   </span>
                   <Input
                     aria-label={`Social ${index + 1} platform`}
                     placeholder="instagram"
-                    className="sm:max-w-40"
+                    className="min-w-0 flex-1 basis-24 sm:max-w-40"
                     value={social.platform}
                     onChange={(event) => actions.updateSocial(index, "platform", event.target.value)}
                   />
                   <Input
                     aria-label={`Social ${index + 1} URL`}
                     placeholder="https://..."
+                    className="min-w-0 flex-[2] basis-48"
                     value={social.url}
                     onChange={(event) => actions.updateSocial(index, "url", event.target.value)}
                   />

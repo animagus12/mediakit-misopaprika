@@ -38,10 +38,27 @@ export interface PaymentFormValues {
   note: string;
 }
 
-/** A typed amount as a number: blank is 0, anything unreadable NaN (which validation refuses). */
+/**
+ * A typed amount as a number: blank is 0, anything unreadable NaN (which
+ * validation refuses). Grouping commas are ignored, so "1,25,000" reads the
+ * same as "125000" (see formatFormAmount).
+ */
 export function parseFormAmount(text: string): number {
-  const trimmed = text.trim();
+  const trimmed = text.replaceAll(",", "").trim();
   return trimmed === "" ? 0 : Number(trimmed);
+}
+
+const AMOUNT_INPUT = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+
+/**
+ * A typed amount regrouped the Indian way, for when the field is left:
+ * "125000" becomes "1,25,000". Blank stays blank, and text that isn't a
+ * number is left as typed so the person can see what to fix.
+ */
+export function formatFormAmount(text: string): string {
+  if (!text.trim()) return "";
+  const amount = parseFormAmount(text);
+  return Number.isFinite(amount) ? AMOUNT_INPUT.format(amount) : text;
 }
 
 function amountText(value: number): string {

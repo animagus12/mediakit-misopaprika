@@ -43,7 +43,11 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* The attribute forms let one element wear paprika under another colour
+   theme, as the theme picker's preview does; the other themes are in
+   themes.css. */
+:root,
+[data-color-theme="paprika"] {
   /* Paprika: a warm red-orange brand hue. Everything neutral carries a trace of
      the same hue (chroma 0.004-0.012) so greys read as warm rather than dead,
      which is what made the stock palette feel clinical.
@@ -81,7 +85,8 @@
   --sidebar-ring: oklch(0.56 0.168 45);
 }
 
-.dark {
+.dark,
+.dark [data-color-theme="paprika"] {
   /* Warm charcoal rather than neutral black, and primary lifts to L 0.72 so it
      still carries on a dark ground: the light-mode primary is too dark to read
      as a brand colour here. */
@@ -137,7 +142,62 @@
    the surrounding dashboard shell for all of them. */
 @media print {
   [data-slot="sidebar"],
-  [data-app-navbar] {
+  [data-app-navbar],
+  [data-mobile-tabbar] {
     display: none !important;
+  }
+}
+
+/* Form sizing. Controls default to a dense 28px and 12px, which suits tables
+   and toolbars; inside a shadcn Field (a form) they read at 36px and 14px on
+   a mouse screen. Touch screens keep each control's own pointer-coarse 44px,
+   which this leaves alone. Keyed on the Field wrapper, so a form picks it up
+   by adopting Field rather than by restyling every control it holds. In the
+   utilities layer and more than one selector deep, so it outranks the
+   controls' own height and text utilities. */
+@layer utilities {
+  @media not all and (pointer: coarse) {
+    [data-slot="field"] :is(
+        [data-slot="input"],
+        [data-slot="select-trigger"][data-size],
+        [data-slot="input-group"],
+        [data-slot="toggle-group-item"],
+        [data-slot="count-stepper"]
+      ) {
+      height: calc(var(--spacing) * 9);
+    }
+    [data-slot="field"] [data-slot="input-group-control"] {
+      height: 100%;
+    }
+    [data-slot="field"] :is(
+        [data-slot="input"],
+        [data-slot="select-trigger"],
+        [data-slot="input-group-control"],
+        [data-slot="input-group-addon"],
+        [data-slot="textarea"],
+        [data-slot="toggle-group-item"],
+        [data-slot="count-stepper"]
+      ) {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
+    [data-slot="field"] [data-slot="count-stepper"] [data-slot="button"] {
+      width: calc(var(--spacing) * 8);
+      height: calc(var(--spacing) * 8);
+    }
+    [data-slot="field"] [data-slot="field-label"] {
+      font-size: 0.8125rem;
+    }
+  }
+}
+
+/* Below `md` the phone tab bar (MobileTabBar) covers the foot of the screen,
+   which is where toasts land, so they are lifted clear of it. Only on pages
+   that have the bar: the public pages keep Sonner's own spacing. The
+   variables are Sonner's, set inline on the toaster, hence !important. */
+@media (width < 48rem) {
+  body:has([data-mobile-tabbar]) [data-sonner-toaster] {
+    --offset-bottom: calc(4rem + 16px + env(safe-area-inset-bottom)) !important;
+    --mobile-offset-bottom: calc(4rem + 16px + env(safe-area-inset-bottom)) !important;
   }
 }

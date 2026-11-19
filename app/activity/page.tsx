@@ -50,7 +50,7 @@ export default async function ActivityPage({ searchParams }: ActivityPageProps) 
           tables and card grids that use the width; this is a single column of
           sentences, and at 1440px the timestamp ends up an inch and a half
           from the row it belongs to. */}
-      <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="mx-auto max-w-4xl px-4 py-6 md:py-10">
         <div className="mb-6 flex items-center justify-between gap-3">
           <h1 className="font-heading text-lg font-semibold">Activity</h1>
           {total > 0 && (

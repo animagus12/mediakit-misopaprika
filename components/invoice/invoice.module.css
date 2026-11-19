@@ -112,6 +112,9 @@
   border-top: 1px solid var(--invoice-panel-line);
   margin: 0 0 4px;
   padding: 16px 0 6px;
+  /* A fieldset is min-content wide by default, so on a phone a row of two
+     date inputs pushed it 14px past the panel's padding. */
+  min-width: 0;
 }
 
 .legend {
@@ -145,6 +148,15 @@
 
 .rowTight {
   gap: 6px;
+}
+
+/* Two date inputs side by side need about 140px each at a phone's 16px
+   text; below 360px that cut the year off, so the pair stacks there, as the
+   app's other forms do. */
+@media (max-width: 359.98px) {
+  .rowDates {
+    flex-direction: column;
+  }
 }
 
 .wSm {

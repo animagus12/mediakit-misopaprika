@@ -124,6 +124,9 @@
   border-top: 1px solid var(--mediakit-panel-line);
   margin: 0 0 4px;
   padding: 16px 0 6px;
+  /* A fieldset is min-content wide by default, so a wide row of inputs could
+     push it past the panel's padding on a phone. */
+  min-width: 0;
 }
 
 .legend {
