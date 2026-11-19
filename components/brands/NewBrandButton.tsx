@@ -29,8 +29,35 @@ interface NewBrandButtonProps {
 }
 
 export function NewBrandButton({ agencies, contacts, variant = "default" }: NewBrandButtonProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+  return (
+    <NewBrandSheet
+      open={open}
+      onOpenChange={setOpen}
+      agencies={agencies}
+      contacts={contacts}
+      trigger={
+        <Button size="sm" variant={variant}>
+          <Plus className="size-3.5" />
+          Add brand
+        </Button>
+      }
+    />
+  );
+}
+
+interface NewBrandSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The button that opens it, when it has one. The shell's New menu opens it without. */
+  trigger?: React.ReactElement;
+  agencies: Agency[];
+  contacts: Contact[];
+}
+
+// Controlled, so the page's own button and the shell's New menu open the one form.
+export function NewBrandSheet({ open, onOpenChange, trigger, agencies, contacts }: NewBrandSheetProps) {
+  const router = useRouter();
   const [form, setForm] = useState(brandInitialForm);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -53,25 +80,20 @@ export function NewBrandButton({ agencies, contacts, variant = "default" }: NewB
         return;
       }
       setForm(brandInitialForm());
-      setOpen(false);
+      handleOpenChange(false);
       router.push(`/brands/${result.id}`);
     });
   }
 
+  // Cleared on the way out: an opening from the New menu never passes through here.
+  function handleOpenChange(next: boolean) {
+    if (!next) setError(null);
+    onOpenChange(next);
+  }
+
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setError(null);
-      }}
-    >
-      <SheetTrigger asChild>
-        <Button size="sm" variant={variant}>
-          <Plus className="size-3.5" />
-          Add brand
-        </Button>
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
       <SheetContent className="flex flex-col gap-0">
         <SheetHeader>
           <SheetTitle>Add brand</SheetTitle>

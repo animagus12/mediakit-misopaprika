@@ -124,7 +124,7 @@ export function PayoutFormFields({ idPrefix, form, setForm, partners }: PayoutFo
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-periodStart`}>Period start</Label>
             <Input
@@ -210,7 +210,7 @@ export function PayoutFormFields({ idPrefix, form, setForm, partners }: PayoutFo
             pending until then, so the date is the whole answer (see
             payoutPaymentFrom). One field that can't disagree with itself,
             where two could. */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
             <Input

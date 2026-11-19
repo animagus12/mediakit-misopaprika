@@ -54,7 +54,7 @@ export default async function BrandsPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-8 px-4 py-10">
+      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-8 px-4 py-6 md:py-10">
         {/* Stacked on a phone: side by side, the two buttons took the row and
             squeezed the description into a six-line column. */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

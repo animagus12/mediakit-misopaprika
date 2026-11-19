@@ -88,9 +88,11 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
           <GripVertical size={16} />
         </span>
 
+        {/* The basis keeps the name readable: without it the name shrank to
+            three letters on a phone to keep the figures and buttons beside it. */}
         <CollapsibleTrigger
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          className="flex min-w-0 flex-1 basis-32 items-center gap-2 text-left"
           aria-label={`Edit ${item.label}`}
         >
           <ChevronDown size={14} className="shrink-0 transition-transform [[data-state=open]_&]:rotate-180" />
@@ -104,11 +106,12 @@ export function ItemEditor({ item, sectionId, actions, linkStats }: ItemEditorPr
           {!item.enabled ? <Badge variant="outline">Hidden</Badge> : null}
         </CollapsibleTrigger>
 
-        {/* Sits outside the trigger so it stays readable while collapsed: 
+        {/* Sits outside the trigger so it stays readable while collapsed:
             comparing links is the point, and that only works if every row
-            shows its figures without being opened. */}
+            shows its figures without being opened. On a phone it takes a line
+            of its own under the name, leaving the name and buttons the first. */}
         <span
-          className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs tabular-nums"
+          className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs tabular-nums max-sm:order-last max-sm:w-full max-sm:pl-6"
           title={`${linkStats.clicks.toLocaleString("en-IN")} click${linkStats.clicks === 1 ? "" : "s"}, ${formatClickRate(linkStats.clickRate)} of the views /links has had`}
         >
           <MousePointerClick className="size-3.5" />

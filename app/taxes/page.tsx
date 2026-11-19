@@ -50,7 +50,7 @@ export default async function TaxesPage({ searchParams }: TaxesPageProps) {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-screen-lg space-y-6 px-4 py-10 xl:max-w-6xl 2xl:max-w-[1440px]">
+      <div className="mx-auto max-w-screen-lg space-y-6 px-4 py-6 md:py-10 xl:max-w-6xl 2xl:max-w-[1440px]">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">TDS &amp; tax</h1>
           <p className="text-sm text-muted-foreground">

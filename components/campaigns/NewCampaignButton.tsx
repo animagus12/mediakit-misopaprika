@@ -39,15 +39,46 @@ function blankPayment(): PaymentFormState {
   );
 }
 
-export function NewCampaignButton({
-  brandOptions = [],
-  videoOptions = [],
-}: {
+interface CampaignOptions {
   brandOptions?: CampaignBrandOption[];
   videoOptions?: EditorVideoOption[];
-}) {
-  const router = useRouter();
+}
+
+export function NewCampaignButton({ brandOptions, videoOptions }: CampaignOptions) {
   const [open, setOpen] = useState(false);
+  return (
+    <NewCampaignSheet
+      open={open}
+      onOpenChange={setOpen}
+      brandOptions={brandOptions}
+      videoOptions={videoOptions}
+      trigger={
+        <Button size="sm">
+          <Plus className="size-3.5" />
+          New campaign
+        </Button>
+      }
+    />
+  );
+}
+
+interface NewCampaignSheetProps extends CampaignOptions {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The button that opens it, when it has one. The shell's New menu opens it without. */
+  trigger?: React.ReactElement;
+}
+
+// Controlled, so the page's own button and the shell's New menu open the one
+// form rather than two copies that could drift apart.
+export function NewCampaignSheet({
+  open,
+  onOpenChange,
+  trigger,
+  brandOptions = [],
+  videoOptions = [],
+}: NewCampaignSheetProps) {
+  const router = useRouter();
   const [form, setForm] = useState(campaignInitialForm);
   // A deal whose money has already landed is entered with that payment, so it
   // is on the books from the start rather than as a status nobody can date.
@@ -117,27 +148,24 @@ export function NewCampaignButton({
       setForm(campaignInitialForm());
       setReceived(false);
       setPayment(blankPayment());
-      setOpen(false);
+      handleOpenChange(false);
     });
   }
 
+  // Reset on the way out rather than on the way in: an opening from the New
+  // menu sets `open` directly and never passes through here, and each opening
+  // still has to find no stale error and a payment id of its own.
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setError(null);
+      setPaymentId(crypto.randomUUID());
+    }
+    onOpenChange(next);
+  }
+
   return (
-    <Sheet
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) {
-          setError(null);
-          setPaymentId(crypto.randomUUID());
-        }
-      }}
-    >
-      <SheetTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
-          New campaign
-        </Button>
-      </SheetTrigger>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
       <SheetContent className="flex flex-col gap-0">
         <SheetHeader>
           <SheetTitle>New campaign</SheetTitle>

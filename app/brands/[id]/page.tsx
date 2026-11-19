@@ -104,7 +104,7 @@ export default async function BrandDetailPage({ params }: BrandDetailPageProps) 
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-6 px-4 py-10">
+      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-6 px-4 py-6 md:py-10">
         <BrandDetailHeader
           brand={brand}
           agencyName={agency?.name ?? null}

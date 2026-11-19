@@ -213,7 +213,7 @@ export function RenewUsageSheet({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
             <div className="min-w-0 space-y-2">
               <Label htmlFor={`${formId}-startDate`}>Runs from</Label>
               <Input

@@ -151,7 +151,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-8 px-4 py-10">
+      <div className="mx-auto max-w-screen-lg xl:max-w-6xl 2xl:max-w-[1440px] space-y-8 px-4 py-6 md:py-10">
         <div className="flex items-end justify-between gap-3">
           <div className="space-y-1">
             <p className="text-xs font-medium text-primary">Today is {formatDayLabel(today)}</p>

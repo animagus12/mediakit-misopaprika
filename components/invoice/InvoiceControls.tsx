@@ -193,7 +193,7 @@ export function InvoiceControls({
           onChange={(e) => actions.setField("campaignName", e.target.value)}
         />
 
-        <div className={`${styles.row} ${styles.rowTight}`}>
+        <div className={`${styles.row} ${styles.rowTight} ${styles.rowDates}`}>
           <div>
             <Label className={styles.fieldLabel} htmlFor="invoiceDate">
               Date
