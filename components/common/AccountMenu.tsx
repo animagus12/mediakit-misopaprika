@@ -23,9 +23,15 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import { ColorThemeSwatch } from "@/components/common/ColorThemeSwatch";
+import { useColorTheme } from "@/hooks/use-color-theme";
+import { COLOR_THEMES, colorThemeLabel, isColorTheme } from "@/lib/colorThemes";
 import { accountEntries, isNavHrefActive } from "@/lib/navigation";
 
 const themes = [
@@ -41,6 +47,7 @@ const themes = [
 export function AccountMenu() {
   const { isMobile, setOpenMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
+  const { colorTheme, setColorTheme } = useColorTheme();
   const pathname = usePathname();
   const router = useRouter();
   const [confirmingLogout, setConfirmingLogout] = useState(false);
@@ -88,7 +95,7 @@ export function AccountMenu() {
               }
             }}
           >
-            <DropdownMenuLabel>Theme</DropdownMenuLabel>
+            <DropdownMenuLabel>Appearance</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
               {themes.map(({ value, label, Icon }) => (
                 <DropdownMenuRadioItem key={value} value={value} className="pointer-coarse:min-h-10">
@@ -97,6 +104,27 @@ export function AccountMenu() {
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
+            {/* Colour theme: independent of light/dark, every theme has both. */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="pointer-coarse:min-h-10">
+                <ColorThemeSwatch theme={colorTheme} />
+                <span className="flex-1">Theme</span>
+                <span className="text-muted-foreground">{colorThemeLabel(colorTheme)}</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent collisionPadding={8} className="min-w-40">
+                <DropdownMenuRadioGroup
+                  value={colorTheme}
+                  onValueChange={(value) => isColorTheme(value) && setColorTheme(value)}
+                >
+                  {COLOR_THEMES.map(({ id, label }) => (
+                    <DropdownMenuRadioItem key={id} value={id} className="pointer-coarse:min-h-10">
+                      <ColorThemeSwatch theme={id} />
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             {accountEntries.map(({ href, title, Icon }) => (
               <DropdownMenuItem key={href} asChild className="pointer-coarse:min-h-10">

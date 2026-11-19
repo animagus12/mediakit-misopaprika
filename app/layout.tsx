@@ -3,8 +3,11 @@ import { Geist_Mono, Inter, Noto_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
+import "./themes.css";
 import { cn } from "@/lib/utils";
+import { COLOR_THEME_INIT_SCRIPT } from "@/lib/colorThemes";
 import { ThemeProvider } from "@/components/common/theme-provider";
+import { ColorThemeSync } from "@/components/common/ColorThemeSync";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_COLORS } from "@/lib/appTheme";
 
@@ -61,6 +64,10 @@ export default function RootLayout({
       )}
       suppressHydrationWarning
     >
+      <head>
+        {/* Puts the saved colour theme on <html> before the first paint. */}
+        <script dangerouslySetInnerHTML={{ __html: COLOR_THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
         <ThemeProvider
           attribute="class"
@@ -71,6 +78,7 @@ export default function RootLayout({
           {children}
           <Toaster />
         </ThemeProvider>
+        <ColorThemeSync />
         <Analytics />
         <SpeedInsights />
       </body>
