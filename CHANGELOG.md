@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-11-19
+
 ### Added
 
 - **Colour themes.** Besides **Paprika**, the dashboard can wear **Dracula**, **Catppuccin**, **Nord**, **Tokyo Night**, **Gruvbox** or **Rosé Pine**, picked under **Theme** in the Account menu, where each shows a dot in its own colours. **Light**, **Dark** and **System** work as before: every theme has a light and a dark version (Dracula's light one is Alucard, its official light palette), and the menu's first group is now headed **Appearance**. The choice is kept in this browser, like light and dark, and is on screen from the first paint, with no flash of Paprika; other open tabs switch with it. Each theme's colours come from its published palette, and where one would be hard to read, only its lightness changes: every text, button and error colour reads at 4.5:1 or better, and each theme's main colour stays as far from its red as Paprika's does, so a **Delete** never looks like a **Save**. The links page and the media kit sheet keep their own fixed look for visitors. (`app/themes.css`, `app/globals.css`, `app/layout.tsx`, `lib/colorThemes.ts`, `hooks/use-color-theme.ts`, `components/common/ColorThemeSwatch.tsx`, `components/common/ColorThemeSync.tsx`, `components/common/AccountMenu.tsx`)
