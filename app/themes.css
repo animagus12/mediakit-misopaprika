@@ -1,0 +1,276 @@
+/* Colour themes beside the default, paprika (app/globals.css). One is picked
+   in the Account menu and set as data-color-theme on <html> before the first
+   paint (lib/colorThemes.ts, hooks/use-color-theme.ts). Light, dark and system
+   stay with next-themes, so every theme has a light and a dark block.
+
+   Values come from each theme's published palette, converted to oklch. Where
+   a palette colour falls short, only its lightness moves, so it keeps its
+   hue, until every pair the app draws reads at WCAG AA (4.5:1): text and
+   muted text on background, card and muted, each foreground on its fill,
+   and primary and destructive as text on background and card. Each primary
+   also sits at least as far from its destructive as paprika's own pair do,
+   since one means "go" and the other "this cannot be undone".
+
+   Selectors: the :root form outranks globals.css's :root and .dark however
+   the two files are ordered; the bare attribute form lets one element wear
+   a theme on its own, which is how the menu previews each one
+   (ColorThemeSwatch). */
+
+/* The tokens every theme derives from the ones it sets, the way paprika's
+   are related in globals.css. */
+[data-color-theme]:not([data-color-theme="paprika"]) {
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --ring: var(--primary);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary);
+}
+
+/* Dracula, purple accent. Light mode is Alucard, Dracula's own light palette.
+   In dark mode the comment colour is lifted (and greyed a little) to serve as
+   muted text, and red is lifted to read on cards. */
+:root[data-color-theme="dracula"],
+[data-color-theme="dracula"] {
+  --background: oklch(0.987 0.021 95);
+  --foreground: oklch(0.239 0 0);
+  --card: oklch(0.996 0.006 95);
+  --primary: oklch(0.509 0.188 287);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.929 0.003 62);
+  --secondary-foreground: oklch(0.239 0 0);
+  --muted: oklch(0.949 0.009 88);
+  --muted-foreground: oklch(0.508 0.041 97);
+  --accent: oklch(0.902 0.011 299);
+  --accent-foreground: oklch(0.239 0 0);
+  --destructive: oklch(0.563 0.184 30);
+  --border: oklch(0.91 0.004 308);
+  --input: oklch(0.891 0.01 292);
+  --sidebar: oklch(0.968 0.015 93);
+}
+
+:root.dark[data-color-theme="dracula"],
+.dark [data-color-theme="dracula"] {
+  --background: oklch(0.288 0.022 278);
+  --foreground: oklch(0.977 0.008 107);
+  --card: oklch(0.318 0.022 278);
+  --primary: oklch(0.742 0.149 302);
+  --primary-foreground: oklch(0.288 0.022 278);
+  --secondary: oklch(0.403 0.032 278);
+  --secondary-foreground: oklch(0.977 0.008 107);
+  --muted: oklch(0.351 0.028 278);
+  --muted-foreground: oklch(0.76 0.05 270);
+  --accent: oklch(0.437 0.043 286);
+  --accent-foreground: oklch(0.977 0.008 107);
+  --destructive: oklch(0.745 0.206 24);
+  --border: oklch(0.374 0.03 278);
+  --input: oklch(0.403 0.032 278);
+  --sidebar: oklch(0.255 0.019 280);
+}
+
+/* Catppuccin, mauve accent: Latte in light mode, Mocha in dark. */
+:root[data-color-theme="catppuccin"],
+[data-color-theme="catppuccin"] {
+  --background: oklch(0.958 0.006 265);
+  --foreground: oklch(0.435 0.043 279);
+  --card: oklch(0.987 0.002 265);
+  --primary: oklch(0.555 0.25 297);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.933 0.009 265);
+  --secondary-foreground: oklch(0.435 0.043 279);
+  --muted: oklch(0.933 0.009 265);
+  --muted-foreground: oklch(0.492 0.038 279);
+  --accent: oklch(0.903 0.027 288);
+  --accent-foreground: oklch(0.435 0.043 279);
+  --destructive: oklch(0.55 0.216 20);
+  --border: oklch(0.906 0.012 265);
+  --input: oklch(0.857 0.014 268);
+  --sidebar: oklch(0.933 0.009 265);
+}
+
+:root.dark[data-color-theme="catppuccin"],
+.dark [data-color-theme="catppuccin"] {
+  --background: oklch(0.243 0.03 284);
+  --foreground: oklch(0.879 0.043 272);
+  --card: oklch(0.273 0.03 284);
+  --primary: oklch(0.787 0.119 305);
+  --primary-foreground: oklch(0.183 0.02 284);
+  --secondary: oklch(0.324 0.032 282);
+  --secondary-foreground: oklch(0.879 0.043 272);
+  --muted: oklch(0.3 0.031 283);
+  --muted-foreground: oklch(0.751 0.04 274);
+  --accent: oklch(0.37 0.04 289);
+  --accent-foreground: oklch(0.879 0.043 272);
+  --destructive: oklch(0.756 0.13 3);
+  --border: oklch(0.324 0.032 282);
+  --input: oklch(0.404 0.032 280);
+  --sidebar: oklch(0.216 0.025 284);
+}
+
+/* Nord, Frost accent: Snow Storm grounds in light mode, Polar Night in dark.
+   Nord10 and Aurora red are darkened in light mode, and red and the muted
+   text lifted in dark, to read at 4.5:1. */
+:root[data-color-theme="nord"],
+[data-color-theme="nord"] {
+  --background: oklch(0.951 0.007 261);
+  --foreground: oklch(0.324 0.023 264);
+  --card: oklch(0.985 0.002 261);
+  --primary: oklch(0.528 0.077 254);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.933 0.01 262);
+  --secondary-foreground: oklch(0.324 0.023 264);
+  --muted: oklch(0.933 0.01 262);
+  --muted-foreground: oklch(0.452 0.035 264);
+  --accent: oklch(0.909 0.017 239);
+  --accent-foreground: oklch(0.324 0.023 264);
+  --destructive: oklch(0.543 0.121 15);
+  --border: oklch(0.899 0.016 263);
+  --input: oklch(0.832 0.019 263);
+  --sidebar: oklch(0.933 0.01 262);
+}
+
+:root.dark[data-color-theme="nord"],
+.dark [data-color-theme="nord"] {
+  --background: oklch(0.324 0.023 264);
+  --foreground: oklch(0.899 0.016 263);
+  --card: oklch(0.379 0.029 266);
+  --primary: oklch(0.775 0.062 217);
+  --primary-foreground: oklch(0.324 0.023 264);
+  --secondary: oklch(0.416 0.032 264);
+  --secondary-foreground: oklch(0.951 0.007 261);
+  --muted: oklch(0.405 0.031 265);
+  --muted-foreground: oklch(0.786 0.016 263);
+  --accent: oklch(0.444 0.033 258);
+  --accent-foreground: oklch(0.951 0.007 261);
+  --destructive: oklch(0.77 0.121 15);
+  --border: oklch(0.416 0.032 264);
+  --input: oklch(0.452 0.035 264);
+  --sidebar: oklch(0.304 0.023 264);
+}
+
+/* Tokyo Night, blue accent: Day in light mode, Night in dark. Day's blue,
+   red and secondary text are darkened to read on its grey ground. */
+:root[data-color-theme="tokyo-night"],
+[data-color-theme="tokyo-night"] {
+  --background: oklch(0.913 0.007 277);
+  --foreground: oklch(0.359 0.051 273);
+  --card: oklch(0.97 0.002 277);
+  --primary: oklch(0.507 0.18 258);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.889 0.015 271);
+  --secondary-foreground: oklch(0.359 0.051 273);
+  --muted: oklch(0.895 0.013 272);
+  --muted-foreground: oklch(0.492 0.098 271);
+  --accent: oklch(0.869 0.026 265);
+  --accent-foreground: oklch(0.359 0.051 273);
+  --destructive: oklch(0.511 0.233 12);
+  --border: oklch(0.835 0.025 276);
+  --input: oklch(0.803 0.034 274);
+  --sidebar: oklch(0.893 0.013 272);
+}
+
+:root.dark[data-color-theme="tokyo-night"],
+.dark [data-color-theme="tokyo-night"] {
+  --background: oklch(0.226 0.021 280);
+  --foreground: oklch(0.846 0.061 275);
+  --card: oklch(0.256 0.021 280);
+  --primary: oklch(0.719 0.132 264);
+  --primary-foreground: oklch(0.226 0.021 280);
+  --secondary: oklch(0.306 0.037 273);
+  --secondary-foreground: oklch(0.846 0.061 275);
+  --muted: oklch(0.286 0.033 274);
+  --muted-foreground: oklch(0.767 0.054 275);
+  --accent: oklch(0.339 0.044 271);
+  --accent-foreground: oklch(0.846 0.061 275);
+  --destructive: oklch(0.723 0.159 10);
+  --border: oklch(0.306 0.037 273);
+  --input: oklch(0.387 0.054 274);
+  --sidebar: oklch(0.204 0.016 285);
+}
+
+/* Gruvbox, yellow accent. Light mode's yellow is darkened to an ochre so
+   white text reads on it; dark mode's red is lifted to read on cards. */
+:root[data-color-theme="gruvbox"],
+[data-color-theme="gruvbox"] {
+  --background: oklch(0.956 0.055 96);
+  --foreground: oklch(0.344 0.007 49);
+  --card: oklch(0.965 0.039 101);
+  --primary: oklch(0.539 0.128 71);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.894 0.057 89);
+  --secondary-foreground: oklch(0.344 0.007 49);
+  --muted: oklch(0.922 0.055 93);
+  --muted-foreground: oklch(0.482 0.018 61);
+  --accent: oklch(0.872 0.062 86);
+  --accent-foreground: oklch(0.344 0.007 49);
+  --destructive: oklch(0.437 0.179 28);
+  --border: oklch(0.87 0.054 88);
+  --input: oklch(0.825 0.051 85);
+  --sidebar: oklch(0.922 0.055 93);
+}
+
+:root.dark[data-color-theme="gruvbox"],
+.dark [data-color-theme="gruvbox"] {
+  --background: oklch(0.277 0 0);
+  --foreground: oklch(0.894 0.057 89);
+  --card: oklch(0.311 0.003 49);
+  --primary: oklch(0.832 0.159 83);
+  --primary-foreground: oklch(0.277 0 0);
+  --secondary: oklch(0.344 0.007 49);
+  --secondary-foreground: oklch(0.894 0.057 89);
+  --muted: oklch(0.344 0.007 49);
+  --muted-foreground: oklch(0.756 0.041 82);
+  --accent: oklch(0.373 0.015 70);
+  --accent-foreground: oklch(0.894 0.057 89);
+  --destructive: oklch(0.747 0.218 30);
+  --border: oklch(0.344 0.007 49);
+  --input: oklch(0.411 0.012 52);
+  --sidebar: oklch(0.241 0.005 220);
+}
+
+/* Rosé Pine, rose accent: Dawn in light mode, main in dark. Dawn's rose is
+   deepened so white text reads on it and it stays apart from love, the red,
+   which is close to it in hue. Dawn's text, subtle and love are darkened to
+   read at 4.5:1. */
+:root[data-color-theme="rose-pine"],
+[data-color-theme="rose-pine"] {
+  --background: oklch(0.97 0.011 72);
+  --foreground: oklch(0.445 0.063 290);
+  --card: oklch(0.987 0.011 77);
+  --primary: oklch(0.48 0.106 23);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.939 0.015 64);
+  --secondary-foreground: oklch(0.46 0.063 290);
+  --muted: oklch(0.939 0.015 64);
+  --muted-foreground: oklch(0.522 0.046 291);
+  --accent: oklch(0.915 0.022 46);
+  --accent-foreground: oklch(0.46 0.063 290);
+  --destructive: oklch(0.555 0.107 3);
+  --border: oklch(0.892 0.006 31);
+  --input: oklch(0.843 0.006 334);
+  --sidebar: oklch(0.951 0.013 67);
+}
+
+:root.dark[data-color-theme="rose-pine"],
+.dark [data-color-theme="rose-pine"] {
+  --background: oklch(0.213 0.025 291);
+  --foreground: oklch(0.909 0.03 290);
+  --card: oklch(0.241 0.032 289);
+  --primary: oklch(0.836 0.054 21);
+  --primary-foreground: oklch(0.213 0.025 291);
+  --secondary: oklch(0.271 0.042 289);
+  --secondary-foreground: oklch(0.909 0.03 290);
+  --muted: oklch(0.271 0.042 289);
+  --muted-foreground: oklch(0.654 0.044 291);
+  --accent: oklch(0.316 0.039 296);
+  --accent-foreground: oklch(0.909 0.03 290);
+  --destructive: oklch(0.698 0.156 4);
+  --border: oklch(0.321 0.039 290);
+  --input: oklch(0.372 0.036 291);
+  --sidebar: oklch(0.227 0.029 290);
+}

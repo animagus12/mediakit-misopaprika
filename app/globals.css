@@ -43,7 +43,11 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
+/* The attribute forms let one element wear paprika under another colour
+   theme, as the theme picker's preview does; the other themes are in
+   themes.css. */
+:root,
+[data-color-theme="paprika"] {
   /* Paprika: a warm red-orange brand hue. Everything neutral carries a trace of
      the same hue (chroma 0.004-0.012) so greys read as warm rather than dead,
      which is what made the stock palette feel clinical.
@@ -81,7 +85,8 @@
   --sidebar-ring: oklch(0.56 0.168 45);
 }
 
-.dark {
+.dark,
+.dark [data-color-theme="paprika"] {
   /* Warm charcoal rather than neutral black, and primary lifts to L 0.72 so it
      still carries on a dark ground: the light-mode primary is too dark to read
      as a brand colour here. */
