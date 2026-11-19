@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# design mockups: they hold real business figures and this repository is
+# public (see docs/mockups/ui-overhaul/README.md)
+/docs/mockups/
