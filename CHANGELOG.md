@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **The dashboard installs on a phone's home screen like an app.** In Safari on an iPhone, **Share › Add to Home Screen** now adds a paprika icon with the crown, named **misopaprika**, that opens the dashboard full screen without the address bar, its status bar following light or dark mode. Chrome on Android and on a computer offer to install it the same way. On an iPhone the installed app keeps its own sign-in, apart from Safari's, so it asks once the first time it opens. It still needs a connection; nothing works offline. The app's details and icons load without a sign-in, since a phone fetches them without one; every page still needs it. No Mac, App Store or Apple developer account is involved. (`app/manifest.ts`, `app/apple-icon.png`, `public/icons/`, `app/layout.tsx`, `lib/appTheme.ts`)
+
 ### Changed
 
 - **The sidebar is grouped by what you are doing.** Its 16 rows under **Manage**, **Create** and **Public pages** are now three short groups: **Work** (Campaigns, Content calendar, Brands), **Money** (Invoices, Payments, TDS & tax, Affiliates, Editor workspace) and **Publish** (Media kit, Links page). Each public page is one row that opens its editor, with an arrow beside it that opens the live page in a new tab, instead of an editor row and a viewer row. **Dashboard** is now called **Home**. (`lib/navigation.ts`, `components/common/AppSideBar.tsx`, `app/(dashboard)/page.tsx`)
