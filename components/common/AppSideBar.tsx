@@ -3,7 +3,7 @@
 import { Suspense, use } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Globe, X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
 import {
@@ -15,6 +15,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -22,6 +23,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "../ui/sidebar";
+import { AccountMenu } from "@/components/common/AccountMenu";
 import {
   dashboardEntry,
   isNavHrefActive,
@@ -55,18 +57,17 @@ function NavBadge({ badges, href }: { badges: Promise<NavBadgeMap>; href: string
   );
 }
 
-// Behind login is the default, so only the exceptions are marked: a lock on
-// every other row would say nothing the login screen hasn't. Public rows never
-// carry a count, so this shares the badge slot without colliding with one.
-function PublicMark() {
+// A Publish row opens the editor; this opens what visitors see, in a new tab
+// so the editor stays where it was. Publish rows never carry a count, so this
+// takes the slot a badge would use without colliding with one.
+function LiveLink({ href, title }: { href: string; title: string }) {
   return (
-    <SidebarMenuBadge
-      title="Public: anyone with the link can open it"
-      className="pointer-events-auto text-sidebar-foreground/50"
-    >
-      <Globe aria-hidden className="size-3.5" />
-      <span className="sr-only">Public page</span>
-    </SidebarMenuBadge>
+    <SidebarMenuAction asChild className="text-sidebar-foreground/50 pointer-coarse:top-2.5">
+      <a href={href} target="_blank" rel="noreferrer" title={`Open the live ${title.toLowerCase()}`}>
+        <ExternalLink />
+        <span className="sr-only">Open the live {title.toLowerCase()}</span>
+      </a>
+    </SidebarMenuAction>
   );
 }
 
@@ -103,14 +104,13 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
     href,
     title,
     Icon,
-    access,
-  }: Pick<NavEntry, "href" | "title" | "Icon" | "access">) => (
+    liveHref,
+  }: Pick<NavEntry, "href" | "title" | "Icon" | "liveHref">) => (
     <SidebarMenuItem key={href}>
       <SidebarMenuButton
         asChild
         isActive={isNavHrefActive(pathname, href)}
-        // The badge slot is hidden when collapsed, so the tooltip carries it.
-        tooltip={access === "public" ? `${title} (public)` : title}
+        tooltip={title}
         className="h-9 gap-3 text-sm pointer-coarse:h-11"
       >
         <Link href={href} onClick={closeOnMobile}>
@@ -118,7 +118,7 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
           <span>{title}</span>
         </Link>
       </SidebarMenuButton>
-      {access === "public" && <PublicMark />}
+      {liveHref && <LiveLink href={liveHref} title={title} />}
       {badges && (
         <Suspense fallback={null}>
           <NavBadge badges={badges} href={href} />
@@ -182,13 +182,8 @@ const AppSideBar = ({ photo, badges }: AppSideBarProps) => {
       </SidebarContent>
 
       <SidebarSeparator />
-      <SidebarFooter className="p-3 pb-[calc(--spacing(3)+env(safe-area-inset-bottom))] group-data-[collapsible=icon]:hidden">
-        <p className="text-xs text-muted-foreground">
-          Version{" "}
-          <span className="font-mono text-foreground/80">
-            {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
-          </span>
-        </p>
+      <SidebarFooter className="p-2 pb-[calc(--spacing(2)+env(safe-area-inset-bottom))]">
+        <AccountMenu />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

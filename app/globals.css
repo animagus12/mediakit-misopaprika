@@ -137,7 +137,19 @@
    the surrounding dashboard shell for all of them. */
 @media print {
   [data-slot="sidebar"],
-  [data-app-navbar] {
+  [data-app-navbar],
+  [data-mobile-tabbar] {
     display: none !important;
+  }
+}
+
+/* Below `md` the phone tab bar (MobileTabBar) covers the foot of the screen,
+   which is where toasts land, so they are lifted clear of it. Only on pages
+   that have the bar: the public pages keep Sonner's own spacing. The
+   variables are Sonner's, set inline on the toaster, hence !important. */
+@media (width < 48rem) {
+  body:has([data-mobile-tabbar]) [data-sonner-toaster] {
+    --offset-bottom: calc(4rem + 16px + env(safe-area-inset-bottom)) !important;
+    --mobile-offset-bottom: calc(4rem + 16px + env(safe-area-inset-bottom)) !important;
   }
 }

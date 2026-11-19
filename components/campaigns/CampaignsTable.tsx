@@ -381,7 +381,9 @@ export function CampaignsTable({
             edge, rather than pushing the whole page (and every sheet opened
             from a row) wider than the screen. */}
         <Tabs value={tab} onValueChange={setTab} className="w-full min-w-0 sm:w-auto">
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          {/* Scrollbar hidden as on the calendar's StageFilter: the strip is
+              1px taller than its box, which drew a vertical scrollbar beside it. */}
+          <div className="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
             <TabsList className="w-max">
               {CAMPAIGN_FILTER_TABS.map((entry) => (
                 <TabsTrigger key={entry.value} value={entry.value}>

@@ -559,7 +559,7 @@ export function CampaignFormFields({
       </FieldGroup>
 
       <FieldGroup title="Progress">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-date`}>Deal date</Label>
             <Input
@@ -737,7 +737,7 @@ export function CampaignFormFields({
 
           {/* The day the post went up. Beside it: the renewal's length on a
               renewed licence, or the day an ended one was called off. */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-uploadDate`}>Upload date</Label>
               <Input

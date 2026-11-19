@@ -141,7 +141,7 @@ export function EditorTransactionFormFields({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-editor`}>Editor</Label>
           {editors.length === 0 ? (
@@ -191,7 +191,9 @@ export function EditorTransactionFormFields({
           The edit sheet is where all three are answered. */}
       {mode === "edit" && (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          {/* One column at every width: beside the date, the three status
+              buttons got a third of a half and their labels ran together. */}
+          <div className="grid grid-cols-1 gap-3">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-deliveryDate`}>Date delivered</Label>
               <Input
@@ -227,7 +229,7 @@ export function EditorTransactionFormFields({
 
           {/* Only paid work has a payment to describe. */}
           {isPaidEditorStatus(form.status) && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <Label htmlFor={`${idPrefix}-paidDate`}>Paid on</Label>
                 <Input

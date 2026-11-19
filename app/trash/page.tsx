@@ -14,7 +14,7 @@ export default async function TrashPage() {
   const entries = await listTrash();
   return (
     <AppShell>
-      <main className="mx-auto max-w-screen-lg px-4 py-10">
+      <main className="mx-auto max-w-screen-lg px-4 py-6 md:py-10">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="font-heading text-lg font-semibold">Trash</h1>

@@ -1,117 +1,71 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { House, LogOut, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+import { usePathname } from "next/navigation";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "../ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Button } from "../ui/button";
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "../ui/breadcrumb";
 import { Separator } from "../ui/separator";
 import { SidebarTrigger } from "../ui/sidebar";
 import GlobalSearch from "@/components/common/GlobalSearch";
-import { currentNavTitle } from "@/lib/navigation";
+import { NewMenu } from "@/components/common/create/NewMenu";
+import { currentNavTrail } from "@/lib/navigation";
 
 // Touch targets follow the pointer, not the viewport: a phone in landscape is
 // past `md` but still driven by a thumb.
 const iconButton = "size-7 pointer-coarse:size-11 [&_svg]:size-4 pointer-coarse:[&_svg]:size-5";
 
 const NavBar = () => {
-  const { setTheme } = useTheme();
-  const router = useRouter();
   const pathname = usePathname();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const title = currentNavTitle(pathname);
-
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    await fetch("/api/auth", { method: "DELETE" });
-    router.replace("/login");
-    router.refresh();
-  }
+  const trail = currentNavTrail(pathname);
 
   return (
     <nav
       data-app-navbar
-      className="sticky top-0 z-50 flex min-h-14 items-center justify-between gap-2 border-b border-border bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-xl"
+      className="sticky top-0 z-50 flex min-h-14 items-center justify-between gap-2 border-b border-border bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-xl max-md:pl-4"
     >
       <div className="flex min-w-0 items-center gap-1">
-        <SidebarTrigger aria-label="Toggle menu" className={iconButton} />
-        {title && (
+        {/* On a phone the tab bar's Menu opens the sidebar instead. */}
+        <SidebarTrigger aria-label="Toggle menu" className={`${iconButton} max-md:hidden`} />
+        {trail && (
           <>
             <Separator
               orientation="vertical"
-              className="mx-1 data-vertical:h-5 data-vertical:self-center"
+              className="mx-1 data-vertical:h-5 data-vertical:self-center max-md:hidden"
             />
-            {/* The page's own h1 scrolls away; this is what names the page once
-                it has. */}
-            <span className="truncate font-heading text-sm font-medium">{title}</span>
+            {/* The page's own h1 scrolls away; this is what names the page
+                once it has, and leads back to its section from a nested one. */}
+            <Breadcrumb className="min-w-0">
+              <BreadcrumbList className="flex-nowrap">
+                {trail.parent && (
+                  <>
+                    <BreadcrumbItem className="shrink-0">
+                      <BreadcrumbLink asChild className="pointer-coarse:py-2">
+                        <Link href={trail.parent.href}>{trail.parent.title}</Link>
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                  </>
+                )}
+                <BreadcrumbItem className="min-w-0">
+                  <BreadcrumbPage className="truncate font-heading text-sm font-medium">
+                    {trail.title}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </>
         )}
       </div>
 
       <div className="flex items-center gap-1">
         <GlobalSearch />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className={iconButton}>
-              <Sun className="scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-              <Moon className="absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
-              <span className="sr-only">Toggle theme</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Button variant="ghost" size="icon" className={iconButton} asChild>
-          <Link href="/">
-            <House />
-            <span className="sr-only">Dashboard</span>
-          </Link>
-        </Button>
-
-        {/* Confirmed, because this sits a thumb's width from the theme toggle
-            and there is no undo for it. */}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" className={iconButton} disabled={isLoggingOut}>
-              <LogOut />
-              <span className="sr-only">Log out</span>
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Log out?</AlertDialogTitle>
-              <AlertDialogDescription>
-                You&apos;ll need the workspace password to get back in.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleLogout}>Log out</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <NewMenu />
       </div>
     </nav>
   );

@@ -1,17 +1,26 @@
 import { cookies } from "next/headers";
 import AppSideBar from "@/components/common/AppSideBar";
 import NavBar from "@/components/common/NavBar";
+import { MobileTabBar } from "@/components/common/MobileTabBar";
 import { PageSkeleton } from "@/components/common/PageSkeleton";
+import { CreateMenuProvider } from "@/components/common/create/CreateMenuProvider";
+import type { CreateMenuData } from "@/components/common/create/createActions";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getMediaKitData } from "@/repositories/mediakit.writer.server";
 import { getBrands } from "@/repositories/brands.writer.server";
+import { getAgencies } from "@/repositories/agencies.writer.server";
 import { getContacts } from "@/repositories/contacts.writer.server";
+import { getEditors } from "@/repositories/editors.writer.server";
 import { getInvoices } from "@/repositories/invoices.writer.server";
 import { getEditorTransactions } from "@/repositories/editorTransactions.writer.server";
 import { getContentItems } from "@/repositories/contentPlan.writer.server";
+import { readExpenseRecords } from "@/repositories/expenseRecords.server";
 import { campaignRepository } from "@/repositories/campaignRepository";
 import { buildNavBadges, type NavBadgeMap } from "@/lib/navBadges";
+import { buildCampaignBrandOptions } from "@/lib/campaigns";
+import { buildEditorVideoOptions } from "@/lib/contentPlan";
+import { buildExpenseDealOptions, lastExpenseDefaults } from "@/lib/expenses";
 
 // Every store the sidebar counters read. Each failure degrades to "nothing to
 // flag" rather than taking the shell down with it: a missing counter is a far
@@ -27,6 +36,34 @@ async function loadNavBadges(): Promise<NavBadgeMap> {
       getContentItems().catch(() => []),
     ]);
   return buildNavBadges({ campaigns, contentItems, invoices, brands, contacts, editorTransactions });
+}
+
+// What the New menu's forms offer to pick from. Most of these stores are read
+// for the counters or by the page itself already, and reads are shared within
+// a request (lib/cache.ts), so this adds the agencies, editors and expenses.
+// Each failure degrades to an empty list, as the counters do: a form with no
+// suggestions still works, where a shell that won't render doesn't.
+async function loadCreateMenuData(): Promise<CreateMenuData> {
+  const [brands, agencies, contacts, editors, editorTransactions, campaigns, contentItems, expenses] =
+    await Promise.all([
+      getBrands().catch(() => []),
+      getAgencies().catch(() => []),
+      getContacts().catch(() => []),
+      getEditors().catch(() => []),
+      getEditorTransactions().catch(() => []),
+      campaignRepository.getAll().catch(() => []),
+      getContentItems().catch(() => []),
+      readExpenseRecords().catch(() => []),
+    ]);
+  return {
+    campaignBrandOptions: buildCampaignBrandOptions(brands),
+    videoOptions: buildEditorVideoOptions(editorTransactions, [...contentItems, ...campaigns]),
+    agencies,
+    contacts,
+    editors,
+    expenseDealOptions: buildExpenseDealOptions(campaigns),
+    expenseDefaults: lastExpenseDefaults(expenses),
+  };
 }
 
 // The same trade as the counters: a failed read costs the photo, not the page.
@@ -47,20 +84,33 @@ async function readSidebarOpen(): Promise<boolean> {
 function ShellFrame({
   sidebarOpen,
   sidebar,
+  badges,
+  createMenu,
   children,
 }: Readonly<{
   sidebarOpen: boolean;
   sidebar: React.ReactNode;
+  badges?: Promise<NavBadgeMap>;
+  createMenu?: Promise<CreateMenuData>;
   children: React.ReactNode;
 }>) {
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
       <TooltipProvider>
-        {sidebar}
-        <div className="w-full">
-          <NavBar />
-          {children}
-        </div>
+        <CreateMenuProvider data={createMenu}>
+          {sidebar}
+          {/* Below `md` the tab bar is fixed over the foot of the page, so the
+              page ends that much higher to keep its last row reachable.
+              min-w-0 lets this column be narrower than its widest table: as a
+              flex item it otherwise grows to fit it, and beside the sidebar
+              (768px with a wide table, say) the whole page scrolled sideways
+              instead of the table scrolling in its own box. */}
+          <div className="w-full min-w-0 pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] md:pb-0">
+            <NavBar />
+            {children}
+          </div>
+          <MobileTabBar badges={badges} />
+        </CreateMenuProvider>
       </TooltipProvider>
     </SidebarProvider>
   );
@@ -72,14 +122,17 @@ export default async function AppShell({
   children: React.ReactNode;
 }>) {
   const sidebarOpen = await readSidebarOpen();
+  // Deliberately not awaited: every read starts together and streams in
+  // behind its own boundary, so the page's content never waits on them. See
+  // SidebarPhoto and NavBadge in AppSideBar, and CreateMenuProvider.
+  const badges = loadNavBadges();
 
   return (
     <ShellFrame
       sidebarOpen={sidebarOpen}
-      // Deliberately not awaited: both reads start together and stream in
-      // behind their own boundaries, so the page's content never waits on
-      // them. See SidebarPhoto and NavBadge in AppSideBar.
-      sidebar={<AppSideBar photo={loadSidebarPhoto()} badges={loadNavBadges()} />}
+      sidebar={<AppSideBar photo={loadSidebarPhoto()} badges={badges} />}
+      badges={badges}
+      createMenu={loadCreateMenuData()}
     >
       {children}
     </ShellFrame>

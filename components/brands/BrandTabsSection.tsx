@@ -45,8 +45,9 @@ export function BrandTabsSection({
     <Tabs defaultValue="overview" className="min-w-0">
       {/* Six tabs are wider than a phone: they scroll sideways, edge to edge,
           rather than pushing the whole page wider than the screen (the same
-          as the campaigns table's tabs). */}
-      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          as the campaigns table's tabs). Its scrollbar is hidden like theirs:
+          a swipe scrolls it, and a bar under the tabs read as part of them. */}
+      <div className="-mx-4 overflow-x-auto overflow-y-hidden px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
         <TabsList className="w-max">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
