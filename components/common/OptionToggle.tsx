@@ -56,7 +56,9 @@ export function OptionToggle<T extends string>({
       className={cn("grid w-full", COLUMNS[columns], className)}
     >
       {options.map((option) => (
-        <ToggleGroupItem key={option} value={option} className="text-xs">
+        // The sm toggle has no touch size of its own; 44px like every other
+        // control a thumb has to hit.
+        <ToggleGroupItem key={option} value={option} className="text-xs pointer-coarse:h-11 pointer-coarse:text-sm">
           {labelFor ? labelFor(option) : option}
         </ToggleGroupItem>
       ))}

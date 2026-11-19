@@ -143,6 +143,49 @@
   }
 }
 
+/* Form sizing. Controls default to a dense 28px and 12px, which suits tables
+   and toolbars; inside a shadcn Field (a form) they read at 36px and 14px on
+   a mouse screen. Touch screens keep each control's own pointer-coarse 44px,
+   which this leaves alone. Keyed on the Field wrapper, so a form picks it up
+   by adopting Field rather than by restyling every control it holds. In the
+   utilities layer and more than one selector deep, so it outranks the
+   controls' own height and text utilities. */
+@layer utilities {
+  @media not all and (pointer: coarse) {
+    [data-slot="field"] :is(
+        [data-slot="input"],
+        [data-slot="select-trigger"][data-size],
+        [data-slot="input-group"],
+        [data-slot="toggle-group-item"],
+        [data-slot="count-stepper"]
+      ) {
+      height: calc(var(--spacing) * 9);
+    }
+    [data-slot="field"] [data-slot="input-group-control"] {
+      height: 100%;
+    }
+    [data-slot="field"] :is(
+        [data-slot="input"],
+        [data-slot="select-trigger"],
+        [data-slot="input-group-control"],
+        [data-slot="input-group-addon"],
+        [data-slot="textarea"],
+        [data-slot="toggle-group-item"],
+        [data-slot="count-stepper"]
+      ) {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
+    [data-slot="field"] [data-slot="count-stepper"] [data-slot="button"] {
+      width: calc(var(--spacing) * 8);
+      height: calc(var(--spacing) * 8);
+    }
+    [data-slot="field"] [data-slot="field-label"] {
+      font-size: 0.8125rem;
+    }
+  }
+}
+
 /* Below `md` the phone tab bar (MobileTabBar) covers the foot of the screen,
    which is where toasts land, so they are lifted clear of it. Only on pages
    that have the bar: the public pages keep Sonner's own spacing. The

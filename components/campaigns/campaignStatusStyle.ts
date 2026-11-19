@@ -55,3 +55,19 @@ export const CAMPAIGN_STATUS_STYLES: Record<CampaignStatus, StatusStyle> = {
   // Dashed and muted: it marks a row as written out of the record, not as wrong.
   Redacted: { variant: "outline", className: "border-dashed text-muted-foreground/70" },
 };
+
+// Each badge's hue as a solid dot, for where a whole badge is too much: the
+// status picker in the campaign form and the edit sheet's header.
+export const CAMPAIGN_STATUS_DOTS: Record<CampaignStatus, string> = {
+  Discussion: "bg-muted-foreground/50",
+  "In Route": "bg-blue-500",
+  Idea: "bg-muted-foreground/50",
+  Scripting: "bg-violet-500",
+  Filming: "bg-amber-500",
+  Editing: "bg-pink-500",
+  Ready: "bg-cyan-500",
+  Posted: "bg-emerald-500",
+  Cancelled: "bg-destructive",
+  "On Hold": "bg-amber-500",
+  Redacted: "border border-dashed border-muted-foreground/70",
+};

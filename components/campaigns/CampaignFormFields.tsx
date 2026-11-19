@@ -1,19 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Plus, Unlink } from "lucide-react";
+import { ChevronDown, Lock, Plus, Unlink } from "lucide-react";
 import { CountStepper } from "@/components/common/CountStepper";
-import { FieldGroup } from "@/components/common/FieldGroup";
+import { AMOUNT_PATTERN, MoneyInput } from "@/components/common/MoneyInput";
 import { OptionToggle } from "@/components/common/OptionToggle";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+  FieldTitle,
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -22,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   CAMPAIGN_TYPES,
   DELIVERABLE_MAX,
@@ -29,12 +39,14 @@ import {
   PAYMENT_STATUS_OPTIONS,
   isCampaignCancelled,
   paymentStatusLabel,
-  reelTypesLabel,
   CAMPAIGN_REEL_TYPES,
   type CampaignBrandOption,
 } from "@/lib/campaigns";
-import { todayKey } from "@/lib/day";
+import { addDays, todayKey } from "@/lib/day";
 import { formatMoney } from "@/lib/invoice";
+import { formatFormAmount, parseFormAmount } from "@/lib/paymentForm";
+import { estimateTdsFromRateInput } from "@/lib/tds";
+import { cn } from "@/lib/utils";
 import type { EditorVideoOption } from "@/lib/contentPlan";
 import {
   campaignTypeHasBarter,
@@ -45,12 +57,16 @@ import {
   type CampaignType,
   type UsageStatus,
 } from "@/repositories/campaigns";
-import { TdsFields } from "./TdsFields";
+import { CAMPAIGN_STATUS_DOTS } from "./campaignStatusStyle";
 
 // Radix Select can't take "" as an item value, so "add a brand that isn't in
 // the list" needs a sentinel of its own. Same for the editor picker's "no job".
 const NEW_BRAND = "__new__";
 const NO_VIDEO = "__none__";
+
+// How far after the deal date a payment is usually due. One tap each, since
+// brands mostly pay on one of these terms.
+const DUE_OFFSETS = [15, 30, 45] as const;
 
 export interface CampaignFormState {
   brand: string;
@@ -61,6 +77,7 @@ export interface CampaignFormState {
   reelTypes: CampaignReelType[];
   story: number;
   status: CampaignStatus;
+  /** As typed, grouping commas and all ("45,000"); read with parseFormAmount. */
   amount: string;
   barterValue: string;
   /**
@@ -93,6 +110,11 @@ export interface CampaignFormState {
   usageFee: string;
 }
 
+/** A form amount as a number, 0 for blank or unreadable (the input's pattern refuses the latter). */
+function amountOf(text: string): number {
+  return parseFormAmount(text) || 0;
+}
+
 /**
  * The money a form state actually means.
  *
@@ -117,10 +139,16 @@ export function campaignAmounts(form: CampaignFormState): {
 } {
   const cash = campaignTypeHasCash(form.type);
   return {
-    amount: cash ? Number(form.amount) || 0 : 0,
-    barterValue: campaignTypeHasBarter(form.type) ? Number(form.barterValue) || 0 : 0,
-    usageFee: cash ? Math.max(0, Number(form.usageFee) || 0) : 0,
+    amount: cash ? amountOf(form.amount) : 0,
+    barterValue: campaignTypeHasBarter(form.type) ? amountOf(form.barterValue) : 0,
+    usageFee: cash ? Math.max(0, amountOf(form.usageFee)) : 0,
   };
+}
+
+/** What a deal is worth in all: its cash, its ad usage fee and its goods. */
+export function campaignTotal(form: CampaignFormState): number {
+  const { amount, barterValue, usageFee } = campaignAmounts(form);
+  return amount + usageFee + barterValue;
 }
 
 /**
@@ -176,6 +204,22 @@ export function campaignInitialForm(): CampaignFormState {
   };
 }
 
+/** A stored amount as the money field shows it: "" for none, grouped otherwise. */
+export function amountFieldText(amount: number): string {
+  return amount > 0 ? formatFormAmount(String(amount)) : "";
+}
+
+/**
+ * Moves focus to the Brand field, which scrolls it into view. For a sheet
+ * whose save was refused for want of a brand, since the field is at the top
+ * and the button that was pressed is at the bottom.
+ */
+export function focusBrandField(idPrefix: string) {
+  const field =
+    document.getElementById(`${idPrefix}-brandId`) ?? document.getElementById(`${idPrefix}-brand`);
+  field?.focus();
+}
+
 /**
  * What the form needs to know about a licence that already exists, beyond the
  * fields it edits: which term is the one being edited, and where it runs from.
@@ -185,16 +229,15 @@ export interface CampaignLicenceContext {
   status: UsageStatus;
   /** yyyy-mm-dd the latest renewal runs from, or null when never renewed. */
   renewalStart: string | null;
-  /** Renewal money received and pending, shown beside the deal's total (see renewalTotal). */
-  renewalMoney: number;
 }
 
 interface CampaignFormFieldsProps {
   idPrefix: string;
   /**
    * "create" leaves out what a deal being struck can't know yet: its payment
-   * status, which its dates imply (see derivedPaymentStatus). "edit" asks for
-   * everything, since any of it can be the thing being corrected.
+   * status, which its dates imply (see derivedPaymentStatus), and folds what
+   * it only learns later under More details. "edit" shows everything, since
+   * any of it can be the thing being corrected.
    */
   mode?: "create" | "edit";
   licence?: CampaignLicenceContext;
@@ -205,7 +248,11 @@ interface CampaignFormFieldsProps {
   videoOptions?: EditorVideoOption[];
   /** The invoice setting this deal's payment due date (yyyy-mm-dd), which locks the field. */
   dueInvoice?: CampaignDueInvoice | null;
-  /** A new deal's "Already received" payment fields, shown with the cash payment details. */
+  /** Set when a save was refused for want of a brand; cleared by naming one. */
+  brandError?: boolean;
+  /** The edit sheet's invoice link, shown with the schedule since it sets the due date. */
+  invoiceSlot?: React.ReactNode;
+  /** A new deal's "Already received" payment fields, shown under More details. */
   paymentSlot?: React.ReactNode;
 }
 
@@ -215,16 +262,46 @@ export interface CampaignDueInvoice {
   dueDate: string;
 }
 
-// Shared by NewCampaignButton (create) and EditCampaignSheet (edit) so the
-// two flows can't drift apart on field order/options. idPrefix keeps
+/** The quiet "Optional" beside a label. Required fields say nothing. */
+function OptionalTag() {
+  return <span className="font-normal text-muted-foreground">Optional</span>;
+}
+
+/**
+ * One titled run of fields. A real legend, so a screen reader gets the form's
+ * shape. Wrapped, because the rule between sections can't go on the fieldset
+ * itself: a browser draws a fieldset's legend inside its top border.
+ */
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <FieldSet>
+        <FieldLegend>{title}</FieldLegend>
+        {description && <FieldDescription>{description}</FieldDescription>}
+        <FieldGroup>{children}</FieldGroup>
+      </FieldSet>
+    </div>
+  );
+}
+
+// Shared by NewCampaignSheet (create) and EditCampaignSheet (edit) so the two
+// flows can't drift apart on field order/options. idPrefix keeps
 // <label htmlFor> ids unique since several of these can be mounted in the DOM
 // at once (one per campaign card), even while closed.
 //
 // The order is the order a deal is agreed in: who it's with and what it's for,
-// what it pays, where it has got to. Everything a deal only learns later (when
-// the money lands, when the post goes up, who cut it) is folded away, because
-// on a new deal all of it is blank and on an existing one most of it is set by
-// something other than this form.
+// what it pays, where it has got to and when the money is owed. What a deal
+// only learns later (when the post goes up, who cut it, money that already
+// landed) comes last, and on a new deal is folded under More details, since
+// there all of it is blank.
 export function CampaignFormFields({
   idPrefix,
   mode = "edit",
@@ -234,6 +311,8 @@ export function CampaignFormFields({
   brandOptions = [],
   videoOptions = [],
   dueInvoice = null,
+  brandError = false,
+  invoiceSlot,
   paymentSlot,
 }: CampaignFormFieldsProps) {
   const linkedBrand = form.brandId ? brandOptions.find((option) => option.id === form.brandId) : undefined;
@@ -252,6 +331,7 @@ export function CampaignFormFields({
     () => !form.brandId && form.brand.trim() !== ""
   );
   const typingBrand = brandOptions.length === 0 || (!form.brandId && namingBrand);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // A deal is paid in what its type says (see campaignAmounts), so the form
   // only asks for the halves it has: no cash on a barter deal, no goods on a
@@ -259,7 +339,7 @@ export function CampaignFormFields({
   // grant ad usage as readily as a paid one.
   const hasCash = campaignTypeHasCash(form.type);
   const hasBarter = campaignTypeHasBarter(form.type);
-  const amounts = campaignAmounts(form);
+  const estimatedTds = estimateTdsFromRateInput(form.tdsRate, cashAmount + usageFee);
 
   // A licence is edited as a length in days, never as an end date: the end is
   // the day it was started plus that length (see usageTerm), so a second field
@@ -273,8 +353,6 @@ export function CampaignFormFields({
   // ended one shows the day it was called off instead.
   const showRenewalDays = !form.usageIndefinite && status === "active" && renewed;
   const showEndedOn = status === "ended";
-  const total = amounts.amount + amounts.usageFee + amounts.barterValue;
-  const renewalMoney = licence?.renewalMoney ?? 0;
 
   function stepReels(delta: number) {
     setForm((current) => {
@@ -285,157 +363,403 @@ export function CampaignFormFields({
     });
   }
 
-  // The money fields, built once and laid out below: which of them a deal has
-  // depends on its type, so the rows they sit in change shape with it.
-  const amountField = (
-    <div className="space-y-2">
-      <Label htmlFor={`${idPrefix}-amount`}>Amount (₹)</Label>
-      <Input
-        id={`${idPrefix}-amount`}
-        type="number"
-        min={0}
-        placeholder="0"
-        value={form.amount}
-        onChange={(event) => setForm((f) => ({ ...f, amount: event.target.value }))}
-      />
-    </div>
-  );
+  // The amount fields, built once and laid out below: which of them a deal has
+  // depends on its type, so the rows they sit in change shape with it. Each
+  // regroups its figure ("1,25,000") when it is left.
+  function moneyField(
+    key: "amount" | "barterValue" | "usageFee",
+    label: string,
+    optional = false
+  ) {
+    const id = `${idPrefix}-${key}`;
+    return (
+      <Field>
+        <FieldLabel htmlFor={id}>
+          {label}
+          {optional && <OptionalTag />}
+        </FieldLabel>
+        <MoneyInput
+          id={id}
+          pattern={AMOUNT_PATTERN}
+          title="An amount in rupees, like 45,000"
+          placeholder="0"
+          value={form[key]}
+          onChange={(event) => setForm((f) => ({ ...f, [key]: event.target.value }))}
+          onBlur={(event) => setForm((f) => ({ ...f, [key]: formatFormAmount(event.target.value) }))}
+        />
+      </Field>
+    );
+  }
 
-  const barterField = (
-    <div className="space-y-2">
-      <Label htmlFor={`${idPrefix}-barterValue`}>Barter value (₹)</Label>
-      <Input
-        id={`${idPrefix}-barterValue`}
-        type="number"
-        min={0}
-        placeholder="0"
-        value={form.barterValue}
-        onChange={(event) => setForm((f) => ({ ...f, barterValue: event.target.value }))}
-      />
-    </div>
-  );
-
-  const usageFeeField = (
-    <div className="space-y-2">
-      <Label htmlFor={`${idPrefix}-usageFee`}>Ad usage fee (₹)</Label>
-      <Input
-        id={`${idPrefix}-usageFee`}
-        type="number"
-        min={0}
-        placeholder="0"
-        value={form.usageFee}
-        onChange={(event) => setForm((f) => ({ ...f, usageFee: event.target.value }))}
-      />
-    </div>
-  );
+  const amountField = moneyField("amount", "Amount");
+  const barterField = moneyField("barterValue", "Barter value");
+  const usageFeeField = moneyField("usageFee", "Ad usage fee", true);
 
   const usageDaysField = (
-    <div className="space-y-2">
-      <Label htmlFor={`${idPrefix}-usageDays`}>Ad usage (days)</Label>
-      <Input
-        id={`${idPrefix}-usageDays`}
-        type="number"
-        min={0}
-        step={1}
-        placeholder={form.usageIndefinite ? "No end" : "0"}
-        disabled={form.usageIndefinite}
-        value={form.usageIndefinite ? "" : form.usageDays}
-        onChange={(event) => setForm((f) => ({ ...f, usageDays: event.target.value }))}
-      />
-    </div>
+    <Field data-disabled={form.usageIndefinite || undefined}>
+      <FieldLabel htmlFor={`${idPrefix}-usageDays`}>Usage licence</FieldLabel>
+      <InputGroup data-disabled={form.usageIndefinite || undefined}>
+        <InputGroupInput
+          id={`${idPrefix}-usageDays`}
+          inputMode="numeric"
+          pattern="[0-9]*"
+          title="A whole number of days"
+          autoComplete="off"
+          placeholder={form.usageIndefinite ? "No end" : "0"}
+          disabled={form.usageIndefinite}
+          value={form.usageIndefinite ? "" : form.usageDays}
+          onChange={(event) => setForm((f) => ({ ...f, usageDays: event.target.value }))}
+        />
+        <InputGroupAddon align="inline-end">days</InputGroupAddon>
+      </InputGroup>
+    </Field>
   );
 
-  return (
+  const tdsField = (
+    <Field>
+      <FieldLabel htmlFor={`${idPrefix}-tdsRate`}>
+        Expected TDS
+        <OptionalTag />
+      </FieldLabel>
+      <InputGroup>
+        <InputGroupInput
+          id={`${idPrefix}-tdsRate`}
+          inputMode="decimal"
+          pattern="[0-9]*\.?[0-9]*"
+          title="A rate from 0 to 100"
+          autoComplete="off"
+          placeholder="0"
+          value={form.tdsRate}
+          onChange={(event) => setForm((f) => ({ ...f, tdsRate: event.target.value }))}
+        />
+        <InputGroupAddon align="inline-end">%</InputGroupAddon>
+      </InputGroup>
+      {/* The rate the brand is expected to withhold. Each payment records
+          what was actually withheld. */}
+      <FieldDescription>
+        {estimatedTds !== null ? `About ${formatMoney(estimatedTds)} withheld` : "What the brand deducts"}
+      </FieldDescription>
+    </Field>
+  );
+
+  const indefiniteField = (
+    <Field orientation="horizontal">
+      <Switch
+        id={`${idPrefix}-usageIndefinite`}
+        checked={form.usageIndefinite}
+        onCheckedChange={(checked) => setForm((f) => ({ ...f, usageIndefinite: checked }))}
+      />
+      <FieldLabel htmlFor={`${idPrefix}-usageIndefinite`} className="font-normal">
+        Licence has no end date
+      </FieldLabel>
+    </Field>
+  );
+
+  // Payment tracking, the upload date and the editor: the parts of a deal
+  // that are mostly set by something other than this form. Its own section
+  // when editing, folded under More details on a new deal.
+  const deliveryFields = (
     <>
-      <FieldGroup title="Deal">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-${typingBrand ? "brand" : "brandId"}`}>Brand</Label>
-          {brandOptions.length > 0 && (
+      {mode === "edit" && !hasCash && (
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-paymentStatus`}>Barter status</FieldLabel>
+          <Select
+            value={form.paymentStatus}
+            onValueChange={(value) => setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))}
+          >
+            <SelectTrigger id={`${idPrefix}-paymentStatus`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAYMENT_STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {paymentStatusLabel(option)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
+
+      {/* On a deal with cash the money is recorded as payments (the sheet's
+          Payments tab), so this only says whether it is tracked. A "received"
+          stored before payments were recorded is kept as it is and shown, not
+          offered as a choice. */}
+      {mode === "edit" && hasCash && (
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-paymentStatus`}>Payment tracking</FieldLabel>
+          {form.paymentStatus === "received" ? (
+            <FieldDescription>
+              Marked received before payments were recorded. Edit it on the Payments tab to add the
+              date, TDS and account it landed in.
+            </FieldDescription>
+          ) : (
             <Select
-              value={form.brandId ?? (namingBrand ? NEW_BRAND : "")}
-              onValueChange={(value) => {
-                if (value === NEW_BRAND) {
-                  setNamingBrand(true);
-                  setForm((f) => ({ ...f, brandId: null }));
-                  return;
-                }
-                const option = brandOptions.find((o) => o.id === value);
-                setNamingBrand(false);
-                setForm((f) => ({ ...f, brandId: value, brand: option?.name ?? f.brand }));
-              }}
+              value={form.paymentStatus}
+              onValueChange={(value) => setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))}
             >
-              <SelectTrigger id={`${idPrefix}-brandId`} className="w-full">
-                <SelectValue placeholder="Pick a brand" />
+              <SelectTrigger id={`${idPrefix}-paymentStatus`} className="w-full">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {/* First and set apart from the names below it, because it is
-                    the one option here that isn't a brand: it opens the name
-                    box instead of choosing anything. */}
-                <SelectItem
-                  value={NEW_BRAND}
-                  className="font-medium text-primary focus:text-primary focus:**:text-primary"
-                >
-                  <Plus />
-                  Add a new brand
+                <SelectItem value="unknown">Not tracked</SelectItem>
+                <SelectItem value="pending">Expected</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {/* "Cancelled" is not one of the options because it is not one of
+              the stored values: it is read off the deal's own status (see
+              paymentDisplayStatus). */}
+          {isCampaignCancelled(form.status) && form.paymentStatus !== "received" && (
+            <FieldDescription>
+              A cancelled deal reads as Cancelled here. Record a payment only if money actually landed.
+            </FieldDescription>
+          )}
+        </Field>
+      )}
+
+      {/* The day the post went up. Beside it: the renewal's length on a
+          renewed licence, or the day an ended one was called off. */}
+      <div className="grid grid-cols-1 gap-4 @xs/field-group:grid-cols-2">
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-uploadDate`}>
+            Upload date
+            <OptionalTag />
+          </FieldLabel>
+          <Input
+            id={`${idPrefix}-uploadDate`}
+            type="date"
+            value={form.uploadDate}
+            onChange={(event) => setForm((f) => ({ ...f, uploadDate: event.target.value }))}
+          />
+        </Field>
+        {showRenewalDays && (
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-usageRenewalDays`}>Renewal</FieldLabel>
+            <InputGroup>
+              <InputGroupInput
+                id={`${idPrefix}-usageRenewalDays`}
+                inputMode="numeric"
+                pattern="[1-9][0-9]*"
+                title="A whole number of days, at least 1"
+                autoComplete="off"
+                value={form.usageRenewalDays}
+                onChange={(event) => setForm((f) => ({ ...f, usageRenewalDays: event.target.value }))}
+              />
+              <InputGroupAddon align="inline-end">days</InputGroupAddon>
+            </InputGroup>
+          </Field>
+        )}
+        {showEndedOn && (
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-usageEndedOn`}>Ended on</FieldLabel>
+            <Input
+              id={`${idPrefix}-usageEndedOn`}
+              type="date"
+              min={form.uploadDate || form.date || undefined}
+              max={todayKey()}
+              value={form.usageEndedOn}
+              onChange={(event) => setForm((f) => ({ ...f, usageEndedOn: event.target.value }))}
+            />
+          </Field>
+        )}
+      </div>
+      {showRenewalDays && (
+        <FieldDescription className="-mt-2">
+          Renewed from {formatDayKey(termStart)}, so Renewal is the term running now. Usage licence
+          above is the original term.
+        </FieldDescription>
+      )}
+
+      {/* Which job cut the video is something the workspace answers, and a
+          deal is usually linked to it after the fact. Unlike the content
+          form's copy of this picker, nothing on the deal is renamed by the
+          choice: a campaign is called what the brand calls it, not what the
+          job was filed under. */}
+      {(videoOptions.length > 0 || form.editorTransactionId) && (
+        <Field>
+          <FieldLabel htmlFor={`${idPrefix}-video`}>
+            From your editors
+            <OptionalTag />
+          </FieldLabel>
+          <div className="flex items-center gap-2">
+            <Select
+              value={
+                form.editorTransactionId && linkedVideo && !linkedVideo.linked
+                  ? form.editorTransactionId
+                  : NO_VIDEO
+              }
+              onValueChange={(value) => {
+                if (value === NO_VIDEO) {
+                  if (!linkedVideoIsClaimed) {
+                    setForm((f) => ({ ...f, editorTransactionId: null }));
+                  }
+                  return;
+                }
+                if (availableVideoOptions.some((option) => option.id === value)) {
+                  setForm((f) => ({ ...f, editorTransactionId: value }));
+                }
+              }}
+            >
+              <SelectTrigger id={`${idPrefix}-video`} className="min-w-0 flex-1">
+                <SelectValue placeholder="Not sent to an editor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_VIDEO} disabled={linkedVideoIsClaimed}>
+                  {linkedVideoIsClaimed || linkedVideoIsMissing
+                    ? "Choose another video"
+                    : "Not sent to an editor"}
                 </SelectItem>
-                <SelectSeparator />
-                {brandOptions.map((option) => (
+                {availableVideoOptions.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
-                    {option.name}
+                    {option.video}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      {option.editor}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {form.editorTransactionId && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9"
+                onClick={() => setForm((f) => ({ ...f, editorTransactionId: null }))}
+              >
+                <Unlink />
+                Unlink
+              </Button>
+            )}
+          </div>
+          {form.editorTransactionId && (
+            <FieldDescription className="truncate">
+              {linkedVideo
+                ? `Linked: ${linkedVideo.video} · ${linkedVideo.editor}`
+                : "This video link is no longer available."}
+            </FieldDescription>
           )}
-          {typingBrand && (
-            <Input
-              id={`${idPrefix}-brand`}
-              required
-              autoFocus
-              placeholder="Brand name"
-              value={form.brand}
-              onChange={(event) => setForm((f) => ({ ...f, brand: event.target.value }))}
-            />
-          )}
-          {/* A link whose brand has since been deleted would otherwise show as
+          {/* A link whose job has since been deleted would otherwise show as
               the empty placeholder, reading as "not linked" when it is. */}
-          {form.brandId && !linkedBrand && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400">
-              Linked brand no longer exists: pick another, or type the name.
-            </p>
+          {linkedVideoIsMissing && (
+            <FieldDescription className="text-amber-600 dark:text-amber-400">
+              The editing job behind this is gone. Unlink it or choose another video.
+            </FieldDescription>
           )}
-        </div>
+        </Field>
+      )}
 
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-campaign`}>Campaign</Label>
-          <Input
-            id={`${idPrefix}-campaign`}
-            placeholder={form.brand.trim() || "What the deal is for"}
-            value={form.campaign}
-            onChange={(event) => setForm((f) => ({ ...f, campaign: event.target.value }))}
-          />
+      {paymentSlot}
+    </>
+  );
+
+  return (
+    <div className="flex flex-col gap-6 [&>*+*]:border-t [&>*+*]:pt-6">
+      <Section title="Deal" description="Who it is with and what it promises.">
+        <div className="grid grid-cols-1 gap-4 @md/field-group:grid-cols-2">
+          <Field data-invalid={brandError || undefined}>
+            <FieldLabel htmlFor={`${idPrefix}-${typingBrand ? "brand" : "brandId"}`}>Brand</FieldLabel>
+            {brandOptions.length > 0 && (
+              <Select
+                value={form.brandId ?? (namingBrand ? NEW_BRAND : "")}
+                onValueChange={(value) => {
+                  if (value === NEW_BRAND) {
+                    setNamingBrand(true);
+                    setForm((f) => ({ ...f, brandId: null }));
+                    return;
+                  }
+                  const option = brandOptions.find((o) => o.id === value);
+                  setNamingBrand(false);
+                  setForm((f) => ({ ...f, brandId: value, brand: option?.name ?? f.brand }));
+                }}
+              >
+                <SelectTrigger
+                  id={`${idPrefix}-brandId`}
+                  className="w-full"
+                  aria-invalid={(brandError && !typingBrand) || undefined}
+                >
+                  <SelectValue placeholder="Pick a brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* First and set apart from the names below it, because it is
+                      the one option here that isn't a brand: it opens the name
+                      box instead of choosing anything. */}
+                  <SelectItem
+                    value={NEW_BRAND}
+                    className="font-medium text-primary focus:text-primary focus:**:text-primary"
+                  >
+                    <Plus />
+                    Add a new brand
+                  </SelectItem>
+                  <SelectSeparator />
+                  {brandOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {typingBrand && (
+              <Input
+                id={`${idPrefix}-brand`}
+                autoFocus
+                placeholder="Brand name"
+                aria-invalid={brandError || undefined}
+                value={form.brand}
+                onChange={(event) => setForm((f) => ({ ...f, brand: event.target.value }))}
+              />
+            )}
+            {/* A link whose brand has since been deleted would otherwise show as
+                the empty placeholder, reading as "not linked" when it is. */}
+            {form.brandId && !linkedBrand && (
+              <FieldDescription className="text-amber-600 dark:text-amber-400">
+                Linked brand no longer exists: pick another, or type the name.
+              </FieldDescription>
+            )}
+            {brandError && (
+              <FieldError>
+                {brandOptions.length > 0 ? "Pick a brand, or add a new one." : "Enter the brand's name."}
+              </FieldError>
+            )}
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-campaign`}>
+              Campaign
+              <OptionalTag />
+            </FieldLabel>
+            <Input
+              id={`${idPrefix}-campaign`}
+              placeholder={form.brand.trim() || "What the deal is for"}
+              value={form.campaign}
+              onChange={(event) => setForm((f) => ({ ...f, campaign: event.target.value }))}
+            />
+          </Field>
         </div>
 
         {/* Buttons rather than a menu: there are four, they decide which money
             fields the form asks for, and seeing all four at once is what makes
             that switch obvious. */}
-        <div className="space-y-2">
-          <Label id={`${idPrefix}-type-label`}>Deal type</Label>
+        <Field>
+          <FieldTitle id={`${idPrefix}-type-label`}>Deal type</FieldTitle>
           <OptionToggle
             value={form.type}
             onChange={(type) => setForm((f) => ({ ...f, type }))}
             options={CAMPAIGN_TYPES}
             labelledBy={`${idPrefix}-type-label`}
+            className="@md/field-group:grid-cols-4"
           />
-        </div>
+        </Field>
 
         {/* Counts rather than a menu: a deal can promise any number of either,
             and a deliverable it doesn't include is 0 rather than a "None" to
             pick. The step is clamped by the stepper, so nothing here can go
             below none. */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label id={`${idPrefix}-reels-label`}>Reels</Label>
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldTitle id={`${idPrefix}-reels-label`}>Reels</FieldTitle>
             <CountStepper
               value={form.reels}
               onStep={stepReels}
@@ -443,10 +767,11 @@ export function CampaignFormFields({
               decrementLabel="One reel fewer"
               incrementLabel="One reel more"
               max={DELIVERABLE_MAX}
+              className="justify-between"
             />
-          </div>
-          <div className="space-y-2">
-            <Label id={`${idPrefix}-story-label`}>Stories</Label>
+          </Field>
+          <Field>
+            <FieldTitle id={`${idPrefix}-story-label`}>Stories</FieldTitle>
             <CountStepper
               value={form.story}
               onStep={(delta) => setForm((f) => ({ ...f, story: f.story + delta }))}
@@ -454,114 +779,103 @@ export function CampaignFormFields({
               decrementLabel="One story fewer"
               incrementLabel="One story more"
               max={DELIVERABLE_MAX}
+              className="justify-between"
             />
-          </div>
+          </Field>
         </div>
-        {form.reels > 0 && (
-          <Collapsible>
-            <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-              <span>Video types · {form.reels} {form.reels === 1 ? "reel" : "reels"}</span>
-              <span className="ml-auto truncate text-right">{reelTypesLabel(form.reelTypes)}</span>
-              <ChevronDown className="size-3.5 shrink-0 transition group-data-[state=open]/trigger:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="max-h-56 space-y-2 overflow-y-auto pt-3">
-              {form.reelTypes.map((type, index) => (
-                <div key={`${idPrefix}-reel-type-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] items-center gap-3">
-                  <Label htmlFor={`${idPrefix}-reel-type-${index}`} className="text-xs">
-                    Reel {index + 1}
-                  </Label>
-                  <Select
-                    value={type}
-                    onValueChange={(value) => {
-                      if (!CAMPAIGN_REEL_TYPES.includes(value as CampaignReelType)) return;
-                      setForm((current) => ({
-                        ...current,
-                        reelTypes: current.reelTypes.map((currentType, currentIndex) =>
-                          currentIndex === index ? value as CampaignReelType : currentType
-                        ),
-                      }));
-                    }}
-                  >
-                    <SelectTrigger id={`${idPrefix}-reel-type-${index}`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CAMPAIGN_REEL_TYPES.map((option) => (
-                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-      </FieldGroup>
 
-      <FieldGroup title="Value">
-        {/* Two per row, and never one field left hanging beside a gap: a deal
-            with cash puts what it pays on the first row and what the licence
-            costs and runs for on the second, and a barter deal, which has no
-            fee, puts its goods beside the licence's length. The fee and the
-            length stay together wherever they land: they are one agreement,
-            and pricing a licence without saying how long it runs is the half
-            that gets forgotten. */}
-        {hasCash ? (
+        {/* One row per reel, each a two-way choice, so the mix is visible
+            without opening anything. Scrolls past a handful of reels. */}
+        {form.reels > 0 && (
+          <div
+            role="group"
+            aria-label="Video type per reel"
+            className="flex max-h-72 flex-col gap-2 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3"
+          >
+            {form.reelTypes.map((type, index) => (
+              <Field
+                key={`${idPrefix}-reel-type-${index}`}
+                orientation="horizontal"
+                className="grid grid-cols-[4rem_minmax(0,1fr)] gap-3"
+              >
+                <FieldTitle id={`${idPrefix}-reel-type-${index}`} className="font-normal text-muted-foreground">
+                  Reel {index + 1}
+                </FieldTitle>
+                <OptionToggle
+                  value={type}
+                  options={CAMPAIGN_REEL_TYPES}
+                  labelledBy={`${idPrefix}-reel-type-${index}`}
+                  onChange={(next) =>
+                    setForm((current) => ({
+                      ...current,
+                      reelTypes: current.reelTypes.map((currentType, currentIndex) =>
+                        currentIndex === index ? next : currentType
+                      ),
+                    }))
+                  }
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="Money"
+        description={
+          hasCash
+            ? "What the brand pays. Payments record the money as it lands."
+            : "What the brand sends instead of cash."
+        }
+      >
+        {/* Two per row. The fee and the licence's length stay together where
+            they can: they are one agreement, and pricing a licence without
+            saying how long it runs is the half that gets forgotten. */}
+        {hasCash && !hasBarter && (
           <>
-            <div className="grid grid-cols-2 gap-3">
-              {/* A paid deal has no goods beside the amount, so it takes the
-                  whole row rather than sitting next to a gap. */}
-              <div className={hasBarter ? undefined : "col-span-2"}>{amountField}</div>
-              {hasBarter && barterField}
+            <div className="grid grid-cols-2 gap-4">
+              {amountField}
+              {usageFeeField}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
+              {usageDaysField}
+              {tdsField}
+            </div>
+          </>
+        )}
+        {hasCash && hasBarter && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              {amountField}
+              {barterField}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               {usageFeeField}
               {usageDaysField}
             </div>
+            <div className="grid grid-cols-2 gap-4">{tdsField}</div>
           </>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
+        )}
+        {!hasCash && (
+          <div className="grid grid-cols-2 gap-4">
             {barterField}
             {usageDaysField}
           </div>
         )}
-
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`${idPrefix}-usageIndefinite`}
-            checked={form.usageIndefinite}
-            onCheckedChange={(checked) =>
-              setForm((f) => ({ ...f, usageIndefinite: checked === true }))
-            }
-          />
-          <Label htmlFor={`${idPrefix}-usageIndefinite`} className="text-xs font-normal">
-            Indefinite: no end date
-          </Label>
-        </div>
-
-        {/* The fee is the one figure here that adds to another rather than
-            standing alone, so the total is spelled out. */}
-        <p className="text-[11px] text-muted-foreground">
-          {total > 0 || renewalMoney > 0 ? (
-            <>
-              Total value {formatMoney(total)}
-              {amounts.usageFee > 0 ? ", including the ad usage fee" : ""}
-              {/* Beside the total rather than in it: see renewalTotal. */}
-              {renewalMoney > 0 ? ` · ${formatMoney(total + renewalMoney)} with renewals` : ""}.{" "}
-            </>
-          ) : null}
+        {indefiniteField}
+        <FieldDescription className="-mt-2">
           {form.usageIndefinite
-            ? "The brand may run this as an ad for as long as it likes."
+            ? "The brand may run it as an ad for as long as it likes."
             : mode === "create"
-              ? "Ad usage counts from the day you start it, once the deal is saved. 0 when there is no licence."
-              : "Ad usage counts from the day you start it, under Ad usage rights below. 0 when there is no licence."}
-        </p>
-      </FieldGroup>
+              ? "Ad usage counts from the day you start it, once the deal is saved. 0 for no licence."
+              : "Ad usage counts from the day you start it on the Usage tab. 0 for no licence."}
+        </FieldDescription>
+      </Section>
 
-      <FieldGroup title="Progress">
-        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-date`}>Deal date</Label>
+      <Section title="Schedule" description="Where the deal has got to and when it pays.">
+        <div className="grid grid-cols-1 gap-4 @xs/field-group:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-date`}>Deal date</FieldLabel>
             <Input
               id={`${idPrefix}-date`}
               type="date"
@@ -569,9 +883,9 @@ export function CampaignFormFields({
               value={form.date}
               onChange={(event) => setForm((f) => ({ ...f, date: event.target.value }))}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-status`}>Status</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-status`}>Status</FieldLabel>
             <Select
               value={form.status}
               onValueChange={(value) => setForm((f) => ({ ...f, status: value as CampaignStatus }))}
@@ -582,284 +896,158 @@ export function CampaignFormFields({
               <SelectContent>
                 {STATUS_OPTIONS.filter((option) => option !== "On Hold").map((option) => (
                   <SelectItem key={option} value={option}>
+                    <StatusDot status={option} />
                     {option}
                   </SelectItem>
                 ))}
                 <SelectSeparator />
-                <SelectItem value="On Hold">On Hold</SelectItem>
+                <SelectItem value="On Hold">
+                  <StatusDot status="On Hold" />
+                  On Hold
+                </SelectItem>
               </SelectContent>
             </Select>
-          </div>
+          </Field>
         </div>
-      </FieldGroup>
 
-      <Collapsible>
-        <CollapsibleTrigger className="group/trigger flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted">
-          {hasCash ? "Payment, delivery & editor" : "Delivery & editor"}
-          <ChevronDown className="size-3.5 transition group-data-[state=open]/trigger:rotate-180" />
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 pt-4">
-          {mode === "create" && (
-            <p className="text-[11px] text-muted-foreground">
-              A deal being struck rarely knows these yet.{" "}
-              {hasCash
-                ? "A payment due date marks the money as expected; tick Already received if it has landed."
-                : "A date in Delivered on marks the barter received."}
-            </p>
-          )}
+        {invoiceSlot}
 
-          {mode === "edit" && !hasCash && (
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-paymentStatus`}>Barter status</Label>
-              <Select
-                value={form.paymentStatus}
-                onValueChange={(value) => setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))}
-              >
-                <SelectTrigger id={`${idPrefix}-paymentStatus`} className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {paymentStatusLabel(option)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* On a deal with cash the money is recorded as payments (the sheet's
-              Payments section), so this only says whether it is tracked. A
-              "received" stored before payments were recorded is kept as it
-              is and shown, not offered as a choice. */}
-          {mode === "edit" && hasCash && (
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-paymentStatus`}>Payment tracking</Label>
-              {form.paymentStatus === "received" ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Marked received before payments were recorded. Edit it under Payments to add the date,
-                  TDS and account it landed in.
-                </p>
-              ) : (
-                <Select
-                  value={form.paymentStatus}
-                  onValueChange={(value) => setForm((f) => ({ ...f, paymentStatus: value as CampaignPaymentStatus }))}
-                >
-                  <SelectTrigger id={`${idPrefix}-paymentStatus`} className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unknown">Not tracked</SelectItem>
-                    <SelectItem value="pending">Expected</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-              {/* "Cancelled" is not one of the options because it is not one of
-                  the stored values: it is read off the deal's own status (see
-                  paymentDisplayStatus). */}
-              {isCampaignCancelled(form.status) && form.paymentStatus !== "received" && (
-                <p className="text-[11px] text-muted-foreground">
-                  A cancelled deal reads as Cancelled here. Record a payment only if money actually landed.
-                </p>
-              )}
-            </div>
-          )}
-
-          {hasCash ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-paymentDue`}>Payment due</Label>
+        {hasCash ? (
+          <>
+            <Field>
+              <FieldLabel htmlFor={`${idPrefix}-paymentDue`}>
+                Payment due
+                <OptionalTag />
+              </FieldLabel>
+              {/* Chips beside the date where the sheet is wide, on a row of
+                  their own under it on a phone. */}
+              <div className="flex flex-col gap-2 @md/field-group:flex-row @md/field-group:items-center">
                 <Input
                   id={`${idPrefix}-paymentDue`}
                   type="date"
+                  className="min-w-0 @md/field-group:flex-1"
                   value={dueInvoice ? dueInvoice.dueDate : form.paymentDue}
                   disabled={dueInvoice !== null}
                   onChange={(event) => setForm((f) => ({ ...f, paymentDue: event.target.value }))}
                 />
-                {dueInvoice && (
-                  <p className="text-[11px] text-muted-foreground">
-                    Payment due comes from {dueInvoice.number}; change it on the invoice.
-                  </p>
+                {!dueInvoice && (
+                  <div className="flex gap-2">
+                    {DUE_OFFSETS.map((days) => {
+                      const due = addDays(form.date || todayKey(), days);
+                      const active = form.paymentDue === due;
+                      return (
+                        <Button
+                          key={days}
+                          type="button"
+                          variant={active ? "secondary" : "outline"}
+                          className="rounded-full"
+                          aria-pressed={active}
+                          onClick={() => setForm((f) => ({ ...f, paymentDue: due }))}
+                        >
+                          +{days} days
+                        </Button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
+              <FieldDescription className={cn(dueInvoice && "flex items-center gap-1.5")}>
+                {dueInvoice ? (
+                  <>
+                    <Lock className="size-3 shrink-0" aria-hidden />
+                    Set by {dueInvoice.number}. Change it on the invoice.
+                  </>
+                ) : mode === "create" ? (
+                  "Chips count from the deal date. A due date marks the money as expected."
+                ) : (
+                  "Chips count from the deal date."
+                )}
+              </FieldDescription>
+            </Field>
 
-              {hasBarter && (
-                <div className="space-y-2">
-                  <Label htmlFor={`${idPrefix}-barterStatus`}>Barter delivered</Label>
-                  <Select
-                    value={form.barterStatus}
-                    onValueChange={(value) => setForm((f) => ({ ...f, barterStatus: value as CampaignPaymentStatus }))}
-                  >
-                    <SelectTrigger id={`${idPrefix}-barterStatus`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unknown">Not tracked</SelectItem>
-                      <SelectItem value="pending">Not yet</SelectItem>
-                      <SelectItem value="received">Delivered</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <TdsFields
-                idPrefix={idPrefix}
-                rate={form.tdsRate}
-                onRateChange={(value) => setForm((f) => ({ ...f, tdsRate: value }))}
-                gross={cashAmount + usageFee}
-                description="The rate the brand withholds. Each payment records what was actually withheld."
-              />
-
-              {paymentSlot}
-            </>
-          ) : (
-            <>
-              {/* One date, not a pair: "due" and "paid" describe a cash
-                  schedule this deal never had. Stored in paidDate, which is
-                  the field the day-the-thing-arrived has always lived in, so
-                  nothing downstream needs a second date to look at. */}
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-paidDate`}>Delivered on</Label>
-                <Input
-                  id={`${idPrefix}-paidDate`}
-                  type="date"
-                  value={form.paidDate}
-                  onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
-                />
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                The day the barter actually arrived. A barter deal is never scored on payment
-                timing, so there is no due date to be early or late against.
-              </p>
-            </>
-          )}
-
-          {/* The day the post went up. Beside it: the renewal's length on a
-              renewed licence, or the day an ended one was called off. */}
-          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-uploadDate`}>Upload date</Label>
+            {hasBarter && (
+              <Field>
+                <FieldLabel htmlFor={`${idPrefix}-barterStatus`}>Barter delivered</FieldLabel>
+                <Select
+                  value={form.barterStatus}
+                  onValueChange={(value) => setForm((f) => ({ ...f, barterStatus: value as CampaignPaymentStatus }))}
+                >
+                  <SelectTrigger id={`${idPrefix}-barterStatus`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unknown">Not tracked</SelectItem>
+                    <SelectItem value="pending">Not yet</SelectItem>
+                    <SelectItem value="received">Delivered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
+          </>
+        ) : (
+          // One date, not a pair: "due" and "paid" describe a cash schedule
+          // this deal never had. Stored in paidDate, which is the field the
+          // day-the-thing-arrived has always lived in, so nothing downstream
+          // needs a second date to look at. A barter deal is never scored on
+          // payment timing, so there is no due date to be early or late against.
+          <Field>
+            <FieldLabel htmlFor={`${idPrefix}-paidDate`}>
+              Delivered on
+              <OptionalTag />
+            </FieldLabel>
+            <div className="flex items-center gap-2">
               <Input
-                id={`${idPrefix}-uploadDate`}
+                id={`${idPrefix}-paidDate`}
                 type="date"
-                value={form.uploadDate}
-                onChange={(event) => setForm((f) => ({ ...f, uploadDate: event.target.value }))}
+                className="min-w-0 flex-1"
+                value={form.paidDate}
+                onChange={(event) => setForm((f) => ({ ...f, paidDate: event.target.value }))}
               />
-            </div>
-            {showRenewalDays && (
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-usageRenewalDays`}>Renewal (days)</Label>
-                <Input
-                  id={`${idPrefix}-usageRenewalDays`}
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={form.usageRenewalDays}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, usageRenewalDays: event.target.value }))
-                  }
-                />
-              </div>
-            )}
-            {showEndedOn && (
-              <div className="space-y-2">
-                <Label htmlFor={`${idPrefix}-usageEndedOn`}>Ended on</Label>
-                <Input
-                  id={`${idPrefix}-usageEndedOn`}
-                  type="date"
-                  min={form.uploadDate || form.date || undefined}
-                  max={todayKey()}
-                  value={form.usageEndedOn}
-                  onChange={(event) => setForm((f) => ({ ...f, usageEndedOn: event.target.value }))}
-                />
-              </div>
-            )}
-          </div>
-          {showRenewalDays && (
-            <p className="text-[11px] text-muted-foreground">
-              Renewed from {formatDayKey(termStart)}, so Renewal (days) is the term running now.
-              Ad usage (days) above is the original term.
-            </p>
-          )}
-
-          {/* Kept with the dates rather than up with the pipeline stage: which
-              job cut the video is something the workspace answers, and a deal
-              is usually linked to it after the fact. Unlike the content form's
-              copy of this picker, nothing on the deal is renamed by the
-              choice: a campaign is called what the brand calls it, not what
-              the job was filed under. */}
-          {(videoOptions.length > 0 || form.editorTransactionId) && (
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-video`}>From your editors</Label>
-              <Select
-                value={
-                  form.editorTransactionId && linkedVideo && !linkedVideo.linked
-                    ? form.editorTransactionId
-                    : NO_VIDEO
-                }
-                onValueChange={(value) => {
-                  if (value === NO_VIDEO) {
-                    if (!linkedVideoIsClaimed) {
-                      setForm((f) => ({ ...f, editorTransactionId: null }));
-                    }
-                    return;
-                  }
-                  if (availableVideoOptions.some((option) => option.id === value)) {
-                    setForm((f) => ({ ...f, editorTransactionId: value }));
-                  }
-                }}
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setForm((f) => ({ ...f, paidDate: todayKey() }))}
               >
-                <SelectTrigger id={`${idPrefix}-video`} className="w-full">
-                  <SelectValue placeholder="Not sent to an editor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_VIDEO} disabled={linkedVideoIsClaimed}>
-                    {linkedVideoIsClaimed || linkedVideoIsMissing
-                      ? "Choose another video"
-                      : "Not sent to an editor"}
-                  </SelectItem>
-                  {availableVideoOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.video}
-                      <span className="text-muted-foreground">
-                        {" "}
-                        {option.editor}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {form.editorTransactionId && (
-                <div className="flex items-center justify-between gap-2">
-                  <p className="min-w-0 truncate text-[11px] text-muted-foreground">
-                    {linkedVideo
-                      ? `Linked: ${linkedVideo.video} · ${linkedVideo.editor}`
-                      : "This video link is no longer available."}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => setForm((f) => ({ ...f, editorTransactionId: null }))}
-                  >
-                    <Unlink />
-                    Unlink
-                  </Button>
-                </div>
-              )}
-              {/* A link whose job has since been deleted would otherwise show as
-                  the empty placeholder, reading as "not linked" when it is. */}
-              {linkedVideoIsMissing && (
-                <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                  The editing job behind this is gone. Unlink it or choose another video.
-                </p>
-              )}
+                Today
+              </Button>
             </div>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-    </>
+            <FieldDescription>The day the barter arrived. Filling it marks it received.</FieldDescription>
+          </Field>
+        )}
+      </Section>
+
+      {mode === "edit" ? (
+        <Section title="Delivery" description="Tracking, the post and the editor behind it.">
+          {deliveryFields}
+        </Section>
+      ) : (
+        <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto w-full justify-between gap-3 px-0 py-1 text-left hover:bg-transparent pointer-coarse:h-auto"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">More details</span>
+                <span className="block truncate font-normal text-muted-foreground">
+                  {hasCash ? "Upload date, editor, money already received" : "Upload date and editor"}
+                </span>
+              </span>
+              <ChevronDown className={cn("size-4 shrink-0 transition-transform", moreOpen && "rotate-180")} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <FieldGroup className="pt-4">{deliveryFields}</FieldGroup>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
   );
+}
+
+/** The status's badge colour as a dot, beside its name in the picker. */
+function StatusDot({ status }: { status: CampaignStatus }) {
+  return <span aria-hidden className={cn("size-2 shrink-0 rounded-full", CAMPAIGN_STATUS_DOTS[status])} />;
 }

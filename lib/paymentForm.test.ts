@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatFormAmount,
   negativeAmountProblem,
+  parseFormAmount,
   paymentFormFrom,
   paymentInputFrom,
   savedPaymentTdsMode,
@@ -78,5 +80,22 @@ describe("payment form", () => {
       { kind: "deal", campaignId: "D1" }
     );
     expect(input).toMatchObject({ gross: 20000, tds: 2000, bankFee: 0, reference: "UTR 123", method: null, receivedInto: "business" });
+  });
+});
+
+describe("typed amounts", () => {
+  it("reads grouped and plain amounts alike", () => {
+    expect(parseFormAmount("1,25,000")).toBe(125000);
+    expect(parseFormAmount(" 125000.5 ")).toBe(125000.5);
+    expect(parseFormAmount("")).toBe(0);
+    expect(parseFormAmount("12a")).toBeNaN();
+  });
+
+  it("regroups an amount the Indian way and leaves the rest as typed", () => {
+    expect(formatFormAmount("125000")).toBe("1,25,000");
+    expect(formatFormAmount("45,000")).toBe("45,000");
+    expect(formatFormAmount("1500.256")).toBe("1,500.26");
+    expect(formatFormAmount("  ")).toBe("");
+    expect(formatFormAmount("12a")).toBe("12a");
   });
 });
