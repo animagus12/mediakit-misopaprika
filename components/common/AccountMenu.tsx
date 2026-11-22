@@ -1,9 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, CircleUserRound, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  CircleUserRound,
+  LogOut,
+  Monitor,
+  Moon,
+  Sun,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import {
   AlertDialog,
@@ -54,6 +63,19 @@ export function AccountMenu() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   // The log-out dialog takes focus; the menu must not pull it back to its trigger as it closes.
   const openedDialog = useRef(false);
+  // On a phone the theme list takes the menu's place: a submenu would open
+  // beside it, and there is no room beside it (at 320px it ran off screen).
+  const [showingColorThemes, setShowingColorThemes] = useState(false);
+  // Each view's items replace the other's, taking keyboard focus with them, so
+  // the item that opened a view hands focus to the one that leads back.
+  const returningFromColorThemes = useRef(false);
+  const focusOnMount = useCallback((node: HTMLDivElement | null) => node?.focus(), []);
+  const focusOnReturn = useCallback((node: HTMLDivElement | null) => {
+    if (node && returningFromColorThemes.current) {
+      returningFromColorThemes.current = false;
+      node.focus();
+    }
+  }, []);
 
   const onAccountPage = accountEntries.some((entry) => isNavHrefActive(pathname, entry.href));
 
@@ -64,10 +86,37 @@ export function AccountMenu() {
     router.refresh();
   }
 
+  const colorThemeRow = (
+    <>
+      <ColorThemeSwatch theme={colorTheme} />
+      <span className="flex-1">Theme</span>
+      <span className="text-muted-foreground">{colorThemeLabel(colorTheme)}</span>
+    </>
+  );
+
+  const colorThemeOptions = (
+    <DropdownMenuRadioGroup
+      value={colorTheme}
+      onValueChange={(value) => isColorTheme(value) && setColorTheme(value)}
+    >
+      {COLOR_THEMES.map(({ id, label }) => (
+        <DropdownMenuRadioItem key={id} value={id} className="pointer-coarse:min-h-10">
+          <ColorThemeSwatch theme={id} />
+          {label}
+        </DropdownMenuRadioItem>
+      ))}
+    </DropdownMenuRadioGroup>
+  );
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(open) => {
+            // Reset on opening, not closing, so a closing menu doesn't swap views mid-fade.
+            if (open) setShowingColorThemes(false);
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
@@ -95,66 +144,87 @@ export function AccountMenu() {
               }
             }}
           >
-            <DropdownMenuLabel>Appearance</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
-              {themes.map(({ value, label, Icon }) => (
-                <DropdownMenuRadioItem key={value} value={value} className="pointer-coarse:min-h-10">
-                  <Icon />
-                  {label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            {/* Colour theme: independent of light/dark, every theme has both. */}
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="pointer-coarse:min-h-10">
-                <ColorThemeSwatch theme={colorTheme} />
-                <span className="flex-1">Theme</span>
-                <span className="text-muted-foreground">{colorThemeLabel(colorTheme)}</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent collisionPadding={8} className="min-w-40">
-                <DropdownMenuRadioGroup
-                  value={colorTheme}
-                  onValueChange={(value) => isColorTheme(value) && setColorTheme(value)}
+            {isMobile && showingColorThemes ? (
+              <>
+                <DropdownMenuItem
+                  ref={focusOnMount}
+                  className="pointer-coarse:min-h-10"
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    returningFromColorThemes.current = true;
+                    setShowingColorThemes(false);
+                  }}
                 >
-                  {COLOR_THEMES.map(({ id, label }) => (
-                    <DropdownMenuRadioItem key={id} value={id} className="pointer-coarse:min-h-10">
-                      <ColorThemeSwatch theme={id} />
+                  <ChevronLeft />
+                  Theme
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {colorThemeOptions}
+              </>
+            ) : (
+              <>
+                <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+                  {themes.map(({ value, label, Icon }) => (
+                    <DropdownMenuRadioItem key={value} value={value} className="pointer-coarse:min-h-10">
+                      <Icon />
                       {label}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
-            {accountEntries.map(({ href, title, Icon }) => (
-              <DropdownMenuItem key={href} asChild className="pointer-coarse:min-h-10">
-                <Link href={href} onClick={() => isMobile && setOpenMobile(false)}>
-                  <Icon />
-                  {title}
-                </Link>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            {/* Confirmed, because there is no undo for it. */}
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={isLoggingOut}
-              className="pointer-coarse:min-h-10"
-              onSelect={() => {
-                openedDialog.current = true;
-                setConfirmingLogout(true);
-              }}
-            >
-              <LogOut />
-              Log out
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="font-normal text-muted-foreground">
-              Version{" "}
-              <span className="font-mono text-foreground/80">
-                {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
-              </span>
-            </DropdownMenuLabel>
+                {/* Colour theme: independent of light/dark, every theme has both. */}
+                {isMobile ? (
+                  <DropdownMenuItem
+                    ref={focusOnReturn}
+                    className="pointer-coarse:min-h-10"
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      setShowingColorThemes(true);
+                    }}
+                  >
+                    {colorThemeRow}
+                    <ChevronRight />
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="pointer-coarse:min-h-10">{colorThemeRow}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent collisionPadding={8} className="min-w-40">
+                      {colorThemeOptions}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                )}
+                <DropdownMenuSeparator />
+                {accountEntries.map(({ href, title, Icon }) => (
+                  <DropdownMenuItem key={href} asChild className="pointer-coarse:min-h-10">
+                    <Link href={href} onClick={() => isMobile && setOpenMobile(false)}>
+                      <Icon />
+                      {title}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                {/* Confirmed, because there is no undo for it. */}
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={isLoggingOut}
+                  className="pointer-coarse:min-h-10"
+                  onSelect={() => {
+                    openedDialog.current = true;
+                    setConfirmingLogout(true);
+                  }}
+                >
+                  <LogOut />
+                  Log out
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="font-normal text-muted-foreground">
+                  Version{" "}
+                  <span className="font-mono text-foreground/80">
+                    {process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
+                  </span>
+                </DropdownMenuLabel>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 
