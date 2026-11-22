@@ -2,10 +2,6 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- **The theme list fits on a phone.** On a phone, **Theme** in the Account menu opened its list beside the menu, and there is no room beside it: at 320px most of each name ran off the screen. On a phone, tapping **Theme** now swaps the menu for the list of themes, with **‹ Theme** at the top to go back. From tablet width up it still opens beside the menu. (`components/common/AccountMenu.tsx`)
-
 ## [1.29.0] - 2026-11-19
 
 ### Added
@@ -33,6 +29,7 @@
 - **The links editor is readable on a phone.** A social icon's name and address shared one line and showed about nine characters each; the address now takes a line of its own with its buttons. A section's title no longer shrinks to a few letters, and each link shows its full name with its clicks on a line underneath, instead of three letters squeezed beside them. (`components/links/editor/ProfileFields.tsx`, `components/links/editor/SectionEditor.tsx`, `components/links/editor/ItemEditor.tsx`)
 - **Dates show in full on the narrowest phones.** Below 360px wide, a date beside another field cut off its year in the editing job, affiliate partner, payout, post, campaign, ad usage renewal and invoice forms. Those pairs stack there now, as the payment and expense forms already did. An editing job's **Status** gets a row of its own at every size, where **Pending** and **Cancelled** used to run into each other. (`components/workspace/EditorTransactionFormFields.tsx`, `components/affiliates/PartnerFormFields.tsx`, `components/affiliates/PayoutFormFields.tsx`, `components/calendar/ContentFormFields.tsx`, `components/campaigns/CampaignFormFields.tsx`, `components/campaigns/RenewUsageSheet.tsx`, `components/invoice/InvoiceControls.tsx`)
 - **No stray scrollbar under the tabs.** The status tabs on **Campaigns** and the tabs on a brand's page drew a scrollbar, with up and down arrows on a computer, because the strip was a pixel taller than its box. They still scroll sideways when they don't fit, like the calendar's stage filter. (`components/campaigns/CampaignsTable.tsx`, `components/brands/BrandTabsSection.tsx`)
+- **The theme list fits on a phone.** On a phone, **Theme** in the Account menu opened its list beside the menu, and there is no room beside it: at 320px most of each name ran off the screen. On a phone, tapping **Theme** now swaps the menu for the list of themes, with **‹ Theme** at the top to go back. From tablet width up it still opens beside the menu. (`components/common/AccountMenu.tsx`)
 
 ## [1.28.1] - 2026-11-18
 
