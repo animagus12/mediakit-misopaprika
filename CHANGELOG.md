@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The theme list fits on a phone.** On a phone, **Theme** in the Account menu opened its list beside the menu, and there is no room beside it: at 320px most of each name ran off the screen. On a phone, tapping **Theme** now swaps the menu for the list of themes, with **‹ Theme** at the top to go back. From tablet width up it still opens beside the menu. (`components/common/AccountMenu.tsx`)
+
 ## [1.29.0] - 2026-11-19
 
 ### Added
